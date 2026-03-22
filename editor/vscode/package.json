@@ -1,25 +1,67 @@
 {
   "name": "orca",
-  "displayName": "orca",
+  "displayName": "Orca",
   "description": "Orca declarative AI agent language",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "publisher": "orca",
   "engines": {
-    "vscode": "^1.110.0"
+    "vscode": "^1.75.0"
   },
   "categories": [
     "Programming Languages"
   ],
+  "activationEvents": [
+    "onLanguage:orca"
+  ],
+  "main": "./out/extension.js",
   "contributes": {
-    "languages": [{
-      "id": "orca",
-      "aliases": ["Orca", "orca"],
-      "extensions": [".oc",".orca"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "orca",
-      "scopeName": "source.orca",
-      "path": "./syntaxes/orca.tmLanguage.json"
-    }]
+    "languages": [
+      {
+        "id": "orca",
+        "aliases": [
+          "Orca",
+          "orca"
+        ],
+        "extensions": [
+          ".oc"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "orca",
+        "scopeName": "source.orca",
+        "path": "./syntaxes/orca.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "orca.restartLsp",
+        "title": "Orca: Restart Language Server"
+      }
+    ],
+    "configuration": {
+      "title": "Orca",
+      "properties": {
+        "orca.lsp.path": {
+          "type": "string",
+          "default": "orca",
+          "description": "Path to the orca binary used for the language server."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.37",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "watch": "tsc -watch -p ."
   }
 }

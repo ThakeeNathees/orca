@@ -1,5 +1,9 @@
 
+model gpt4o {
+    model_name = "gpt-4o"
+    api_key = "sk-proj-1234567890"
+}
 
-agent {
-
+agent Researcher  {
+    model = gpt4o
 }
