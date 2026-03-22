@@ -165,6 +165,22 @@ type CallExpression struct {
 
 func (ce *CallExpression) expressionNode() {}
 
+// MapEntry represents a single key: value pair inside a map literal.
+type MapEntry struct {
+	Key   Expression
+	Value Expression
+}
+
+// MapLiteral represents a map of key-value pairs like {name: "alice", age: 30}.
+// Keys can be identifiers or strings. Values can be any expression.
+// BaseNode covers from '{' to '}'.
+type MapLiteral struct {
+	BaseNode
+	Entries []MapEntry
+}
+
+func (ml *MapLiteral) expressionNode() {}
+
 // ListLiteral represents a bracketed list of expressions like [web_search, gmail]
 // or ["read", "write"]. BaseNode covers from '[' to ']'.
 type ListLiteral struct {

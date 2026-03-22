@@ -317,6 +317,9 @@ func (p *Parser) parsePrimary() ast.Expression {
 	case token.LBRACKET:
 		return p.parseList()
 
+	case token.LBRACE:
+		return p.parseMap()
+
 	default:
 		p.addError(fmt.Sprintf("expected value, got %s", token.Describe(p.curToken.Type)))
 		return nil
@@ -461,4 +464,69 @@ func (p *Parser) parseList() ast.Expression {
 	p.nextToken()              // move past ]
 
 	return list
+}
+
+// parseMap parses a map literal: {key: value, key: value, ...}.
+// Keys can be identifiers or strings. Values can be any expression.
+func (p *Parser) parseMap() ast.Expression {
+	m := &ast.MapLiteral{}
+	m.TokenStart = p.curToken // the { token
+	p.nextToken()              // move past {
+
+	// Handle empty map {}.
+	if p.curToken.Type == token.RBRACE {
+		m.TokenEnd = p.curToken
+		p.nextToken()
+		return m
+	}
+
+	// Parse the first entry.
+	entry, ok := p.parseMapEntry()
+	if !ok {
+		return nil
+	}
+	m.Entries = append(m.Entries, entry)
+
+	// Parse remaining comma-separated entries.
+	for p.curToken.Type == token.COMMA {
+		p.nextToken() // move past ,
+		entry, ok := p.parseMapEntry()
+		if !ok {
+			return nil
+		}
+		m.Entries = append(m.Entries, entry)
+	}
+
+	// Expect closing brace.
+	if p.curToken.Type != token.RBRACE {
+		p.addError(fmt.Sprintf("expected '}' to close map, got %s",
+			token.Describe(p.curToken.Type)))
+		return nil
+	}
+	m.TokenEnd = p.curToken
+	p.nextToken() // move past }
+
+	return m
+}
+
+// parseMapEntry parses a single key: value pair inside a map literal.
+func (p *Parser) parseMapEntry() (ast.MapEntry, bool) {
+	key := p.parseExpression(token.PrecLowest)
+	if key == nil {
+		return ast.MapEntry{}, false
+	}
+
+	if p.curToken.Type != token.COLON {
+		p.addError(fmt.Sprintf("expected ':' after map key, got %s",
+			token.Describe(p.curToken.Type)))
+		return ast.MapEntry{}, false
+	}
+	p.nextToken() // consume :
+
+	value := p.parseExpression(token.PrecLowest)
+	if value == nil {
+		return ast.MapEntry{}, false
+	}
+
+	return ast.MapEntry{Key: key, Value: value}, true
 }

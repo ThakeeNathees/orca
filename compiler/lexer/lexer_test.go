@@ -58,7 +58,7 @@ func TestNextTokenEOF(t *testing.T) {
 }
 
 func TestNextTokenSingleChars(t *testing.T) {
-	input := "={}[],.() "
+	input := "={}[],.(): "
 
 	tests := []struct {
 		expectedType    token.TokenType
@@ -73,6 +73,7 @@ func TestNextTokenSingleChars(t *testing.T) {
 		{token.DOT, "."},
 		{token.LPAREN, "("},
 		{token.RPAREN, ")"},
+		{token.COLON, ":"},
 		{token.EOF, ""},
 	}
 

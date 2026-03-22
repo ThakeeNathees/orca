@@ -81,6 +81,9 @@ func (l *Lexer) NextToken() token.Token {
 	case ')':
 		tok.Type = token.RPAREN
 		tok.Literal = ")"
+	case ':':
+		tok.Type = token.COLON
+		tok.Literal = ":"
 	case ',':
 		tok.Type = token.COMMA
 		tok.Literal = ","

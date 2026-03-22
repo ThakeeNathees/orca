@@ -445,6 +445,15 @@ func exprString(expr ast.Expression) string {
 			args += exprString(a)
 		}
 		return fmt.Sprintf("%s(%s)", exprString(e.Callee), args)
+	case *ast.MapLiteral:
+		entries := ""
+		for i, entry := range e.Entries {
+			if i > 0 {
+				entries += ", "
+			}
+			entries += exprString(entry.Key) + ": " + exprString(entry.Value)
+		}
+		return fmt.Sprintf("{%s}", entries)
 	default:
 		return fmt.Sprintf("<%T>", expr)
 	}
@@ -704,6 +713,156 @@ func TestParseSubscriptionErrors(t *testing.T) {
 	}{
 		{"missing closing bracket", `model m { val = a[0 }`},
 		{"empty subscript", `model m { val = a[] }`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			p.ParseProgram()
+			if len(p.Errors()) == 0 {
+				t.Error("expected parser errors, got none")
+			}
+		})
+	}
+}
+
+// --- map literal ---
+
+func TestParseMapLiteral(t *testing.T) {
+	input := `model m { val = {name: "alice", age: 30} }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	ml, ok := block.Assignments[0].Value.(*ast.MapLiteral)
+	if !ok {
+		t.Fatalf("expected MapLiteral, got %T", block.Assignments[0].Value)
+	}
+	if len(ml.Entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(ml.Entries))
+	}
+
+	// First entry: name: "alice"
+	key0, ok := ml.Entries[0].Key.(*ast.Identifier)
+	if !ok {
+		t.Fatalf("expected Identifier key, got %T", ml.Entries[0].Key)
+	}
+	if key0.Value != "name" {
+		t.Errorf("expected key 'name', got %q", key0.Value)
+	}
+	val0, ok := ml.Entries[0].Value.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("expected StringLiteral value, got %T", ml.Entries[0].Value)
+	}
+	if val0.Value != "alice" {
+		t.Errorf("expected value 'alice', got %q", val0.Value)
+	}
+
+	// Second entry: age: 30
+	key1, ok := ml.Entries[1].Key.(*ast.Identifier)
+	if !ok {
+		t.Fatalf("expected Identifier key, got %T", ml.Entries[1].Key)
+	}
+	if key1.Value != "age" {
+		t.Errorf("expected key 'age', got %q", key1.Value)
+	}
+	val1, ok := ml.Entries[1].Value.(*ast.IntegerLiteral)
+	if !ok {
+		t.Fatalf("expected IntegerLiteral value, got %T", ml.Entries[1].Value)
+	}
+	if val1.Value != 30 {
+		t.Errorf("expected value 30, got %d", val1.Value)
+	}
+}
+
+func TestParseMapLiteralEmpty(t *testing.T) {
+	input := `model m { val = {} }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	ml, ok := block.Assignments[0].Value.(*ast.MapLiteral)
+	if !ok {
+		t.Fatalf("expected MapLiteral, got %T", block.Assignments[0].Value)
+	}
+	if len(ml.Entries) != 0 {
+		t.Errorf("expected 0 entries, got %d", len(ml.Entries))
+	}
+}
+
+func TestParseMapLiteralStringKeys(t *testing.T) {
+	input := `model m { val = {"key": "value"} }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	ml, ok := block.Assignments[0].Value.(*ast.MapLiteral)
+	if !ok {
+		t.Fatalf("expected MapLiteral, got %T", block.Assignments[0].Value)
+	}
+	if len(ml.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(ml.Entries))
+	}
+	key, ok := ml.Entries[0].Key.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("expected StringLiteral key, got %T", ml.Entries[0].Key)
+	}
+	if key.Value != "key" {
+		t.Errorf("expected key 'key', got %q", key.Value)
+	}
+}
+
+func TestParseMapLiteralExprString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "single entry",
+			input:    `model m { val = {a: 1} }`,
+			expected: "{a: 1}",
+		},
+		{
+			name:     "multiple entries",
+			input:    `model m { val = {a: 1, b: 2} }`,
+			expected: "{a: 1, b: 2}",
+		},
+		{
+			name:     "nested map",
+			input:    `model m { val = {a: {b: 1}} }`,
+			expected: "{a: {b: 1}}",
+		},
+		{
+			name:     "map with expression values",
+			input:    `model m { val = {a: x + 1} }`,
+			expected: "{a: (x + 1)}",
+		},
+		{
+			name:     "map in list",
+			input:    `model m { val = [{a: 1}] }`,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			got := exprString(block.Assignments[0].Value)
+			if tt.expected != "" && got != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestParseMapLiteralErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"missing colon", `model m { val = {a 1} }`},
+		{"missing value after colon", `model m { val = {a: } }`},
+		{"missing closing brace", `model m { val = {a: 1 }`},
 	}
 
 	for _, tt := range tests {

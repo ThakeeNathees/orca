@@ -27,6 +27,7 @@ const (
 	RBRACKET TokenType = "]"
 	LPAREN   TokenType = "("
 	RPAREN   TokenType = ")"
+	COLON    TokenType = ":"
 	PLUS     TokenType = "+"
 	MINUS    TokenType = "-"
 	STAR     TokenType = "*"
@@ -103,6 +104,8 @@ func Describe(t TokenType) string {
 		return "'('"
 	case RPAREN:
 		return "')'"
+	case COLON:
+		return "':'"
 	case PLUS:
 		return "'+'"
 	case MINUS:
