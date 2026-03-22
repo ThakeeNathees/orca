@@ -1,7 +1,7 @@
 package main
 
-import "fmt"
+import "github.com/thakee/orca/compiler/cmd"
 
 func main() {
-	fmt.Println("orca compiler")
+	cmd.Execute()
 }

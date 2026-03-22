@@ -78,7 +78,6 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **File layout**: Types and constants at the top of the file, functions at the bottom. Keep declarations before behavior.
 - **No Makefiles bloat**: Keep the Makefile minimal and standard.
 - **Git**: Commit directly on main. Small, atomic commits.
-- **Dependencies**: Prefer stdlib when straightforward; use third-party only when it provides significant value.
 
 ## Testing rules (enforced)
 
