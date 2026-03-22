@@ -11,17 +11,18 @@ Early stage — lexer is implemented, parser/AST/evaluator are stubs. Next miles
 ## Architecture
 
 ```
-.hv files → Lexer → Parser → AST → IR (JSON/YAML) → Backend codegen (Python)
+.oc files → token/lexer → ast/parser → analyzer → codegen (Python)
 ```
 
-The IR is backend-agnostic. Currently targeting **LangGraph** as the sole backend, but the IR layer is designed to support multiple backends in the future.
+Currently targeting **LangGraph** as the sole codegen backend.
 
 Packages:
-- `token/` — token types and definitions (includes line/column tracking)
+- `token/` — token types, precedence levels, and definitions (includes line/column tracking)
 - `lexer/` — tokenization of `.oc` source files
-- `parser/` — Pratt parser producing AST from tokens
 - `ast/` — AST node definitions
-- `evaluator/` — IR generation and Python codegen
+- `parser/` — Pratt parser producing AST from tokens
+- `analyzer/` — semantic analysis (reference resolution, type checking, validation)
+- `codegen/` — Python/LangGraph code generation from analyzed AST
 
 ## Block types
 
