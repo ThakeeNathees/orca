@@ -1,62 +1,126 @@
 // Schema definitions for all block types.
-// Each field is a map with type, required, and optional desc keys.
+// Each field is a map with type, optional required (omit for optional fields), and optional desc keys.
 // Union types use the pipe operator: str | model
 
 schema model {
-  provider    = {type: str, required: true, desc: "The LLM provider to use (e.g. openai, anthropic)."}
-  model_name  = {
+  provider = {
+    type: str,
+    required: true,
+    desc: "The LLM provider to use (e.g. openai, anthropic).",
+  }
+  model_name = {
     type: str | model,
-    required: false,
-    desc: "
-      The model to use. Can be a reference to a model block
-      or a string like \"gpt-4o\" or \"openai/gpt-4o\".
-      "
+    desc: "The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash).",
   }
   temperature = {
     type: float,
-    required: false,
     desc: "
       Sampling temperature between 0 and 1. \
       Controls the creativity and randomness of generated text. \
       Lower values like 0.1 make responses more focused and deterministic, \
       while higher values up to 1.0 yield more random and diverse outputs. \
       For most use cases, values between 0.2 and 0.7 are recommended.
-      "
+      ",
   }
 }
 
 schema agent {
-  model  = {type: str | model, required: true, desc: "The model to use for this agent."}
-  tools  = {type: list, required: false}
-  prompt = {type: str, required: true, desc: "The system prompt for the agent."}
+  model = {
+    type: str | model,
+    required: true,
+    desc: "
+      The model to use. Can be a reference to a model block
+      or a string like \"gpt-4o\" or \"openai/gpt-4o\".
+      ",
+  }
+  tools = {
+    type: list[tool],
+    desc: "The tools to use for this agent. (e.g. [web_search, gmail]).",
+  }
+  prompt = {
+    type: str,
+    required: true,
+    desc: "The system prompt for the agent.",
+  }
 }
 
 schema tool {
-  type        = {type: str, required: true, desc: "The tool type (e.g. gmail, slack, web_search)."}
-  base_url    = {type: str, required: false, desc: "Base URL for API-based tools."}
-  auth        = {type: str, required: false, desc: "Authentication method or credentials reference."}
-  scopes      = {type: list, required: false, desc: "OAuth scopes or permission scopes."}
-  source      = {type: str, required: false, desc: "Source path or URL for the tool implementation."}
-  description = {type: str, required: false, desc: "Human-readable description of the tool."}
+  type = {
+    type: str,
+    required: true,
+    desc: "The tool type (e.g. gmail, slack, web_search).",
+  }
+  base_url = {
+    type: str,
+    desc: "Base URL for API-based tools.",
+  }
+  auth = {
+    type: str,
+    desc: "Authentication method or credentials reference.",
+  }
+  scopes = {
+    type: list,
+    desc: "OAuth scopes or permission scopes.",
+  }
+  source = {
+    type: str,
+    desc: "Source path or URL for the tool implementation.",
+  }
+  description = {
+    type: str,
+    desc: "Human-readable description of the tool.",
+  }
 }
 
 schema task {
-  agent  = {type: agent, required: true, desc: "The agent assigned to this task."}
-  prompt = {type: str, required: true, desc: "The task prompt or instructions."}
+  agent = {
+    type: agent,
+    required: true,
+    desc: "The agent assigned to this task.",
+  }
+  prompt = {
+    type: str,
+    required: true,
+    desc: "The task prompt or instructions.",
+  }
 }
 
 schema knowledge {
-  source = {type: str, required: true, desc: "Path or URL to the knowledge source."}
-  type   = {type: str, required: false, desc: "The type of knowledge source (e.g. pdf, csv, url)."}
+  source = {
+    type: str,
+    required: true,
+    desc: "Path or URL to the knowledge source.",
+  }
+  type = {
+    type: str,
+    desc: "The type of knowledge source (e.g. pdf, csv, url).",
+  }
 }
 
 schema workflow {
-  flow     = {type: any, required: true, desc: "The workflow execution graph definition."}
-  on_error = {type: any, required: false, desc: "Error handling strategy for the workflow."}
+  flow = {
+    type: any,
+    required: true,
+    desc: "The workflow execution graph definition.",
+  }
+  on_error = {
+    type: any,
+    desc: "Error handling strategy for the workflow.",
+  }
 }
 
 schema trigger {
-  type     = {type: str, required: true, desc: "The trigger type (cron, webhook, event)."}
-  schedule = {type: str, required: false, desc: "Cron expression for scheduled triggers."}
-  workflow = {type: workflow, required: false, desc: "The workflow to execute when triggered."}
+  type = {
+    type: str,
+    required: true,
+    desc: "The trigger type (cron, webhook, event).",
+  }
+  schedule = {
+    type: str,
+    desc: "Cron expression for scheduled triggers.",
+  }
+  workflow = {
+    type: workflow,
+    desc: "The workflow to execute when triggered.",
+  }
 }

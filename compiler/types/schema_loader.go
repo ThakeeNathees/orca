@@ -109,6 +109,25 @@ func resolveType(expr ast.Expression) (Type, error) {
 	case *ast.Identifier:
 		return resolveIdentType(e.Value)
 
+	case *ast.Subscription:
+		// Parameterized type like list[tool] or map[str].
+		baseIdent, ok := e.Object.(*ast.Identifier)
+		if !ok {
+			return Type{}, fmt.Errorf("expected identifier for parameterized type, got %T", e.Object)
+		}
+		elemType, err := resolveType(e.Index)
+		if err != nil {
+			return Type{}, fmt.Errorf("%s[...]: %w", baseIdent.Value, err)
+		}
+		switch baseIdent.Value {
+		case "list":
+			return NewListType(elemType), nil
+		case "map":
+			return NewMapType(StringType, elemType), nil
+		default:
+			return Type{}, fmt.Errorf("parameterized type not supported for %q", baseIdent.Value)
+		}
+
 	case *ast.BinaryExpression:
 		if e.Operator.Type != token.PIPE {
 			return Type{}, fmt.Errorf("unexpected operator %q in type expression", e.Operator.Literal)

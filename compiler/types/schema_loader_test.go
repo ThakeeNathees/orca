@@ -108,6 +108,32 @@ func TestLoadSchemasUnionMembers(t *testing.T) {
 	}
 }
 
+// TestLoadSchemasParameterizedList verifies that list[tool] resolves to
+// a List type with a BlockRef(tool) element type.
+func TestLoadSchemasParameterizedList(t *testing.T) {
+	schemas, err := loadSchemas()
+	if err != nil {
+		t.Fatalf("loadSchemas() error: %v", err)
+	}
+
+	field, ok := schemas["agent"].Fields["tools"]
+	if !ok {
+		t.Fatalf("field agent.tools not found")
+	}
+	if field.Type.Kind != List {
+		t.Fatalf("expected List, got %v", field.Type.Kind)
+	}
+	if field.Type.ElementType == nil {
+		t.Fatalf("expected ElementType to be set")
+	}
+	if field.Type.ElementType.Kind != BlockRef {
+		t.Errorf("ElementType.Kind = %v, want BlockRef", field.Type.ElementType.Kind)
+	}
+	if field.Type.ElementType.BlockType != BlockTool {
+		t.Errorf("ElementType.BlockType = %v, want %v", field.Type.ElementType.BlockType, BlockTool)
+	}
+}
+
 // TestLoadSchemasFieldDescription verifies that the optional desc property
 // is correctly loaded from schema definitions.
 func TestLoadSchemasFieldDescription(t *testing.T) {
@@ -117,17 +143,17 @@ func TestLoadSchemasFieldDescription(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		blockType   string
-		fieldName   string
-		hasDesc     bool
+		name         string
+		blockType    string
+		fieldName    string
+		hasDesc      bool
 		expectedDesc string
 	}{
 		{"model.provider has desc", "model", "provider", true, "The LLM provider to use (e.g. openai, anthropic)."},
-		{"model.model_name multiline desc", "model", "model_name", true, "The model to use. Can be a reference to a model block\nor a string like \"gpt-4o\" or \"openai/gpt-4o\"."},
+		{"model.model_name desc", "model", "model_name", true, "The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash)."},
 		{"model.temperature has desc", "model", "temperature", true, "Sampling temperature between 0 and 1. Controls the creativity and randomness of generated text. Lower values like 0.1 make responses more focused and deterministic, while higher values up to 1.0 yield more random and diverse outputs. For most use cases, values between 0.2 and 0.7 are recommended."},
 		{"agent.prompt has desc", "agent", "prompt", true, "The system prompt for the agent."},
-		{"agent.tools no desc", "agent", "tools", false, ""},
+		{"agent.tools has desc", "agent", "tools", true, "The tools to use for this agent. (e.g. [web_search, gmail])."},
 	}
 
 	for _, tt := range tests {
