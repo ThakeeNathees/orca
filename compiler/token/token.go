@@ -33,6 +33,7 @@ const (
 	STAR     TokenType = "*"
 	SLASH    TokenType = "/"
 	ARROW    TokenType = "->"
+	PIPE     TokenType = "|"
 
 	// Boolean literals
 	TRUE  TokenType = "TRUE"
@@ -46,6 +47,7 @@ const (
 	TRIGGER   TokenType = "TRIGGER"
 	WORKFLOW  TokenType = "WORKFLOW"
 	TOOL      TokenType = "TOOL"
+	SCHEMA    TokenType = "SCHEMA"
 
 	// Type annotation keywords — used in type = <annotation> assignments.
 	TYPE_STR   TokenType = "TYPE_STR"
@@ -61,6 +63,7 @@ const (
 const (
 	PrecLowest  int = iota
 	PrecArrow       // ->
+	PrecPipe        // |
 	PrecSum         // + -
 	PrecProduct     // * /
 	PrecAccess      // .
@@ -125,6 +128,8 @@ func Describe(t TokenType) string {
 		return "'/'"
 	case ARROW:
 		return "'->'"
+	case PIPE:
+		return "'|'"
 	case TYPE_STR:
 		return "type 'str'"
 	case TYPE_INT:
@@ -160,6 +165,7 @@ var keywords = map[string]TokenType{
 	"trigger":   TRIGGER,
 	"workflow":  WORKFLOW,
 	"tool":      TOOL,
+	"schema":    SCHEMA,
 	"str":       TYPE_STR,
 	"int":       TYPE_INT,
 	"float":     TYPE_FLOAT,
@@ -182,7 +188,7 @@ func LookupIdent(ident string) TokenType {
 // (model, agent, tool, task, knowledge, trigger, workflow).
 func IsBlockKeyword(t TokenType) bool {
 	switch t {
-	case MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL:
+	case MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL, SCHEMA:
 		return true
 	}
 	return false
@@ -214,6 +220,8 @@ func Precedence(t TokenType) int {
 	switch t {
 	case ARROW:
 		return PrecArrow
+	case PIPE:
+		return PrecPipe
 	case PLUS, MINUS:
 		return PrecSum
 	case STAR, SLASH:

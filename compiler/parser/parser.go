@@ -120,7 +120,7 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	blockType := p.curToken.Literal // e.g., "model", "agent"
 
 	// Expect the block's name identifier (e.g., "gpt4" in "model gpt4 {").
-	if p.peekToken.Type != token.IDENT {
+	if !token.IsIdentLike(p.peekToken.Type) {
 		p.addErrorAt(p.peekToken, fmt.Sprintf("expected name after '%s', got %s",
 			blockType, token.Describe(p.peekToken.Type)))
 		p.nextToken()
@@ -310,6 +310,16 @@ func (p *Parser) parsePrimary() ast.Expression {
 		return expr
 
 	case token.IDENT:
+		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
+		p.nextToken()
+		return expr
+
+	case token.TYPE_STR, token.TYPE_INT, token.TYPE_FLOAT, token.TYPE_BOOL,
+		token.TYPE_LIST, token.TYPE_MAP, token.TYPE_ANY,
+		token.MODEL, token.AGENT, token.TASK, token.KNOWLEDGE,
+		token.TRIGGER, token.WORKFLOW, token.TOOL, token.SCHEMA:
+		// Type annotations and block keywords are valid as identifiers
+		// in expression position (e.g., type: str, model = gpt4).
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr

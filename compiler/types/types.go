@@ -60,6 +60,7 @@ const (
 	BlockKnowledge BlockKind = "knowledge"
 	BlockWorkflow  BlockKind = "workflow"
 	BlockTrigger   BlockKind = "trigger"
+	BlockSchemaKind BlockKind = "schema"
 )
 
 // Type represents a concrete type in the Orca type system.

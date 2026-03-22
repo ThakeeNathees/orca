@@ -13,7 +13,7 @@
       "name": "comment.line.double-slash.orca"
     },
     "block-definition": {
-      "match": "\\b(model|agent|tool|task|knowledge|workflow|trigger)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+      "match": "\\b(model|agent|tool|task|knowledge|workflow|trigger|schema)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
       "captures": {
         "1": { "name": "keyword.other.block-type.orca" },
         "2": { "name": "entity.name.type.orca" }
@@ -26,8 +26,10 @@
         { "include": "#number" },
         { "include": "#boolean" },
         { "include": "#arrow-operator" },
+        { "include": "#pipe-operator" },
         { "include": "#operator" },
         { "include": "#delimiter" },
+        { "include": "#type-annotation" },
         { "include": "#keyword" },
         { "include": "#identifier" }
       ]
@@ -55,6 +57,10 @@
       "match": "->",
       "name": "keyword.operator.arrow.orca"
     },
+    "pipe-operator": {
+      "match": "\\|",
+      "name": "keyword.operator.pipe.orca"
+    },
     "operator": {
       "match": "[=+\\-*/.]",
       "name": "keyword.operator.orca"
@@ -63,8 +69,12 @@
       "match": "[{}\\[\\],]",
       "name": "punctuation.orca"
     },
+    "type-annotation": {
+      "match": "\\b(str|int|float|bool|list|map|any)\\b",
+      "name": "support.type.orca"
+    },
     "keyword": {
-      "match": "\\b(model|agent|tool|task|knowledge|workflow|trigger)\\b",
+      "match": "\\b(model|agent|tool|task|knowledge|workflow|trigger|schema)\\b",
       "name": "keyword.other.block-type.orca"
     },
     "identifier": {

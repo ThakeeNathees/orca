@@ -17,59 +17,10 @@ type BlockSchema struct {
 }
 
 // blockSchemas maps block type names to their field schemas.
+// Populated at init time by loading the embedded block_schemas.oc file.
 // Used by the analyzer to validate that assignments within blocks
 // have the correct types and that required fields are present.
-var blockSchemas = map[string]BlockSchema{
-	"model": {
-		Fields: map[string]FieldSchema{
-			"provider":    {Type: StringType, Required: true},
-			"model_name":  {Type: NewUnionType(StringType, NewBlockRefType(BlockModel)), Required: false},
-			"temperature": {Type: FloatType, Required: false},
-		},
-	},
-	"agent": {
-		Fields: map[string]FieldSchema{
-			"model":  {Type: NewUnionType(StringType, NewBlockRefType(BlockModel)), Required: true},
-			"tools":  {Type: NewListType(NewBlockRefType(BlockTool)), Required: false},
-			"prompt": {Type: StringType, Required: true},
-		},
-	},
-	"tool": {
-		Fields: map[string]FieldSchema{
-			"type":        {Type: StringType, Required: true},
-			"base_url":    {Type: StringType, Required: false},
-			"auth":        {Type: StringType, Required: false},
-			"scopes":      {Type: NewListType(StringType), Required: false},
-			"source":      {Type: StringType, Required: false},
-			"description": {Type: StringType, Required: false},
-		},
-	},
-	"task": {
-		Fields: map[string]FieldSchema{
-			"agent":  {Type: NewBlockRefType(BlockAgent), Required: true},
-			"prompt": {Type: StringType, Required: true},
-		},
-	},
-	"knowledge": {
-		Fields: map[string]FieldSchema{
-			"source": {Type: StringType, Required: true},
-			"type":   {Type: StringType, Required: false},
-		},
-	},
-	"workflow": {
-		Fields: map[string]FieldSchema{
-			"flow":     {Type: AnyType, Required: true},
-			"on_error": {Type: AnyType, Required: false},
-		},
-	},
-	"trigger": {
-		Fields: map[string]FieldSchema{
-			"type":     {Type: StringType, Required: true},
-			"schedule": {Type: StringType, Required: false},
-			"workflow": {Type: NewBlockRefType(BlockWorkflow), Required: false},
-		},
-	},
-}
+var blockSchemas map[string]BlockSchema
 
 // GetBlockSchema returns the schema for the given block type name.
 // Returns the schema and true if found, or an empty schema and false

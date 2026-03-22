@@ -100,6 +100,9 @@ func (l *Lexer) NextToken() token.Token {
 			tok.Type = token.MINUS
 			tok.Literal = "-"
 		}
+	case '|':
+		tok.Type = token.PIPE
+		tok.Literal = "|"
 	case '*':
 		tok.Type = token.STAR
 		tok.Literal = "*"
