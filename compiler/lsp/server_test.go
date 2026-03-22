@@ -9,9 +9,14 @@ import (
 	"github.com/thakee/orca/compiler/diagnostic"
 )
 
-// diagnoseText is a test helper that wraps text in a documentState.
+// diagnoseText is a test helper that parses text and returns LSP diagnostics.
 func diagnoseText(text string) []protocol.Diagnostic {
-	return Diagnose(&documentState{Text: text})
+	doc := updateDocument("test://diag.oc", text)
+	lspDiags := make([]protocol.Diagnostic, 0, len(doc.Diagnostics))
+	for _, d := range doc.Diagnostics {
+		lspDiags = append(lspDiags, toLspDiagnostic(d))
+	}
+	return lspDiags
 }
 
 func TestDiagnoseValidSource(t *testing.T) {

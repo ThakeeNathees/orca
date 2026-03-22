@@ -5,9 +5,8 @@
 package cursor
 
 import (
-	"strings"
-
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
 )
 
@@ -50,7 +49,7 @@ func Resolve(program *ast.Program, line, col int) Context {
 			continue
 		}
 
-		blockType := strings.ToLower(string(block.TokenStart.Type))
+		blockType := token.BlockName(block.TokenStart.Type)
 		ctx := Context{
 			Position:  BlockBody,
 			Block:     block,

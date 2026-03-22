@@ -3,6 +3,8 @@
 // and source position (line/column) for error reporting and source mapping.
 package token
 
+import "strings"
+
 // TokenType identifies what kind of token this is (keyword, literal, operator, etc.).
 type TokenType string
 
@@ -192,6 +194,16 @@ func IsBlockKeyword(t TokenType) bool {
 		return true
 	}
 	return false
+}
+
+// BlockName returns the lowercase block type name for a block keyword token
+// (e.g. MODEL → "model"). Used for schema lookups. Returns empty string
+// for non-block tokens.
+func BlockName(t TokenType) string {
+	if IsBlockKeyword(t) {
+		return strings.ToLower(string(t))
+	}
+	return ""
 }
 
 // IsTypeAnnotation returns true if the token type is a type annotation

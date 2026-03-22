@@ -23,10 +23,12 @@ const serverName = "orca-lsp"
 // handler is the LSP protocol handler with all method implementations.
 var handler protocol.Handler
 
-// documentState holds the current text and last successful AST for an open file.
+// documentState holds the current text, parsed AST, and diagnostics for an open file.
+// The parser produces a partial AST via error recovery, so Program is always set.
 type documentState struct {
-	Text    string
-	Program *ast.Program // nil if last parse had errors
+	Text        string
+	Program     *ast.Program
+	Diagnostics []diagnostic.Diagnostic // parse + analyzer diagnostics
 }
 
 // documents tracks open file state by URI.
@@ -240,52 +242,35 @@ func typeString(t types.Type) string {
 	}
 }
 
-// updateDocument parses the text and stores the document state.
-// Always stores the AST, even when it has errors — the parser produces
-// a partial AST via error recovery so LSP features still work mid-edit.
+// updateDocument parses the text, runs analysis, and stores everything.
+// Called on every open/change — parses once and caches the results.
 func updateDocument(uri, text string) *documentState {
 	l := lexer.New(text)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
-	doc := &documentState{Text: text, Program: program}
+	diags := p.Diagnostics()
+	if !program.HasErrors {
+		diags = append(diags, analyzer.Analyze(program)...)
+	}
+
+	doc := &documentState{Text: text, Program: program, Diagnostics: diags}
 	documents[uri] = doc
 	return doc
 }
 
-// publishDiagnostics sends parse and analyzer diagnostics to the client.
+// publishDiagnostics sends cached diagnostics to the client.
 func publishDiagnostics(ctx *glsp.Context, uri string, doc *documentState) {
-	diagnostics := Diagnose(doc)
-	ctx.Notify(protocol.ServerTextDocumentPublishDiagnostics, protocol.PublishDiagnosticsParams{
-		URI:         uri,
-		Diagnostics: diagnostics,
-	})
-}
-
-// Diagnose returns LSP diagnostics for a document. Runs the parser and,
-// if parsing succeeds, the analyzer.
-// Exported so it can be tested independently of the LSP transport.
-func Diagnose(doc *documentState) []protocol.Diagnostic {
-	l := lexer.New(doc.Text)
-	p := parser.New(l)
-	program := p.ParseProgram()
-
 	// Must be an empty slice (not nil) so it marshals to [] in JSON.
 	// LSP clients treat null as "no change" but [] as "clear all".
-	result := []protocol.Diagnostic{}
-
-	for _, d := range p.Diagnostics() {
-		result = append(result, toLspDiagnostic(d))
+	lspDiags := make([]protocol.Diagnostic, 0, len(doc.Diagnostics))
+	for _, d := range doc.Diagnostics {
+		lspDiags = append(lspDiags, toLspDiagnostic(d))
 	}
-
-	// Run semantic analysis only if parsing succeeded without errors.
-	if !program.HasErrors {
-		for _, d := range analyzer.Analyze(program) {
-			result = append(result, toLspDiagnostic(d))
-		}
-	}
-
-	return result
+	ctx.Notify(protocol.ServerTextDocumentPublishDiagnostics, protocol.PublishDiagnosticsParams{
+		URI:         uri,
+		Diagnostics: lspDiags,
+	})
 }
 
 // toLspDiagnostic converts a compiler diagnostic to an LSP protocol diagnostic.

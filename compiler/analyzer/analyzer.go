@@ -6,10 +6,10 @@ package analyzer
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
+	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
 )
 
@@ -33,8 +33,7 @@ func Analyze(program *ast.Program) []diagnostic.Diagnostic {
 // Looks up the block's schema and validates each field, then checks for
 // missing required fields.
 func analyzeBlock(block *ast.BlockStatement) []diagnostic.Diagnostic {
-	// TokenType is an uppercase string (e.g. "MODEL"); schema keys are lowercase.
-	typeName := strings.ToLower(string(block.TokenStart.Type))
+	typeName := token.BlockName(block.TokenStart.Type)
 	schema, ok := types.GetBlockSchema(typeName)
 	if !ok {
 		return nil

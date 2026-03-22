@@ -91,8 +91,9 @@ func (p *Parser) ParseProgram() *ast.Program {
 		stmt := p.parseStatement()
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
+			continue
 		}
-		// Safety: if parsing didn't advance, skip a token to prevent infinite loops.
+		// If error recovery didn't advance, skip a token to prevent infinite loops.
 		if p.curToken.Line == beforeLine && p.curToken.Column == beforeCol {
 			p.nextToken()
 		}
