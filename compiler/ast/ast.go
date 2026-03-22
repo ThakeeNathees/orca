@@ -143,6 +143,17 @@ type MemberAccess struct {
 
 func (ma *MemberAccess) expressionNode() {}
 
+// Subscription represents an index access expression: object[index].
+// For example, `tools[0]` or `matrix[i + 1]`.
+// BaseNode spans from the object's start to the closing bracket.
+type Subscription struct {
+	BaseNode
+	Object Expression // the left-hand side expression
+	Index  Expression // the expression inside the brackets
+}
+
+func (s *Subscription) expressionNode() {}
+
 // ListLiteral represents a bracketed list of expressions like [web_search, gmail]
 // or ["read", "write"]. BaseNode covers from '[' to ']'.
 type ListLiteral struct {

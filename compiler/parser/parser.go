@@ -231,6 +231,14 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 			continue
 		}
 
+		if p.curToken.Type == token.LBRACKET {
+			left = p.parseSubscription(left)
+			if left == nil {
+				return nil
+			}
+			continue
+		}
+
 		op := p.curToken
 		prec := token.Precedence(op.Type)
 		p.nextToken() // consume the operator
@@ -328,6 +336,34 @@ func (p *Parser) parseMemberAccess(object ast.Expression) *ast.MemberAccess {
 	}
 	p.nextToken() // consume the member identifier
 	return ma
+}
+
+// parseSubscription parses an index access: object[index].
+// The '[' token must be the current token. The index is any expression.
+func (p *Parser) parseSubscription(object ast.Expression) *ast.Subscription {
+	p.nextToken() // consume the [
+
+	index := p.parseExpression(token.PrecLowest)
+	if index == nil {
+		return nil
+	}
+
+	if p.curToken.Type != token.RBRACKET {
+		p.addError(fmt.Sprintf("expected ']' to close subscript, got %s",
+			token.Describe(p.curToken.Type)))
+		return nil
+	}
+
+	sub := &ast.Subscription{
+		BaseNode: ast.BaseNode{
+			TokenStart: object.Start(),
+			TokenEnd:   p.curToken,
+		},
+		Object: object,
+		Index:  index,
+	}
+	p.nextToken() // consume the ]
+	return sub
 }
 
 // parseList parses a bracketed list expression: [elem, elem, ...].

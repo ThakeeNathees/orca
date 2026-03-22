@@ -2,8 +2,6 @@
 
 ## Next up
 
-1. **Better error messages** — add context to parser errors ("in model block", show the offending line). Makes LSP diagnostics actually useful.
-
 2. **Analyzer** — resolve references (does `model = gpt4` point to a defined block?), report undefined references, duplicate block names.
 
 3. **LSP features** — go-to-definition, hover, completion. Depends on analyzer.

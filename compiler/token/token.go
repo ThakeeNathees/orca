@@ -168,7 +168,7 @@ func Precedence(t TokenType) int {
 		return PrecSum
 	case STAR, SLASH:
 		return PrecProduct
-	case DOT:
+	case DOT, LBRACKET:
 		return PrecAccess
 	default:
 		return PrecLowest

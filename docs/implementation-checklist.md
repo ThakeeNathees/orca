@@ -26,9 +26,8 @@ Tracks what's implemented across the compiler pipeline.
 | List literal     | [x]   | [x]    | ListLiteral    | [ ]          | [x]   |
 | Map literal      | [ ]   | [ ]    | MapLiteral     | [ ]          | [ ]   |
 | Member access    | [x]   | [x]    | MemberAccess   | [ ]          | [x]   |
-| Subscription     | [ ]   | [ ]    | Subscription   | [ ]          | [ ]   |
+| Subscription     | [x]   | [x]    | Subscription   | [ ]          | [x]   |
 | Call expression  | [ ]   | [ ]    | CallExpression | [ ]          | [ ]   |
-| Heredoc string   | [ ]   | [ ]    | —              | [ ]          | [ ]   |
 
 ## Workflow-specific syntax
 

@@ -434,6 +434,8 @@ func exprString(expr ast.Expression) string {
 		return fmt.Sprintf("(%s %s %s)", exprString(e.Left), e.Operator.Literal, exprString(e.Right))
 	case *ast.MemberAccess:
 		return fmt.Sprintf("(%s.%s)", exprString(e.Object), e.Member)
+	case *ast.Subscription:
+		return fmt.Sprintf("(%s[%s])", exprString(e.Object), exprString(e.Index))
 	default:
 		return fmt.Sprintf("<%T>", expr)
 	}
@@ -599,6 +601,111 @@ func TestParseMemberAccessErrorMissingMember(t *testing.T) {
 	p.ParseProgram()
 	if len(p.Errors()) == 0 {
 		t.Error("expected error for missing member after dot")
+	}
+}
+
+// --- subscription ---
+
+func TestParseSubscription(t *testing.T) {
+	input := `model m { val = a[0] }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	sub, ok := block.Assignments[0].Value.(*ast.Subscription)
+	if !ok {
+		t.Fatalf("expected Subscription, got %T", block.Assignments[0].Value)
+	}
+	ident, ok := sub.Object.(*ast.Identifier)
+	if !ok {
+		t.Fatalf("expected Identifier as object, got %T", sub.Object)
+	}
+	if ident.Value != "a" {
+		t.Errorf("expected object 'a', got %q", ident.Value)
+	}
+	idx, ok := sub.Index.(*ast.IntegerLiteral)
+	if !ok {
+		t.Fatalf("expected IntegerLiteral as index, got %T", sub.Index)
+	}
+	if idx.Value != 0 {
+		t.Errorf("expected index 0, got %d", idx.Value)
+	}
+}
+
+func TestParseSubscriptionWithExpression(t *testing.T) {
+	input := `model m { val = a[b + 1] }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	got := exprString(block.Assignments[0].Value)
+	expected := "(a[(b + 1)])"
+	if got != expected {
+		t.Errorf("expected %s, got %s", expected, got)
+	}
+}
+
+func TestParseSubscriptionPrecedence(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "subscription binds tighter than addition",
+			input:    `model m { val = a[0] + b }`,
+			expected: "((a[0]) + b)",
+		},
+		{
+			name:     "subscription binds tighter than arrow",
+			input:    `model m { val = a[0] -> b[1] }`,
+			expected: "((a[0]) -> (b[1]))",
+		},
+		{
+			name:     "chained subscription",
+			input:    `model m { val = a[0][1] }`,
+			expected: "((a[0])[1])",
+		},
+		{
+			name:     "member access then subscription",
+			input:    `model m { val = a.b[0] }`,
+			expected: "((a.b)[0])",
+		},
+		{
+			name:     "subscription then member access",
+			input:    `model m { val = a[0].b }`,
+			expected: "((a[0]).b)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			got := exprString(block.Assignments[0].Value)
+			if got != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestParseSubscriptionErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"missing closing bracket", `model m { val = a[0 }`},
+		{"empty subscript", `model m { val = a[] }`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			p.ParseProgram()
+			if len(p.Errors()) == 0 {
+				t.Error("expected parser errors, got none")
+			}
+		})
 	}
 }
 
