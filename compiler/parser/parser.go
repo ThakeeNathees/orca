@@ -239,6 +239,14 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 			continue
 		}
 
+		if p.curToken.Type == token.LPAREN {
+			left = p.parseCallExpression(left)
+			if left == nil {
+				return nil
+			}
+			continue
+		}
+
 		op := p.curToken
 		prec := token.Precedence(op.Type)
 		p.nextToken() // consume the operator
@@ -364,6 +372,51 @@ func (p *Parser) parseSubscription(object ast.Expression) *ast.Subscription {
 	}
 	p.nextToken() // consume the ]
 	return sub
+}
+
+// parseCallExpression parses a function call: callee(arg1, arg2, ...).
+// The '(' token must be the current token. Arguments are comma-separated expressions.
+func (p *Parser) parseCallExpression(callee ast.Expression) *ast.CallExpression {
+	call := &ast.CallExpression{
+		Callee: callee,
+	}
+	call.TokenStart = callee.Start()
+	p.nextToken() // consume the (
+
+	// Handle empty argument list.
+	if p.curToken.Type == token.RPAREN {
+		call.TokenEnd = p.curToken
+		p.nextToken() // consume )
+		return call
+	}
+
+	// Parse the first argument.
+	arg := p.parseExpression(token.PrecLowest)
+	if arg == nil {
+		return nil
+	}
+	call.Arguments = append(call.Arguments, arg)
+
+	// Parse remaining comma-separated arguments.
+	for p.curToken.Type == token.COMMA {
+		p.nextToken() // move past ,
+		arg := p.parseExpression(token.PrecLowest)
+		if arg == nil {
+			return nil
+		}
+		call.Arguments = append(call.Arguments, arg)
+	}
+
+	// Expect closing parenthesis.
+	if p.curToken.Type != token.RPAREN {
+		p.addError(fmt.Sprintf("expected ')' to close function call, got %s",
+			token.Describe(p.curToken.Type)))
+		return nil
+	}
+	call.TokenEnd = p.curToken
+	p.nextToken() // consume )
+
+	return call
 }
 
 // parseList parses a bracketed list expression: [elem, elem, ...].

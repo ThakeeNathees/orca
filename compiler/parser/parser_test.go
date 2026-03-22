@@ -436,6 +436,15 @@ func exprString(expr ast.Expression) string {
 		return fmt.Sprintf("(%s.%s)", exprString(e.Object), e.Member)
 	case *ast.Subscription:
 		return fmt.Sprintf("(%s[%s])", exprString(e.Object), exprString(e.Index))
+	case *ast.CallExpression:
+		args := ""
+		for i, a := range e.Arguments {
+			if i > 0 {
+				args += ", "
+			}
+			args += exprString(a)
+		}
+		return fmt.Sprintf("%s(%s)", exprString(e.Callee), args)
 	default:
 		return fmt.Sprintf("<%T>", expr)
 	}
@@ -695,6 +704,140 @@ func TestParseSubscriptionErrors(t *testing.T) {
 	}{
 		{"missing closing bracket", `model m { val = a[0 }`},
 		{"empty subscript", `model m { val = a[] }`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			p.ParseProgram()
+			if len(p.Errors()) == 0 {
+				t.Error("expected parser errors, got none")
+			}
+		})
+	}
+}
+
+// --- call expression ---
+
+func TestParseCallExpression(t *testing.T) {
+	input := `model m { val = retry(3) }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	call, ok := block.Assignments[0].Value.(*ast.CallExpression)
+	if !ok {
+		t.Fatalf("expected CallExpression, got %T", block.Assignments[0].Value)
+	}
+	callee, ok := call.Callee.(*ast.Identifier)
+	if !ok {
+		t.Fatalf("expected Identifier as callee, got %T", call.Callee)
+	}
+	if callee.Value != "retry" {
+		t.Errorf("expected callee 'retry', got %q", callee.Value)
+	}
+	if len(call.Arguments) != 1 {
+		t.Fatalf("expected 1 argument, got %d", len(call.Arguments))
+	}
+	arg, ok := call.Arguments[0].(*ast.IntegerLiteral)
+	if !ok {
+		t.Fatalf("expected IntegerLiteral as argument, got %T", call.Arguments[0])
+	}
+	if arg.Value != 3 {
+		t.Errorf("expected argument 3, got %d", arg.Value)
+	}
+}
+
+func TestParseCallExpressionNoArgs(t *testing.T) {
+	input := `model m { val = reset() }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	call, ok := block.Assignments[0].Value.(*ast.CallExpression)
+	if !ok {
+		t.Fatalf("expected CallExpression, got %T", block.Assignments[0].Value)
+	}
+	if len(call.Arguments) != 0 {
+		t.Errorf("expected 0 arguments, got %d", len(call.Arguments))
+	}
+}
+
+func TestParseCallExpressionMultipleArgs(t *testing.T) {
+	input := `model m { val = fallback(backup_agent, "default", 3) }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	call, ok := block.Assignments[0].Value.(*ast.CallExpression)
+	if !ok {
+		t.Fatalf("expected CallExpression, got %T", block.Assignments[0].Value)
+	}
+	if len(call.Arguments) != 3 {
+		t.Fatalf("expected 3 arguments, got %d", len(call.Arguments))
+	}
+}
+
+func TestParseCallExpressionPrecedence(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "call binds tighter than addition",
+			input:    `model m { val = foo(1) + 2 }`,
+			expected: "(foo(1) + 2)",
+		},
+		{
+			name:     "call binds tighter than arrow",
+			input:    `model m { val = foo(1) -> bar(2) }`,
+			expected: "(foo(1) -> bar(2))",
+		},
+		{
+			name:     "member access then call",
+			input:    `model m { val = a.b(1) }`,
+			expected: "(a.b)(1)",
+		},
+		{
+			name:     "chained calls",
+			input:    `model m { val = foo(1)(2) }`,
+			expected: "foo(1)(2)",
+		},
+		{
+			name:     "call with expression argument",
+			input:    `model m { val = foo(a + b) }`,
+			expected: "foo((a + b))",
+		},
+		{
+			name:     "call then subscription",
+			input:    `model m { val = foo(1)[0] }`,
+			expected: "(foo(1)[0])",
+		},
+		{
+			name:     "subscription then call",
+			input:    `model m { val = a[0](1) }`,
+			expected: "(a[0])(1)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			got := exprString(block.Assignments[0].Value)
+			if got != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestParseCallExpressionErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"missing closing paren", `model m { val = foo(1 }`},
+		{"missing closing paren empty", `model m { val = foo( }`},
 	}
 
 	for _, tt := range tests {

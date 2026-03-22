@@ -154,6 +154,17 @@ type Subscription struct {
 
 func (s *Subscription) expressionNode() {}
 
+// CallExpression represents a function call: callee(arg1, arg2, ...).
+// For example, `retry(3)` or `fallback(backup_agent, "default")`.
+// BaseNode spans from the callee's start to the closing parenthesis.
+type CallExpression struct {
+	BaseNode
+	Callee    Expression   // the expression being called
+	Arguments []Expression // the argument expressions
+}
+
+func (ce *CallExpression) expressionNode() {}
+
 // ListLiteral represents a bracketed list of expressions like [web_search, gmail]
 // or ["read", "write"]. BaseNode covers from '[' to ']'.
 type ListLiteral struct {

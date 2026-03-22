@@ -25,6 +25,8 @@ const (
 	RBRACE   TokenType = "}"
 	LBRACKET TokenType = "["
 	RBRACKET TokenType = "]"
+	LPAREN   TokenType = "("
+	RPAREN   TokenType = ")"
 	PLUS     TokenType = "+"
 	MINUS    TokenType = "-"
 	STAR     TokenType = "*"
@@ -97,6 +99,10 @@ func Describe(t TokenType) string {
 		return "'['"
 	case RBRACKET:
 		return "']'"
+	case LPAREN:
+		return "'('"
+	case RPAREN:
+		return "')'"
 	case PLUS:
 		return "'+'"
 	case MINUS:
@@ -168,7 +174,7 @@ func Precedence(t TokenType) int {
 		return PrecSum
 	case STAR, SLASH:
 		return PrecProduct
-	case DOT, LBRACKET:
+	case DOT, LBRACKET, LPAREN:
 		return PrecAccess
 	default:
 		return PrecLowest
