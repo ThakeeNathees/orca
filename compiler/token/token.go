@@ -63,6 +63,58 @@ type Token struct {
 	Column  int // 1-based column number in source
 }
 
+// Describe returns a human-readable description of a token type,
+// suitable for use in error messages. E.g., IDENT → "identifier",
+// LBRACE → "'{'", STRING → "string".
+func Describe(t TokenType) string {
+	switch t {
+	case ILLEGAL:
+		return "illegal character"
+	case EOF:
+		return "end of file"
+	case IDENT:
+		return "identifier"
+	case INT:
+		return "integer"
+	case FLOAT:
+		return "number"
+	case STRING:
+		return "string"
+	case TRUE, FALSE:
+		return "boolean"
+	case ASSIGN:
+		return "'='"
+	case DOT:
+		return "'.'"
+	case COMMA:
+		return "','"
+	case LBRACE:
+		return "'{'"
+	case RBRACE:
+		return "'}'"
+	case LBRACKET:
+		return "'['"
+	case RBRACKET:
+		return "']'"
+	case PLUS:
+		return "'+'"
+	case MINUS:
+		return "'-'"
+	case STAR:
+		return "'*'"
+	case SLASH:
+		return "'/'"
+	case ARROW:
+		return "'->'"
+	default:
+		// Keywords like MODEL, AGENT, etc.
+		if IsBlockKeyword(t) {
+			return "'" + string(t) + "'"
+		}
+		return string(t)
+	}
+}
+
 // keywords maps lowercase keyword strings to their token types.
 // Used by LookupIdent to distinguish keywords from regular identifiers.
 var keywords = map[string]TokenType{

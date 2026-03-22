@@ -59,31 +59,22 @@ func (p *Parser) nextToken() {
 	p.peekToken = p.l.NextToken()
 }
 
-// addError records a parse error at the current token's position.
-func (p *Parser) addError(msg string) {
+// addErrorAt records a parse error at a specific token's position.
+func (p *Parser) addErrorAt(tok token.Token, msg string) {
 	p.diagnostics = append(p.diagnostics, diagnostic.Diagnostic{
 		Severity: diagnostic.Error,
 		Position: diagnostic.Position{
-			Line:   p.curToken.Line,
-			Column: p.curToken.Column,
+			Line:   tok.Line,
+			Column: tok.Column,
 		},
 		Message: msg,
 		Source:  "parser",
 	})
 }
 
-// expectPeek checks if the next token matches the expected type.
-// If it matches, it advances the parser and returns true.
-// If not, it records an error, advances anyway (to prevent infinite loops
-// on malformed input), and returns false.
-func (p *Parser) expectPeek(t token.TokenType) bool {
-	if p.peekToken.Type == t {
-		p.nextToken()
-		return true
-	}
-	p.addError(fmt.Sprintf("expected %s, got %s", t, p.peekToken.Type))
-	p.nextToken() // advance past the unexpected token
-	return false
+// addError records a parse error at the current token's position.
+func (p *Parser) addError(msg string) {
+	p.addErrorAt(p.curToken, msg)
 }
 
 // --- program & statements ---
@@ -100,8 +91,6 @@ func (p *Parser) ParseProgram() *ast.Program {
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
 		} else {
-			// Skip the current token to avoid infinite loops when we
-			// encounter something we can't parse.
 			p.nextToken()
 		}
 	}
@@ -116,7 +105,8 @@ func (p *Parser) parseStatement() ast.Statement {
 	if token.IsBlockKeyword(p.curToken.Type) {
 		return p.parseBlock()
 	}
-	p.addError(fmt.Sprintf("unexpected token %s", p.curToken.Type))
+	p.addError(fmt.Sprintf("expected block keyword (model, agent, tool, ...), got %s",
+		token.Describe(p.curToken.Type)))
 	return nil
 }
 
@@ -126,25 +116,35 @@ func (p *Parser) parseStatement() ast.Statement {
 // by the keyword token type stored in TokenStart.
 func (p *Parser) parseBlock() *ast.BlockStatement {
 	block := &ast.BlockStatement{}
-	block.TokenStart = p.curToken // the keyword token (MODEL, AGENT, etc.)
+	block.TokenStart = p.curToken
+	blockType := p.curToken.Literal // e.g., "model", "agent"
 
 	// Expect the block's name identifier (e.g., "gpt4" in "model gpt4 {").
-	if !p.expectPeek(token.IDENT) {
+	if p.peekToken.Type != token.IDENT {
+		p.addErrorAt(p.peekToken, fmt.Sprintf("expected name after '%s', got %s",
+			blockType, token.Describe(p.peekToken.Type)))
+		p.nextToken()
 		return nil
 	}
+	p.nextToken()
 	block.Name = p.curToken.Literal
 
 	// Expect the opening brace.
-	if !p.expectPeek(token.LBRACE) {
+	if p.peekToken.Type != token.LBRACE {
+		p.addErrorAt(p.peekToken, fmt.Sprintf("expected '{' after '%s %s', got %s",
+			blockType, block.Name, token.Describe(p.peekToken.Type)))
+		p.nextToken()
 		return nil
 	}
+	p.nextToken()
 
 	// Parse the body: zero or more key = value assignments.
-	block.Assignments = p.parseAssignments()
+	block.Assignments = p.parseAssignments(blockType, block.Name)
 
 	// Expect the closing brace.
 	if p.curToken.Type != token.RBRACE {
-		p.addError("expected }")
+		p.addError(fmt.Sprintf("expected '}' to close '%s %s' block, got %s",
+			blockType, block.Name, token.Describe(p.curToken.Type)))
 		return nil
 	}
 	block.TokenEnd = p.curToken // the } token
@@ -156,16 +156,15 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 // parseAssignments parses all key = value pairs inside a block body,
 // stopping when it hits a closing brace or EOF. Returns the collected
 // assignments as a slice.
-func (p *Parser) parseAssignments() []*ast.Assignment {
+func (p *Parser) parseAssignments(blockType, blockName string) []*ast.Assignment {
 	var assignments []*ast.Assignment
 	p.nextToken() // move past {
 
 	for p.curToken.Type != token.RBRACE && p.curToken.Type != token.EOF {
-		a := p.parseAssignment()
+		a := p.parseAssignment(blockType, blockName)
 		if a != nil {
 			assignments = append(assignments, a)
 		} else {
-			// Skip on error to avoid getting stuck.
 			p.nextToken()
 		}
 	}
@@ -175,20 +174,26 @@ func (p *Parser) parseAssignments() []*ast.Assignment {
 
 // parseAssignment parses a single `key = value` pair. The key must be an
 // identifier or a keyword used as an identifier (like "model" inside a block).
-func (p *Parser) parseAssignment() *ast.Assignment {
+func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
 	if !token.IsIdentLike(p.curToken.Type) {
-		p.addError(fmt.Sprintf("expected identifier, got %s", p.curToken.Type))
+		p.addError(fmt.Sprintf("expected property name in '%s %s' block, got %s",
+			blockType, blockName, token.Describe(p.curToken.Type)))
 		return nil
 	}
 
 	a := &ast.Assignment{}
 	a.TokenStart = p.curToken // the key identifier
 	a.Name = p.curToken.Literal
+	key := p.curToken.Literal
 
 	// Expect = after the key.
-	if !p.expectPeek(token.ASSIGN) {
+	if p.peekToken.Type != token.ASSIGN {
+		p.addErrorAt(p.peekToken, fmt.Sprintf("expected '=' after '%s', got %s",
+			key, token.Describe(p.peekToken.Type)))
+		p.nextToken()
 		return nil
 	}
+	p.nextToken() // move to =
 	p.nextToken() // move past =
 
 	// Parse the right-hand side expression with lowest precedence.
@@ -253,7 +258,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 	case token.INT:
 		val, err := strconv.ParseInt(p.curToken.Literal, 10, 64)
 		if err != nil {
-			p.addError(fmt.Sprintf("could not parse %q as integer", p.curToken.Literal))
+			p.addError(fmt.Sprintf("invalid integer literal '%s'", p.curToken.Literal))
 			return nil
 		}
 		expr := &ast.IntegerLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: val}
@@ -263,7 +268,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 	case token.FLOAT:
 		val, err := strconv.ParseFloat(p.curToken.Literal, 64)
 		if err != nil {
-			p.addError(fmt.Sprintf("could not parse %q as float", p.curToken.Literal))
+			p.addError(fmt.Sprintf("invalid number literal '%s'", p.curToken.Literal))
 			return nil
 		}
 		expr := &ast.FloatLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: val}
@@ -281,7 +286,6 @@ func (p *Parser) parsePrimary() ast.Expression {
 		return expr
 
 	case token.IDENT:
-		// An unquoted identifier is a reference to another block.
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr
@@ -290,7 +294,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 		return p.parseList()
 
 	default:
-		p.addError(fmt.Sprintf("unexpected value token %s", p.curToken.Type))
+		p.addError(fmt.Sprintf("expected value, got %s", token.Describe(p.curToken.Type)))
 		return nil
 	}
 }
@@ -329,7 +333,8 @@ func (p *Parser) parseList() ast.Expression {
 
 	// Expect closing bracket.
 	if p.curToken.Type != token.RBRACKET {
-		p.addError("expected ]")
+		p.addError(fmt.Sprintf("expected ']' to close list, got %s",
+			token.Describe(p.curToken.Type)))
 		return nil
 	}
 	list.TokenEnd = p.curToken // the ] token
