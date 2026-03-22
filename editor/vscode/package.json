@@ -1,0 +1,25 @@
+{
+  "name": "orca",
+  "displayName": "orca",
+  "description": "Orca declarative AI agent language",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "orca",
+      "aliases": ["Orca", "orca"],
+      "extensions": [".oc",".orca"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "orca",
+      "scopeName": "source.orca",
+      "path": "./syntaxes/orca.tmLanguage.json"
+    }]
+  }
+}
