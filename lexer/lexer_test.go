@@ -198,6 +198,62 @@ func TestNextTokenBooleans(t *testing.T) {
 	}
 }
 
+func TestNextTokenOperators(t *testing.T) {
+	input := "+-*/-> a->b"
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.PLUS, "+"},
+		{token.MINUS, "-"},
+		{token.STAR, "*"},
+		{token.SLASH, "/"},
+		{token.ARROW, "->"},
+		{token.IDENT, "a"},
+		{token.ARROW, "->"},
+		{token.IDENT, "b"},
+		{token.EOF, ""},
+	}
+
+	l := New(input)
+	for i, tt := range tests {
+		tok := l.NextToken()
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - wrong type. expected=%q, got=%q", i, tt.expectedType, tok.Type)
+		}
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - wrong literal. expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
+func TestNextTokenSlashVsComment(t *testing.T) {
+	// A single / is division, but // starts a comment.
+	input := "a / b // this is ignored"
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.IDENT, "a"},
+		{token.SLASH, "/"},
+		{token.IDENT, "b"},
+		{token.EOF, ""},
+	}
+
+	l := New(input)
+	for i, tt := range tests {
+		tok := l.NextToken()
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - wrong type. expected=%q, got=%q", i, tt.expectedType, tok.Type)
+		}
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - wrong literal. expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
 func TestNextTokenNewlineTracking(t *testing.T) {
 	input := "a\nb"
 	l := New(input)

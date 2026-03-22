@@ -184,24 +184,80 @@ func (p *Parser) parseAssignment() *ast.Assignment {
 	}
 	p.nextToken() // move past =
 
-	// Parse the right-hand side value.
-	val := p.parseValue()
+	// Parse the right-hand side expression with lowest precedence.
+	val := p.parseExpression(precLowest)
 	if val == nil {
 		return nil
 	}
 	a.Value = val
-	// The value parser advances past the value, so prevToken holds
+	// The expression parser advances past the value, so prevToken holds
 	// the last token of the value expression.
 	a.TokenEnd = p.prevToken
 
 	return a
 }
 
-// parseValue parses a value expression on the right side of an assignment.
-// Dispatches based on token type to the appropriate literal or list parser.
-// Advances past the consumed token(s) so the caller's cursor is on the
-// next unconsumed token.
-func (p *Parser) parseValue() ast.Expression {
+// Operator precedence levels for Pratt parsing. Higher values bind tighter.
+const (
+	precLowest int = iota
+	precArrow      // ->
+	precSum        // + -
+	precProduct    // * /
+)
+
+// peekPrecedence returns the precedence of the current token if it's a
+// binary operator, or precLowest if it's not (which stops the Pratt loop).
+func tokenPrecedence(t token.TokenType) int {
+	switch t {
+	case token.ARROW:
+		return precArrow
+	case token.PLUS, token.MINUS:
+		return precSum
+	case token.STAR, token.SLASH:
+		return precProduct
+	default:
+		return precLowest
+	}
+}
+
+// parseExpression implements Pratt parsing. It parses a primary (atom) on the
+// left, then repeatedly consumes binary operators whose precedence is higher
+// than the caller's level, building a left-associative BinaryExpression tree.
+func (p *Parser) parseExpression(precedence int) ast.Expression {
+	left := p.parsePrimary()
+	if left == nil {
+		return nil
+	}
+
+	// While the next token is a binary operator with higher precedence
+	// than our current level, consume it and parse the right-hand side.
+	for tokenPrecedence(p.curToken.Type) > precedence {
+		op := p.curToken
+		prec := tokenPrecedence(op.Type)
+		p.nextToken() // consume the operator
+
+		right := p.parseExpression(prec)
+		if right == nil {
+			return nil
+		}
+
+		left = &ast.BinaryExpression{
+			BaseNode: ast.BaseNode{
+				TokenStart: left.Start(),
+				TokenEnd:   right.End(),
+			},
+			Left:     left,
+			Operator: op,
+			Right:    right,
+		}
+	}
+
+	return left
+}
+
+// parsePrimary parses an atomic expression: literals, identifiers, and lists.
+// These are the leaves of the expression tree that binary operators combine.
+func (p *Parser) parsePrimary() ast.Expression {
 	switch p.curToken.Type {
 	case token.STRING:
 		expr := &ast.StringLiteral{BaseNode: terminalNode(p.curToken), Value: p.curToken.Literal}
@@ -269,7 +325,7 @@ func (p *Parser) parseList() ast.Expression {
 	}
 
 	// Parse the first element.
-	elem := p.parseValue()
+	elem := p.parseExpression(precLowest)
 	if elem == nil {
 		return nil
 	}
@@ -278,7 +334,7 @@ func (p *Parser) parseList() ast.Expression {
 	// Parse remaining comma-separated elements.
 	for p.curToken.Type == token.COMMA {
 		p.nextToken() // move past ,
-		elem := p.parseValue()
+		elem := p.parseExpression(precLowest)
 		if elem == nil {
 			return nil
 		}

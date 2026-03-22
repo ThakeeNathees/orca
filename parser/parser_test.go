@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -405,6 +406,111 @@ func TestParseBooleanValues(t *testing.T) {
 			}
 			if b.Value != tt.expected {
 				t.Errorf("expected %v, got %v", tt.expected, b.Value)
+			}
+		})
+	}
+}
+
+// --- binary expressions ---
+
+// exprString returns a parenthesized string representation of an expression
+// to make precedence visible. E.g., `a + b * c` becomes `(a + (b * c))`.
+func exprString(expr ast.Expression) string {
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		return e.Value
+	case *ast.IntegerLiteral:
+		return fmt.Sprintf("%d", e.Value)
+	case *ast.FloatLiteral:
+		return fmt.Sprintf("%g", e.Value)
+	case *ast.StringLiteral:
+		return fmt.Sprintf("%q", e.Value)
+	case *ast.BooleanLiteral:
+		if e.Value {
+			return "true"
+		}
+		return "false"
+	case *ast.BinaryExpression:
+		return fmt.Sprintf("(%s %s %s)", exprString(e.Left), e.Operator.Literal, exprString(e.Right))
+	default:
+		return fmt.Sprintf("<%T>", expr)
+	}
+}
+
+func TestParseBinaryExpression(t *testing.T) {
+	input := `model m { val = 1 + 2 }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	be, ok := block.Assignments[0].Value.(*ast.BinaryExpression)
+	if !ok {
+		t.Fatalf("expected BinaryExpression, got %T", block.Assignments[0].Value)
+	}
+	if be.Operator.Literal != "+" {
+		t.Errorf("expected operator '+', got %q", be.Operator.Literal)
+	}
+}
+
+func TestParseOperatorPrecedence(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "addition and multiplication",
+			input:    `model m { val = a + b * c }`,
+			expected: "(a + (b * c))",
+		},
+		{
+			name:     "multiplication before subtraction",
+			input:    `model m { val = a * b - c }`,
+			expected: "((a * b) - c)",
+		},
+		{
+			name:     "division and addition",
+			input:    `model m { val = a / b + c }`,
+			expected: "((a / b) + c)",
+		},
+		{
+			name:     "same precedence left to right",
+			input:    `model m { val = a + b - c }`,
+			expected: "((a + b) - c)",
+		},
+		{
+			name:     "same precedence mul/div left to right",
+			input:    `model m { val = a * b / c }`,
+			expected: "((a * b) / c)",
+		},
+		{
+			name:     "arrow lowest precedence",
+			input:    `model m { val = a + b -> c }`,
+			expected: "((a + b) -> c)",
+		},
+		{
+			name:     "arrow chains left to right",
+			input:    `model m { val = a -> b -> c }`,
+			expected: "((a -> b) -> c)",
+		},
+		{
+			name:     "complex precedence",
+			input:    `model m { val = a -> b + c * d }`,
+			expected: "(a -> (b + (c * d)))",
+		},
+		{
+			name:     "all operators",
+			input:    `model m { val = a + b - c * d / e -> f }`,
+			expected: "(((a + b) - ((c * d) / e)) -> f)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			got := exprString(block.Assignments[0].Value)
+			if got != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, got)
 			}
 		})
 	}

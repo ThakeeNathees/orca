@@ -1,0 +1,4 @@
+// A workflow using arrow syntax for agent orchestration.
+workflow report_pipeline {
+  flow = researcher -> writer -> reviewer
+}

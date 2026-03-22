@@ -78,6 +78,35 @@ func (l *Lexer) NextToken() token.Token {
 	case ',':
 		tok.Type = token.COMMA
 		tok.Literal = ","
+	case '+':
+		tok.Type = token.PLUS
+		tok.Literal = "+"
+	case '-':
+		// -> is the arrow operator, otherwise - is minus.
+		if l.peekChar() == '>' {
+			l.readChar()
+			tok.Type = token.ARROW
+			tok.Literal = "->"
+		} else {
+			tok.Type = token.MINUS
+			tok.Literal = "-"
+		}
+	case '*':
+		tok.Type = token.STAR
+		tok.Literal = "*"
+	case '/':
+		// // starts a comment, otherwise / is division.
+		if l.peekChar() == '/' {
+			// Let skipComment handle it — but we've already passed
+			// skipComment at the top of NextToken, so handle inline.
+			for l.ch != '\n' && l.ch != 0 {
+				l.readChar()
+			}
+			// Recurse to get the actual next token.
+			return l.NextToken()
+		}
+		tok.Type = token.SLASH
+		tok.Literal = "/"
 	case '.':
 		// A dot followed by a digit starts a float literal like .5,
 		// otherwise it's a standalone dot operator.

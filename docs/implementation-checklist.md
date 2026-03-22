@@ -34,8 +34,8 @@ Tracks what's implemented across the compiler pipeline.
 
 | Feature              | Lexer | Parser | AST Node | Evaluator/IR | Tests |
 |----------------------|-------|--------|----------|--------------|-------|
-| Arrow operator (`->`)| [ ]   | [ ]    | —        | [ ]          | [ ]   |
-| Linear flow          | [ ]   | [ ]    | —        | [ ]          | [ ]   |
+| Arrow operator (`->`)| [x]   | [x]    | BinaryExpression | [ ]  | [x]   |
+| Linear flow          | [x]   | [x]    | BinaryExpression | [ ]  | [x]   |
 | Conditional branches | [ ]   | [ ]    | —        | [ ]          | [ ]   |
 
 ## Trigger subtypes

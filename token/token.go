@@ -25,6 +25,11 @@ const (
 	RBRACE   TokenType = "}"
 	LBRACKET TokenType = "["
 	RBRACKET TokenType = "]"
+	PLUS     TokenType = "+"
+	MINUS    TokenType = "-"
+	STAR     TokenType = "*"
+	SLASH    TokenType = "/"
+	ARROW    TokenType = "->"
 
 	// Boolean literals
 	TRUE  TokenType = "TRUE"

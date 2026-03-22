@@ -114,6 +114,18 @@ type BooleanLiteral struct {
 
 func (bl *BooleanLiteral) expressionNode() {}
 
+// BinaryExpression represents a binary operation: left op right.
+// Examples: `a + b`, `1 * 2`, `researcher -> writer`.
+// BaseNode spans from the left operand's start to the right operand's end.
+type BinaryExpression struct {
+	BaseNode
+	Left     Expression
+	Operator token.Token // the operator token (+, -, *, /, ->)
+	Right    Expression
+}
+
+func (be *BinaryExpression) expressionNode() {}
+
 // ListLiteral represents a bracketed list of expressions like [web_search, gmail]
 // or ["read", "write"]. BaseNode covers from '[' to ']'.
 type ListLiteral struct {
