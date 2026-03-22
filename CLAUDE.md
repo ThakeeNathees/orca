@@ -49,6 +49,7 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **TDD**: Always write tests before implementation. No code without a failing test first.
 - **Go conventions**: Follow standard Go style (gofmt, effective Go).
 - **Comments**: Always add comments to all exported and unexported functions, types, and non-trivial logic. Comments should explain *why* and *what* for someone reading the code to understand it quickly. Not for end-user docs — for developer comprehension.
+- **File layout**: Types and constants at the top of the file, functions at the bottom. Keep declarations before behavior.
 - **No Makefiles bloat**: Keep the Makefile minimal and standard.
 - **Git**: Commit directly on main. Small, atomic commits.
 - **Dependencies**: Prefer stdlib when straightforward; use third-party only when it provides significant value.

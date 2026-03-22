@@ -45,6 +45,24 @@ const (
 	TOOL      TokenType = "TOOL"
 )
 
+// Operator precedence levels for Pratt parsing. Higher values bind tighter.
+const (
+	PrecLowest  int = iota
+	PrecArrow       // ->
+	PrecSum         // + -
+	PrecProduct     // * /
+)
+
+// Token represents a single lexical token with its type, literal text,
+// and source position. Line and Column enable source mapping from generated
+// code back to the original .oc file.
+type Token struct {
+	Type    TokenType
+	Literal string
+	Line    int // 1-based line number in source
+	Column  int // 1-based column number in source
+}
+
 // keywords maps lowercase keyword strings to their token types.
 // Used by LookupIdent to distinguish keywords from regular identifiers.
 var keywords = map[string]TokenType{
@@ -78,12 +96,26 @@ func IsBlockKeyword(t TokenType) bool {
 	return false
 }
 
-// Token represents a single lexical token with its type, literal text,
-// and source position. Line and Column enable source mapping from generated
-// code back to the original .oc file.
-type Token struct {
-	Type    TokenType
-	Literal string
-	Line    int // 1-based line number in source
-	Column  int // 1-based column number in source
+// IsIdentLike returns true if the token type can serve as an identifier
+// in contexts like assignment keys. Block keywords (model, agent, etc.)
+// are valid key names inside blocks — e.g., `model = gpt4` inside an
+// agent block uses "model" as a key.
+func IsIdentLike(t TokenType) bool {
+	return t == IDENT || IsBlockKeyword(t)
+}
+
+// Precedence returns the binding power of a token type when used as a
+// binary operator. Returns PrecLowest for non-operator tokens, which
+// stops the Pratt parsing loop.
+func Precedence(t TokenType) int {
+	switch t {
+	case ARROW:
+		return PrecArrow
+	case PLUS, MINUS:
+		return PrecSum
+	case STAR, SLASH:
+		return PrecProduct
+	default:
+		return PrecLowest
+	}
 }

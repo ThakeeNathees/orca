@@ -1,6 +1,6 @@
 // Package parser implements a recursive descent parser for the Orca language.
 // It consumes tokens from the lexer and produces an AST (Abstract Syntax Tree).
-// Currently supports model and agent block types with key=value assignments.
+// Uses Pratt parsing for expressions with operator precedence.
 package parser
 
 import (
@@ -34,6 +34,12 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
+// Errors returns all parse errors accumulated during parsing.
+// Each error includes line/column information for source mapping.
+func (p *Parser) Errors() []string {
+	return p.errors
+}
+
 // nextToken advances the parser by one token, shifting peekToken into
 // curToken and reading a fresh token from the lexer into peekToken.
 // Keeps prevToken pointing at the token we just moved off of.
@@ -41,12 +47,6 @@ func (p *Parser) nextToken() {
 	p.prevToken = p.curToken
 	p.curToken = p.peekToken
 	p.peekToken = p.l.NextToken()
-}
-
-// Errors returns all parse errors accumulated during parsing.
-// Each error includes line/column information for source mapping.
-func (p *Parser) Errors() []string {
-	return p.errors
 }
 
 // addError records a parse error with the current token's source position.
@@ -68,11 +68,7 @@ func (p *Parser) expectPeek(t token.TokenType) bool {
 	return false
 }
 
-// terminalNode creates a BaseNode where start and end are the same token,
-// used for single-token terminal nodes (identifiers, literals).
-func terminalNode(tok token.Token) ast.BaseNode {
-	return ast.BaseNode{TokenStart: tok, TokenEnd: tok}
-}
+// --- program & statements ---
 
 // ParseProgram is the entry point. It parses the entire token stream into
 // a Program node containing all top-level block statements. On parse errors,
@@ -159,17 +155,10 @@ func (p *Parser) parseAssignments() []*ast.Assignment {
 	return assignments
 }
 
-// isIdentLike returns true if the token can serve as an assignment key.
-// Block keywords (model, agent, etc.) are valid key names inside blocks —
-// e.g., `model = gpt4` inside an agent block uses "model" as a key.
-func isIdentLike(t token.TokenType) bool {
-	return t == token.IDENT || token.IsBlockKeyword(t)
-}
-
 // parseAssignment parses a single `key = value` pair. The key must be an
 // identifier or a keyword used as an identifier (like "model" inside a block).
 func (p *Parser) parseAssignment() *ast.Assignment {
-	if !isIdentLike(p.curToken.Type) {
+	if !token.IsIdentLike(p.curToken.Type) {
 		p.addError(fmt.Sprintf("expected identifier, got %s", p.curToken.Type))
 		return nil
 	}
@@ -185,7 +174,7 @@ func (p *Parser) parseAssignment() *ast.Assignment {
 	p.nextToken() // move past =
 
 	// Parse the right-hand side expression with lowest precedence.
-	val := p.parseExpression(precLowest)
+	val := p.parseExpression(token.PrecLowest)
 	if val == nil {
 		return nil
 	}
@@ -197,28 +186,7 @@ func (p *Parser) parseAssignment() *ast.Assignment {
 	return a
 }
 
-// Operator precedence levels for Pratt parsing. Higher values bind tighter.
-const (
-	precLowest int = iota
-	precArrow      // ->
-	precSum        // + -
-	precProduct    // * /
-)
-
-// peekPrecedence returns the precedence of the current token if it's a
-// binary operator, or precLowest if it's not (which stops the Pratt loop).
-func tokenPrecedence(t token.TokenType) int {
-	switch t {
-	case token.ARROW:
-		return precArrow
-	case token.PLUS, token.MINUS:
-		return precSum
-	case token.STAR, token.SLASH:
-		return precProduct
-	default:
-		return precLowest
-	}
-}
+// --- expressions (Pratt parser) ---
 
 // parseExpression implements Pratt parsing. It parses a primary (atom) on the
 // left, then repeatedly consumes binary operators whose precedence is higher
@@ -231,9 +199,9 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 	// While the next token is a binary operator with higher precedence
 	// than our current level, consume it and parse the right-hand side.
-	for tokenPrecedence(p.curToken.Type) > precedence {
+	for token.Precedence(p.curToken.Type) > precedence {
 		op := p.curToken
-		prec := tokenPrecedence(op.Type)
+		prec := token.Precedence(op.Type)
 		p.nextToken() // consume the operator
 
 		right := p.parseExpression(prec)
@@ -260,7 +228,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 func (p *Parser) parsePrimary() ast.Expression {
 	switch p.curToken.Type {
 	case token.STRING:
-		expr := &ast.StringLiteral{BaseNode: terminalNode(p.curToken), Value: p.curToken.Literal}
+		expr := &ast.StringLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr
 
@@ -270,7 +238,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 			p.addError(fmt.Sprintf("could not parse %q as integer", p.curToken.Literal))
 			return nil
 		}
-		expr := &ast.IntegerLiteral{BaseNode: terminalNode(p.curToken), Value: val}
+		expr := &ast.IntegerLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: val}
 		p.nextToken()
 		return expr
 
@@ -280,23 +248,23 @@ func (p *Parser) parsePrimary() ast.Expression {
 			p.addError(fmt.Sprintf("could not parse %q as float", p.curToken.Literal))
 			return nil
 		}
-		expr := &ast.FloatLiteral{BaseNode: terminalNode(p.curToken), Value: val}
+		expr := &ast.FloatLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: val}
 		p.nextToken()
 		return expr
 
 	case token.TRUE:
-		expr := &ast.BooleanLiteral{BaseNode: terminalNode(p.curToken), Value: true}
+		expr := &ast.BooleanLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: true}
 		p.nextToken()
 		return expr
 
 	case token.FALSE:
-		expr := &ast.BooleanLiteral{BaseNode: terminalNode(p.curToken), Value: false}
+		expr := &ast.BooleanLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: false}
 		p.nextToken()
 		return expr
 
 	case token.IDENT:
 		// An unquoted identifier is a reference to another block.
-		expr := &ast.Identifier{BaseNode: terminalNode(p.curToken), Value: p.curToken.Literal}
+		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr
 
@@ -310,7 +278,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 }
 
 // parseList parses a bracketed list expression: [elem, elem, ...].
-// Elements can be any value type (strings, numbers, identifiers).
+// Elements can be any expression type (including binary expressions).
 // Handles empty lists, trailing commas are not supported.
 func (p *Parser) parseList() ast.Expression {
 	list := &ast.ListLiteral{}
@@ -325,7 +293,7 @@ func (p *Parser) parseList() ast.Expression {
 	}
 
 	// Parse the first element.
-	elem := p.parseExpression(precLowest)
+	elem := p.parseExpression(token.PrecLowest)
 	if elem == nil {
 		return nil
 	}
@@ -334,7 +302,7 @@ func (p *Parser) parseList() ast.Expression {
 	// Parse remaining comma-separated elements.
 	for p.curToken.Type == token.COMMA {
 		p.nextToken() // move past ,
-		elem := p.parseExpression(precLowest)
+		elem := p.parseExpression(token.PrecLowest)
 		if elem == nil {
 			return nil
 		}

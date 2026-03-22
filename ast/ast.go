@@ -39,6 +39,12 @@ type BaseNode struct {
 	TokenEnd   token.Token
 }
 
+// NewTerminal creates a BaseNode where start and end are the same token.
+// Used for single-token terminal nodes (identifiers, literals).
+func NewTerminal(tok token.Token) BaseNode {
+	return BaseNode{TokenStart: tok, TokenEnd: tok}
+}
+
 // Start returns the first token of this node's source range.
 func (n *BaseNode) Start() token.Token { return n.TokenStart }
 
