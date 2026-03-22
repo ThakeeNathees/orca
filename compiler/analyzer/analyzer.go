@@ -4,7 +4,7 @@
 // identifiers, and other errors that can't be caught by syntax alone.
 package analyzer
 
-import "github.com/thakee/orca/ast"
+import "github.com/thakee/orca/compiler/ast"
 
 // Analyze walks the AST and performs semantic analysis.
 // Returns a list of diagnostic errors found during analysis.

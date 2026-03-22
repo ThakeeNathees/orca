@@ -4,7 +4,7 @@
 // identifiers/keywords, single-char operators, and comments.
 package lexer
 
-import "github.com/thakee/orca/token"
+import "github.com/thakee/orca/compiler/token"
 
 // Lexer holds the state for scanning through an input string.
 // It tracks the current read position and source location (line/column)

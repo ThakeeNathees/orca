@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/thakee/orca/ast"
-	"github.com/thakee/orca/lexer"
-	"github.com/thakee/orca/token"
+	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/lexer"
+	"github.com/thakee/orca/compiler/token"
 )
 
 func TestNew(t *testing.T) {

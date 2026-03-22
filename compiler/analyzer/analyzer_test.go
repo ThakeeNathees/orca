@@ -3,7 +3,7 @@ package analyzer
 import (
 	"testing"
 
-	"github.com/thakee/orca/ast"
+	"github.com/thakee/orca/compiler/ast"
 )
 
 func TestAnalyzeEmptyProgram(t *testing.T) {

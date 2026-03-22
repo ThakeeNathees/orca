@@ -3,7 +3,7 @@
 // architecture supports adding other backends in the future.
 package codegen
 
-import "github.com/thakee/orca/ast"
+import "github.com/thakee/orca/compiler/ast"
 
 // Generate produces target code from the given AST program.
 // Returns the generated source as a string.

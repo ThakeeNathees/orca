@@ -1,14 +1,25 @@
 # Orca
 
-A declarative language for defining AI agents. HCL-like syntax that transpiles to Python code via a JSON/YAML intermediate representation (IR).
+A declarative language for defining AI agents. HCL-like syntax that transpiles to Python code.
 
 File extension: `.oc`
 
-## Project status
+## Repository structure
 
-Early stage — lexer is implemented, parser/AST/evaluator are stubs. Next milestone: parser implementation.
+Monorepo containing the compiler, VS Code extension, and platform.
 
-## Architecture
+```
+orca/
+├── compiler/          # Go — the Orca compiler
+├── docs/              # Design proposals and syntax explorations
+└── CLAUDE.md
+```
+
+Future additions: `vscode-extension/`, `platform/`.
+
+## Compiler (`compiler/`)
+
+### Pipeline
 
 ```
 .oc files → token/lexer → ast/parser → analyzer → codegen (Python)
@@ -16,13 +27,27 @@ Early stage — lexer is implemented, parser/AST/evaluator are stubs. Next miles
 
 Currently targeting **LangGraph** as the sole codegen backend.
 
-Packages:
+### Packages
+
 - `token/` — token types, precedence levels, and definitions (includes line/column tracking)
 - `lexer/` — tokenization of `.oc` source files
 - `ast/` — AST node definitions
 - `parser/` — Pratt parser producing AST from tokens
 - `analyzer/` — semantic analysis (reference resolution, type checking, validation)
 - `codegen/` — Python/LangGraph code generation from analyzed AST
+
+### Commands
+
+Run from `compiler/`:
+
+```
+go build ./...      # build all packages
+go test ./...       # run all tests
+go test -v ./...    # verbose test output
+make build          # compile binary to bin/orca
+make test           # run all tests
+make lint           # fmt + vet
+```
 
 ## Block types
 
@@ -60,21 +85,10 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **Table-driven tests**: All tests must use Go table-driven test pattern (`[]struct` with `name`, `input`, `expected`).
 - **Lexer tests**: Every token type must have a test case. Test input strings against expected `[]token.Token` sequences including `Line` and `Column`.
 - **Parser tests**: Every AST node type must have a test case. Use helpers like `parseOrFail(t, input)`, `assertBlockCount()`, `assertBlockType()`.
-- **Codegen / evaluator tests**: Use golden files in `testdata/golden/`. Input `.oc`, expected `.json` (IR) and `.py` (output). Update with `go test -update-golden`.
+- **Codegen tests**: Use golden files in `testdata/golden/`. Input `.oc`, expected `.py` (output). Update with `go test -update-golden`.
 - **Error cases**: Every stage must test invalid input — bad syntax, undefined references, type mismatches.
 - **Integration tests**: End-to-end `.oc` → `build/` output, verify generated Python is valid.
 - **No test without assertion**: Every test case must assert something meaningful. No empty or placeholder tests.
-
-## Commands
-
-```
-go build ./...      # build all packages
-go test ./...       # run all tests
-go test -v ./...    # verbose test output
-make build          # compile binary to bin/orca
-make test           # run all tests
-make lint           # fmt + vet
-```
 
 ## Target audience
 

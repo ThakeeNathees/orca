@@ -3,7 +3,7 @@
 // produced by the parser from the token stream.
 package ast
 
-import "github.com/thakee/orca/token"
+import "github.com/thakee/orca/compiler/token"
 
 // Node is the interface that all AST nodes implement.
 // Every node carries a source range (Start/End) for error reporting,

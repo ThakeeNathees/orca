@@ -3,7 +3,7 @@ package ast
 import (
 	"testing"
 
-	"github.com/thakee/orca/token"
+	"github.com/thakee/orca/compiler/token"
 )
 
 func TestBlockStatementBaseNode(t *testing.T) {

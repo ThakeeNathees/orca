@@ -3,7 +3,7 @@ package codegen
 import (
 	"testing"
 
-	"github.com/thakee/orca/ast"
+	"github.com/thakee/orca/compiler/ast"
 )
 
 func TestGenerateEmptyProgram(t *testing.T) {

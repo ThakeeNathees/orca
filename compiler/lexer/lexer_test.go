@@ -3,7 +3,7 @@ package lexer
 import (
 	"testing"
 
-	"github.com/thakee/orca/token"
+	"github.com/thakee/orca/compiler/token"
 )
 
 func TestNew(t *testing.T) {

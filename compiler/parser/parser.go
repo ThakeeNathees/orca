@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/thakee/orca/ast"
-	"github.com/thakee/orca/lexer"
-	"github.com/thakee/orca/token"
+	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/lexer"
+	"github.com/thakee/orca/compiler/token"
 )
 
 // Parser holds the state for parsing a token stream into an AST.
