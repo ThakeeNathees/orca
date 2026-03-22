@@ -1,0 +1,92 @@
+// Package types provides block field schemas that define the expected
+// types for each field within each block type. The analyzer will use
+// these schemas to validate assignments in .oc files.
+package types
+
+// FieldSchema describes the expected type and constraints for a single
+// field within a block.
+type FieldSchema struct {
+	Type     Type // the expected type of this field's value
+	Required bool // whether this field must be present in the block
+}
+
+// BlockSchema defines the set of valid fields for a block type,
+// mapping field names to their schemas.
+type BlockSchema struct {
+	Fields map[string]FieldSchema
+}
+
+// blockSchemas maps block type names to their field schemas.
+// Used by the analyzer to validate that assignments within blocks
+// have the correct types and that required fields are present.
+var blockSchemas = map[string]BlockSchema{
+	"model": {
+		Fields: map[string]FieldSchema{
+			"provider":    {Type: StringType, Required: true},
+			"version":     {Type: StringType, Required: false},
+			"temperature": {Type: FloatType, Required: false},
+			"max_tokens":  {Type: IntType, Required: false},
+		},
+	},
+	"agent": {
+		Fields: map[string]FieldSchema{
+			"model":  {Type: NewBlockRefType("model"), Required: true},
+			"tools":  {Type: NewListType(NewBlockRefType("tool")), Required: false},
+			"prompt": {Type: StringType, Required: true},
+		},
+	},
+	"tool": {
+		Fields: map[string]FieldSchema{
+			"type":        {Type: StringType, Required: true},
+			"base_url":    {Type: StringType, Required: false},
+			"auth":        {Type: StringType, Required: false},
+			"scopes":      {Type: NewListType(StringType), Required: false},
+			"source":      {Type: StringType, Required: false},
+			"description": {Type: StringType, Required: false},
+		},
+	},
+	"task": {
+		Fields: map[string]FieldSchema{
+			"agent":  {Type: NewBlockRefType("agent"), Required: true},
+			"prompt": {Type: StringType, Required: true},
+		},
+	},
+	"knowledge": {
+		Fields: map[string]FieldSchema{
+			"source": {Type: StringType, Required: true},
+			"type":   {Type: StringType, Required: false},
+		},
+	},
+	"workflow": {
+		Fields: map[string]FieldSchema{
+			"flow":     {Type: AnyType, Required: true},
+			"on_error": {Type: AnyType, Required: false},
+		},
+	},
+	"trigger": {
+		Fields: map[string]FieldSchema{
+			"type":     {Type: StringType, Required: true},
+			"schedule": {Type: StringType, Required: false},
+			"workflow": {Type: NewBlockRefType("workflow"), Required: false},
+		},
+	},
+}
+
+// GetBlockSchema returns the schema for the given block type name.
+// Returns the schema and true if found, or an empty schema and false
+// if the block type has no schema defined.
+func GetBlockSchema(blockType string) (BlockSchema, bool) {
+	schema, ok := blockSchemas[blockType]
+	return schema, ok
+}
+
+// GetFieldSchema returns the field schema for a specific field within
+// a block type. Returns the field schema and true if found.
+func GetFieldSchema(blockType, fieldName string) (FieldSchema, bool) {
+	schema, ok := blockSchemas[blockType]
+	if !ok {
+		return FieldSchema{}, false
+	}
+	field, ok := schema.Fields[fieldName]
+	return field, ok
+}
