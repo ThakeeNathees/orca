@@ -25,11 +25,11 @@ const (
 // Context holds the resolved semantic context at a cursor position.
 // Each LSP feature reads the fields it needs without duplicating lookup logic.
 type Context struct {
-	Position   CursorPosition       // where the cursor sits structurally
-	Block      *ast.BlockStatement  // enclosing block, nil if TopLevel
-	BlockType  string               // lowercase block type name (e.g. "model")
-	Schema     *types.BlockSchema   // schema for the block type, nil if unknown
-	Assignment *ast.Assignment      // enclosing assignment, nil if not on a value
+	Position   CursorPosition      // where the cursor sits structurally
+	Block      *ast.BlockStatement // enclosing block, nil if TopLevel
+	BlockType  string              // lowercase block type name (e.g. "model")
+	Schema     *types.BlockSchema  // schema for the block type, nil if unknown
+	Assignment *ast.Assignment     // enclosing assignment, nil if not on a value
 }
 
 // Resolve determines the semantic context at the given 1-based line and column
@@ -61,9 +61,10 @@ func Resolve(program *ast.Program, line, col int) Context {
 			ctx.Schema = &schema
 		}
 
-		// Check if the cursor is on a field value (after '=').
+		// Check if the cursor is within an existing assignment's range.
+		// Uses token EndLine/EndCol for multi-line tokens (strings).
 		for _, assign := range block.Assignments {
-			if posInNode(assign.Value, line, col) {
+			if posInAssignment(assign, line, col) {
 				ctx.Position = FieldValue
 				ctx.Assignment = assign
 				break
@@ -76,6 +77,21 @@ func Resolve(program *ast.Program, line, col int) Context {
 	return Context{Position: TopLevel}
 }
 
+// posInAssignment returns true if (line, col) falls within an assignment's
+// full range, using EndLine/EndCol from the end token for multi-line values.
+func posInAssignment(assign *ast.Assignment, line, col int) bool {
+	start := assign.Start()
+	end := assign.End()
+	endLine, endCol := end.Line, end.Column
+	// Use the token's end position if set (multi-line strings).
+	if end.EndLine > 0 {
+		endLine = end.EndLine
+		endCol = end.EndCol
+	}
+	return posAfterOrAt(line, col, start.Line, start.Column) &&
+		posBeforeOrAt(line, col, endLine, endCol)
+}
+
 // posInBlock returns true if (line, col) falls within the block's body,
 // between the opening '{' and closing '}' inclusive.
 func posInBlock(block *ast.BlockStatement, line, col int) bool {
@@ -86,15 +102,6 @@ func posInBlock(block *ast.BlockStatement, line, col int) bool {
 
 	return posAfterOrAt(line, col, startLine, startCol) &&
 		posBeforeOrAt(line, col, endLine, endCol)
-}
-
-// posInNode returns true if (line, col) falls within an AST node's range.
-func posInNode(node ast.Node, line, col int) bool {
-	start := node.Start()
-	end := node.End()
-
-	return posAfterOrAt(line, col, start.Line, start.Column) &&
-		posBeforeOrAt(line, col, end.Line, end.Column)
 }
 
 // posAfterOrAt returns true if (line, col) is at or after (refLine, refCol).

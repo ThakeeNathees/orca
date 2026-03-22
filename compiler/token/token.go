@@ -79,6 +79,8 @@ type Token struct {
 	Literal string
 	Line    int // 1-based line number in source
 	Column  int // 1-based column number in source
+	EndLine int // end position for multi-line tokens (0 means same as Line)
+	EndCol  int // end column for multi-line tokens (0 means same as Column)
 }
 
 // Describe returns a human-readable description of a token type,

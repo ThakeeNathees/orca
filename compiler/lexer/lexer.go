@@ -134,6 +134,10 @@ func (l *Lexer) NextToken() token.Token {
 	case '"':
 		tok.Type = token.STRING
 		tok.Literal = l.readString()
+		// Record end position for multi-line strings. After readString,
+		// the lexer is past the closing quote.
+		tok.EndLine = l.line
+		tok.EndCol = l.column - 1 // column is already past the closing quote
 		return tok
 	case 0:
 		tok.Type = token.EOF

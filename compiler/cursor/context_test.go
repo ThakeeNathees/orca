@@ -131,6 +131,38 @@ func TestResolveMultipleBlocks(t *testing.T) {
 	}
 }
 
+// TestResolveInsideMultiLineString verifies that the cursor inside a
+// multi-line string value returns FieldValue, not BlockBody.
+func TestResolveInsideMultiLineString(t *testing.T) {
+	input := "agent researcher {\n  persona = \"\n    You are a helpful assistant.\n    \"\n}"
+	program := parseProgram(t, input)
+
+	// Line 3 is inside the multi-line string value.
+	ctx := Resolve(program, 3, 5)
+	if ctx.Position != FieldValue {
+		t.Errorf("Position = %v, want FieldValue (inside multi-line string)", ctx.Position)
+	}
+	if ctx.Assignment == nil {
+		t.Fatal("Assignment should not be nil")
+	}
+	if ctx.Assignment.Name != "persona" {
+		t.Errorf("Assignment.Name = %q, want %q", ctx.Assignment.Name, "persona")
+	}
+}
+
+// TestResolveAfterLastAssignment verifies that a new line after the
+// last assignment returns BlockBody, not FieldValue.
+func TestResolveAfterLastAssignment(t *testing.T) {
+	// Line 4 is a blank line between the last assignment and '}'.
+	input := "agent researcher {\n  model = \"gpt-4o\"\n  persona = \"You are helpful.\"\n\n}"
+	program := parseProgram(t, input)
+
+	ctx := Resolve(program, 4, 1)
+	if ctx.Position != BlockBody {
+		t.Errorf("Position = %v, want BlockBody (new line after last assignment)", ctx.Position)
+	}
+}
+
 // TestResolveSchemaPopulated verifies that the schema is populated
 // when the cursor is inside a known block type.
 func TestResolveSchemaPopulated(t *testing.T) {
