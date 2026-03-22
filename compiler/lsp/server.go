@@ -61,7 +61,9 @@ func initialize(ctx *glsp.Context, params *protocol.InitializeParams) (any, erro
 				OpenClose: boolPtr(true),
 				Change:    &syncKind,
 			},
-			CompletionProvider: &protocol.CompletionOptions{},
+			CompletionProvider: &protocol.CompletionOptions{
+				TriggerCharacters: []string{"\n"},
+			},
 		},
 		ServerInfo: &protocol.InitializeResultServerInfo{
 			Name:    serverName,
