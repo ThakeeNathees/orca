@@ -3,13 +3,12 @@
 package lsp
 
 import (
-	"fmt"
-
 	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	glspserver "github.com/tliron/glsp/server"
 
+	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
 )
@@ -123,29 +122,23 @@ func Diagnose(text string) []protocol.Diagnostic {
 
 	// Must be an empty slice (not nil) so it marshals to [] in JSON.
 	// LSP clients treat null as "no change" but [] as "clear all".
-	diagnostics := []protocol.Diagnostic{}
-	severity := protocol.DiagnosticSeverityError
-	source := "orca"
+	result := []protocol.Diagnostic{}
 
-	for _, errMsg := range p.Errors() {
-		diagnostics = append(diagnostics, protocol.Diagnostic{
-			Range:    errMsgToRange(errMsg),
-			Severity: &severity,
-			Source:   &source,
-			Message:  errMsg,
-		})
+	for _, d := range p.Diagnostics() {
+		result = append(result, toLspDiagnostic(d))
 	}
 
-	return diagnostics
+	return result
 }
 
-// errMsgToRange extracts line/col from parser error messages (format: "line N, col M: ...")
-// and converts to an LSP Range. Falls back to 0:0 if parsing fails.
-func errMsgToRange(msg string) protocol.Range {
-	var line, col int
-	// Parser errors are formatted as "line %d, col %d: %s"
-	_, _ = parseLineCol(msg, &line, &col)
-	// LSP lines and columns are 0-based, parser uses 1-based.
+// toLspDiagnostic converts a compiler diagnostic to an LSP protocol diagnostic.
+func toLspDiagnostic(d diagnostic.Diagnostic) protocol.Diagnostic {
+	severity := toLspSeverity(d.Severity)
+	source := d.Source
+
+	// LSP positions are 0-based, compiler diagnostics are 1-based.
+	line := d.Position.Line
+	col := d.Position.Column
 	if line > 0 {
 		line--
 	}
@@ -153,14 +146,29 @@ func errMsgToRange(msg string) protocol.Range {
 		col--
 	}
 	pos := protocol.Position{Line: protocol.UInteger(line), Character: protocol.UInteger(col)}
-	return protocol.Range{Start: pos, End: pos}
+
+	return protocol.Diagnostic{
+		Range:    protocol.Range{Start: pos, End: pos},
+		Severity: &severity,
+		Source:   &source,
+		Message:  d.Message,
+	}
 }
 
-// parseLineCol extracts line and column numbers from a parser error string.
-func parseLineCol(msg string, line, col *int) (int, error) {
-	var rest string
-	n, err := fmt.Sscanf(msg, "line %d, col %d: %s", line, col, &rest)
-	return n, err
+// toLspSeverity maps compiler severity levels to LSP severity levels.
+func toLspSeverity(s diagnostic.Severity) protocol.DiagnosticSeverity {
+	switch s {
+	case diagnostic.Error:
+		return protocol.DiagnosticSeverityError
+	case diagnostic.Warning:
+		return protocol.DiagnosticSeverityWarning
+	case diagnostic.Info:
+		return protocol.DiagnosticSeverityInformation
+	case diagnostic.Hint:
+		return protocol.DiagnosticSeverityHint
+	default:
+		return protocol.DiagnosticSeverityError
+	}
 }
 
 // boolPtr returns a pointer to a bool value.

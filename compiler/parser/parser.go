@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/token"
 )
@@ -18,11 +19,11 @@ import (
 // needed to record TokenEnd on AST nodes after advancing past a closing
 // delimiter.
 type Parser struct {
-	l         *lexer.Lexer
-	errors    []string
-	prevToken token.Token // the previously consumed token, used for span ends
-	curToken  token.Token // the token currently being examined
-	peekToken token.Token // the next token, used for lookahead decisions
+	l           *lexer.Lexer
+	diagnostics []diagnostic.Diagnostic
+	prevToken   token.Token // the previously consumed token, used for span ends
+	curToken    token.Token // the token currently being examined
+	peekToken   token.Token // the next token, used for lookahead decisions
 }
 
 // New creates a parser for the given lexer and primes it by reading
@@ -34,10 +35,19 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
-// Errors returns all parse errors accumulated during parsing.
-// Each error includes line/column information for source mapping.
+// Errors returns all parse errors as strings for backward compatibility.
+// Prefer Diagnostics() for structured error information.
 func (p *Parser) Errors() []string {
-	return p.errors
+	var errs []string
+	for _, d := range p.diagnostics {
+		errs = append(errs, d.Error())
+	}
+	return errs
+}
+
+// Diagnostics returns all diagnostics accumulated during parsing.
+func (p *Parser) Diagnostics() []diagnostic.Diagnostic {
+	return p.diagnostics
 }
 
 // nextToken advances the parser by one token, shifting peekToken into
@@ -49,9 +59,17 @@ func (p *Parser) nextToken() {
 	p.peekToken = p.l.NextToken()
 }
 
-// addError records a parse error with the current token's source position.
+// addError records a parse error at the current token's position.
 func (p *Parser) addError(msg string) {
-	p.errors = append(p.errors, fmt.Sprintf("line %d, col %d: %s", p.curToken.Line, p.curToken.Column, msg))
+	p.diagnostics = append(p.diagnostics, diagnostic.Diagnostic{
+		Severity: diagnostic.Error,
+		Position: diagnostic.Position{
+			Line:   p.curToken.Line,
+			Column: p.curToken.Column,
+		},
+		Message: msg,
+		Source:  "parser",
+	})
 }
 
 // expectPeek checks if the next token matches the expected type.

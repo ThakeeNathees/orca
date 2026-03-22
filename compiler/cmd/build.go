@@ -43,10 +43,9 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		p := parser.New(l)
 		program := p.ParseProgram()
 
-		if len(p.Errors()) > 0 {
-			fmt.Fprintf(os.Stderr, "errors in %s:\n", file)
-			for _, e := range p.Errors() {
-				fmt.Fprintf(os.Stderr, "  %s\n", e)
+		if len(p.Diagnostics()) > 0 {
+			for _, d := range p.Diagnostics() {
+				fmt.Fprintf(os.Stderr, "%s:%s\n", file, d.Error())
 			}
 			return fmt.Errorf("compilation failed")
 		}

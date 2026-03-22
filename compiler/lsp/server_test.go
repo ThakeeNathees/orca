@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	protocol "github.com/tliron/glsp/protocol_3_16"
+
+	"github.com/thakee/orca/compiler/diagnostic"
 )
 
 func TestDiagnoseValidSource(t *testing.T) {
@@ -31,7 +33,7 @@ func TestDiagnoseInvalidSource(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		minDiags int // at least this many diagnostics expected
+		minDiags int
 	}{
 		{"missing block name", `model { provider = "openai" }`, 1},
 		{"missing equals", `model m { provider "openai" }`, 1},
@@ -59,51 +61,65 @@ func TestDiagnoseSeverityIsError(t *testing.T) {
 	}
 }
 
-func TestDiagnoseSourceIsOrca(t *testing.T) {
+func TestDiagnoseSourceIsParser(t *testing.T) {
 	diags := Diagnose(`model { }`)
 	if len(diags) == 0 {
 		t.Fatal("expected diagnostics")
 	}
-	if diags[0].Source == nil || *diags[0].Source != "orca" {
-		t.Errorf("expected source 'orca', got %v", diags[0].Source)
+	if diags[0].Source == nil || *diags[0].Source != "parser" {
+		t.Errorf("expected source 'parser', got %v", diags[0].Source)
 	}
 }
 
 func TestDiagnoseErrorsClearAfterFix(t *testing.T) {
-	// First parse with error.
 	diags := Diagnose(`model { }`)
 	if len(diags) == 0 {
 		t.Fatal("expected diagnostics for broken source")
 	}
 
-	// Then parse the fixed version.
 	diags = Diagnose(`model m { }`)
 	if len(diags) != 0 {
 		t.Errorf("expected no diagnostics after fix, got %d", len(diags))
 	}
 }
 
-func TestErrMsgToRange(t *testing.T) {
+func TestToLspDiagnostic(t *testing.T) {
+	d := diagnostic.Diagnostic{
+		Severity: diagnostic.Error,
+		Position: diagnostic.Position{Line: 3, Column: 5},
+		Message:  "expected }",
+		Source:   "parser",
+	}
+
+	lspDiag := toLspDiagnostic(d)
+
+	// LSP is 0-based, so line 3 col 5 becomes line 2 col 4.
+	if lspDiag.Range.Start.Line != 2 {
+		t.Errorf("expected line 2, got %d", lspDiag.Range.Start.Line)
+	}
+	if lspDiag.Range.Start.Character != 4 {
+		t.Errorf("expected col 4, got %d", lspDiag.Range.Start.Character)
+	}
+	if lspDiag.Message != "expected }" {
+		t.Errorf("expected message 'expected }', got %q", lspDiag.Message)
+	}
+}
+
+func TestToLspSeverity(t *testing.T) {
 	tests := []struct {
-		name    string
-		msg     string
-		expLine uint32
-		expCol  uint32
+		in  diagnostic.Severity
+		out protocol.DiagnosticSeverity
 	}{
-		{"line 1 col 1", "line 1, col 1: something", 0, 0},
-		{"line 3 col 5", "line 3, col 5: error", 2, 4},
-		{"unparseable", "weird error", 0, 0},
+		{diagnostic.Error, protocol.DiagnosticSeverityError},
+		{diagnostic.Warning, protocol.DiagnosticSeverityWarning},
+		{diagnostic.Info, protocol.DiagnosticSeverityInformation},
+		{diagnostic.Hint, protocol.DiagnosticSeverityHint},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := errMsgToRange(tt.msg)
-			if r.Start.Line != protocol.UInteger(tt.expLine) {
-				t.Errorf("expected line %d, got %d", tt.expLine, r.Start.Line)
-			}
-			if r.Start.Character != protocol.UInteger(tt.expCol) {
-				t.Errorf("expected col %d, got %d", tt.expCol, r.Start.Character)
-			}
-		})
+		got := toLspSeverity(tt.in)
+		if got != tt.out {
+			t.Errorf("toLspSeverity(%d) = %d, want %d", tt.in, got, tt.out)
+		}
 	}
 }

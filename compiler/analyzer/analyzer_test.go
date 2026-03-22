@@ -8,8 +8,8 @@ import (
 
 func TestAnalyzeEmptyProgram(t *testing.T) {
 	program := &ast.Program{}
-	errors := Analyze(program)
-	if len(errors) != 0 {
-		t.Errorf("expected no errors, got %v", errors)
+	diags := Analyze(program)
+	if len(diags) != 0 {
+		t.Errorf("expected no diagnostics, got %v", diags)
 	}
 }
