@@ -253,3 +253,175 @@ func TestAnalyzeBlockReferenceResolution(t *testing.T) {
 	}
 }
 
+// TestAnalyzeUndefinedReference verifies that referencing an undefined
+// block name produces an error.
+func TestAnalyzeUndefinedReference(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"defined reference",
+			"model gpt4 { provider = \"openai\" }\nagent a { model = gpt4 persona = \"hi\" }",
+			false,
+			"",
+		},
+		{
+			"undefined reference",
+			"agent a { model = nonexistent persona = \"hi\" }",
+			true,
+			"undefined",
+		},
+		{
+			"string value not a reference",
+			"agent a { model = \"gpt-4o\" persona = \"hi\" }",
+			false,
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program)
+			found := hasErrorContaining(diags, tt.errorSubstr)
+			if tt.expectError && !found {
+				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected error containing %q in %v", tt.errorSubstr, diags)
+			}
+		})
+	}
+}
+
+// TestAnalyzeUnknownField verifies that using a field name not in the
+// block's schema produces an error.
+func TestAnalyzeUnknownField(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			"known field",
+			`model gpt4 { provider = "openai" }`,
+			false,
+		},
+		{
+			"unknown field",
+			`model gpt4 { provider = "openai" foo = "bar" }`,
+			true,
+		},
+		{
+			"multiple unknown fields",
+			`model gpt4 { provider = "openai" foo = "bar" baz = 42 }`,
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program)
+			found := hasErrorContaining(diags, "unknown field")
+			if tt.expectError && !found {
+				t.Errorf("expected unknown field error, got %v", diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected unknown field error in %v", diags)
+			}
+		})
+	}
+}
+
+// TestAnalyzeDuplicateBlockName verifies that two blocks with the same
+// name produce an error.
+func TestAnalyzeDuplicateBlockName(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			"unique names",
+			"model gpt4 { provider = \"openai\" }\nmodel gpt3 { provider = \"openai\" }",
+			false,
+		},
+		{
+			"duplicate model names",
+			"model gpt4 { provider = \"openai\" }\nmodel gpt4 { provider = \"anthropic\" }",
+			true,
+		},
+		{
+			"same name different block types",
+			"model gpt4 { provider = \"openai\" }\nagent gpt4 { model = \"x\" persona = \"hi\" }",
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program)
+			found := hasErrorContaining(diags, "duplicate")
+			if tt.expectError && !found {
+				t.Errorf("expected duplicate error, got %v", diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected duplicate error in %v", diags)
+			}
+		})
+	}
+}
+
+// TestAnalyzeDuplicateFieldName verifies that two assignments with the
+// same key in a block produce an error.
+func TestAnalyzeDuplicateFieldName(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			"unique fields",
+			`model gpt4 { provider = "openai" temperature = 0.7 }`,
+			false,
+		},
+		{
+			"duplicate field",
+			`model gpt4 { provider = "openai" provider = "anthropic" }`,
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program)
+			found := hasErrorContaining(diags, "duplicate field")
+			if tt.expectError && !found {
+				t.Errorf("expected duplicate field error, got %v", diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected duplicate field error in %v", diags)
+			}
+		})
+	}
+}
+
+// hasErrorContaining returns true if any error diagnostic contains substr.
+func hasErrorContaining(diags []diagnostic.Diagnostic, substr string) bool {
+	if substr == "" {
+		return false
+	}
+	for _, d := range diags {
+		if d.Severity == diagnostic.Error && strings.Contains(d.Message, substr) {
+			return true
+		}
+	}
+	return false
+}
+

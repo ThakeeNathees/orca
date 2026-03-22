@@ -17,8 +17,10 @@ import (
 // Builds a symbol table from all block definitions, then validates
 // each block's fields against its schema.
 func Analyze(program *ast.Program) []diagnostic.Diagnostic {
-	symbols := buildSymbolTable(program)
 	var diags []diagnostic.Diagnostic
+
+	symbols, dupDiags := buildSymbolTable(program)
+	diags = append(diags, dupDiags...)
 
 	for _, stmt := range program.Statements {
 		block, ok := stmt.(*ast.BlockStatement)
@@ -32,9 +34,11 @@ func Analyze(program *ast.Program) []diagnostic.Diagnostic {
 }
 
 // buildSymbolTable walks all block statements and registers each block
-// name with its block reference type, so identifiers can be resolved.
-func buildSymbolTable(program *ast.Program) *types.SymbolTable {
+// name with its block reference type. Reports duplicate block names.
+func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Diagnostic) {
 	st := types.NewSymbolTable()
+	var diags []diagnostic.Diagnostic
+
 	for _, stmt := range program.Statements {
 		block, ok := stmt.(*ast.BlockStatement)
 		if !ok {
@@ -45,14 +49,26 @@ func buildSymbolTable(program *ast.Program) *types.SymbolTable {
 		if !ok {
 			continue
 		}
+
+		if _, exists := st.Lookup(block.Name); exists {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Position: diagnostic.Position{
+					Line:   block.TokenStart.Line,
+					Column: block.TokenStart.Column,
+				},
+				Message: fmt.Sprintf("duplicate block name %q", block.Name),
+				Source:  "analyzer",
+			})
+		}
 		st.Define(block.Name, types.NewBlockRefType(kind))
 	}
-	return st
+	return st, diags
 }
 
 // analyzeBlock performs all validation checks on a single block statement.
-// Looks up the block's schema and validates each field, then checks for
-// missing required fields.
+// Checks for duplicate fields, unknown fields, missing required fields,
+// undefined references, and type mismatches.
 func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	typeName := token.BlockName(block.TokenStart.Type)
 	schema, ok := types.GetBlockSchema(typeName)
@@ -63,15 +79,27 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 	var diags []diagnostic.Diagnostic
 
 	// Validate each field present in the block.
-	present := make(map[string]bool, len(block.Assignments))
+	seen := make(map[string]bool, len(block.Assignments))
 	for _, assign := range block.Assignments {
-		present[assign.Name] = true
+		// Check for duplicate field names.
+		if seen[assign.Name] {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Position: diagnostic.Position{
+					Line:   assign.Start().Line,
+					Column: assign.Start().Column,
+				},
+				Message: fmt.Sprintf("duplicate field %q in %s %q", assign.Name, typeName, block.Name),
+				Source:  "analyzer",
+			})
+		}
+		seen[assign.Name] = true
 		diags = append(diags, validateField(block, assign, schema, symbols)...)
 	}
 
 	// Check for missing required fields.
 	for fieldName, fieldSchema := range schema.Fields {
-		if fieldSchema.Required && !present[fieldName] {
+		if fieldSchema.Required && !seen[fieldName] {
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity: diagnostic.Error,
 				Position: diagnostic.Position{
@@ -92,20 +120,38 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 }
 
 // validateField checks a single field assignment against the block's schema.
-// Verifies the field's value type matches the schema's expected type.
-// Only reports mismatches when the expression type is concrete (not Any),
-// since identifiers and complex expressions aren't resolved yet.
+// Reports unknown fields, undefined identifier references, and type mismatches.
 func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	fieldSchema, ok := schema.Fields[assign.Name]
 	if !ok {
-		// Unknown field — could report a warning, but skip for now.
-		// TODO: report unknown field names.
-		return nil
+		return []diagnostic.Diagnostic{{
+			Severity: diagnostic.Error,
+			Position: diagnostic.Position{
+				Line:   assign.Start().Line,
+				Column: assign.Start().Column,
+			},
+			Message: fmt.Sprintf("unknown field %q in %s block", assign.Name, token.BlockName(block.TokenStart.Type)),
+			Source:  "analyzer",
+		}}
+	}
+
+	// Check for undefined identifier references.
+	if ident, ok := assign.Value.(*ast.Identifier); ok {
+		if _, found := symbols.Lookup(ident.Value); !found {
+			return []diagnostic.Diagnostic{{
+				Severity: diagnostic.Error,
+				Position: diagnostic.Position{
+					Line:   ident.Start().Line,
+					Column: ident.Start().Column,
+				},
+				Message: fmt.Sprintf("undefined reference %q", ident.Value),
+				Source:  "analyzer",
+			}}
+		}
 	}
 
 	exprType := types.ExprType(assign.Value, symbols)
-	// Skip validation when the expression type is unknown (identifiers,
-	// complex expressions). These need scope resolution first.
+	// Skip type validation when the expression type is unknown.
 	if exprType.Kind == types.Any {
 		return nil
 	}

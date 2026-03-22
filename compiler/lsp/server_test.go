@@ -26,8 +26,8 @@ func TestDiagnoseValidSource(t *testing.T) {
 	}{
 		{"empty", ""},
 		{"model block", `model gpt4 { provider = "openai" }`},
-		{"agent block", `agent a { model = gpt4 persona = "hi" }`},
-		{"multiple blocks", "model m { provider = \"openai\" }\nagent a { model = gpt4 persona = \"hi\" }"},
+		{"agent block", `agent a { model = "gpt-4o" persona = "hi" }`},
+		{"multiple blocks", "model m { provider = \"openai\" }\nagent a { model = m persona = \"hi\" }"},
 	}
 
 	for _, tt := range tests {
