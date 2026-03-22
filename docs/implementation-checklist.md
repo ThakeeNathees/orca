@@ -18,7 +18,7 @@ Tracks what's implemented across the compiler pipeline.
 
 | Expression       | Lexer | Parser | AST Node       | Evaluator/IR | Tests |
 |------------------|-------|--------|----------------|--------------|-------|
-| Boolean literal  | [ ]   | [ ]    | —              | [ ]          | [ ]   |
+| Boolean literal  | [x]   | [x]    | BooleanLiteral | [ ]          | [x]   |
 | String literal   | [x]   | [x]    | StringLiteral  | [ ]          | [x]   |
 | Integer literal  | [x]   | [x]    | IntegerLiteral | [ ]          | [x]   |
 | Float literal    | [x]   | [x]    | FloatLiteral   | [ ]          | [x]   |

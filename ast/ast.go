@@ -105,6 +105,15 @@ type FloatLiteral struct {
 
 func (fl *FloatLiteral) expressionNode() {}
 
+// BooleanLiteral represents true or false.
+// Terminal node — start == end.
+type BooleanLiteral struct {
+	BaseNode
+	Value bool
+}
+
+func (bl *BooleanLiteral) expressionNode() {}
+
 // ListLiteral represents a bracketed list of expressions like [web_search, gmail]
 // or ["read", "write"]. BaseNode covers from '[' to ']'.
 type ListLiteral struct {

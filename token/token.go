@@ -25,7 +25,10 @@ const (
 	RBRACE   TokenType = "}"
 	LBRACKET TokenType = "["
 	RBRACKET TokenType = "]"
-	HASH     TokenType = "#"
+
+	// Boolean literals
+	TRUE  TokenType = "TRUE"
+	FALSE TokenType = "FALSE"
 
 	// Keywords — each corresponds to a top-level block type in Orca syntax.
 	MODEL     TokenType = "MODEL"
@@ -40,6 +43,8 @@ const (
 // keywords maps lowercase keyword strings to their token types.
 // Used by LookupIdent to distinguish keywords from regular identifiers.
 var keywords = map[string]TokenType{
+	"true":      TRUE,
+	"false":     FALSE,
 	"model":     MODEL,
 	"agent":     AGENT,
 	"task":      TASK,

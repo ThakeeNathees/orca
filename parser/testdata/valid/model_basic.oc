@@ -1,4 +1,4 @@
-# A basic model block with all common fields.
+// A basic model block with all common fields.
 model gpt4 {
   provider    = "openai"
   version     = "gpt-4o"

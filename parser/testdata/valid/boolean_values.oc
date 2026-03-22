@@ -1,0 +1,6 @@
+// Boolean values in assignments.
+model gpt4 {
+  provider = "openai"
+  verbose  = true
+  stream   = false
+}

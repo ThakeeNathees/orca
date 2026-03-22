@@ -1,4 +1,4 @@
-# An API-based tool with OAuth scopes.
+// An API-based tool with OAuth scopes.
 tool slack {
   type     = "api"
   base_url = "https://slack.com/api"

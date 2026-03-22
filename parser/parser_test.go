@@ -380,6 +380,36 @@ func TestParseKeywordAsAssignmentKey(t *testing.T) {
 	}
 }
 
+// --- boolean values ---
+
+func TestParseBooleanValues(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"true value", `model m { verbose = true }`, true},
+		{"false value", `model m { verbose = false }`, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			if len(block.Assignments) != 1 {
+				t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
+			}
+			b, ok := block.Assignments[0].Value.(*ast.BooleanLiteral)
+			if !ok {
+				t.Fatalf("expected BooleanLiteral, got %T", block.Assignments[0].Value)
+			}
+			if b.Value != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, b.Value)
+			}
+		})
+	}
+}
+
 // --- file-based tests ---
 
 // readTestFile reads a .oc file from the testdata directory.

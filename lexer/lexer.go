@@ -123,12 +123,12 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-// skipComment skips single-line comments starting with #.
+// skipComment skips single-line comments starting with //.
 // Consumes everything until end-of-line or end-of-input, then
 // recurses through skipWhitespace/skipComment to handle consecutive
 // comment lines and blank lines between comments.
 func (l *Lexer) skipComment() {
-	if l.ch == '#' {
+	if l.ch == '/' && l.peekChar() == '/' {
 		for l.ch != '\n' && l.ch != 0 {
 			l.readChar()
 		}

@@ -1,4 +1,4 @@
-# A custom function tool pointing to user-provided Python.
+// A custom function tool pointing to user-provided Python.
 tool calculate_risk {
   type        = "function"
   source      = "./tools/risk.py"

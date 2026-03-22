@@ -161,7 +161,7 @@ func TestNextTokenNumbers(t *testing.T) {
 }
 
 func TestNextTokenComment(t *testing.T) {
-	input := `# this is a comment
+	input := `// this is a comment
 model`
 	l := New(input)
 	tok := l.NextToken()
@@ -171,6 +171,30 @@ model`
 	}
 	if tok.Line != 2 {
 		t.Fatalf("expected line 2, got %d", tok.Line)
+	}
+}
+
+func TestNextTokenBooleans(t *testing.T) {
+	input := "true false"
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.TRUE, "true"},
+		{token.FALSE, "false"},
+		{token.EOF, ""},
+	}
+
+	l := New(input)
+	for i, tt := range tests {
+		tok := l.NextToken()
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - wrong type. expected=%q, got=%q", i, tt.expectedType, tok.Type)
+		}
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - wrong literal. expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
+		}
 	}
 }
 

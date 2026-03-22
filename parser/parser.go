@@ -228,6 +228,16 @@ func (p *Parser) parseValue() ast.Expression {
 		p.nextToken()
 		return expr
 
+	case token.TRUE:
+		expr := &ast.BooleanLiteral{BaseNode: terminalNode(p.curToken), Value: true}
+		p.nextToken()
+		return expr
+
+	case token.FALSE:
+		expr := &ast.BooleanLiteral{BaseNode: terminalNode(p.curToken), Value: false}
+		p.nextToken()
+		return expr
+
 	case token.IDENT:
 		// An unquoted identifier is a reference to another block.
 		expr := &ast.Identifier{BaseNode: terminalNode(p.curToken), Value: p.curToken.Literal}

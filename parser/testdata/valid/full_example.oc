@@ -1,4 +1,4 @@
-# A full example combining multiple block types.
+// A full example combining multiple block types.
 
 model gpt4 {
   provider    = "openai"
@@ -21,14 +21,14 @@ tool slack {
   scopes = ["chat:write"]
 }
 
-# The researcher uses web search to gather information.
+// The researcher uses web search to gather information.
 agent researcher {
   model  = gpt4
   tools  = [web_search]
   prompt = "You research topics thoroughly and return structured findings."
 }
 
-# The writer turns research into reports.
+// The writer turns research into reports.
 agent writer {
   model  = claude
   prompt = "You are a technical writer."

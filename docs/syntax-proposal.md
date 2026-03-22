@@ -1,13 +1,13 @@
-# Orca Syntax Proposal
+// Orca Syntax Proposal
 
-## Design goals
+#// Design goals
 
 1. **Minimal boilerplate** — define an agent system in ~30 lines, not 300
 2. **Readable by non-authors** — someone unfamiliar should understand what the system does
 3. **Composable** — blocks reference each other by name, not by wiring code
 4. **Source-mappable** — every construct maps cleanly to a line/column for debugging
 
-## Block syntax
+#// Block syntax
 
 All top-level constructs follow the same pattern:
 
@@ -17,7 +17,7 @@ keyword name {
 }
 ```
 
-### Option A: Flat HCL-style (current direction)
+##// Option A: Flat HCL-style (current direction)
 
 ```hcl
 model gpt4 {
@@ -27,7 +27,7 @@ model gpt4 {
 }
 
 tool web_search {
-  type = "builtin"  # builtin | api | function
+  type = "builtin"  // builtin | api | function
 }
 
 tool gmail {
@@ -51,7 +51,7 @@ task summarize {
 **Pros**: Simple, flat, easy to parse. Familiar to Terraform/HCL users.
 **Cons**: No way to express flow logic inline. Workflows need a separate block.
 
-### Option B: Flat + arrow syntax for workflows
+##// Option B: Flat + arrow syntax for workflows
 
 Same as Option A for resource blocks, but adds arrow syntax for workflows:
 
@@ -82,7 +82,7 @@ workflow support_ticket {
 **Pros**: Very readable. Flow is visual. No need to learn graph APIs.
 **Cons**: Slightly more complex parser. Limited expressiveness for very complex graphs.
 
-### Option C: Pipeline shorthand
+##// Option C: Pipeline shorthand
 
 For simple linear flows, allow a `pipeline` shorthand:
 
@@ -97,13 +97,13 @@ This is syntactic sugar for a workflow where each step feeds into the next.
 **Pros**: Ultra-concise for common linear patterns.
 **Cons**: Another keyword to learn. Could just be a workflow with `->`.
 
-### Recommendation
+##// Recommendation
 
 **Use Option A + B together.** Keep resource blocks flat and simple. Use arrow syntax for workflows. Skip `pipeline` as a separate keyword — a workflow with `->` is just as clear and avoids redundancy.
 
 ---
 
-## Value types
+#// Value types
 
 | Type | Example | Notes |
 |------|---------|-------|
@@ -115,7 +115,7 @@ This is syntactic sugar for a workflow where each step feeds into the next.
 | Reference | `gpt4`, `researcher` | Unquoted identifier, resolved to a defined block |
 | Dotted ref | `workflow.daily` | For namespaced references (triggers) |
 
-## Multiline strings
+#// Multiline strings
 
 For prompts (which are often long), support heredoc-style strings:
 
@@ -130,28 +130,28 @@ agent writer {
 }
 ```
 
-## Comments
+#// Comments
 
 ```hcl
-# This is a comment
-model gpt4 {  # inline comment
+// This is a comment
+model gpt4 {  // inline comment
   provider = "openai"
 }
 ```
 
-Single-line only (`#`). No block comments — keeps the lexer simple.
+Single-line only (`//`). No block comments — keeps the lexer simple.
 
-## Tool definitions
+#// Tool definitions
 
 Tools represent external capabilities agents can use:
 
 ```hcl
-# Built-in tools (provided by the runtime)
+// Built-in tools (provided by the runtime)
 tool web_search {
   type = "builtin"
 }
 
-# API-based tools
+// API-based tools
 tool slack {
   type     = "api"
   base_url = "https://slack.com/api"
@@ -159,7 +159,7 @@ tool slack {
   scopes   = ["chat:write", "channels:read"]
 }
 
-# Custom function tools (user-defined Python)
+// Custom function tools (user-defined Python)
 tool calculate_risk {
   type        = "function"
   source      = "./tools/risk.py"
@@ -176,7 +176,7 @@ Tool types:
 - **api** — external API integrations (slack, gmail, notion, jira, github, etc.)
 - **function** — user-provided Python functions for custom logic
 
-## Trigger subtypes
+#// Trigger subtypes
 
 Use dot notation for trigger variants:
 
@@ -197,7 +197,7 @@ trigger.event on_complete {
 }
 ```
 
-## Full example
+#// Full example
 
 ```hcl
 model gpt4 {
@@ -270,7 +270,7 @@ trigger.cron daily_report {
 }
 ```
 
-## Comparison: Orca vs raw LangGraph
+#// Comparison: Orca vs raw LangGraph
 
 The above ~70 lines of Orca replaces roughly 300+ lines of Python LangGraph code including:
 - State class definitions

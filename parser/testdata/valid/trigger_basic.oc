@@ -1,4 +1,4 @@
-# A trigger that starts a workflow on a cron schedule.
+// A trigger that starts a workflow on a cron schedule.
 trigger daily_report {
   type     = "cron"
   schedule = "0 9 * * 1-5"
