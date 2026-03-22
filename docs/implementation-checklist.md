@@ -25,7 +25,7 @@ Tracks what's implemented across the compiler pipeline.
 | Identifier (ref) | [x]   | [x]    | Identifier     | [ ]          | [x]   |
 | List literal     | [x]   | [x]    | ListLiteral    | [ ]          | [x]   |
 | Map literal      | [ ]   | [ ]    | MapLiteral     | [ ]          | [ ]   |
-| Member access    | [ ]   | [ ]    | MemberAccess   | [ ]          | [ ]   |
+| Member access    | [x]   | [x]    | MemberAccess   | [ ]          | [x]   |
 | Subscription     | [ ]   | [ ]    | Subscription   | [ ]          | [ ]   |
 | Call expression  | [ ]   | [ ]    | CallExpression | [ ]          | [ ]   |
 | Heredoc string   | [ ]   | [ ]    | —              | [ ]          | [ ]   |

@@ -432,6 +432,8 @@ func exprString(expr ast.Expression) string {
 		return "false"
 	case *ast.BinaryExpression:
 		return fmt.Sprintf("(%s %s %s)", exprString(e.Left), e.Operator.Literal, exprString(e.Right))
+	case *ast.MemberAccess:
+		return fmt.Sprintf("(%s.%s)", exprString(e.Object), e.Member)
 	default:
 		return fmt.Sprintf("<%T>", expr)
 	}
@@ -513,6 +515,90 @@ func TestParseOperatorPrecedence(t *testing.T) {
 				t.Errorf("expected %s, got %s", tt.expected, got)
 			}
 		})
+	}
+}
+
+// --- member access ---
+
+func TestParseMemberAccess(t *testing.T) {
+	input := `model m { val = a.b }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	ma, ok := block.Assignments[0].Value.(*ast.MemberAccess)
+	if !ok {
+		t.Fatalf("expected MemberAccess, got %T", block.Assignments[0].Value)
+	}
+	ident, ok := ma.Object.(*ast.Identifier)
+	if !ok {
+		t.Fatalf("expected Identifier as object, got %T", ma.Object)
+	}
+	if ident.Value != "a" {
+		t.Errorf("expected object 'a', got %q", ident.Value)
+	}
+	if ma.Member != "b" {
+		t.Errorf("expected member 'b', got %q", ma.Member)
+	}
+}
+
+func TestParseMemberAccessChained(t *testing.T) {
+	input := `model m { val = a.b.c }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+
+	got := exprString(block.Assignments[0].Value)
+	expected := "((a.b).c)"
+	if got != expected {
+		t.Errorf("expected %s, got %s", expected, got)
+	}
+}
+
+func TestParseMemberAccessPrecedence(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "member access binds tighter than addition",
+			input:    `model m { val = a.b + c }`,
+			expected: "((a.b) + c)",
+		},
+		{
+			name:     "member access binds tighter than arrow",
+			input:    `model m { val = a.b -> c.d }`,
+			expected: "((a.b) -> (c.d))",
+		},
+		{
+			name:     "member access binds tighter than multiplication",
+			input:    `model m { val = a.b * c.d }`,
+			expected: "((a.b) * (c.d))",
+		},
+		{
+			name:     "chained member with arithmetic",
+			input:    `model m { val = a.b.c + d }`,
+			expected: "(((a.b).c) + d)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			got := exprString(block.Assignments[0].Value)
+			if got != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestParseMemberAccessErrorMissingMember(t *testing.T) {
+	l := lexer.New(`model m { val = a. }`)
+	p := New(l)
+	p.ParseProgram()
+	if len(p.Errors()) == 0 {
+		t.Error("expected error for missing member after dot")
 	}
 }
 

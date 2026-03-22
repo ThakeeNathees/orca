@@ -132,6 +132,17 @@ type BinaryExpression struct {
 
 func (be *BinaryExpression) expressionNode() {}
 
+// MemberAccess represents a dot access expression: object.member.
+// For example, `workflow.report_pipeline` or `a.b.c`.
+// BaseNode spans from the object's start to the member identifier.
+type MemberAccess struct {
+	BaseNode
+	Object Expression // the left-hand side expression
+	Member string     // the member name (right of the dot)
+}
+
+func (ma *MemberAccess) expressionNode() {}
+
 // ListLiteral represents a bracketed list of expressions like [web_search, gmail]
 // or ["read", "write"]. BaseNode covers from '[' to ']'.
 type ListLiteral struct {

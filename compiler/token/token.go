@@ -51,6 +51,7 @@ const (
 	PrecArrow       // ->
 	PrecSum         // + -
 	PrecProduct     // * /
+	PrecAccess      // .
 )
 
 // Token represents a single lexical token with its type, literal text,
@@ -167,6 +168,8 @@ func Precedence(t TokenType) int {
 		return PrecSum
 	case STAR, SLASH:
 		return PrecProduct
+	case DOT:
+		return PrecAccess
 	default:
 		return PrecLowest
 	}

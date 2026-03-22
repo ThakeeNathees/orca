@@ -223,6 +223,14 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	// While the next token is a binary operator with higher precedence
 	// than our current level, consume it and parse the right-hand side.
 	for token.Precedence(p.curToken.Type) > precedence {
+		if p.curToken.Type == token.DOT {
+			left = p.parseMemberAccess(left)
+			if left == nil {
+				return nil
+			}
+			continue
+		}
+
 		op := p.curToken
 		prec := token.Precedence(op.Type)
 		p.nextToken() // consume the operator
@@ -297,6 +305,29 @@ func (p *Parser) parsePrimary() ast.Expression {
 		p.addError(fmt.Sprintf("expected value, got %s", token.Describe(p.curToken.Type)))
 		return nil
 	}
+}
+
+// parseMemberAccess parses a dot access: object.member.
+// The dot token must be the current token. The right side must be an identifier.
+func (p *Parser) parseMemberAccess(object ast.Expression) *ast.MemberAccess {
+	p.nextToken() // consume the dot
+
+	if p.curToken.Type != token.IDENT {
+		p.addError(fmt.Sprintf("expected member name after '.', got %s",
+			token.Describe(p.curToken.Type)))
+		return nil
+	}
+
+	ma := &ast.MemberAccess{
+		BaseNode: ast.BaseNode{
+			TokenStart: object.Start(),
+			TokenEnd:   p.curToken,
+		},
+		Object: object,
+		Member: p.curToken.Literal,
+	}
+	p.nextToken() // consume the member identifier
+	return ma
 }
 
 // parseList parses a bracketed list expression: [elem, elem, ...].
