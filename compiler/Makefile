@@ -1,4 +1,4 @@
-.PHONY: build test test-verbose test-cover run clean fmt vet lint
+.PHONY: build test test-verbose test-cover coverage run clean fmt vet lint
 
 APP_NAME := orca
 BUILD_DIR := bin
@@ -19,6 +19,10 @@ test-cover:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out
 
+coverage:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+
 fmt:
 	go fmt ./...
 
@@ -28,4 +32,4 @@ vet:
 lint: fmt vet
 
 clean:
-	rm -rf $(BUILD_DIR) coverage.out
+	rm -rf $(BUILD_DIR) coverage.out coverage.html
