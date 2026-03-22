@@ -107,3 +107,41 @@ func TestLoadSchemasUnionMembers(t *testing.T) {
 		t.Errorf("second member BlockType = %v, want %v", field.Type.Members[1].BlockType, BlockModel)
 	}
 }
+
+// TestLoadSchemasFieldDescription verifies that the optional desc property
+// is correctly loaded from schema definitions.
+func TestLoadSchemasFieldDescription(t *testing.T) {
+	schemas, err := loadSchemas()
+	if err != nil {
+		t.Fatalf("loadSchemas() error: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		blockType   string
+		fieldName   string
+		hasDesc     bool
+		expectedDesc string
+	}{
+		{"model.provider has desc", "model", "provider", true, "The LLM provider to use (e.g. openai, anthropic)."},
+		{"model.model_name multiline desc", "model", "model_name", true, "The model to use. Can be a reference to a model block\nor a string like \"gpt-4o\" or \"openai/gpt-4o\"."},
+		{"model.temperature has desc", "model", "temperature", true, "Sampling temperature between 0 and 1. Controls the creativity and randomness of generated text. Lower values like 0.1 make responses more focused and deterministic, while higher values up to 1.0 yield more random and diverse outputs. For most use cases, values between 0.2 and 0.7 are recommended."},
+		{"agent.prompt has desc", "agent", "prompt", true, "The system prompt for the agent."},
+		{"agent.tools no desc", "agent", "tools", false, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			field, ok := schemas[tt.blockType].Fields[tt.fieldName]
+			if !ok {
+				t.Fatalf("field %s.%s not found", tt.blockType, tt.fieldName)
+			}
+			if tt.hasDesc && field.Description != tt.expectedDesc {
+				t.Errorf("Description = %q, want %q", field.Description, tt.expectedDesc)
+			}
+			if !tt.hasDesc && field.Description != "" {
+				t.Errorf("Description = %q, want empty", field.Description)
+			}
+		})
+	}
+}

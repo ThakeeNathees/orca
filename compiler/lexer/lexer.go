@@ -215,6 +215,16 @@ func (l *Lexer) readString() string {
 				sb.WriteByte('\\')
 			case '"':
 				sb.WriteByte('"')
+			case '\n':
+				// Line continuation: backslash-newline joins lines.
+				// Skip the newline and any leading whitespace on the next line.
+				l.line++
+				l.column = 0
+				l.readChar()
+				for l.ch == ' ' || l.ch == '\t' {
+					l.readChar()
+				}
+				continue // skip the l.readChar() at the end of the loop
 			default:
 				sb.WriteByte('\\')
 				sb.WriteByte(l.ch)

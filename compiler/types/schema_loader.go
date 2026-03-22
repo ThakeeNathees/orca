@@ -83,6 +83,12 @@ func resolveFieldSchema(expr ast.Expression) (FieldSchema, error) {
 				return FieldSchema{}, fmt.Errorf("required: expected boolean, got %T", entry.Value)
 			}
 			fs.Required = boolLit.Value
+		case "desc":
+			strLit, ok := entry.Value.(*ast.StringLiteral)
+			if !ok {
+				return FieldSchema{}, fmt.Errorf("desc: expected string, got %T", entry.Value)
+			}
+			fs.Description = strLit.Value
 		default:
 			return FieldSchema{}, fmt.Errorf("unknown field property %q", key.Value)
 		}

@@ -320,6 +320,8 @@ func TestStringEscapeSequences(t *testing.T) {
 		{"escaped backslash", `"path\\to"`, "path\\to"},
 		{"escaped quote", `"say \"hi\""`, `say "hi"`},
 		{"multiple escapes", `"a\nb\tc"`, "a\nb\tc"},
+		{"line continuation", "\"foo\\\nbar\"", "foobar"},
+		{"line continuation strips indent", "\"foo\\\n    bar\"", "foobar"},
 		{"no escapes", `"plain"`, "plain"},
 	}
 

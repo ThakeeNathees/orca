@@ -6,8 +6,9 @@ package types
 // FieldSchema describes the expected type and constraints for a single
 // field within a block.
 type FieldSchema struct {
-	Type     Type // the expected type of this field's value
-	Required bool // whether this field must be present in the block
+	Type        Type   // the expected type of this field's value
+	Required    bool   // whether this field must be present in the block
+	Description string // optional human-readable description of the field
 }
 
 // BlockSchema defines the set of valid fields for a block type,
