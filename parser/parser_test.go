@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/thakee/orca/ast"
@@ -375,5 +377,75 @@ func TestParseKeywordAsAssignmentKey(t *testing.T) {
 	}
 	if block.Assignments[0].Name != "model" {
 		t.Errorf("expected key 'model', got %q", block.Assignments[0].Name)
+	}
+}
+
+// --- file-based tests ---
+
+// readTestFile reads a .oc file from the testdata directory.
+func readTestFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read test file %s: %v", path, err)
+	}
+	return string(data)
+}
+
+// TestValidFiles walks testdata/valid/ and verifies each .oc file parses
+// without errors and produces at least one statement.
+func TestValidFiles(t *testing.T) {
+	files, err := filepath.Glob("testdata/valid/*.oc")
+	if err != nil {
+		t.Fatalf("failed to glob valid test files: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no valid test files found in testdata/valid/")
+	}
+
+	for _, file := range files {
+		name := filepath.Base(file)
+		t.Run(name, func(t *testing.T) {
+			input := readTestFile(t, file)
+			l := lexer.New(input)
+			p := New(l)
+			program := p.ParseProgram()
+
+			if len(p.Errors()) > 0 {
+				t.Errorf("expected no errors for %s, got: %v", name, p.Errors())
+			}
+			if program == nil {
+				t.Fatalf("ParseProgram() returned nil for %s", name)
+			}
+			if len(program.Statements) == 0 {
+				t.Errorf("expected at least one statement in %s", name)
+			}
+		})
+	}
+}
+
+// TestInvalidFiles walks testdata/invalid/ and verifies each .oc file
+// produces at least one parse error.
+func TestInvalidFiles(t *testing.T) {
+	files, err := filepath.Glob("testdata/invalid/*.oc")
+	if err != nil {
+		t.Fatalf("failed to glob invalid test files: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no invalid test files found in testdata/invalid/")
+	}
+
+	for _, file := range files {
+		name := filepath.Base(file)
+		t.Run(name, func(t *testing.T) {
+			input := readTestFile(t, file)
+			l := lexer.New(input)
+			p := New(l)
+			p.ParseProgram()
+
+			if len(p.Errors()) == 0 {
+				t.Errorf("expected parse errors for %s, got none", name)
+			}
+		})
 	}
 }

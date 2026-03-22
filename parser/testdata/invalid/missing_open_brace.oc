@@ -1,0 +1,4 @@
+# Error: no opening brace after block name.
+model gpt4
+  provider = "openai"
+}

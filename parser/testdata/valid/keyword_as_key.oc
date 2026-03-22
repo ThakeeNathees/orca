@@ -1,0 +1,5 @@
+# "model" is a keyword but valid as an assignment key inside agent blocks.
+agent researcher {
+  model  = gpt4
+  prompt = "Research things."
+}
