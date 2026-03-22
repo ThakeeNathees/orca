@@ -17,11 +17,11 @@ func TestLoadSchemas(t *testing.T) {
 	}{
 		{"model", "model", 3},
 		{"agent", "agent", 3},
-		{"tool", "tool", 6},
+		{"tool", "tool", 2},
 		{"task", "task", 2},
 		{"knowledge", "knowledge", 2},
 		{"workflow", "workflow", 2},
-		{"trigger", "trigger", 3},
+		{"trigger", "trigger", 2},
 	}
 
 	for _, tt := range tests {
@@ -56,13 +56,15 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		{"model.model_name is union", "model", "model_name", Union, false},
 		{"model.temperature is float", "model", "temperature", Float, false},
 		{"agent.model is union", "agent", "model", Union, true},
+		{"agent.persona is string", "agent", "persona", String, true},
 		{"agent.tools is list", "agent", "tools", List, false},
-		{"agent.prompt is string", "agent", "prompt", String, true},
-		{"tool.type is string", "tool", "type", String, true},
+		{"tool.name is string", "tool", "name", String, true},
+		{"tool.desc is string", "tool", "desc", String, false},
 		{"task.agent is block ref", "task", "agent", BlockRef, true},
 		{"task.prompt is string", "task", "prompt", String, true},
-		{"workflow.flow is any", "workflow", "flow", Any, true},
-		{"trigger.workflow is block ref", "trigger", "workflow", BlockRef, false},
+		{"knowledge.name is string", "knowledge", "name", String, true},
+		{"workflow.name is string", "workflow", "name", String, false},
+		{"trigger.name is string", "trigger", "name", String, false},
 	}
 
 	for _, tt := range tests {
@@ -152,7 +154,7 @@ func TestLoadSchemasFieldDescription(t *testing.T) {
 		{"model.provider has desc", "model", "provider", true, "The LLM provider to use (e.g. openai, anthropic)."},
 		{"model.model_name desc", "model", "model_name", true, "The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash)."},
 		{"model.temperature has desc", "model", "temperature", true, "Sampling temperature between 0 and 1. Controls the creativity and randomness of generated text. Lower values like 0.1 make responses more focused and deterministic, while higher values up to 1.0 yield more random and diverse outputs. For most use cases, values between 0.2 and 0.7 are recommended."},
-		{"agent.prompt has desc", "agent", "prompt", true, "The system prompt for the agent."},
+		{"agent.persona has desc", "agent", "persona", true, "The persona of the agent. e.g:\n  You are a helpful assistant. or\n  You are a helpful assistant that can search the web"},
 		{"agent.tools has desc", "agent", "tools", true, "The tools to use for this agent. (e.g. [web_search, gmail])."},
 	}
 

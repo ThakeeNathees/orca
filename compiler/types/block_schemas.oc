@@ -33,42 +33,30 @@ schema agent {
       or a string like \"gpt-4o\" or \"openai/gpt-4o\".
       ",
   }
+  persona = {
+    type: str,
+    required: true,
+    desc: "
+      The persona of the agent. e.g:
+        You are a helpful assistant. or
+        You are a helpful assistant that can search the web
+      ",
+  }
   tools = {
     type: list[tool],
     desc: "The tools to use for this agent. (e.g. [web_search, gmail]).",
   }
-  prompt = {
-    type: str,
-    required: true,
-    desc: "The system prompt for the agent.",
-  }
 }
 
 schema tool {
-  type = {
+  name = {
     type: str,
     required: true,
-    desc: "The tool type (e.g. gmail, slack, web_search).",
+    desc: "The name of the tool.",
   }
-  base_url = {
+  desc = {
     type: str,
-    desc: "Base URL for API-based tools.",
-  }
-  auth = {
-    type: str,
-    desc: "Authentication method or credentials reference.",
-  }
-  scopes = {
-    type: list,
-    desc: "OAuth scopes or permission scopes.",
-  }
-  source = {
-    type: str,
-    desc: "Source path or URL for the tool implementation.",
-  }
-  description = {
-    type: str,
-    desc: "Human-readable description of the tool.",
+    desc: "The description of the tool.",
   }
 }
 
@@ -86,41 +74,35 @@ schema task {
 }
 
 schema knowledge {
-  source = {
+  name = {
     type: str,
     required: true,
-    desc: "Path or URL to the knowledge source.",
+    desc: "The name of the knowledge source.",
   }
-  type = {
+  desc = {
     type: str,
-    desc: "The type of knowledge source (e.g. pdf, csv, url).",
+    desc: "The description of the knowledge source.",
   }
 }
 
 schema workflow {
-  flow = {
-    type: any,
-    required: true,
-    desc: "The workflow execution graph definition.",
+  name = {
+    type: str,
+    desc: "The name of the workflow.",
   }
-  on_error = {
-    type: any,
-    desc: "Error handling strategy for the workflow.",
+  desc = {
+    type: str,
+    desc: "The description of the workflow.",
   }
 }
 
 schema trigger {
-  type = {
+  name = {
     type: str,
-    required: true,
-    desc: "The trigger type (cron, webhook, event).",
+    desc: "The name of the trigger.",
   }
-  schedule = {
+  desc = {
     type: str,
-    desc: "Cron expression for scheduled triggers.",
-  }
-  workflow = {
-    type: workflow,
-    desc: "The workflow to execute when triggered.",
+    desc: "The description of the trigger.",
   }
 }

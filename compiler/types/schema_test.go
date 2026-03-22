@@ -12,11 +12,11 @@ func TestGetBlockSchema(t *testing.T) {
 	}{
 		{"model schema exists", "model", true, 3},
 		{"agent schema exists", "agent", true, 3},
-		{"tool schema exists", "tool", true, 6},
+		{"tool schema exists", "tool", true, 2},
 		{"task schema exists", "task", true, 2},
 		{"knowledge schema exists", "knowledge", true, 2},
 		{"workflow schema exists", "workflow", true, 2},
-		{"trigger schema exists", "trigger", true, 3},
+		{"trigger schema exists", "trigger", true, 2},
 		{"unknown block", "foobar", false, 0},
 	}
 
@@ -47,8 +47,8 @@ func TestGetFieldSchema(t *testing.T) {
 		{"model model_name", "model", "model_name", true, Union, false},
 		{"model temperature", "model", "temperature", true, Float, false},
 		{"agent model union", "agent", "model", true, Union, true},
+		{"agent persona", "agent", "persona", true, String, true},
 		{"agent tools list", "agent", "tools", true, List, false},
-		{"agent prompt", "agent", "prompt", true, String, true},
 		{"unknown field", "model", "nonexistent", false, Any, false},
 		{"unknown block", "foobar", "anything", false, Any, false},
 	}
