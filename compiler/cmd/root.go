@@ -11,9 +11,11 @@ import (
 // rootCmd is the top-level command. Running `orca` with no subcommand
 // prints usage information.
 var rootCmd = &cobra.Command{
-	Use:   "orca",
-	Short: "The Orca compiler",
-	Long:  "Orca is a declarative language for defining AI agents.\nCompiles .oc files to Python/LangGraph code.",
+	Use:           "orca",
+	Short:         "The Orca compiler",
+	Long:          "Orca is a declarative language for defining AI agents.\nCompiles .oc files to Python/LangGraph code.",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 // Execute runs the root command. Called from main.go.
