@@ -366,6 +366,60 @@ func TestParseListWithStrings(t *testing.T) {
 	}
 }
 
+// --- trailing commas ---
+
+func TestParseListTrailingComma(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		numElems int
+	}{
+		{"single element trailing comma", `agent a { tools = [web_search,] }`, 1},
+		{"two elements trailing comma", `agent a { scopes = ["read", "write",] }`, 2},
+		{"three elements trailing comma", `agent a { tools = [a, b, c,] }`, 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+			list, ok := block.Assignments[0].Value.(*ast.ListLiteral)
+			if !ok {
+				t.Fatalf("expected ListLiteral, got %T", block.Assignments[0].Value)
+			}
+			if len(list.Elements) != tt.numElems {
+				t.Errorf("expected %d elements, got %d", tt.numElems, len(list.Elements))
+			}
+		})
+	}
+}
+
+func TestParseMapTrailingComma(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		numEntries int
+	}{
+		{"single entry trailing comma", `model m { meta = {key: "val",} }`, 1},
+		{"two entries trailing comma", `model m { meta = {a: 1, b: 2,} }`, 2},
+		{"three entries trailing comma", `model m { meta = {a: 1, b: 2, c: 3,} }`, 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			mapLit, ok := block.Assignments[0].Value.(*ast.MapLiteral)
+			if !ok {
+				t.Fatalf("expected MapLiteral, got %T", block.Assignments[0].Value)
+			}
+			if len(mapLit.Entries) != tt.numEntries {
+				t.Errorf("expected %d entries, got %d", tt.numEntries, len(mapLit.Entries))
+			}
+		})
+	}
+}
+
 // --- keyword as assignment key ---
 
 func TestParseKeywordAsAssignmentKey(t *testing.T) {

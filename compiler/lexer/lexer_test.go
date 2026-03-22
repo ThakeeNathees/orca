@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/thakee/orca/compiler/token"
@@ -303,5 +304,176 @@ func TestNextTokenFullBlock(t *testing.T) {
 		if tok.Literal != tt.expectedLiteral {
 			t.Fatalf("tests[%d] - wrong literal. expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
 		}
+	}
+}
+
+// TestStringEscapeSequences verifies that escape sequences in single-line
+// strings are correctly interpreted.
+func TestStringEscapeSequences(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"newline escape", `"hello\nworld"`, "hello\nworld"},
+		{"tab escape", `"hello\tworld"`, "hello\tworld"},
+		{"escaped backslash", `"path\\to"`, "path\\to"},
+		{"escaped quote", `"say \"hi\""`, `say "hi"`},
+		{"multiple escapes", `"a\nb\tc"`, "a\nb\tc"},
+		{"no escapes", `"plain"`, "plain"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := New(tt.input)
+			tok := l.NextToken()
+			if tok.Type != token.STRING {
+				t.Fatalf("expected STRING, got %s", tok.Type)
+			}
+			if tok.Literal != tt.expected {
+				t.Errorf("literal = %q, want %q", tok.Literal, tt.expected)
+			}
+		})
+	}
+}
+
+// TestMultiLineString verifies that strings containing newlines are
+// correctly dedented based on the closing quote's column.
+func TestMultiLineString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"basic dedent",
+			"\"\n    Hello\n    World\n    \"",
+			"Hello\nWorld",
+		},
+		{
+			"preserves relative indentation",
+			"\"\n    Hello\n      Indented\n    World\n    \"",
+			"Hello\n  Indented\nWorld",
+		},
+		{
+			"empty lines preserved",
+			"\"\n    Hello\n\n    World\n    \"",
+			"Hello\n\nWorld",
+		},
+		{
+			"no indent (closing quote at column 1)",
+			"\"\nHello\nWorld\n\"",
+			"Hello\nWorld",
+		},
+		{
+			"two space baseline",
+			"\"\n  line one\n    line two\n  \"",
+			"line one\n  line two",
+		},
+		{
+			"escape sequences in multi-line",
+			"\"\n  hello\\tworld\n  foo\\nbar\n  \"",
+			"hello\tworld\nfoo\nbar",
+		},
+		{
+			"content on first line",
+			"\"Hello\n    World\n    \"",
+			"Hello\nWorld",
+		},
+		{
+			"content on first line no indent",
+			"\"Hello\nWorld\n\"",
+			"Hello\nWorld",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := New(tt.input)
+			tok := l.NextToken()
+			if tok.Type != token.STRING {
+				t.Fatalf("expected STRING, got %s", tok.Type)
+			}
+			if tok.Literal != tt.expected {
+				t.Errorf("literal = %q, want %q", tok.Literal, tt.expected)
+			}
+		})
+	}
+}
+
+// TestMultiLineStringLineTracking verifies that the lexer correctly
+// tracks line numbers through multi-line strings.
+func TestMultiLineStringLineTracking(t *testing.T) {
+	input := "\"\n  hello\n  world\n  \"\nident"
+	l := New(input)
+
+	strTok := l.NextToken()
+	if strTok.Type != token.STRING {
+		t.Fatalf("expected STRING, got %s", strTok.Type)
+	}
+	if strTok.Line != 1 {
+		t.Errorf("string line = %d, want 1", strTok.Line)
+	}
+
+	identTok := l.NextToken()
+	if identTok.Type != token.IDENT {
+		t.Fatalf("expected IDENT, got %s", identTok.Type)
+	}
+	if identTok.Line != 5 {
+		t.Errorf("ident line = %d, want 5", identTok.Line)
+	}
+}
+
+// TestMultiLineStringInBlock verifies multi-line strings work inside
+// a block parsed by the lexer token stream.
+func TestMultiLineStringInBlock(t *testing.T) {
+	input := strings.Join([]string{
+		`agent a {`,
+		`  prompt = "`,
+		`    You are a helpful assistant.`,
+		`    Be concise.`,
+		`    "`,
+		`}`,
+	}, "\n")
+
+	l := New(input)
+	// agent
+	tok := l.NextToken()
+	if tok.Type != token.AGENT {
+		t.Fatalf("expected AGENT, got %s", tok.Type)
+	}
+	// a
+	tok = l.NextToken()
+	if tok.Type != token.IDENT {
+		t.Fatalf("expected IDENT, got %s", tok.Type)
+	}
+	// {
+	tok = l.NextToken()
+	if tok.Type != token.LBRACE {
+		t.Fatalf("expected LBRACE, got %s", tok.Type)
+	}
+	// prompt
+	tok = l.NextToken()
+	if tok.Type != token.IDENT {
+		t.Fatalf("expected IDENT 'prompt', got %s %q", tok.Type, tok.Literal)
+	}
+	// =
+	tok = l.NextToken()
+	if tok.Type != token.ASSIGN {
+		t.Fatalf("expected ASSIGN, got %s", tok.Type)
+	}
+	// the multi-line string
+	tok = l.NextToken()
+	if tok.Type != token.STRING {
+		t.Fatalf("expected STRING, got %s", tok.Type)
+	}
+	expected := "You are a helpful assistant.\nBe concise."
+	if tok.Literal != expected {
+		t.Errorf("literal = %q, want %q", tok.Literal, expected)
+	}
+	// }
+	tok = l.NextToken()
+	if tok.Type != token.RBRACE {
+		t.Fatalf("expected RBRACE, got %s", tok.Type)
 	}
 }

@@ -1,0 +1,10 @@
+// Multi-line string in a prompt field.
+agent researcher {
+  model  = gpt4
+  prompt = "
+    You are a research assistant.
+    You search the web for information.
+
+    Always cite your sources.
+    "
+}

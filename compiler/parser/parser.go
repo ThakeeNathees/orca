@@ -457,6 +457,10 @@ func (p *Parser) parseList() ast.Expression {
 	// Parse remaining comma-separated elements.
 	for p.curToken.Type == token.COMMA {
 		p.nextToken() // move past ,
+		// Allow trailing comma: if we see ] after comma, stop.
+		if p.curToken.Type == token.RBRACKET {
+			break
+		}
 		elem := p.parseExpression(token.PrecLowest)
 		if elem == nil {
 			return nil
@@ -500,6 +504,10 @@ func (p *Parser) parseMap() ast.Expression {
 	// Parse remaining comma-separated entries.
 	for p.curToken.Type == token.COMMA {
 		p.nextToken() // move past ,
+		// Allow trailing comma: if we see } after comma, stop.
+		if p.curToken.Type == token.RBRACE {
+			break
+		}
 		entry, ok := p.parseMapEntry()
 		if !ok {
 			return nil

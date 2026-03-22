@@ -4,7 +4,11 @@
 // identifiers/keywords, single-char operators, and comments.
 package lexer
 
-import "github.com/thakee/orca/compiler/token"
+import (
+	"strings"
+
+	"github.com/thakee/orca/compiler/token"
+)
 
 // Lexer holds the state for scanning through an input string.
 // It tracks the current read position and source location (line/column)
@@ -189,18 +193,52 @@ func (l *Lexer) readIdentifier() string {
 	return l.input[pos:l.position]
 }
 
-// readString reads a double-quoted string, consuming everything between
-// the opening and closing quote. Returns the content without quotes.
-// Does not currently handle escape sequences.
+// readString reads a double-quoted string with escape sequence support
+// (\n, \t, \\, \"). All strings can span multiple lines. If the string
+// contains newlines, the closing quote's column defines the baseline
+// indentation to strip. For single-line strings (no newlines), the
+// content is returned as-is after escape processing.
 func (l *Lexer) readString() string {
 	l.readChar() // skip opening quote
-	pos := l.position
+
+	isMultiLine := false
+	var sb strings.Builder
 	for l.ch != '"' && l.ch != 0 {
+		if l.ch == '\\' {
+			l.readChar() // skip backslash
+			switch l.ch {
+			case 'n':
+				sb.WriteByte('\n')
+			case 't':
+				sb.WriteByte('\t')
+			case '\\':
+				sb.WriteByte('\\')
+			case '"':
+				sb.WriteByte('"')
+			default:
+				sb.WriteByte('\\')
+				sb.WriteByte(l.ch)
+			}
+		} else {
+			if l.ch == '\n' {
+				isMultiLine = true
+				l.line++
+				l.column = 0
+			}
+			sb.WriteByte(l.ch)
+		}
 		l.readChar()
 	}
-	s := l.input[pos:l.position]
+
+	// For multi-line strings, use the closing quote's column as baseline.
+	baseline := l.column - 1
 	l.readChar() // skip closing quote
-	return s
+
+	raw := sb.String()
+	if isMultiLine {
+		return dedentString(raw, baseline)
+	}
+	return raw
 }
 
 // readNumber reads an integer or float literal. Handles numbers starting
@@ -225,6 +263,44 @@ func (l *Lexer) readNumber() token.Token {
 		tok.Type = token.INT
 	}
 	return tok
+}
+
+// dedentString strips baseline indentation from a multi-line string's
+// raw content. Removes the first line if empty (right after opening quote's
+// newline), removes the trailing line (whitespace before closing quote),
+// and strips up to baseline leading spaces from each remaining line.
+// Empty lines are preserved as empty.
+func dedentString(raw string, baseline int) string {
+	lines := strings.Split(raw, "\n")
+
+	// Remove the first line if it's empty (opening " followed by newline).
+	if len(lines) > 0 && lines[0] == "" {
+		lines = lines[1:]
+	}
+
+	// Remove the last line (whitespace before closing quote).
+	if len(lines) > 0 {
+		lines = lines[:len(lines)-1]
+	}
+
+	// Strip baseline indentation from each line.
+	for i, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		strip := baseline
+		if strip > len(line) {
+			strip = len(line)
+		}
+		// Only strip space characters (don't strip content).
+		j := 0
+		for j < strip && j < len(line) && line[j] == ' ' {
+			j++
+		}
+		lines[i] = line[j:]
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // isLetter returns true for ASCII letters and underscore.
