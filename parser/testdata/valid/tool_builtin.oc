@@ -1,0 +1,4 @@
+# A built-in tool provided by the Orca runtime.
+tool web_search {
+  type = "builtin"
+}

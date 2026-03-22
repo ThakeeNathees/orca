@@ -1,0 +1,7 @@
+# An API-based tool with OAuth scopes.
+tool slack {
+  type     = "api"
+  base_url = "https://slack.com/api"
+  auth     = "oauth"
+  scopes   = ["chat:write", "channels:read"]
+}

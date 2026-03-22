@@ -1,0 +1,6 @@
+# A task assigned to an agent with expected output format.
+task summarize {
+  description     = "Summarize findings into a report."
+  assignee        = researcher
+  expected_output = "markdown"
+}
