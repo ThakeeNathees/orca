@@ -24,6 +24,8 @@ const (
 	Any
 	// BlockRef represents a reference to another block by name.
 	BlockRef
+	// Union represents a type that can be one of several member types.
+	Union
 )
 
 // kindStrings maps each TypeKind to its human-readable name.
@@ -36,6 +38,7 @@ var kindStrings = map[TypeKind]string{
 	Map:      "map",
 	Any:      "any",
 	BlockRef: "block_ref",
+	Union:    "union",
 }
 
 // String returns the human-readable name of this type kind.
@@ -46,6 +49,19 @@ func (k TypeKind) String() string {
 	return "unknown"
 }
 
+// BlockKind identifies which kind of block a BlockRef type points to.
+type BlockKind string
+
+const (
+	BlockModel     BlockKind = "model"
+	BlockAgent     BlockKind = "agent"
+	BlockTool      BlockKind = "tool"
+	BlockTask      BlockKind = "task"
+	BlockKnowledge BlockKind = "knowledge"
+	BlockWorkflow  BlockKind = "workflow"
+	BlockTrigger   BlockKind = "trigger"
+)
+
 // Type represents a concrete type in the Orca type system.
 // Primitive types (string, int, float, bool, any) use only Kind.
 // Compound types use additional fields: ElementType for lists,
@@ -55,7 +71,8 @@ type Type struct {
 	ElementType *Type  // non-nil for List types
 	KeyType     *Type  // non-nil for Map types
 	ValueType   *Type  // non-nil for Map types
-	BlockType   string // non-empty for BlockRef types (e.g., "model", "agent")
+	BlockType   BlockKind // non-empty for BlockRef types (e.g., BlockModel, BlockAgent)
+	Members     []Type // non-nil for Union types — the set of acceptable types
 }
 
 // Pre-defined primitive type singletons for convenience.
@@ -79,8 +96,29 @@ func NewMapType(key, value Type) Type {
 
 // NewBlockRefType creates a block reference type that expects a reference
 // to a block of the given type (e.g., "model", "agent", "tool").
-func NewBlockRefType(blockType string) Type {
+func NewBlockRefType(blockType BlockKind) Type {
 	return Type{Kind: BlockRef, BlockType: blockType}
+}
+
+// NewUnionType creates a union type that accepts any of the given member types.
+// For example, NewUnionType(StringType, NewBlockRefType("model")) means
+// the value can be either a string literal or a reference to a model block.
+func NewUnionType(members ...Type) Type {
+	return Type{Kind: Union, Members: members}
+}
+
+// Contains returns true if a union type includes the given type as a member.
+// For non-union types, always returns false.
+func (t Type) Contains(other Type) bool {
+	if t.Kind != Union {
+		return false
+	}
+	for _, m := range t.Members {
+		if m.Equals(other) {
+			return true
+		}
+	}
+	return false
 }
 
 // Equals returns true if two types are structurally equivalent.
@@ -101,6 +139,16 @@ func (t Type) Equals(other Type) bool {
 		return t.KeyType.Equals(*other.KeyType) && t.ValueType.Equals(*other.ValueType)
 	case BlockRef:
 		return t.BlockType == other.BlockType
+	case Union:
+		if len(t.Members) != len(other.Members) {
+			return false
+		}
+		for i := range t.Members {
+			if !t.Members[i].Equals(other.Members[i]) {
+				return false
+			}
+		}
+		return true
 	default:
 		return true
 	}

@@ -23,15 +23,14 @@ var blockSchemas = map[string]BlockSchema{
 	"model": {
 		Fields: map[string]FieldSchema{
 			"provider":    {Type: StringType, Required: true},
-			"version":     {Type: StringType, Required: false},
+			"model_name":  {Type: NewUnionType(StringType, NewBlockRefType(BlockModel)), Required: false},
 			"temperature": {Type: FloatType, Required: false},
-			"max_tokens":  {Type: IntType, Required: false},
 		},
 	},
 	"agent": {
 		Fields: map[string]FieldSchema{
-			"model":  {Type: NewBlockRefType("model"), Required: true},
-			"tools":  {Type: NewListType(NewBlockRefType("tool")), Required: false},
+			"model":  {Type: NewUnionType(StringType, NewBlockRefType(BlockModel)), Required: true},
+			"tools":  {Type: NewListType(NewBlockRefType(BlockTool)), Required: false},
 			"prompt": {Type: StringType, Required: true},
 		},
 	},
@@ -47,7 +46,7 @@ var blockSchemas = map[string]BlockSchema{
 	},
 	"task": {
 		Fields: map[string]FieldSchema{
-			"agent":  {Type: NewBlockRefType("agent"), Required: true},
+			"agent":  {Type: NewBlockRefType(BlockAgent), Required: true},
 			"prompt": {Type: StringType, Required: true},
 		},
 	},
@@ -67,7 +66,7 @@ var blockSchemas = map[string]BlockSchema{
 		Fields: map[string]FieldSchema{
 			"type":     {Type: StringType, Required: true},
 			"schedule": {Type: StringType, Required: false},
-			"workflow": {Type: NewBlockRefType("workflow"), Required: false},
+			"workflow": {Type: NewBlockRefType(BlockWorkflow), Required: false},
 		},
 	},
 }

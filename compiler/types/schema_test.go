@@ -10,7 +10,7 @@ func TestGetBlockSchema(t *testing.T) {
 		ok        bool
 		numFields int
 	}{
-		{"model schema exists", "model", true, 4},
+		{"model schema exists", "model", true, 3},
 		{"agent schema exists", "agent", true, 3},
 		{"tool schema exists", "tool", true, 6},
 		{"task schema exists", "task", true, 2},
@@ -44,9 +44,9 @@ func TestGetFieldSchema(t *testing.T) {
 		required     bool
 	}{
 		{"model provider", "model", "provider", true, String, true},
+		{"model model_name", "model", "model_name", true, Union, false},
 		{"model temperature", "model", "temperature", true, Float, false},
-		{"model max_tokens", "model", "max_tokens", true, Int, false},
-		{"agent model ref", "agent", "model", true, BlockRef, true},
+		{"agent model union", "agent", "model", true, Union, true},
 		{"agent tools list", "agent", "tools", true, List, false},
 		{"agent prompt", "agent", "prompt", true, String, true},
 		{"unknown field", "model", "nonexistent", false, Any, false},

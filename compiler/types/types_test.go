@@ -17,6 +17,7 @@ func TestTypeKindString(t *testing.T) {
 		{"map kind", Map, "map"},
 		{"any kind", Any, "any"},
 		{"block ref kind", BlockRef, "block_ref"},
+		{"union kind", Union, "union"},
 	}
 
 	for _, tt := range tests {
@@ -122,12 +123,12 @@ func TestMapType(t *testing.T) {
 func TestBlockRefType(t *testing.T) {
 	tests := []struct {
 		name              string
-		blockType         string
-		expectedBlockType string
+		blockType         BlockKind
+		expectedBlockType BlockKind
 	}{
-		{"model ref", "model", "model"},
-		{"agent ref", "agent", "agent"},
-		{"tool ref", "tool", "tool"},
+		{"model ref", BlockModel, BlockModel},
+		{"agent ref", BlockAgent, BlockAgent},
+		{"tool ref", BlockTool, BlockTool},
 	}
 
 	for _, tt := range tests {
@@ -157,16 +158,75 @@ func TestTypeEquals(t *testing.T) {
 		{"list vs list diff element", NewListType(StringType), NewListType(IntType), false},
 		{"map vs map same", NewMapType(StringType, IntType), NewMapType(StringType, IntType), true},
 		{"map vs map diff value", NewMapType(StringType, IntType), NewMapType(StringType, StringType), false},
-		{"block ref same", NewBlockRefType("model"), NewBlockRefType("model"), true},
-		{"block ref diff", NewBlockRefType("model"), NewBlockRefType("agent"), false},
+		{"block ref same", NewBlockRefType(BlockModel), NewBlockRefType(BlockModel), true},
+		{"block ref diff", NewBlockRefType(BlockModel), NewBlockRefType(BlockAgent), false},
 		{"any equals any", AnyType, AnyType, true},
 		{"primitive vs list", StringType, NewListType(StringType), false},
+		{"union same members", NewUnionType(StringType, NewBlockRefType(BlockModel)), NewUnionType(StringType, NewBlockRefType(BlockModel)), true},
+		{"union diff members", NewUnionType(StringType, IntType), NewUnionType(StringType, FloatType), false},
+		{"union diff length", NewUnionType(StringType, IntType), NewUnionType(StringType), false},
+		{"union vs primitive", NewUnionType(StringType), StringType, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.a.Equals(tt.b); got != tt.expected {
 				t.Errorf("Equals() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestUnionType verifies union type construction and member access.
+func TestUnionType(t *testing.T) {
+	tests := []struct {
+		name           string
+		members        []Type
+		expectedLen    int
+		expectedKinds  []TypeKind
+	}{
+		{"string or block ref", []Type{StringType, NewBlockRefType(BlockModel)}, 2, []TypeKind{String, BlockRef}},
+		{"string or int or float", []Type{StringType, IntType, FloatType}, 3, []TypeKind{String, Int, Float}},
+		{"single member", []Type{StringType}, 1, []TypeKind{String}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			union := NewUnionType(tt.members...)
+			if union.Kind != Union {
+				t.Errorf("Kind = %v, want %v", union.Kind, Union)
+			}
+			if len(union.Members) != tt.expectedLen {
+				t.Fatalf("len(Members) = %d, want %d", len(union.Members), tt.expectedLen)
+			}
+			for i, expectedKind := range tt.expectedKinds {
+				if union.Members[i].Kind != expectedKind {
+					t.Errorf("Members[%d].Kind = %v, want %v", i, union.Members[i].Kind, expectedKind)
+				}
+			}
+		})
+	}
+}
+
+// TestUnionTypeContains verifies that Contains checks membership correctly.
+func TestUnionTypeContains(t *testing.T) {
+	union := NewUnionType(StringType, NewBlockRefType(BlockModel))
+
+	tests := []struct {
+		name     string
+		check    Type
+		expected bool
+	}{
+		{"contains string", StringType, true},
+		{"contains block ref model", NewBlockRefType(BlockModel), true},
+		{"does not contain int", IntType, false},
+		{"does not contain block ref agent", NewBlockRefType(BlockAgent), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := union.Contains(tt.check); got != tt.expected {
+				t.Errorf("Contains() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
