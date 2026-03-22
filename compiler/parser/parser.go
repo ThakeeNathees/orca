@@ -141,6 +141,7 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	}
 	p.nextToken()
 	block.Name = p.curToken.Literal
+	block.NameToken = p.curToken
 
 	// Expect the opening brace.
 	if p.peekToken.Type != token.LBRACE {
@@ -394,7 +395,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 func (p *Parser) parseMemberAccess(object ast.Expression) *ast.MemberAccess {
 	p.nextToken() // consume the dot
 
-	if p.curToken.Type != token.IDENT {
+	if !token.IsIdentLike(p.curToken.Type) {
 		p.addError(fmt.Sprintf("expected member name after '.', got %s",
 			token.Describe(p.curToken.Type)))
 		return nil

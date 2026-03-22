@@ -82,14 +82,8 @@ func Resolve(program *ast.Program, line, col int) Context {
 func posInAssignment(assign *ast.Assignment, line, col int) bool {
 	start := assign.Start()
 	end := assign.End()
-	endLine, endCol := end.Line, end.Column
-	// Use the token's end position if set (multi-line strings).
-	if end.EndLine > 0 {
-		endLine = end.EndLine
-		endCol = end.EndCol
-	}
 	return posAfterOrAt(line, col, start.Line, start.Column) &&
-		posBeforeOrAt(line, col, endLine, endCol)
+		posBeforeOrAt(line, col, end.EndLine, end.EndCol)
 }
 
 // posInBlock returns true if (line, col) falls within the block's body,

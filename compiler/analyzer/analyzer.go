@@ -54,8 +54,8 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity: diagnostic.Error,
 				Position: diagnostic.Position{
-					Line:   block.TokenStart.Line,
-					Column: block.TokenStart.Column,
+					Line:   block.NameToken.Line,
+					Column: block.NameToken.Column,
 				},
 				Message: fmt.Sprintf("duplicate block name %q", block.Name),
 				Source:  "analyzer",
@@ -135,19 +135,9 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 		}}
 	}
 
-	// Check for undefined identifier references.
-	if ident, ok := assign.Value.(*ast.Identifier); ok {
-		if _, found := symbols.Lookup(ident.Value); !found {
-			return []diagnostic.Diagnostic{{
-				Severity: diagnostic.Error,
-				Position: diagnostic.Position{
-					Line:   ident.Start().Line,
-					Column: ident.Start().Column,
-				},
-				Message: fmt.Sprintf("undefined reference %q", ident.Value),
-				Source:  "analyzer",
-			}}
-		}
+	// Check for undefined references in identifiers and member access.
+	if diags := checkReferences(assign.Value, symbols); len(diags) > 0 {
+		return diags
 	}
 
 	exprType := types.ExprType(assign.Value, symbols)
@@ -161,16 +151,68 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 		return nil
 	}
 
+	end := assign.Value.End()
 	return []diagnostic.Diagnostic{{
 		Severity: diagnostic.Error,
 		Position: diagnostic.Position{
 			Line:   assign.Value.Start().Line,
 			Column: assign.Value.Start().Column,
 		},
+		EndPosition: diagnostic.Position{
+			Line:   end.EndLine,
+			Column: end.EndCol + 1,
+		},
 		Message: fmt.Sprintf("field %q expects type %s, got %s",
 			assign.Name, expected.String(), exprType.String()),
 		Source: "analyzer",
 	}}
+}
+
+// checkReferences validates identifier and member access expressions,
+// reporting errors for undefined block references and unknown members.
+func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		if _, found := symbols.Lookup(e.Value); !found {
+			return []diagnostic.Diagnostic{{
+				Severity: diagnostic.Error,
+				Position: diagnostic.Position{
+					Line:   e.Start().Line,
+					Column: e.Start().Column,
+				},
+				Message: fmt.Sprintf("undefined reference %q", e.Value),
+				Source:  "analyzer",
+			}}
+		}
+	case *ast.MemberAccess:
+		// First check the object is defined.
+		objDiags := checkReferences(e.Object, symbols)
+		if len(objDiags) > 0 {
+			return objDiags
+		}
+		// Then check the member exists on the object's type.
+		objType := types.ExprType(e.Object, symbols)
+		if objType.Kind != types.BlockRef {
+			return nil
+		}
+		schema, ok := types.GetBlockSchema(string(objType.BlockType))
+		if !ok {
+			return nil
+		}
+		if _, ok := schema.Fields[e.Member]; !ok {
+			// Underline the member name, not the whole expression.
+			return []diagnostic.Diagnostic{{
+				Severity: diagnostic.Error,
+				Position: diagnostic.Position{
+					Line:   e.End().Line,
+					Column: e.End().Column,
+				},
+				Message: fmt.Sprintf("%q has no field %q", objType.BlockType, e.Member),
+				Source:  "analyzer",
+			}}
+		}
+	}
+	return nil
 }
 
 // typeMatches returns true if the expression type is compatible with the

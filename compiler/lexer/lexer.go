@@ -134,20 +134,21 @@ func (l *Lexer) NextToken() token.Token {
 	case '"':
 		tok.Type = token.STRING
 		tok.Literal = l.readString()
-		// Record end position for multi-line strings. After readString,
-		// the lexer is past the closing quote.
+		// String end position: lexer is past the closing quote.
 		tok.EndLine = l.line
-		tok.EndCol = l.column - 1 // column is already past the closing quote
+		tok.EndCol = l.column - 1
 		return tok
 	case 0:
 		tok.Type = token.EOF
 		tok.Literal = ""
+		tok.EndLine = tok.Line
+		tok.EndCol = tok.Column
 		return tok
 	default:
 		if isLetter(l.ch) {
-			// Read the full identifier, then check if it's a keyword.
 			tok.Literal = l.readIdentifier()
 			tok.Type = token.LookupIdent(tok.Literal)
+			setTokenEnd(&tok)
 			return tok
 		} else if isDigit(l.ch) {
 			return l.readNumber()
@@ -156,8 +157,16 @@ func (l *Lexer) NextToken() token.Token {
 		tok.Literal = string(l.ch)
 	}
 
+	setTokenEnd(&tok)
 	l.readChar()
 	return tok
+}
+
+// setTokenEnd sets EndLine/EndCol based on the token's literal length.
+// For single-line tokens, the end is at Column + len(Literal) - 1.
+func setTokenEnd(tok *token.Token) {
+	tok.EndLine = tok.Line
+	tok.EndCol = tok.Column + len(tok.Literal) - 1
 }
 
 // skipWhitespace consumes spaces, tabs, carriage returns, and newlines.
@@ -276,6 +285,7 @@ func (l *Lexer) readNumber() token.Token {
 	} else {
 		tok.Type = token.INT
 	}
+	setTokenEnd(&tok)
 	return tok
 }
 

@@ -412,6 +412,63 @@ func TestAnalyzeDuplicateFieldName(t *testing.T) {
 	}
 }
 
+// TestAnalyzeMemberAccess verifies that member access expressions are
+// validated: the object must be defined, and the member must exist in
+// the object's block schema.
+func TestAnalyzeMemberAccess(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"valid member access",
+			"model gpt4 { provider = \"openai\" }\nagent a { model = gpt4.provider persona = \"hi\" }",
+			false,
+			"",
+		},
+		{
+			"undefined object in member access",
+			"agent a { model = unknown.provider persona = \"hi\" }",
+			true,
+			"undefined reference",
+		},
+		{
+			"undefined member on valid object",
+			"model gpt4 { provider = \"openai\" }\nagent a { model = gpt4.nonexistent persona = \"hi\" }",
+			true,
+			"has no field",
+		},
+		{
+			"member access type mismatch",
+			"model gpt4 { provider = \"openai\" temperature = 0.7 }\nagent a { model = gpt4.temperature persona = \"hi\" }",
+			true,
+			"expects type",
+		},
+		{
+			"member access type matches",
+			"model gpt4 { provider = \"openai\" }\nagent a { model = gpt4.provider persona = \"hi\" }",
+			false,
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program)
+			found := hasErrorContaining(diags, tt.errorSubstr)
+			if tt.expectError && !found {
+				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected error containing %q in %v", tt.errorSubstr, diags)
+			}
+		})
+	}
+}
+
 // hasErrorContaining returns true if any error diagnostic contains substr.
 func hasErrorContaining(diags []diagnostic.Diagnostic, substr string) bool {
 	if substr == "" {

@@ -70,6 +70,7 @@ type Program struct {
 type BlockStatement struct {
 	BaseNode
 	Name        string        // the user-given name identifier after the keyword
+	NameToken   token.Token   // the name token, used for diagnostic ranges
 	OpenBrace   token.Token   // the '{' token, used for diagnostic ranges
 	Assignments []*Assignment // key = value pairs inside the block body
 }
