@@ -87,15 +87,19 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program.TokenStart = p.curToken
 
 	for p.curToken.Type != token.EOF {
+		beforeLine, beforeCol := p.curToken.Line, p.curToken.Column
 		stmt := p.parseStatement()
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
-		} else {
+		}
+		// Safety: if parsing didn't advance, skip a token to prevent infinite loops.
+		if p.curToken.Line == beforeLine && p.curToken.Column == beforeCol {
 			p.nextToken()
 		}
 	}
 
 	program.TokenEnd = p.curToken // EOF token
+	program.HasErrors = len(p.diagnostics) > 0
 	return program
 }
 
@@ -103,7 +107,11 @@ func (p *Parser) ParseProgram() *ast.Program {
 // current token type. Returns nil with an error for unrecognized tokens.
 func (p *Parser) parseStatement() ast.Statement {
 	if token.IsBlockKeyword(p.curToken.Type) {
-		return p.parseBlock()
+		block := p.parseBlock()
+		if block == nil {
+			return nil
+		}
+		return block
 	}
 	p.addError(fmt.Sprintf("expected block keyword (model, agent, tool, ...), got %s",
 		token.Describe(p.curToken.Type)))
@@ -114,6 +122,10 @@ func (p *Parser) parseStatement() ast.Statement {
 // All block types (model, agent, tool, etc.) share this same structure,
 // so a single method handles them all. The block's kind is determined
 // by the keyword token type stored in TokenStart.
+//
+// Error-tolerant: returns a partial BlockStatement even when the body
+// has syntax errors, so LSP features (completion, hover) still work
+// on incomplete input.
 func (p *Parser) parseBlock() *ast.BlockStatement {
 	block := &ast.BlockStatement{}
 	block.TokenStart = p.curToken
@@ -123,7 +135,7 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	if !token.IsIdentLike(p.peekToken.Type) {
 		p.addErrorAt(p.peekToken, fmt.Sprintf("expected name after '%s', got %s",
 			blockType, token.Describe(p.peekToken.Type)))
-		p.nextToken()
+		p.syncToBlockEnd()
 		return nil
 	}
 	p.nextToken()
@@ -133,7 +145,7 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	if p.peekToken.Type != token.LBRACE {
 		p.addErrorAt(p.peekToken, fmt.Sprintf("expected '{' after '%s %s', got %s",
 			blockType, block.Name, token.Describe(p.peekToken.Type)))
-		p.nextToken()
+		p.syncToBlockEnd()
 		return nil
 	}
 	p.nextToken()
@@ -146,7 +158,9 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	if p.curToken.Type != token.RBRACE {
 		p.addError(fmt.Sprintf("expected '}' to close '%s %s' block, got %s",
 			blockType, block.Name, token.Describe(p.curToken.Type)))
-		return nil
+		// Return the partial block with whatever assignments parsed.
+		block.TokenEnd = p.prevToken
+		return block
 	}
 	block.TokenEnd = p.curToken // the } token
 	p.nextToken()               // consume }
@@ -156,7 +170,8 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 
 // parseAssignments parses all key = value pairs inside a block body,
 // stopping when it hits a closing brace or EOF. Returns the collected
-// assignments as a slice.
+// assignments as a slice. Error-tolerant: failed assignments are skipped
+// and parsing continues with the next one.
 func (p *Parser) parseAssignments(blockType, blockName string) []*ast.Assignment {
 	var assignments []*ast.Assignment
 	p.nextToken() // move past {
@@ -165,9 +180,9 @@ func (p *Parser) parseAssignments(blockType, blockName string) []*ast.Assignment
 		a := p.parseAssignment(blockType, blockName)
 		if a != nil {
 			assignments = append(assignments, a)
-		} else {
-			p.nextToken()
 		}
+		// parseAssignment syncs to the next assignment on error,
+		// so no extra skip needed here.
 	}
 
 	return assignments
@@ -175,10 +190,15 @@ func (p *Parser) parseAssignments(blockType, blockName string) []*ast.Assignment
 
 // parseAssignment parses a single `key = value` pair. The key must be an
 // identifier or a keyword used as an identifier (like "model" inside a block).
+//
+// Error-tolerant: on failure, syncs to the next assignment boundary
+// (next identifier-like token at the same nesting level, or '}'/EOF)
+// so subsequent assignments can still be parsed.
 func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
 	if !token.IsIdentLike(p.curToken.Type) {
 		p.addError(fmt.Sprintf("expected property name in '%s %s' block, got %s",
 			blockType, blockName, token.Describe(p.curToken.Type)))
+		p.syncToNextAssignment()
 		return nil
 	}
 
@@ -191,7 +211,7 @@ func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
 	if p.peekToken.Type != token.ASSIGN {
 		p.addErrorAt(p.peekToken, fmt.Sprintf("expected '=' after '%s', got %s",
 			key, token.Describe(p.peekToken.Type)))
-		p.nextToken()
+		p.syncToNextAssignment()
 		return nil
 	}
 	p.nextToken() // move to =
@@ -200,6 +220,7 @@ func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
 	// Parse the right-hand side expression with lowest precedence.
 	val := p.parseExpression(token.PrecLowest)
 	if val == nil {
+		p.syncToNextAssignment()
 		return nil
 	}
 	a.Value = val
@@ -208,6 +229,36 @@ func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
 	a.TokenEnd = p.prevToken
 
 	return a
+}
+
+// --- error recovery ---
+
+// syncToBlockEnd advances past tokens until it reaches a '}', a block keyword,
+// or EOF. Used when a block header fails to parse (missing name or '{').
+func (p *Parser) syncToBlockEnd() {
+	for p.curToken.Type != token.EOF {
+		if p.curToken.Type == token.RBRACE {
+			p.nextToken() // consume the }
+			return
+		}
+		if token.IsBlockKeyword(p.curToken.Type) {
+			return // stop before the keyword so the main loop can parse it
+		}
+		p.nextToken()
+	}
+}
+
+// syncToNextAssignment advances past tokens until it finds a position where
+// a new assignment could start: an identifier-like token followed by '=',
+// a '}', or EOF. Always advances at least one token to avoid infinite loops.
+func (p *Parser) syncToNextAssignment() {
+	p.nextToken() // always advance at least once
+	for p.curToken.Type != token.EOF && p.curToken.Type != token.RBRACE {
+		if token.IsIdentLike(p.curToken.Type) && p.peekToken.Type == token.ASSIGN {
+			return
+		}
+		p.nextToken()
+	}
 }
 
 // --- expressions (Pratt parser) ---

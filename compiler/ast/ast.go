@@ -56,6 +56,7 @@ func (n *BaseNode) End() token.Token { return n.TokenEnd }
 type Program struct {
 	BaseNode
 	Statements []Statement
+	HasErrors  bool // true if the source had parse errors; AST may be partial
 }
 
 // BlockStatement represents any top-level block in Orca syntax:

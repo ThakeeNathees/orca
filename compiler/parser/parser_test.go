@@ -324,6 +324,60 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
+// TestErrorRecoveryPartialAST verifies that the parser produces a partial
+// AST for valid blocks even when other parts of the input have errors.
+func TestErrorRecoveryPartialAST(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		expectedBlocks int
+		blockNames     []string
+	}{
+		{
+			"valid block after broken block",
+			"model { }\nagent researcher { persona = \"hi\" }",
+			1,
+			[]string{"researcher"},
+		},
+		{
+			"missing closing brace still produces block",
+			"model gpt4 { provider = \"openai\"",
+			1,
+			[]string{"gpt4"},
+		},
+		{
+			"bad assignment recovers to next assignment",
+			"model gpt4 { provider ! \"openai\"\n  temperature = 0.7 }",
+			1,
+			[]string{"gpt4"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			program := p.ParseProgram()
+
+			if !program.HasErrors {
+				t.Error("expected HasErrors to be true")
+			}
+			if len(program.Statements) != tt.expectedBlocks {
+				t.Fatalf("expected %d blocks, got %d", tt.expectedBlocks, len(program.Statements))
+			}
+			for i, name := range tt.blockNames {
+				block, ok := program.Statements[i].(*ast.BlockStatement)
+				if !ok {
+					t.Fatalf("statement %d is not a BlockStatement", i)
+				}
+				if block.Name != name {
+					t.Errorf("block %d name = %q, want %q", i, block.Name, name)
+				}
+			}
+		})
+	}
+}
+
 // --- integer value ---
 
 func TestParseIntegerValue(t *testing.T) {
