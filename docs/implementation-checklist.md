@@ -18,13 +18,16 @@ Tracks what's implemented across the compiler pipeline.
 
 | Expression       | Lexer | Parser | AST Node       | Evaluator/IR | Tests |
 |------------------|-------|--------|----------------|--------------|-------|
+| Boolean literal  | [ ]   | [ ]    | —              | [ ]          | [ ]   |
 | String literal   | [x]   | [x]    | StringLiteral  | [ ]          | [x]   |
 | Integer literal  | [x]   | [x]    | IntegerLiteral | [ ]          | [x]   |
 | Float literal    | [x]   | [x]    | FloatLiteral   | [ ]          | [x]   |
 | Identifier (ref) | [x]   | [x]    | Identifier     | [ ]          | [x]   |
 | List literal     | [x]   | [x]    | ListLiteral    | [ ]          | [x]   |
-| Boolean literal  | [ ]   | [ ]    | —              | [ ]          | [ ]   |
-| Dotted reference | [ ]   | [ ]    | —              | [ ]          | [ ]   |
+| Map literal      | [ ]   | [ ]    | MapLiteral     | [ ]          | [ ]   |
+| Member access    | [ ]   | [ ]    | MemberAccess   | [ ]          | [ ]   |
+| Subscription     | [ ]   | [ ]    | Subscription   | [ ]          | [ ]   |
+| Call expression  | [ ]   | [ ]    | CallExpression | [ ]          | [ ]   |
 | Heredoc string   | [ ]   | [ ]    | —              | [ ]          | [ ]   |
 
 ## Workflow-specific syntax
@@ -36,6 +39,8 @@ Tracks what's implemented across the compiler pipeline.
 | Conditional branches | [ ]   | [ ]    | —        | [ ]          | [ ]   |
 
 ## Trigger subtypes
+
+Syntax not finalized — revisit later.
 
 | Feature               | Lexer | Parser | AST Node | Evaluator/IR | Tests |
 |-----------------------|-------|--------|----------|--------------|-------|
@@ -50,7 +55,7 @@ Tracks what's implemented across the compiler pipeline.
 | Lexer                     | Done        |
 | Parser (blocks + values)  | Done        |
 | Parser (workflow arrows)  | Not started |
-| Parser (trigger subtypes) | Not started |
+| Parser (trigger subtypes) | Deferred — syntax not finalized |
 | AST                       | Done (blocks + values) |
 | Evaluator / IR generation | Not started |
 | Python codegen (LangGraph)| Not started |
