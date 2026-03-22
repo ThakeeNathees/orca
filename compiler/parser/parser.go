@@ -137,6 +137,7 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 		return nil
 	}
 	p.nextToken()
+	block.OpenBrace = p.curToken
 
 	// Parse the body: zero or more key = value assignments.
 	block.Assignments = p.parseAssignments(blockType, block.Name)

@@ -26,10 +26,11 @@ type Position struct {
 // tied to a source location. Used by the parser, analyzer, and codegen
 // stages, then converted to LSP diagnostics for editor integration.
 type Diagnostic struct {
-	Severity Severity
-	Position Position
-	Message  string
-	Source   string // which stage produced this: "parser", "analyzer", etc.
+	Severity    Severity
+	Position    Position // start of the diagnostic range
+	EndPosition Position // end of the diagnostic range (zero value means same as Position)
+	Message     string
+	Source      string // which stage produced this: "parser", "analyzer", etc.
 }
 
 // Error implements the error interface so a Diagnostic can be used as a Go error.

@@ -8,6 +8,7 @@ import (
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	glspserver "github.com/tliron/glsp/server"
 
+	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
@@ -118,7 +119,7 @@ func publishDiagnostics(ctx *glsp.Context, uri string, text string) {
 func Diagnose(text string) []protocol.Diagnostic {
 	l := lexer.New(text)
 	p := parser.New(l)
-	p.ParseProgram()
+	program := p.ParseProgram()
 
 	// Must be an empty slice (not nil) so it marshals to [] in JSON.
 	// LSP clients treat null as "no change" but [] as "clear all".
@@ -126,6 +127,13 @@ func Diagnose(text string) []protocol.Diagnostic {
 
 	for _, d := range p.Diagnostics() {
 		result = append(result, toLspDiagnostic(d))
+	}
+
+	// Run semantic analysis only if parsing succeeded without errors.
+	if len(p.Errors()) == 0 {
+		for _, d := range analyzer.Analyze(program) {
+			result = append(result, toLspDiagnostic(d))
+		}
 	}
 
 	return result
@@ -136,23 +144,31 @@ func toLspDiagnostic(d diagnostic.Diagnostic) protocol.Diagnostic {
 	severity := toLspSeverity(d.Severity)
 	source := d.Source
 
-	// LSP positions are 0-based, compiler diagnostics are 1-based.
-	line := d.Position.Line
-	col := d.Position.Column
+	start := toLspPosition(d.Position)
+	end := start
+	if d.EndPosition.Line != 0 || d.EndPosition.Column != 0 {
+		end = toLspPosition(d.EndPosition)
+	}
+
+	return protocol.Diagnostic{
+		Range:    protocol.Range{Start: start, End: end},
+		Severity: &severity,
+		Source:   &source,
+		Message:  d.Message,
+	}
+}
+
+// toLspPosition converts a 1-based compiler position to a 0-based LSP position.
+func toLspPosition(p diagnostic.Position) protocol.Position {
+	line := p.Line
+	col := p.Column
 	if line > 0 {
 		line--
 	}
 	if col > 0 {
 		col--
 	}
-	pos := protocol.Position{Line: protocol.UInteger(line), Character: protocol.UInteger(col)}
-
-	return protocol.Diagnostic{
-		Range:    protocol.Range{Start: pos, End: pos},
-		Severity: &severity,
-		Source:   &source,
-		Message:  d.Message,
-	}
+	return protocol.Position{Line: protocol.UInteger(line), Character: protocol.UInteger(col)}
 }
 
 // toLspSeverity maps compiler severity levels to LSP severity levels.
