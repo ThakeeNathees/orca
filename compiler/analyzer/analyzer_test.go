@@ -206,3 +206,50 @@ func TestAnalyzeFieldTypeMismatch(t *testing.T) {
 	}
 }
 
+// TestAnalyzeBlockReferenceResolution verifies that identifiers referencing
+// defined blocks are accepted, and union fields accept block references.
+func TestAnalyzeBlockReferenceResolution(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			"model ref in union field (str | model)",
+			"model gpt4 { provider = \"openai\" }\nagent a { model = gpt4 persona = \"hi\" }",
+			false,
+		},
+		{
+			"string in union field",
+			"agent a { model = \"gpt-4o\" persona = \"hi\" }",
+			false,
+		},
+		{
+			"int in union field rejects",
+			"agent a { model = 42 persona = \"hi\" }",
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program)
+
+			hasTypeError := false
+			for _, d := range diags {
+				if d.Severity == diagnostic.Error && strings.Contains(d.Message, "expects type") {
+					hasTypeError = true
+					break
+				}
+			}
+			if tt.expectError && !hasTypeError {
+				t.Errorf("expected type error, got %v", diags)
+			}
+			if !tt.expectError && hasTypeError {
+				t.Errorf("unexpected type error in %v", diags)
+			}
+		})
+	}
+}
+

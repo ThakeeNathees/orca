@@ -26,7 +26,7 @@ func TestExprType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ExprType(tt.expr)
+			got := ExprType(tt.expr, nil)
 			if got.Kind != tt.expected.Kind {
 				t.Errorf("ExprType() Kind = %v, want %v", got.Kind, tt.expected.Kind)
 			}
@@ -43,7 +43,7 @@ func TestExprTypeListElements(t *testing.T) {
 			&ast.StringLiteral{Value: "b"},
 		},
 	}
-	got := ExprType(list)
+	got := ExprType(list, nil)
 	if got.Kind != List {
 		t.Fatalf("Kind = %v, want List", got.Kind)
 	}
@@ -102,7 +102,7 @@ func TestExprTypeMapLiteral(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &ast.MapLiteral{Entries: tt.entries}
-			got := ExprType(m)
+			got := ExprType(m, nil)
 			if got.Kind != tt.expectedKind {
 				t.Errorf("Kind = %v, want %v", got.Kind, tt.expectedKind)
 			}
@@ -126,6 +126,71 @@ func TestExprTypeMapLiteral(t *testing.T) {
 
 func typeKindPtr(k TypeKind) *TypeKind { return &k }
 
+// TestExprTypeIdentWithSymbolTable verifies that identifiers resolve
+// to their block reference type when a symbol table is provided.
+func TestExprTypeIdentWithSymbolTable(t *testing.T) {
+	st := NewSymbolTable()
+	st.Define("gpt4", NewBlockRefType(BlockModel))
+	st.Define("researcher", NewBlockRefType(BlockAgent))
+
+	tests := []struct {
+		name      string
+		ident     string
+		expected  TypeKind
+		blockType BlockKind
+	}{
+		{"defined model", "gpt4", BlockRef, BlockModel},
+		{"defined agent", "researcher", BlockRef, BlockAgent},
+		{"undefined", "unknown", Any, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr := &ast.Identifier{Value: tt.ident}
+			got := ExprType(expr, st)
+			if got.Kind != tt.expected {
+				t.Errorf("Kind = %v, want %v", got.Kind, tt.expected)
+			}
+			if tt.blockType != "" && got.BlockType != tt.blockType {
+				t.Errorf("BlockType = %v, want %v", got.BlockType, tt.blockType)
+			}
+		})
+	}
+}
+
+// TestExprTypeMemberAccess verifies that member access expressions resolve
+// to the field's type via the block schema.
+func TestExprTypeMemberAccess(t *testing.T) {
+	st := NewSymbolTable()
+	st.Define("gpt4", NewBlockRefType(BlockModel))
+
+	tests := []struct {
+		name     string
+		object   string
+		member   string
+		expected TypeKind
+	}{
+		{"model.provider", "gpt4", "provider", String},
+		{"model.temperature", "gpt4", "temperature", Float},
+		{"model.model_name (union)", "gpt4", "model_name", Union},
+		{"unknown member", "gpt4", "nonexistent", Any},
+		{"unknown object", "unknown", "anything", Any},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr := &ast.MemberAccess{
+				Object: &ast.Identifier{Value: tt.object},
+				Member: tt.member,
+			}
+			got := ExprType(expr, st)
+			if got.Kind != tt.expected {
+				t.Errorf("Kind = %v, want %v", got.Kind, tt.expected)
+			}
+		})
+	}
+}
+
 // TestExprTypeBinaryArrow verifies that an arrow expression returns Any.
 func TestExprTypeBinaryArrow(t *testing.T) {
 	expr := &ast.BinaryExpression{
@@ -133,7 +198,7 @@ func TestExprTypeBinaryArrow(t *testing.T) {
 		Operator: token.Token{Type: token.ARROW},
 		Right:    &ast.Identifier{Value: "b"},
 	}
-	got := ExprType(expr)
+	got := ExprType(expr, nil)
 	if got.Kind != Any {
 		t.Errorf("ExprType() Kind = %v, want Any", got.Kind)
 	}

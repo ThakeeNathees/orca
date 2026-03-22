@@ -186,14 +186,14 @@ func resolveIdentType(name string) (Type, error) {
 	}
 
 	// Otherwise treat it as a block reference.
-	kind, ok := blockKindFromName(name)
+	kind, ok := BlockKindFromName(name)
 	if !ok {
 		return Type{}, fmt.Errorf("unknown type %q", name)
 	}
 	return NewBlockRefType(kind), nil
 }
 
-// blockKindFromName maps a block type name string to its BlockKind constant.
+// BlockKindFromName maps a block type name string to its BlockKind constant.
 var blockKindMap = map[string]BlockKind{
 	"model":     BlockModel,
 	"agent":     BlockAgent,
@@ -204,8 +204,8 @@ var blockKindMap = map[string]BlockKind{
 	"trigger":   BlockTrigger,
 }
 
-// blockKindFromName returns the BlockKind for a given block type name.
-func blockKindFromName(name string) (BlockKind, bool) {
+// BlockKindFromName returns the BlockKind for a given block type name.
+func BlockKindFromName(name string) (BlockKind, bool) {
 	kind, ok := blockKindMap[name]
 	return kind, ok
 }

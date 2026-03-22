@@ -1,28 +1,9 @@
 # TODO
 
-## Next up
+  (gpt4 → model block) nor member access (gpt4.model_name → string) is implemented.
 
-2. **Analyzer** — resolve references (does `model = gpt4` point to a defined block?), report undefined references, duplicate block names.
+  To make this work you'd need:
 
-3. **LSP features** — go-to-definition, hover, completion. Depends on analyzer.
-
-## Expressions
-
-- Member access (`a.b`)
-- Call expressions (`retry(3)`)
-- Map literals (`{ key: value }`)
-- Subscription (`a[0]`)
-
-## Codegen
-
-- Generate Python/LangGraph from AST
-- Source mapping annotations in generated code
-
-## Future
-
-- `orca run` — build and execute generated Python
-- Heredoc strings (`<<EOF ... EOF`) for multi-line prompts
-- Conditional workflow branches
-- Trigger subtype syntax (deferred)
-- LSP semantic tokens (richer highlighting than TextMate)
-- Publish VS Code extension to marketplace
+  1. Symbol table — a map of block names to their types/schemas, built by walking all BlockStatements before analyzing assignments
+  2. Identifier resolution — ExprType for Identifier looks up the name in the symbol table, returns BlockRef(model) if found
+  3. Member access resolution — given the object's resolved type (e.g. BlockRef(model)), look up the field in that block's schema to get the field type

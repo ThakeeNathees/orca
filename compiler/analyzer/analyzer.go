@@ -14,8 +14,10 @@ import (
 )
 
 // Analyze walks the AST and performs semantic analysis.
-// Returns a list of diagnostics found during analysis.
+// Builds a symbol table from all block definitions, then validates
+// each block's fields against its schema.
 func Analyze(program *ast.Program) []diagnostic.Diagnostic {
+	symbols := buildSymbolTable(program)
 	var diags []diagnostic.Diagnostic
 
 	for _, stmt := range program.Statements {
@@ -23,16 +25,35 @@ func Analyze(program *ast.Program) []diagnostic.Diagnostic {
 		if !ok {
 			continue
 		}
-		diags = append(diags, analyzeBlock(block)...)
+		diags = append(diags, analyzeBlock(block, symbols)...)
 	}
 
 	return diags
 }
 
+// buildSymbolTable walks all block statements and registers each block
+// name with its block reference type, so identifiers can be resolved.
+func buildSymbolTable(program *ast.Program) *types.SymbolTable {
+	st := types.NewSymbolTable()
+	for _, stmt := range program.Statements {
+		block, ok := stmt.(*ast.BlockStatement)
+		if !ok {
+			continue
+		}
+		blockType := token.BlockName(block.TokenStart.Type)
+		kind, ok := types.BlockKindFromName(blockType)
+		if !ok {
+			continue
+		}
+		st.Define(block.Name, types.NewBlockRefType(kind))
+	}
+	return st
+}
+
 // analyzeBlock performs all validation checks on a single block statement.
 // Looks up the block's schema and validates each field, then checks for
 // missing required fields.
-func analyzeBlock(block *ast.BlockStatement) []diagnostic.Diagnostic {
+func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	typeName := token.BlockName(block.TokenStart.Type)
 	schema, ok := types.GetBlockSchema(typeName)
 	if !ok {
@@ -45,7 +66,7 @@ func analyzeBlock(block *ast.BlockStatement) []diagnostic.Diagnostic {
 	present := make(map[string]bool, len(block.Assignments))
 	for _, assign := range block.Assignments {
 		present[assign.Name] = true
-		diags = append(diags, validateField(block, assign, schema)...)
+		diags = append(diags, validateField(block, assign, schema, symbols)...)
 	}
 
 	// Check for missing required fields.
@@ -74,7 +95,7 @@ func analyzeBlock(block *ast.BlockStatement) []diagnostic.Diagnostic {
 // Verifies the field's value type matches the schema's expected type.
 // Only reports mismatches when the expression type is concrete (not Any),
 // since identifiers and complex expressions aren't resolved yet.
-func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema types.BlockSchema) []diagnostic.Diagnostic {
+func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	fieldSchema, ok := schema.Fields[assign.Name]
 	if !ok {
 		// Unknown field — could report a warning, but skip for now.
@@ -82,7 +103,7 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 		return nil
 	}
 
-	exprType := types.ExprType(assign.Value)
+	exprType := types.ExprType(assign.Value, symbols)
 	// Skip validation when the expression type is unknown (identifiers,
 	// complex expressions). These need scope resolution first.
 	if exprType.Kind == types.Any {
