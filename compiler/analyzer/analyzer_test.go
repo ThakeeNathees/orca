@@ -144,3 +144,65 @@ func TestAnalyzeMultipleMissingFields(t *testing.T) {
 	}
 }
 
+// TestAnalyzeFieldTypeMismatch verifies that assigning a value of the
+// wrong type to a field produces an error.
+func TestAnalyzeFieldTypeMismatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+	}{
+		{
+			"string field with string value",
+			`model gpt4 { provider = "openai" }`,
+			false,
+		},
+		{
+			"string field with int value",
+			`model gpt4 { provider = 42 }`,
+			true,
+		},
+		{
+			"float field with float value",
+			`model gpt4 { provider = "openai" temperature = 0.7 }`,
+			false,
+		},
+		{
+			"float field with string value",
+			`model gpt4 { provider = "openai" temperature = "high" }`,
+			true,
+		},
+		{
+			"list field with list value",
+			`agent a { model = "gpt4" persona = "hi" tools = [web_search] }`,
+			false,
+		},
+		{
+			"union field accepts string",
+			`agent a { model = "gpt-4o" persona = "hi" }`,
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program)
+
+			hasTypeError := false
+			for _, d := range diags {
+				if d.Severity == diagnostic.Error && strings.Contains(d.Message, "expects type") {
+					hasTypeError = true
+					break
+				}
+			}
+			if tt.expectError && !hasTypeError {
+				t.Errorf("expected type mismatch error, got %v", diags)
+			}
+			if !tt.expectError && hasTypeError {
+				t.Errorf("unexpected type mismatch error in %v", diags)
+			}
+		})
+	}
+}
+

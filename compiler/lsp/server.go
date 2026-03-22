@@ -15,7 +15,6 @@ import (
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
-	"github.com/thakee/orca/compiler/types"
 )
 
 const serverName = "orca-lsp"
@@ -170,7 +169,7 @@ func completeFieldNames(ctx cursor.Context) []protocol.CompletionItem {
 		}
 
 		kind := protocol.CompletionItemKindField
-		detail := typeString(field.Type)
+		detail := field.Type.String()
 		if field.Required {
 			detail += " (required)"
 		}
@@ -208,41 +207,6 @@ func completeFieldNames(ctx cursor.Context) []protocol.CompletionItem {
 	return items
 }
 
-// typeString returns a human-readable string for a type, used in completion detail.
-func typeString(t types.Type) string {
-	switch t.Kind {
-	case types.String:
-		return "str"
-	case types.Int:
-		return "int"
-	case types.Float:
-		return "float"
-	case types.Bool:
-		return "bool"
-	case types.List:
-		if t.ElementType != nil {
-			return "list[" + typeString(*t.ElementType) + "]"
-		}
-		return "list"
-	case types.Map:
-		return "map"
-	case types.Any:
-		return "any"
-	case types.BlockRef:
-		return string(t.BlockType)
-	case types.Union:
-		s := ""
-		for i, m := range t.Members {
-			if i > 0 {
-				s += " | "
-			}
-			s += typeString(m)
-		}
-		return s
-	default:
-		return "unknown"
-	}
-}
 
 // updateDocument parses the text, runs analysis, and stores everything.
 // Called on every open/change — parses once and caches the results.

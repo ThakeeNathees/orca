@@ -155,6 +155,46 @@ func (t Type) Equals(other Type) bool {
 	}
 }
 
+// String returns a human-readable representation of a type using Orca
+// syntax (e.g. "str", "list[tool]", "str | model").
+func (t Type) String() string {
+	switch t.Kind {
+	case String:
+		return "str"
+	case Int:
+		return "int"
+	case Float:
+		return "float"
+	case Bool:
+		return "bool"
+	case List:
+		if t.ElementType != nil {
+			return "list[" + t.ElementType.String() + "]"
+		}
+		return "list"
+	case Map:
+		if t.ValueType != nil {
+			return "map[" + t.ValueType.String() + "]"
+		}
+		return "map"
+	case Any:
+		return "any"
+	case BlockRef:
+		return string(t.BlockType)
+	case Union:
+		s := ""
+		for i, m := range t.Members {
+			if i > 0 {
+				s += " | "
+			}
+			s += m.String()
+		}
+		return s
+	default:
+		return "unknown"
+	}
+}
+
 // annotationMap maps language-level type annotation strings to their
 // corresponding internal types. These are the type names users write
 // in .oc files (e.g., `type = str`).

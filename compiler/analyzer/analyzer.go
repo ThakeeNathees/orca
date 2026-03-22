@@ -72,7 +72,53 @@ func analyzeBlock(block *ast.BlockStatement) []diagnostic.Diagnostic {
 
 // validateField checks a single field assignment against the block's schema.
 // Verifies the field's value type matches the schema's expected type.
+// Only reports mismatches when the expression type is concrete (not Any),
+// since identifiers and complex expressions aren't resolved yet.
 func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema types.BlockSchema) []diagnostic.Diagnostic {
-	// TODO: validate that the field's value type matches the schema type.
-	return nil
+	fieldSchema, ok := schema.Fields[assign.Name]
+	if !ok {
+		// Unknown field — could report a warning, but skip for now.
+		// TODO: report unknown field names.
+		return nil
+	}
+
+	exprType := types.ExprType(assign.Value)
+	// Skip validation when the expression type is unknown (identifiers,
+	// complex expressions). These need scope resolution first.
+	if exprType.Kind == types.Any {
+		return nil
+	}
+
+	expected := fieldSchema.Type
+	if typeMatches(exprType, expected) {
+		return nil
+	}
+
+	return []diagnostic.Diagnostic{{
+		Severity: diagnostic.Error,
+		Position: diagnostic.Position{
+			Line:   assign.Value.Start().Line,
+			Column: assign.Value.Start().Column,
+		},
+		Message: fmt.Sprintf("field %q expects type %s, got %s",
+			assign.Name, expected.String(), exprType.String()),
+		Source: "analyzer",
+	}}
+}
+
+// typeMatches returns true if the expression type is compatible with the
+// expected schema type. Handles unions (expr matches if it matches any member)
+// and Any (always matches).
+func typeMatches(expr, expected types.Type) bool {
+	if expected.Kind == types.Any {
+		return true
+	}
+	if expected.Kind == types.Union {
+		return expected.Contains(expr)
+	}
+	// For lists, match if kinds match (ignore element type for now).
+	if expected.Kind == types.List && expr.Kind == types.List {
+		return true
+	}
+	return expr.Kind == expected.Kind
 }
