@@ -37,6 +37,11 @@ func Analyze(program *ast.Program) AnalyzeResult {
 		if !ok {
 			continue
 		}
+		// Let blocks are validated separately — no schema, just reference checks.
+		if block.TokenStart.Type == token.LET {
+			diags = append(diags, analyzeLetBlock(block, symbols)...)
+			continue
+		}
 		blockDiags := analyzeBlock(block, symbols)
 		// Apply block-level @suppress annotations.
 		codes, all := suppressedCodes(block.Annotations)
@@ -70,6 +75,30 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 		if !ok {
 			continue
 		}
+
+		// Let blocks register each key as a global symbol.
+		// Multiple let blocks are merged; duplicate keys are an error.
+		if block.TokenStart.Type == token.LET {
+			for _, assign := range block.Assignments {
+				if _, exists := st.Lookup(assign.Name); exists {
+					diags = append(diags, diagnostic.Diagnostic{
+						Severity: diagnostic.Error,
+						Code:     diagnostic.CodeDuplicateBlock,
+						Position: diagnostic.Position{
+							Line:   assign.TokenStart.Line,
+							Column: assign.TokenStart.Column,
+						},
+						Message: fmt.Sprintf("let variable %q conflicts with an existing name", assign.Name),
+						Source:  "analyzer",
+					})
+					continue
+				}
+				typ := types.ExprType(assign.Value, st)
+				st.Define(assign.Name, typ, assign.TokenStart)
+			}
+			continue
+		}
+
 		blockType := token.BlockName(block.TokenStart.Type)
 		kind, ok := types.BlockKindFromName(blockType)
 		if !ok {
@@ -404,3 +433,30 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 	return filtered
 }
 
+// analyzeLetBlock validates references in let block values.
+// Let blocks have no schema — any key name is valid.
+func analyzeLetBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	var diags []diagnostic.Diagnostic
+
+	seen := make(map[string]bool, len(block.Assignments))
+	for _, assign := range block.Assignments {
+		if seen[assign.Name] {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeDuplicateField,
+				Position: diagnostic.Position{
+					Line:   assign.Start().Line,
+					Column: assign.Start().Column,
+				},
+				Message: fmt.Sprintf("duplicate variable %q in let block", assign.Name),
+				Source:  "analyzer",
+			})
+		}
+		seen[assign.Name] = true
+		if refDiags := checkReferences(assign.Value, symbols); len(refDiags) > 0 {
+			diags = append(diags, refDiags...)
+		}
+	}
+
+	return diags
+}

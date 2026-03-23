@@ -111,6 +111,15 @@ func (p *Parser) ParseProgram() *ast.Program {
 func (p *Parser) parseStatement() ast.Statement {
 	annotations := p.collectAnnotations()
 
+	if p.curToken.Type == token.LET {
+		block := p.parseLetBlock()
+		if block == nil {
+			return nil
+		}
+		block.Annotations = annotations
+		return block
+	}
+
 	if token.IsBlockKeyword(p.curToken.Type) {
 		block := p.parseBlock()
 		if block == nil {
@@ -119,7 +128,7 @@ func (p *Parser) parseStatement() ast.Statement {
 		block.Annotations = annotations
 		return block
 	}
-	p.addError(fmt.Sprintf("expected block keyword (model, agent, tool, ...), got %s",
+	p.addError(fmt.Sprintf("expected block keyword (model, agent, tool, let, ...), got %s",
 		token.Describe(p.curToken.Type)))
 	return nil
 }
@@ -171,6 +180,39 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	}
 	block.TokenEnd = p.curToken // the } token
 	p.nextToken()               // consume }
+
+	return block
+}
+
+// parseLetBlock parses an unnamed let block: `let { key = value ... }`.
+// Unlike named blocks, there is no name identifier after the keyword.
+// The block Name is left empty to signal it's a singleton.
+func (p *Parser) parseLetBlock() *ast.BlockStatement {
+	block := &ast.BlockStatement{}
+	block.TokenStart = p.curToken
+
+	// Expect the opening brace directly after `let`.
+	if p.peekToken.Type != token.LBRACE {
+		p.addErrorAt(p.peekToken, fmt.Sprintf("expected '{' after 'let', got %s",
+			token.Describe(p.peekToken.Type)))
+		p.syncToBlockEnd()
+		return nil
+	}
+	p.nextToken()
+	block.OpenBrace = p.curToken
+
+	// Parse the body: zero or more key = value assignments.
+	block.Assignments = p.parseAssignments("let", "")
+
+	// Expect the closing brace.
+	if p.curToken.Type != token.RBRACE {
+		p.addError(fmt.Sprintf("expected '}' to close 'let' block, got %s",
+			token.Describe(p.curToken.Type)))
+		block.TokenEnd = p.prevToken
+		return block
+	}
+	block.TokenEnd = p.curToken
+	p.nextToken()
 
 	return block
 }
@@ -445,7 +487,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 		return expr
 
 	case token.MODEL, token.AGENT, token.TASK, token.KNOWLEDGE,
-		token.TRIGGER, token.WORKFLOW, token.TOOL, token.INPUT:
+		token.TRIGGER, token.WORKFLOW, token.TOOL, token.INPUT, token.LET:
 		// Block keywords are valid as identifiers in expression position
 		// (e.g., model = gpt4 inside an agent block).
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}

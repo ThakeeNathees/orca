@@ -82,6 +82,7 @@ type BlockStatement struct {
 	OpenBrace   token.Token   // the '{' token, used for diagnostic ranges
 	Assignments []*Assignment // key = value pairs inside the block body
 	Annotations []*Annotation // decorators before the block keyword (@sensitive, etc.)
+	SourceFile  string        // the .oc file this block was parsed from (set by the build command)
 }
 
 func (b *BlockStatement) statementNode() {}

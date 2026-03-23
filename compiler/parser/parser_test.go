@@ -1435,3 +1435,114 @@ func TestParseSchemaExpressionErrors(t *testing.T) {
 		})
 	}
 }
+
+// --- let block tests ---
+
+func TestParseLetBlock(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expCount int // number of assignments
+		expKeys  []string
+	}{
+		{
+			name:     "let with string values",
+			input:    `let { name = "hello" greeting = "world" }`,
+			expCount: 2,
+			expKeys:  []string{"name", "greeting"},
+		},
+		{
+			name:     "let with mixed types",
+			input:    `let { api_url = "https://example.com" max_retries = 3 temp = 0.7 debug = true }`,
+			expCount: 4,
+			expKeys:  []string{"api_url", "max_retries", "temp", "debug"},
+		},
+		{
+			name:     "empty let block",
+			input:    `let {}`,
+			expCount: 0,
+			expKeys:  nil,
+		},
+		{
+			name:     "multiple let blocks",
+			input:    `let { a = "1" } let { b = "2" }`,
+			expCount: 1, // per block
+			expKeys:  []string{"a"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			if len(program.Statements) == 0 {
+				t.Fatal("expected at least one statement")
+			}
+			block := assertBlock(t, program.Statements[0], token.LET, "")
+			if len(block.Assignments) != tt.expCount {
+				t.Fatalf("expected %d assignments, got %d", tt.expCount, len(block.Assignments))
+			}
+			for i, key := range tt.expKeys {
+				if block.Assignments[i].Name != key {
+					t.Errorf("assignment[%d] name = %q, want %q", i, block.Assignments[i].Name, key)
+				}
+			}
+		})
+	}
+}
+
+func TestParseLetBlockComplexValues(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"member access",
+			`let { val = foo.bar }`,
+		},
+		{
+			"subscription",
+			`let { val = foo["bar"] }`,
+		},
+		{
+			"chained access",
+			`let { val = foo["bar"].baz }`,
+		},
+		{
+			"list value",
+			`let { items = [1, 2, 3] }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.LET, "")
+			if len(block.Assignments) != 1 {
+				t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
+			}
+		})
+	}
+}
+
+func TestParseLetBlockErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"let with name",
+			`let myname { a = 1 }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			p.ParseProgram()
+			if len(p.Errors()) == 0 {
+				t.Error("expected parse errors, got none")
+			}
+		})
+	}
+}

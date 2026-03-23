@@ -28,7 +28,16 @@ func TestLookupIdent(t *testing.T) {
 	if LookupIdent("agent") != AGENT {
 		t.Errorf("expected AGENT for 'agent'")
 	}
+	if LookupIdent("let") != LET {
+		t.Errorf("expected LET for 'let'")
+	}
 	if LookupIdent("foobar") != IDENT {
 		t.Errorf("expected IDENT for 'foobar'")
+	}
+}
+
+func TestIsBlockKeywordLet(t *testing.T) {
+	if !IsBlockKeyword(LET) {
+		t.Error("expected LET to be a block keyword")
 	}
 }

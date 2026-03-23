@@ -1104,6 +1104,17 @@ func TestAnalyzeListSubscriptRequiresInt(t *testing.T) {
 	}
 }
 
+// filterErrors returns only error-severity diagnostics.
+func filterErrors(diags []diagnostic.Diagnostic) []diagnostic.Diagnostic {
+	var errs []diagnostic.Diagnostic
+	for _, d := range diags {
+		if d.Severity == diagnostic.Error {
+			errs = append(errs, d)
+		}
+	}
+	return errs
+}
+
 // hasErrorContaining returns true if any error diagnostic contains substr.
 func hasErrorContaining(diags []diagnostic.Diagnostic, substr string) bool {
 	if substr == "" {
@@ -1117,3 +1128,98 @@ func hasErrorContaining(diags []diagnostic.Diagnostic, substr string) bool {
 	return false
 }
 
+// --- let block tests ---
+
+func TestAnalyzeLetBlock(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errContains string
+	}{
+		{
+			"let variables are valid globals",
+			`let {
+				api_url = "https://example.com"
+				max_retries = 3
+			}
+			model gpt4 {
+				provider   = "openai"
+				model_name = api_url
+			}`,
+			false,
+			"",
+		},
+		{
+			"let variable referenced in agent",
+			`let { persona_text = "You are helpful." }
+			model gpt4 { provider = "openai" model_name = "gpt-4o" }
+			agent helper {
+				model   = gpt4
+				persona = persona_text
+			}`,
+			false,
+			"",
+		},
+		{
+			"duplicate let variable name",
+			`let { x = "a" }
+			let { x = "b" }`,
+			true,
+			"conflicts with an existing name",
+		},
+		{
+			"let variable conflicts with block name",
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" }
+			let { gpt4 = "conflict" }`,
+			true,
+			"conflicts with an existing name",
+		},
+		{
+			"multiple let blocks merge",
+			`let { a = "one" }
+			let { b = "two" }
+			model gpt4 {
+				provider   = "openai"
+				model_name = a
+			}`,
+			false,
+			"",
+		},
+		{
+			"duplicate field within same let block",
+			`let {
+				x = "first"
+				x = "second"
+			}`,
+			true,
+			"duplicate variable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			result := Analyze(program)
+			hasErr := len(result.Diagnostics) > 0
+			if tt.expectError && !hasErr {
+				t.Error("expected diagnostics, got none")
+			}
+			if !tt.expectError && hasErr {
+				t.Errorf("unexpected diagnostics: %v", result.Diagnostics)
+			}
+			if tt.expectError && tt.errContains != "" {
+				found := false
+				for _, d := range result.Diagnostics {
+					if strings.Contains(d.Message, tt.errContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected diagnostic containing %q, got %v", tt.errContains, result.Diagnostics)
+				}
+			}
+		})
+	}
+}

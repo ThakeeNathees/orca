@@ -48,6 +48,7 @@ const (
 	BlockTrigger    BlockKind = "trigger"
 	BlockInput      BlockKind = "input"
 	BlockSchemaKind BlockKind = "schema"
+	BlockLet        BlockKind = "let"
 )
 
 // BlockKindFromName maps a block type name string to its BlockKind constant.
@@ -61,6 +62,7 @@ var blockKindMap = map[string]BlockKind{
 	"trigger":   BlockTrigger,
 	"input":     BlockInput,
 	"schema":    BlockSchemaKind,
+	"let":       BlockLet,
 }
 
 // Type represents a concrete type in the Orca type system.

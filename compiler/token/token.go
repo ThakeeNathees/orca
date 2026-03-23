@@ -53,6 +53,7 @@ const (
 	TOOL      TokenType = "TOOL"
 	INPUT     TokenType = "INPUT"
 	SCHEMA    TokenType = "SCHEMA"
+	LET       TokenType = "LET"
 )
 
 // Operator precedence levels for Pratt parsing. Higher values bind tighter.
@@ -156,6 +157,7 @@ var keywords = map[string]TokenType{
 	"tool":      TOOL,
 	"input":     INPUT,
 	"schema":    SCHEMA,
+	"let":       LET,
 }
 
 // LookupIdent checks if an identifier string is a reserved keyword.
@@ -171,7 +173,7 @@ func LookupIdent(ident string) TokenType {
 // (model, agent, tool, task, knowledge, trigger, workflow).
 func IsBlockKeyword(t TokenType) bool {
 	switch t {
-	case MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL, INPUT, SCHEMA:
+	case MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL, INPUT, SCHEMA, LET:
 		return true
 	}
 	return false
