@@ -123,12 +123,21 @@ func registerUserSchemas(program *ast.Program) {
 
 // inputDeclaredType extracts the schema name from an input block's type field.
 // For `input x { type = vpc_data_t }`, returns "vpc_data_t".
-// Returns empty string if the type field is missing or not an identifier.
+// For `input x { type = schema { ... } }`, registers the inline schema
+// under a synthetic name derived from the block name and returns it.
+// Returns empty string if the type field is missing or not resolvable.
 func inputDeclaredType(block *ast.BlockStatement) string {
 	for _, assign := range block.Assignments {
 		if assign.Name == "type" {
 			if ident, ok := assign.Value.(*ast.Identifier); ok {
 				return ident.Value
+			}
+			if _, ok := assign.Value.(*ast.SchemaExpression); ok {
+				typ, err := types.ResolveTypeExpr(assign.Value)
+				if err != nil {
+					return ""
+				}
+				return string(typ.BlockType)
 			}
 		}
 	}
@@ -340,6 +349,12 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 				return diags
 			}
 			if diags := checkReferences(entry.Value, symbols); len(diags) > 0 {
+				return diags
+			}
+		}
+	case *ast.SchemaExpression:
+		for _, assign := range e.Assignments {
+			if diags := checkReferences(assign.Value, symbols); len(diags) > 0 {
 				return diags
 			}
 		}

@@ -3,12 +3,16 @@ package types
 import (
 	_ "embed"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
 	"github.com/thakee/orca/compiler/token"
 )
+
+// inlineCounter generates unique names for anonymous inline schemas.
+var inlineCounter atomic.Int64
 
 //go:embed builtins.oc
 var schemaSource string
@@ -51,11 +55,21 @@ func loadSchemas() (map[string]BlockSchema, error) {
 // Each assignment is resolved using ResolveFieldSchema, producing field
 // types, required flags, and descriptions from annotations.
 func SchemaFromBlock(block *ast.BlockStatement) (BlockSchema, error) {
+	schema, err := SchemaFromAssignments(block.Assignments)
+	if err != nil {
+		return BlockSchema{}, fmt.Errorf("schema %s: %w", block.Name, err)
+	}
+	return schema, nil
+}
+
+// SchemaFromAssignments builds a BlockSchema from a slice of assignments.
+// Used by both named schema blocks and inline schema expressions.
+func SchemaFromAssignments(assignments []*ast.Assignment) (BlockSchema, error) {
 	fields := make(map[string]FieldSchema)
-	for _, assign := range block.Assignments {
+	for _, assign := range assignments {
 		fs, err := ResolveFieldSchema(assign)
 		if err != nil {
-			return BlockSchema{}, fmt.Errorf("schema %s.%s: %w", block.Name, assign.Name, err)
+			return BlockSchema{}, fmt.Errorf("field %s: %w", assign.Name, err)
 		}
 		fields[assign.Name] = fs
 	}
@@ -117,9 +131,14 @@ func ResolveFieldSchema(assign *ast.Assignment) (FieldSchema, error) {
 	return fs, nil
 }
 
-// resolveType converts a type expression from the .oc file into an
-// internal Type. Handles identifiers (str, int, model, etc.), and
-// binary expressions with pipe for union types (str | model).
+// ResolveTypeExpr converts a type expression from the .oc file into an
+// internal Type. Handles identifiers (str, int, model, etc.), inline schemas,
+// parameterized types (list[T], map[T]), and union types (str | model).
+func ResolveTypeExpr(expr ast.Expression) (Type, error) {
+	return resolveType(expr)
+}
+
+// resolveType is the internal implementation of ResolveTypeExpr.
 func resolveType(expr ast.Expression) (Type, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
@@ -146,6 +165,17 @@ func resolveType(expr ast.Expression) (Type, error) {
 		default:
 			return Type{}, fmt.Errorf("parameterized type not supported for %q", baseIdent.Value)
 		}
+
+	case *ast.SchemaExpression:
+		// Inline schema: register under a synthetic name so member access
+		// can resolve through it (supports nested inline schemas).
+		schema, err := SchemaFromAssignments(e.Assignments)
+		if err != nil {
+			return Type{}, fmt.Errorf("inline schema: %w", err)
+		}
+		name := fmt.Sprintf("__anon_%d", inlineCounter.Add(1))
+		RegisterSchema(name, schema)
+		return NewBlockRefType(BlockKind(name)), nil
 
 	case *ast.BinaryExpression:
 		if e.Operator.Type != token.PIPE {

@@ -917,6 +917,81 @@ func TestUnifiedTypeSystem(t *testing.T) {
 			true,
 			`has no field "nonexistent"`,
 		},
+		{
+			"inline schema in input type",
+			`input cfg {
+				type = schema {
+					host = str
+					port = int
+				}
+			}
+			workflow w { name = cfg.host }`,
+			false,
+			"",
+		},
+		{
+			"inline schema rejects unknown member",
+			`input cfg {
+				type = schema {
+					host = str
+				}
+			}
+			workflow w { name = cfg.nonexistent }`,
+			true,
+			`has no field "nonexistent"`,
+		},
+		{
+			"nested inline schema with member access",
+			`input user_input {
+				type = schema {
+					@desc("A list of keys")
+					keys = schema {
+						openai = str
+						google = str
+					}
+
+					@desc("A list of models")
+					models = schema {
+						gpt4o = str
+						gemini25 = str
+					}
+				}
+			}
+			model gpt5 {
+				provider   = user_input.keys.openai
+				model_name = user_input.models.gpt4o
+			}`,
+			false,
+			"",
+		},
+		{
+			"nested inline schema rejects unknown nested member",
+			`input user_input {
+				type = schema {
+					keys = schema {
+						openai = str
+					}
+				}
+			}
+			model gpt5 {
+				provider   = user_input.keys.nonexistent
+				model_name = "gpt-5"
+			}`,
+			true,
+			`has no field "nonexistent"`,
+		},
+		{
+			"inline schema in agent output",
+			`agent writer {
+				model   = "gpt4"
+				persona = "test"
+				output  = schema {
+					draft = str
+				}
+			}`,
+			false,
+			"",
+		},
 	}
 
 	for _, tt := range tests {

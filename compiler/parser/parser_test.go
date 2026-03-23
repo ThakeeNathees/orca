@@ -1315,3 +1315,123 @@ func TestParseNoAnnotations(t *testing.T) {
 		t.Errorf("expected 0 block annotations, got %d", len(block.Annotations))
 	}
 }
+
+// TestParseSchemaExpression verifies parsing of inline schema expressions.
+func TestParseSchemaExpression(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		fieldCount int
+		fieldNames []string
+	}{
+		{
+			"inline schema with two fields",
+			`input x {
+				type = schema {
+					key   = str
+					model = str
+				}
+			}`,
+			2,
+			[]string{"key", "model"},
+		},
+		{
+			"empty inline schema",
+			`input x {
+				type = schema {}
+			}`,
+			0,
+			nil,
+		},
+		{
+			"inline schema with complex types",
+			`agent a {
+				model   = "gpt4"
+				persona = "test"
+				output = schema {
+					draft    = str
+					revision = int
+					tags     = list[str]
+				}
+			}`,
+			3,
+			[]string{"draft", "revision", "tags"},
+		},
+		{
+			"schema keyword without brace is identifier",
+			`input x {
+				type = schema
+			}`,
+			-1, // not a schema expression, just an identifier
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := program.Statements[0].(*ast.BlockStatement)
+
+			// Find the assignment with the schema expression.
+			var target *ast.Assignment
+			for _, a := range block.Assignments {
+				if a.Name == "type" || a.Name == "output" {
+					target = a
+					break
+				}
+			}
+			if target == nil {
+				t.Fatal("target assignment not found")
+			}
+
+			if tt.fieldCount == -1 {
+				// Expect an identifier, not a schema expression.
+				if _, ok := target.Value.(*ast.Identifier); !ok {
+					t.Fatalf("expected *ast.Identifier, got %T", target.Value)
+				}
+				return
+			}
+
+			se, ok := target.Value.(*ast.SchemaExpression)
+			if !ok {
+				t.Fatalf("expected *ast.SchemaExpression, got %T", target.Value)
+			}
+			if len(se.Assignments) != tt.fieldCount {
+				t.Fatalf("expected %d fields, got %d", tt.fieldCount, len(se.Assignments))
+			}
+			for i, name := range tt.fieldNames {
+				if se.Assignments[i].Name != name {
+					t.Errorf("field[%d] name = %q, want %q", i, se.Assignments[i].Name, name)
+				}
+			}
+		})
+	}
+}
+
+// TestParseSchemaExpressionErrors verifies error cases for inline schema parsing.
+func TestParseSchemaExpressionErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"missing closing brace",
+			`input x { type = schema { key = str }`,
+		},
+		{
+			"missing value after equals",
+			`input x { type = schema { key = } }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			p.ParseProgram()
+			if len(p.Errors()) == 0 {
+				t.Error("expected parse errors, got none")
+			}
+		})
+	}
+}

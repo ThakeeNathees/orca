@@ -214,6 +214,17 @@ type Assignment struct {
 
 func (a *Assignment) statementNode() {}
 
+// SchemaExpression represents an inline schema definition: schema { key = type, ... }.
+// Used for anonymous type definitions in field values like `output = schema { draft = str }`.
+// Reuses Assignment nodes for the body so annotations (@desc) work on inline fields.
+// BaseNode covers from the `schema` keyword to the closing '}'.
+type SchemaExpression struct {
+	BaseNode
+	Assignments []*Assignment
+}
+
+func (se *SchemaExpression) expressionNode() {}
+
 // NullLiteral represents the null keyword.
 // Terminal node — start == end.
 type NullLiteral struct {

@@ -25,6 +25,8 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 		return identType(e, symbols)
 	case *ast.MemberAccess:
 		return memberAccessType(e, symbols)
+	case *ast.SchemaExpression:
+		return TypeOf("schema")
 	case *ast.BinaryExpression:
 		// TODO: infer result type from operator and operand types.
 		return TypeOf("any")

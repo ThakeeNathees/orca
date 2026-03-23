@@ -434,8 +434,18 @@ func (p *Parser) parsePrimary() ast.Expression {
 		p.nextToken()
 		return expr
 
+	case token.SCHEMA:
+		// If followed by '{', parse as inline schema expression.
+		// Otherwise treat as identifier (e.g., type = schema).
+		if p.peekToken.Type == token.LBRACE {
+			return p.parseSchemaExpression()
+		}
+		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
+		p.nextToken()
+		return expr
+
 	case token.MODEL, token.AGENT, token.TASK, token.KNOWLEDGE,
-		token.TRIGGER, token.WORKFLOW, token.TOOL, token.INPUT, token.SCHEMA:
+		token.TRIGGER, token.WORKFLOW, token.TOOL, token.INPUT:
 		// Block keywords are valid as identifiers in expression position
 		// (e.g., model = gpt4 inside an agent block).
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
@@ -596,6 +606,26 @@ func (p *Parser) parseList() ast.Expression {
 	p.nextToken()              // move past ]
 
 	return list
+}
+
+// parseSchemaExpression parses an inline schema definition: schema { key = type ... }.
+// The `schema` keyword must be the current token with `{` as the peek token.
+// The body uses the same key = value syntax as block bodies (newline-separated).
+func (p *Parser) parseSchemaExpression() *ast.SchemaExpression {
+	se := &ast.SchemaExpression{}
+	se.TokenStart = p.curToken // the `schema` keyword
+
+	p.nextToken() // move to {
+	se.Assignments = p.parseAssignments("schema", "inline")
+
+	if p.curToken.Type != token.RBRACE {
+		p.addError(fmt.Sprintf("expected '}' to close inline schema, got %s",
+			token.Describe(p.curToken.Type)))
+		return nil
+	}
+	se.TokenEnd = p.curToken
+	p.nextToken() // consume }
+	return se
 }
 
 // parseMap parses a map literal: {key: value, key: value, ...}.

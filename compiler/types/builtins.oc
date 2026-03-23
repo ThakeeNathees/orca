@@ -49,6 +49,9 @@ schema agent {
 
   @desc("The tools to use for this agent.")
   tools = list[tool] | null
+
+  @desc("The structured output schema for this agent.")
+  output = schema | null
 }
 
 @suppress("duplicate-block")
