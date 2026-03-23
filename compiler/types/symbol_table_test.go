@@ -20,7 +20,7 @@ func TestSymbolTableLookup(t *testing.T) {
 	}{
 		{"defined model", "gpt4", true, BlockRef},
 		{"defined agent", "researcher", true, BlockRef},
-		{"undefined", "unknown", false, Any},
+		{"undefined", "unknown", false, BlockRef},
 	}
 
 	for _, tt := range tests {

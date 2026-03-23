@@ -48,9 +48,10 @@ func TestAnalyzeMissingRequiredField(t *testing.T) {
 			"provider",
 		},
 		{
-			"model with provider",
+			"model with provider and model_name",
 			`model gpt4 {
 				provider = "openai"
+				model_name = "gpt-4o"
 			}`,
 			false,
 			"",
@@ -154,7 +155,7 @@ func TestAnalyzeFieldTypeMismatch(t *testing.T) {
 	}{
 		{
 			"string field with string value",
-			`model gpt4 { provider = "openai" }`,
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" }`,
 			false,
 		},
 		{
@@ -164,12 +165,12 @@ func TestAnalyzeFieldTypeMismatch(t *testing.T) {
 		},
 		{
 			"float field with float value",
-			`model gpt4 { provider = "openai" temperature = 0.7 }`,
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" temperature = 0.7 }`,
 			false,
 		},
 		{
 			"float field with string value",
-			`model gpt4 { provider = "openai" temperature = "high" }`,
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" temperature = "high" }`,
 			true,
 		},
 		{
@@ -307,17 +308,17 @@ func TestAnalyzeUnknownField(t *testing.T) {
 	}{
 		{
 			"known field",
-			`model gpt4 { provider = "openai" }`,
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" }`,
 			false,
 		},
 		{
 			"unknown field",
-			`model gpt4 { provider = "openai" foo = "bar" }`,
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" foo = "bar" }`,
 			true,
 		},
 		{
 			"multiple unknown fields",
-			`model gpt4 { provider = "openai" foo = "bar" baz = 42 }`,
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" foo = "bar" baz = 42 }`,
 			true,
 		},
 	}
@@ -387,12 +388,12 @@ func TestAnalyzeDuplicateFieldName(t *testing.T) {
 	}{
 		{
 			"unique fields",
-			`model gpt4 { provider = "openai" temperature = 0.7 }`,
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" temperature = 0.7 }`,
 			false,
 		},
 		{
 			"duplicate field",
-			`model gpt4 { provider = "openai" provider = "anthropic" }`,
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" provider = "anthropic" }`,
 			true,
 		},
 	}
@@ -719,10 +720,12 @@ func TestSuppressBlockLevel(t *testing.T) {
 			"suppress duplicate block",
 			`model a {
 				provider = "openai"
+				model_name = "gpt-4o"
 			}
 			@suppress("duplicate-block")
 			model a {
 				provider = "openai"
+				model_name = "gpt-4o"
 			}`,
 			false,
 			"duplicate block name",
@@ -812,7 +815,7 @@ func TestDiagnosticCodes(t *testing.T) {
 		},
 		{
 			"unknown field code",
-			`model m { provider = "openai" bogus = "x" }`,
+			`model m { provider = "openai" model_name = "gpt-4o" bogus = "x" }`,
 			diagnostic.CodeUnknownField,
 		},
 		{
@@ -835,6 +838,100 @@ func TestDiagnosticCodes(t *testing.T) {
 			}
 			if !found {
 				t.Errorf("expected diagnostic with code %q, got %v", tt.code, diags)
+			}
+		})
+	}
+}
+
+// TestUnifiedTypeSystem verifies that primitives (str, int, etc.) and
+// user-defined schemas are treated identically by the type system.
+func TestUnifiedTypeSystem(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"string literal matches str field",
+			`model m { provider = "openai" model_name = "gpt-4o" }`,
+			false,
+			"",
+		},
+		{
+			"int literal does not match str field",
+			`model m { provider = 42 model_name = "gpt-4o" }`,
+			true,
+			"expects type str, got int",
+		},
+		{
+			"float literal matches float field",
+			`model m { provider = "openai" model_name = "gpt-4o" temperature = 0.7 }`,
+			false,
+			"",
+		},
+		{
+			"bool literal matches bool field",
+			`input x { type = str sensitive = true }`,
+			false,
+			"",
+		},
+		{
+			"string literal does not match bool field",
+			`input x { type = str sensitive = "yes" }`,
+			true,
+			"expects type bool, got str",
+		},
+		{
+			"null literal in default",
+			`input x { type = str default = null }`,
+			false,
+			"",
+		},
+		{
+			"user schema in input type",
+			`schema my_type { name = str }
+			input x { type = my_type }`,
+			false,
+			"",
+		},
+		{
+			"primitive in input type",
+			`input x { type = int }`,
+			false,
+			"",
+		},
+		{
+			"user schema member access works like primitive",
+			`schema config { host = str }
+			input cfg { type = config }
+			workflow w { name = cfg.host }`,
+			false,
+			"",
+		},
+		{
+			"user schema rejects unknown member",
+			`schema config { host = str }
+			input cfg { type = config }
+			workflow w { name = cfg.nonexistent }`,
+			true,
+			`has no field "nonexistent"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
+			if tt.expectError {
+				found := hasErrorContaining(diags, tt.errorSubstr)
+				if !found {
+					t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+				}
+			} else {
+				if len(diags) != 0 {
+					t.Errorf("expected no diagnostics, got %v", diags)
+				}
 			}
 		})
 	}

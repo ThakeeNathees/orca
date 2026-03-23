@@ -10,32 +10,10 @@ import (
 	"github.com/thakee/orca/compiler/token"
 )
 
-//go:embed block_schemas.oc
+//go:embed builtins.oc
 var schemaSource string
 
-// primitiveTypeMap maps primitive schema names to their internal Type
-// representations. Used by the schema loader to convert schema names
-// like "str" to the internal StringType.
-var primitiveTypeMap = map[string]Type{
-	"str":   StringType,
-	"int":   IntType,
-	"float": FloatType,
-	"bool":  BoolType,
-	"list":  ListType,
-	"map":   MapType,
-	"any":   AnyType,
-	"null":  NullType,
-}
-
-// PrimitiveType returns the internal Type for a primitive schema name.
-// Returns the type and true if the name is a primitive, or zero-value
-// and false otherwise.
-func PrimitiveType(name string) (Type, bool) {
-	typ, ok := primitiveTypeMap[name]
-	return typ, ok
-}
-
-// loadSchemas parses the embedded block_schemas.oc file and builds
+// loadSchemas parses the embedded builtins.oc file and builds
 // a map of block type names to their field schemas. This is the
 // single source of truth for block field definitions.
 func loadSchemas() (map[string]BlockSchema, error) {
@@ -44,7 +22,7 @@ func loadSchemas() (map[string]BlockSchema, error) {
 	program := p.ParseProgram()
 
 	if errs := p.Errors(); len(errs) > 0 {
-		return nil, fmt.Errorf("failed to parse block_schemas.oc: %v", errs)
+		return nil, fmt.Errorf("failed to parse builtins.oc: %v", errs)
 	}
 
 	schemas := make(map[string]BlockSchema)
@@ -102,7 +80,7 @@ func ResolveFieldSchema(assign *ast.Assignment) (FieldSchema, error) {
 	if typ.Kind == Union {
 		var nonNull []Type
 		for _, m := range typ.Members {
-			if m.Kind == Null {
+			if m.IsNull() {
 				continue
 			}
 			nonNull = append(nonNull, m)
@@ -145,7 +123,7 @@ func ResolveFieldSchema(assign *ast.Assignment) (FieldSchema, error) {
 func resolveType(expr ast.Expression) (Type, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
-		return NullType, nil
+		return TypeOf("null"), nil
 
 	case *ast.Identifier:
 		return resolveIdentType(e.Value)
@@ -164,7 +142,7 @@ func resolveType(expr ast.Expression) (Type, error) {
 		case "list":
 			return NewListType(elemType), nil
 		case "map":
-			return NewMapType(StringType, elemType), nil
+			return NewMapType(TypeOf("str"), elemType), nil
 		default:
 			return Type{}, fmt.Errorf("parameterized type not supported for %q", baseIdent.Value)
 		}
@@ -191,7 +169,7 @@ func resolveType(expr ast.Expression) (Type, error) {
 func flattenUnion(expr ast.Expression) ([]Type, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
-		return []Type{NullType}, nil
+		return []Type{TypeOf("null")}, nil
 
 	case *ast.Identifier:
 		typ, err := resolveIdentType(e.Value)
@@ -226,22 +204,16 @@ func flattenUnion(expr ast.Expression) ([]Type, error) {
 	}
 }
 
-// resolveIdentType maps an identifier to an internal Type.
-// Primitive schema names (str, int, float, bool, etc.) map to their
-// corresponding internal types. Other identifiers are treated as block
-// references (e.g., "model" → BlockRef("model")).
+// resolveIdentType maps an identifier name to an internal Type.
+// All names resolve to BlockRef with the name as BlockType. Block type
+// names (model, agent, etc.) use their BlockKind constant; everything
+// else (str, int, user schemas) uses the name directly.
 func resolveIdentType(name string) (Type, error) {
-	// Check if it's a primitive type schema.
-	if typ, ok := PrimitiveType(name); ok {
-		return typ, nil
+	if kind, ok := BlockKindFromName(name); ok {
+		return NewBlockRefType(kind), nil
 	}
-
-	// Otherwise treat it as a block reference.
-	kind, ok := BlockKindFromName(name)
-	if !ok {
-		return Type{}, fmt.Errorf("unknown type %q", name)
-	}
-	return NewBlockRefType(kind), nil
+	// Treat as a named type (primitive or user-defined schema).
+	return Type{Kind: BlockRef, BlockType: BlockKind(name)}, nil
 }
 
 // init loads the embedded schemas and replaces the blockSchemas map.
@@ -252,7 +224,9 @@ func init() {
 	}
 	blockSchemas = schemas
 	builtinNames = make([]string, 0, len(schemas))
+	typeCache = make(map[BlockKind]Type, len(schemas))
 	for name := range schemas {
 		builtinNames = append(builtinNames, name)
+		typeCache[BlockKind(name)] = Type{Kind: BlockRef, BlockType: BlockKind(name)}
 	}
 }

@@ -1,46 +1,29 @@
 // Package types defines the Orca type system used for semantic analysis.
-// It provides internal type representations for block field validation
-// and mappings from language-level type annotations (str, int, etc.)
-// to their internal representations.
+// All named types (str, int, model, agent, user-defined schemas) are
+// represented as BlockRef with a BlockType name. Structural types
+// (List, Map, Union) are separate kinds.
 package types
 
 // TypeKind classifies the broad category of a type.
 type TypeKind int
 
 const (
-	// String represents text values like "openai".
-	String TypeKind = iota
-	// Int represents whole number values like 4096.
-	Int
-	// Float represents decimal number values like 0.7.
-	Float
-	// Bool represents true/false values.
-	Bool
+	// BlockRef represents a named type — primitives (str, int, etc.),
+	// block types (model, agent), and user-defined schemas.
+	BlockRef TypeKind = iota
 	// List represents an ordered collection of elements.
 	List
 	// Map represents a collection of key-value pairs.
 	Map
-	// Any represents an unconstrained type, used as a fallback.
-	Any
-	// BlockRef represents a reference to another block by name.
-	BlockRef
-	// Null represents the null/nil type, used in unions to mark optional fields.
-	Null
 	// Union represents a type that can be one of several member types.
 	Union
 )
 
 // kindStrings maps each TypeKind to its human-readable name.
 var kindStrings = map[TypeKind]string{
-	String:   "string",
-	Int:      "int",
-	Float:    "float",
-	Bool:     "bool",
+	BlockRef: "block_ref",
 	List:     "list",
 	Map:      "map",
-	Any:      "any",
-	BlockRef: "block_ref",
-	Null:     "null",
 	Union:    "union",
 }
 
@@ -81,29 +64,42 @@ var blockKindMap = map[string]BlockKind{
 }
 
 // Type represents a concrete type in the Orca type system.
-// Primitive types (string, int, float, bool, any) use only Kind.
-// Compound types use additional fields: ElementType for lists,
-// KeyType/ValueType for maps, and BlockType for block references.
+// Named types (str, int, model, agent, user schemas) use Kind=BlockRef
+// with BlockType set to the type name. Structural types use Kind=List,
+// Map, or Union with their respective fields.
 type Type struct {
 	Kind        TypeKind
 	ElementType *Type     // non-nil for List types
 	KeyType     *Type     // non-nil for Map types
 	ValueType   *Type     // non-nil for Map types
-	BlockType   BlockKind // non-empty for BlockRef types (e.g., BlockModel, BlockAgent)
+	BlockType   BlockKind // the type name for BlockRef types (e.g. "str", "model", "vpc_data_t")
 	Members     []Type    // non-nil for Union types — the set of acceptable types
 }
 
-// Pre-defined primitive type singletons for convenience.
-var (
-	StringType = Type{Kind: String}
-	IntType    = Type{Kind: Int}
-	FloatType  = Type{Kind: Float}
-	BoolType   = Type{Kind: Bool}
-	AnyType    = Type{Kind: Any}
-	NullType   = Type{Kind: Null}
-	ListType   = Type{Kind: List}
-	MapType    = Type{Kind: Map}
-)
+// typeCache stores BlockRef types keyed by name, extended on demand
+// by TypeOf. Populated from blockSchemas keys at init time.
+var typeCache = make(map[BlockKind]Type)
+
+// TypeOf returns the cached BlockRef type for a given name.
+// Creates and caches the type on first access if not already present.
+func TypeOf(name BlockKind) Type {
+	if t, ok := typeCache[name]; ok {
+		return t
+	}
+	t := Type{Kind: BlockRef, BlockType: name}
+	typeCache[name] = t
+	return t
+}
+
+// IsAny returns true if this type is the "any" type (matches everything).
+func (t Type) IsAny() bool {
+	return t.Kind == BlockRef && t.BlockType == "any"
+}
+
+// IsNull returns true if this type is the "null" type.
+func (t Type) IsNull() bool {
+	return t.Kind == BlockRef && t.BlockType == "null"
+}
 
 // NewListType creates a list type with the given element type.
 func NewListType(element Type) Type {
@@ -115,15 +111,12 @@ func NewMapType(key, value Type) Type {
 	return Type{Kind: Map, KeyType: &key, ValueType: &value}
 }
 
-// NewBlockRefType creates a block reference type that expects a reference
-// to a block of the given type (e.g., "model", "agent", "tool").
+// NewBlockRefType creates a block reference type with the given name.
 func NewBlockRefType(blockType BlockKind) Type {
 	return Type{Kind: BlockRef, BlockType: blockType}
 }
 
 // NewUnionType creates a union type that accepts any of the given member types.
-// For example, NewUnionType(StringType, NewBlockRefType("model")) means
-// the value can be either a string literal or a reference to a model block.
 func NewUnionType(members ...Type) Type {
 	return Type{Kind: Union, Members: members}
 }
@@ -148,6 +141,8 @@ func (t Type) Equals(other Type) bool {
 		return false
 	}
 	switch t.Kind {
+	case BlockRef:
+		return t.BlockType == other.BlockType
 	case List:
 		if t.ElementType == nil || other.ElementType == nil {
 			return t.ElementType == other.ElementType
@@ -158,8 +153,6 @@ func (t Type) Equals(other Type) bool {
 			return false
 		}
 		return t.KeyType.Equals(*other.KeyType) && t.ValueType.Equals(*other.ValueType)
-	case BlockRef:
-		return t.BlockType == other.BlockType
 	case Union:
 		if len(t.Members) != len(other.Members) {
 			return false
@@ -175,18 +168,11 @@ func (t Type) Equals(other Type) bool {
 	}
 }
 
-// String returns a human-readable representation of a type using Orca
-// syntax (e.g. "str", "list[tool]", "str | model").
+// String returns a human-readable representation of a type using Orca syntax.
 func (t Type) String() string {
 	switch t.Kind {
-	case String:
-		return "str"
-	case Int:
-		return "int"
-	case Float:
-		return "float"
-	case Bool:
-		return "bool"
+	case BlockRef:
+		return string(t.BlockType)
 	case List:
 		if t.ElementType != nil {
 			return "list[" + t.ElementType.String() + "]"
@@ -197,12 +183,6 @@ func (t Type) String() string {
 			return "map[" + t.ValueType.String() + "]"
 		}
 		return "map"
-	case Any:
-		return "any"
-	case Null:
-		return "null"
-	case BlockRef:
-		return string(t.BlockType)
 	case Union:
 		s := ""
 		for i, m := range t.Members {

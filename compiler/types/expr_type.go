@@ -4,17 +4,19 @@ import "github.com/thakee/orca/compiler/ast"
 
 // ExprType returns the type of an expression. Uses the symbol table to
 // resolve identifiers and member access. If symbols is nil, identifiers
-// return Any.
+// return any.
 func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 	switch e := expr.(type) {
 	case *ast.StringLiteral:
-		return StringType
+		return TypeOf("str")
 	case *ast.IntegerLiteral:
-		return IntType
+		return TypeOf("int")
 	case *ast.FloatLiteral:
-		return FloatType
+		return TypeOf("float")
 	case *ast.BooleanLiteral:
-		return BoolType
+		return TypeOf("bool")
+	case *ast.NullLiteral:
+		return TypeOf("null")
 	case *ast.ListLiteral:
 		return listLiteralType(e, symbols)
 	case *ast.MapLiteral:
@@ -25,28 +27,28 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 		return memberAccessType(e, symbols)
 	case *ast.BinaryExpression:
 		// TODO: infer result type from operator and operand types.
-		return AnyType
+		return TypeOf("any")
 	case *ast.Subscription:
 		// TODO: resolve element type from the object's type.
-		return AnyType
+		return TypeOf("any")
 	case *ast.CallExpression:
 		// TODO: resolve return type from the callee's type.
-		return AnyType
+		return TypeOf("any")
 	default:
-		return AnyType
+		return TypeOf("any")
 	}
 }
 
 // identType resolves an identifier's type from the symbol table.
-// Returns the block reference type if found, Any otherwise.
+// Returns the block reference type if found, any otherwise.
 func identType(ident *ast.Identifier, symbols *SymbolTable) Type {
 	if symbols == nil {
-		return AnyType
+		return TypeOf("any")
 	}
 	if typ, ok := symbols.Lookup(ident.Value); ok {
 		return typ
 	}
-	return AnyType
+	return TypeOf("any")
 }
 
 // memberAccessType resolves the type of a member access expression
@@ -55,17 +57,17 @@ func identType(ident *ast.Identifier, symbols *SymbolTable) Type {
 func memberAccessType(ma *ast.MemberAccess, symbols *SymbolTable) Type {
 	objType := ExprType(ma.Object, symbols)
 	if objType.Kind != BlockRef {
-		return AnyType
+		return TypeOf("any")
 	}
 
 	schema, ok := GetBlockSchema(string(objType.BlockType))
 	if !ok {
-		return AnyType
+		return TypeOf("any")
 	}
 
 	field, ok := schema.Fields[ma.Member]
 	if !ok {
-		return AnyType
+		return TypeOf("any")
 	}
 
 	return field.Type
@@ -85,7 +87,7 @@ func mapLiteralType(m *ast.MapLiteral, symbols *SymbolTable) Type {
 			return Type{Kind: Map}
 		}
 	}
-	return NewMapType(StringType, first)
+	return NewMapType(TypeOf("str"), first)
 }
 
 // listLiteralType infers the type of a list literal. If all elements

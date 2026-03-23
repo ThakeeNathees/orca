@@ -26,9 +26,9 @@ func TestDiagnoseValidSource(t *testing.T) {
 		input string
 	}{
 		{"empty", ""},
-		{"model block", `model gpt4 { provider = "openai" }`},
+		{"model block", `model gpt4 { provider = "openai" model_name = "gpt-4o" }`},
 		{"agent block", `agent a { model = "gpt-4o" persona = "hi" }`},
-		{"multiple blocks", "model m { provider = \"openai\" }\nagent a { model = m persona = \"hi\" }"},
+		{"multiple blocks", "model m { provider = \"openai\" model_name = \"gpt-4o\" }\nagent a { model = m persona = \"hi\" }"},
 	}
 
 	for _, tt := range tests {
@@ -89,7 +89,7 @@ func TestDiagnoseErrorsClearAfterFix(t *testing.T) {
 		t.Fatal("expected diagnostics for broken source")
 	}
 
-	diags = diagnoseText(`model m { provider = "openai" }`)
+	diags = diagnoseText(`model m { provider = "openai" model_name = "gpt-4o" }`)
 	if len(diags) != 0 {
 		t.Errorf("expected no diagnostics after fix, got %d", len(diags))
 	}

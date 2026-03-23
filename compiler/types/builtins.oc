@@ -33,7 +33,7 @@ schema model {
   provider = str
 
   @desc("The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash).")
-  model_name = str | model | null
+  model_name = str | model
 
   @desc("Sampling temperature between 0 and 1.")
   temperature = float | null

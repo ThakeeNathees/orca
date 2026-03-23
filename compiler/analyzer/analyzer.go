@@ -218,7 +218,7 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 
 	exprType := types.ExprType(assign.Value, symbols)
 	// Skip type validation when the expression type is unknown.
-	if exprType.Kind == types.Any {
+	if exprType.IsAny() {
 		return nil
 	}
 
@@ -376,7 +376,7 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 // expected schema type. Handles unions (expr matches if it matches any member)
 // and Any (always matches).
 func typeMatches(expr, expected types.Type) bool {
-	if expected.Kind == types.Any {
+	if expected.IsAny() {
 		return true
 	}
 	if expected.Kind == types.Union {
@@ -385,6 +385,10 @@ func typeMatches(expr, expected types.Type) bool {
 	// For lists, match if kinds match (ignore element type for now).
 	if expected.Kind == types.List && expr.Kind == types.List {
 		return true
+	}
+	// For BlockRef types, compare by name.
+	if expected.Kind == types.BlockRef && expr.Kind == types.BlockRef {
+		return expr.BlockType == expected.BlockType
 	}
 	return expr.Kind == expected.Kind
 }

@@ -18,7 +18,7 @@ type BlockSchema struct {
 }
 
 // blockSchemas maps block type names to their field schemas.
-// Populated at init time by loading the embedded block_schemas.oc file.
+// Populated at init time by loading the embedded builtins.oc file.
 // Used by the analyzer to validate that assignments within blocks
 // have the correct types and that required fields are present.
 var blockSchemas map[string]BlockSchema
@@ -36,7 +36,7 @@ func GetBlockSchema(blockType string) (BlockSchema, bool) {
 }
 
 // BuiltinSchemaNames returns the names of all schemas loaded from
-// block_schemas.oc. Used by the analyzer to pre-populate the symbol
+// builtins.oc. Used by the analyzer to pre-populate the symbol
 // table so that built-in type names (str, int, model, etc.) are
 // recognized as valid references.
 func BuiltinSchemaNames() []string {
