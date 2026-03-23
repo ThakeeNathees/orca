@@ -36,7 +36,11 @@ func Analyze(program *ast.Program) AnalyzeResult {
 		if !ok {
 			continue
 		}
-		diags = append(diags, analyzeBlock(block, symbols)...)
+		blockDiags := analyzeBlock(block, symbols)
+		// Apply block-level @suppress annotations.
+		codes, all := suppressedCodes(block.Annotations)
+		blockDiags = filterSuppressed(blockDiags, codes, all)
+		diags = append(diags, blockDiags...)
 	}
 
 	return AnalyzeResult{Symbols: symbols, Diagnostics: diags}
@@ -72,15 +76,19 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 		}
 
 		if _, exists := st.Lookup(block.Name); exists {
-			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Position: diagnostic.Position{
-					Line:   block.NameToken.Line,
-					Column: block.NameToken.Column,
-				},
-				Message: fmt.Sprintf("duplicate block name %q", block.Name),
-				Source:  "analyzer",
-			})
+			codes, all := suppressedCodes(block.Annotations)
+			if !all && !codes[diagnostic.CodeDuplicateBlock] {
+				diags = append(diags, diagnostic.Diagnostic{
+					Severity: diagnostic.Error,
+					Code:     diagnostic.CodeDuplicateBlock,
+					Position: diagnostic.Position{
+						Line:   block.NameToken.Line,
+						Column: block.NameToken.Column,
+					},
+					Message: fmt.Sprintf("duplicate block name %q", block.Name),
+					Source:  "analyzer",
+				})
+			}
 		}
 		st.Define(block.Name, types.NewBlockRefType(kind), block.NameToken)
 	}
@@ -106,6 +114,7 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 		if seen[assign.Name] {
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeDuplicateField,
 				Position: diagnostic.Position{
 					Line:   assign.Start().Line,
 					Column: assign.Start().Column,
@@ -115,7 +124,11 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 			})
 		}
 		seen[assign.Name] = true
-		diags = append(diags, validateField(block, assign, schema, symbols)...)
+		fieldDiags := validateField(block, assign, schema, symbols)
+		// Apply field-level @suppress annotations.
+		fieldCodes, fieldAll := suppressedCodes(assign.Annotations)
+		fieldDiags = filterSuppressed(fieldDiags, fieldCodes, fieldAll)
+		diags = append(diags, fieldDiags...)
 	}
 
 	// Check for missing required fields.
@@ -123,6 +136,7 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 		if fieldSchema.Required && !seen[fieldName] {
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeMissingField,
 				Position: diagnostic.Position{
 					Line:   block.OpenBrace.Line,
 					Column: block.OpenBrace.Column,
@@ -147,6 +161,7 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 	if !ok {
 		return []diagnostic.Diagnostic{{
 			Severity: diagnostic.Error,
+			Code:     diagnostic.CodeUnknownField,
 			Position: diagnostic.Position{
 				Line:   assign.Start().Line,
 				Column: assign.Start().Column,
@@ -175,6 +190,7 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 	end := assign.Value.End()
 	return []diagnostic.Diagnostic{{
 		Severity: diagnostic.Error,
+		Code:     diagnostic.CodeTypeMismatch,
 		Position: diagnostic.Position{
 			Line:   assign.Value.Start().Line,
 			Column: assign.Value.Start().Column,
@@ -197,6 +213,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if _, found := symbols.Lookup(e.Value); !found {
 			return []diagnostic.Diagnostic{{
 				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeUndefinedRef,
 				Position: diagnostic.Position{
 					Line:   e.Start().Line,
 					Column: e.Start().Column,
@@ -224,6 +241,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			// Underline the member name, not the whole expression.
 			return []diagnostic.Diagnostic{{
 				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeUnknownMember,
 				Position: diagnostic.Position{
 					Line:   e.End().Line,
 					Column: e.End().Column,
@@ -234,6 +252,48 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		}
 	}
 	return nil
+}
+
+// suppressedCodes extracts the set of diagnostic codes suppressed by
+// @suppress annotations. @suppress with no args suppresses all codes.
+// @suppress("code1", "code2") suppresses specific codes.
+// Returns the set of suppressed codes, and whether all codes are suppressed.
+func suppressedCodes(annotations []*ast.Annotation) (codes map[string]bool, all bool) {
+	for _, ann := range annotations {
+		if ann.Name != "suppress" {
+			continue
+		}
+		if len(ann.Arguments) == 0 {
+			return nil, true
+		}
+		if codes == nil {
+			codes = make(map[string]bool)
+		}
+		for _, arg := range ann.Arguments {
+			if strLit, ok := arg.(*ast.StringLiteral); ok {
+				codes[strLit.Value] = true
+			}
+		}
+	}
+	return codes, false
+}
+
+// filterSuppressed removes diagnostics that are suppressed by the given
+// annotation set. If suppressAll is true, all diagnostics are removed.
+func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, suppressAll bool) []diagnostic.Diagnostic {
+	if suppressAll {
+		return nil
+	}
+	if len(codes) == 0 {
+		return diags
+	}
+	var filtered []diagnostic.Diagnostic
+	for _, d := range diags {
+		if !codes[d.Code] {
+			filtered = append(filtered, d)
+		}
+	}
+	return filtered
 }
 
 // typeMatches returns true if the expression type is compatible with the

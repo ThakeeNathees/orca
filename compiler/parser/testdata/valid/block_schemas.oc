@@ -1,11 +1,21 @@
 // Schema definitions using annotation-based format.
 
+@suppress("duplicate-block")
 schema str {}
+
+@suppress("duplicate-block")
 schema int {}
+
+@suppress("duplicate-block")
 schema float {}
+
+@suppress("duplicate-block")
 schema bool {}
+
+@suppress("duplicate-block")
 schema null {}
 
+@suppress("duplicate-block")
 schema model {
   @desc("The LLM provider.")
   provider = str
@@ -14,6 +24,7 @@ schema model {
   temperature = float | null
 }
 
+@suppress("duplicate-block")
 schema agent {
   @desc("The model to use.")
   model = str | model

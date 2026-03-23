@@ -421,12 +421,17 @@ func toLspDiagnostic(d diagnostic.Diagnostic) protocol.Diagnostic {
 		end = toLspPosition(d.EndPosition)
 	}
 
-	return protocol.Diagnostic{
+	lspDiag := protocol.Diagnostic{
 		Range:    protocol.Range{Start: start, End: end},
 		Severity: &severity,
 		Source:   &source,
 		Message:  d.Message,
 	}
+	if d.Code != "" {
+		code := protocol.IntegerOrString{Value: d.Code}
+		lspDiag.Code = &code
+	}
+	return lspDiag
 }
 
 // toLspPosition converts a 1-based compiler position to a 0-based LSP position.

@@ -12,21 +12,23 @@ func TestDiagnosticError(t *testing.T) {
 			name: "parser error",
 			diag: Diagnostic{
 				Severity: Error,
+				Code:     CodeSyntax,
 				Position: Position{Line: 3, Column: 5},
 				Message:  "expected }",
 				Source:   "parser",
 			},
-			expected: "parser:3:5: expected }",
+			expected: "parser:3:5: [syntax] expected }",
 		},
 		{
 			name: "analyzer warning",
 			diag: Diagnostic{
 				Severity: Warning,
+				Code:     CodeUndefinedRef,
 				Position: Position{Line: 1, Column: 1},
 				Message:  "undefined reference 'gpt4'",
 				Source:   "analyzer",
 			},
-			expected: "analyzer:1:1: undefined reference 'gpt4'",
+			expected: "analyzer:1:1: [undefined-ref] undefined reference 'gpt4'",
 		},
 	}
 

@@ -542,6 +542,166 @@ func TestAnalyzeInputBlock(t *testing.T) {
 	}
 }
 
+// TestSuppressBlockLevel verifies that @suppress on a block suppresses diagnostics.
+func TestSuppressBlockLevel(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"suppress all on block",
+			`@suppress
+			agent a {}`,
+			false,
+			"missing required field",
+		},
+		{
+			"suppress specific code on block",
+			`@suppress("missing-field")
+			agent a {}`,
+			false,
+			"missing required field",
+		},
+		{
+			"suppress wrong code still reports",
+			`@suppress("unknown-field")
+			agent a {}`,
+			true,
+			"missing required field",
+		},
+		{
+			"no suppress reports normally",
+			`agent a {}`,
+			true,
+			"missing required field",
+		},
+		{
+			"suppress duplicate block",
+			`model a {
+				provider = "openai"
+			}
+			@suppress("duplicate-block")
+			model a {
+				provider = "openai"
+			}`,
+			false,
+			"duplicate block name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
+			found := hasErrorContaining(diags, tt.errorSubstr)
+			if tt.expectError && !found {
+				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected error containing %q in %v", tt.errorSubstr, diags)
+			}
+		})
+	}
+}
+
+// TestSuppressFieldLevel verifies that @suppress on a field suppresses diagnostics.
+func TestSuppressFieldLevel(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"suppress undefined ref on field",
+			`agent a {
+				@suppress("undefined-ref")
+				model = nonexistent
+				persona = "hi"
+			}`,
+			false,
+			"undefined reference",
+		},
+		{
+			"suppress all on field",
+			`agent a {
+				@suppress
+				model = nonexistent
+				persona = "hi"
+			}`,
+			false,
+			"undefined reference",
+		},
+		{
+			"no suppress on field reports",
+			`agent a {
+				model = nonexistent
+				persona = "hi"
+			}`,
+			true,
+			"undefined reference",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
+			found := hasErrorContaining(diags, tt.errorSubstr)
+			if tt.expectError && !found {
+				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected error containing %q in %v", tt.errorSubstr, diags)
+			}
+		})
+	}
+}
+
+// TestDiagnosticCodes verifies that diagnostics have the correct code.
+func TestDiagnosticCodes(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		code  string
+	}{
+		{
+			"undefined ref code",
+			`agent a { model = nonexistent persona = "hi" }`,
+			diagnostic.CodeUndefinedRef,
+		},
+		{
+			"unknown field code",
+			`model m { provider = "openai" bogus = "x" }`,
+			diagnostic.CodeUnknownField,
+		},
+		{
+			"missing field code",
+			`model m {}`,
+			diagnostic.CodeMissingField,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
+			found := false
+			for _, d := range diags {
+				if d.Code == tt.code {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected diagnostic with code %q, got %v", tt.code, diags)
+			}
+		})
+	}
+}
+
 // hasErrorContaining returns true if any error diagnostic contains substr.
 func hasErrorContaining(diags []diagnostic.Diagnostic, substr string) bool {
 	if substr == "" {

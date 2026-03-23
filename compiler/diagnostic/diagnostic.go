@@ -22,11 +22,25 @@ type Position struct {
 	Column int
 }
 
+// Diagnostic codes identify each kind of diagnostic for suppression
+// with @suppress("code") and display in the CLI/editor.
+const (
+	CodeSyntax        = "syntax"         // parse errors
+	CodeDuplicateBlock = "duplicate-block" // duplicate block name
+	CodeDuplicateField = "duplicate-field" // duplicate field in block
+	CodeMissingField  = "missing-field"   // required field not present
+	CodeUnknownField  = "unknown-field"   // field not defined in schema
+	CodeTypeMismatch  = "type-mismatch"   // field value type doesn't match schema
+	CodeUndefinedRef  = "undefined-ref"   // identifier not in symbol table
+	CodeUnknownMember = "unknown-member"  // member not found on block type
+)
+
 // Diagnostic represents a single compiler message (error, warning, etc.)
 // tied to a source location. Used by the parser, analyzer, and codegen
 // stages, then converted to LSP diagnostics for editor integration.
 type Diagnostic struct {
 	Severity    Severity
+	Code        string   // unique identifier for this diagnostic kind (e.g. "undefined-ref")
 	Position    Position // start of the diagnostic range
 	EndPosition Position // end of the diagnostic range (zero value means same as Position)
 	Message     string
@@ -35,7 +49,7 @@ type Diagnostic struct {
 
 // Error implements the error interface so a Diagnostic can be used as a Go error.
 func (d Diagnostic) Error() string {
-	return fmt.Sprintf("%s:%d:%d: %s", d.Source, d.Position.Line, d.Position.Column, d.Message)
+	return fmt.Sprintf("%s:%d:%d: [%s] %s", d.Source, d.Position.Line, d.Position.Column, d.Code, d.Message)
 }
 
 // String returns a human-readable representation of the severity.

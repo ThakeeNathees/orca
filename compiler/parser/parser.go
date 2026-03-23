@@ -63,6 +63,7 @@ func (p *Parser) nextToken() {
 func (p *Parser) addErrorAt(tok token.Token, msg string) {
 	p.diagnostics = append(p.diagnostics, diagnostic.Diagnostic{
 		Severity: diagnostic.Error,
+		Code:     diagnostic.CodeSyntax,
 		Position: diagnostic.Position{
 			Line:   tok.Line,
 			Column: tok.Column,
