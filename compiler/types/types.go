@@ -197,6 +197,60 @@ func (t Type) String() string {
 	}
 }
 
+// IsCompatible returns true if got is type-compatible with expected.
+// Handles: any (always compatible), unions (compatible if any member matches),
+// numeric widening (int → float), and structural kind matching for lists/maps.
+func IsCompatible(got, expected Type) bool {
+	// Any is compatible with everything in both directions.
+	if got.IsAny() || expected.IsAny() {
+		return true
+	}
+
+	// If expected is a union, got must be compatible with at least one member.
+	if expected.Kind == Union {
+		for _, m := range expected.Members {
+			if IsCompatible(got, m) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// If got is a union, at least one member must be compatible with expected.
+	if got.Kind == Union {
+		for _, m := range got.Members {
+			if IsCompatible(m, expected) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Numeric widening: int is compatible with float.
+	if got.Kind == BlockRef && expected.Kind == BlockRef {
+		if got.BlockType == "int" && expected.BlockType == "float" {
+			return true
+		}
+	}
+
+	// Lists are compatible by kind (element type not checked yet).
+	if got.Kind == List && expected.Kind == List {
+		return true
+	}
+
+	// Maps are compatible by kind (key/value types not checked yet).
+	if got.Kind == Map && expected.Kind == Map {
+		return true
+	}
+
+	// BlockRef types must match by name.
+	if got.Kind == BlockRef && expected.Kind == BlockRef {
+		return got.BlockType == expected.BlockType
+	}
+
+	return got.Kind == expected.Kind
+}
+
 // BlockKindFromName returns the BlockKind for a given block type name.
 func BlockKindFromName(name string) (BlockKind, bool) {
 	kind, ok := blockKindMap[name]

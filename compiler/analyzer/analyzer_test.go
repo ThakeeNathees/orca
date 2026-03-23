@@ -937,6 +937,98 @@ func TestUnifiedTypeSystem(t *testing.T) {
 	}
 }
 
+// TestAnalyzeListSubscriptRequiresInt verifies that subscripting a list with
+// a non-integer index produces a diagnostic error.
+func TestAnalyzeListSubscriptRequiresInt(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"integer subscript on list literal is valid",
+			`model m {
+				provider   = "openai"
+				model_name = ["a", "b"][0]
+			}`,
+			false,
+			"",
+		},
+		{
+			"string subscript on list literal is invalid",
+			`model m {
+				provider   = "openai"
+				model_name = ["a", "b"]["key"]
+			}`,
+			true,
+			"list subscript requires an integer index, got str",
+		},
+		{
+			"bool subscript on list literal is invalid",
+			`model m {
+				provider   = "openai"
+				model_name = ["a", "b"][true]
+			}`,
+			true,
+			"list subscript requires an integer index, got bool",
+		},
+		{
+			"string subscript on member access list is invalid",
+			`tool web_search { name = "web_search" }
+			agent a {
+				model   = "gpt4"
+				persona = "hello"
+				tools   = [web_search]
+			}
+			@suppress("type-mismatch")
+			task t {
+				agent  = a
+				prompt = a.tools["key"]
+			}`,
+			true,
+			"list subscript requires an integer index, got str",
+		},
+		{
+			"string subscript on nested list inside map value is invalid",
+			`schema user_defined_thing {
+				some_map = map[list[int]]
+			}
+			input user_input {
+				type = user_defined_thing
+			}
+			model gpt5 {
+				provider   = "openai"
+				model_name = user_input.some_map[""][""]
+			}`,
+			true,
+			"list subscript requires an integer index, got str",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
+			found := hasErrorContaining(diags, tt.errorSubstr)
+			if tt.expectError && !found {
+				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+			}
+			if !tt.expectError && len(diags) != 0 {
+				t.Errorf("expected no diagnostics, got %v", diags)
+			}
+			if tt.expectError {
+				for _, d := range diags {
+					if d.Code == diagnostic.CodeInvalidSubscript {
+						return
+					}
+				}
+				t.Errorf("expected diagnostic code %q", diagnostic.CodeInvalidSubscript)
+			}
+		})
+	}
+}
+
 // hasErrorContaining returns true if any error diagnostic contains substr.
 func hasErrorContaining(diags []diagnostic.Diagnostic, substr string) bool {
 	if substr == "" {

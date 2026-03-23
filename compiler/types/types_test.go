@@ -366,3 +366,66 @@ func TestPrimitiveAndBlockRefEquality(t *testing.T) {
 		})
 	}
 }
+
+// TestIsCompatible verifies type compatibility checks including unions,
+// numeric widening (int -> float), and any-type matching.
+func TestIsCompatible(t *testing.T) {
+	str := TypeOf("str")
+	intT := TypeOf("int")
+	floatT := TypeOf("float")
+	boolT := TypeOf("bool")
+	anyT := TypeOf("any")
+	listStr := NewListType(str)
+	listInt := NewListType(intT)
+	mapStrStr := NewMapType(str, str)
+	unionListNull := NewUnionType(NewListType(TypeOf("tool")), TypeOf("null"))
+
+	tests := []struct {
+		name     string
+		got      Type
+		expected Type
+		result   bool
+	}{
+		// Exact matches.
+		{"str compatible with str", str, str, true},
+		{"int compatible with int", intT, intT, true},
+		{"list[str] compatible with list[str]", listStr, listStr, true},
+
+		// Mismatches.
+		{"str not compatible with int", str, intT, false},
+		{"bool not compatible with int", boolT, intT, false},
+		{"list not compatible with map", listStr, mapStrStr, false},
+
+		// Numeric widening: int -> float.
+		{"int compatible with float", intT, floatT, true},
+		{"float not compatible with int", floatT, intT, false},
+
+		// Any matches everything.
+		{"any compatible with str", anyT, str, true},
+		{"str compatible with any", str, anyT, true},
+		{"any compatible with any", anyT, anyT, true},
+
+		// Union: got is a union containing a compatible member.
+		{"union(list,null) compatible with list", unionListNull, NewListType(TypeOf("tool")), true},
+		{"union(list,null) not compatible with str", unionListNull, str, false},
+
+		// Union: expected is a union.
+		{"str compatible with union(str,int)", str, NewUnionType(str, intT), true},
+		{"bool not compatible with union(str,int)", boolT, NewUnionType(str, intT), false},
+
+		// List kind compatibility (ignoring element type).
+		{"list[str] compatible with list[int]", listStr, listInt, true},
+
+		// Null compatible with null.
+		{"null compatible with null", TypeOf("null"), TypeOf("null"), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsCompatible(tt.got, tt.expected); got != tt.result {
+				t.Errorf("IsCompatible(%s, %s) = %v, want %v",
+					tt.got.String(), tt.expected.String(), got, tt.result)
+			}
+		})
+	}
+}

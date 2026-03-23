@@ -192,6 +192,66 @@ func TestExprTypeMemberAccess(t *testing.T) {
 	}
 }
 
+// TestExprTypeSubscription verifies that subscription expressions resolve
+// to the element type for lists and the value type for maps.
+func TestExprTypeSubscription(t *testing.T) {
+	tests := []struct {
+		name     string
+		object   ast.Expression
+		index    ast.Expression
+		expected Type
+	}{
+		{
+			"list[str] subscript returns str",
+			&ast.ListLiteral{Elements: []ast.Expression{
+				&ast.StringLiteral{Value: "a"},
+				&ast.StringLiteral{Value: "b"},
+			}},
+			&ast.IntegerLiteral{Value: 0},
+			TypeOf("str"),
+		},
+		{
+			"list[int] subscript returns int",
+			&ast.ListLiteral{Elements: []ast.Expression{
+				&ast.IntegerLiteral{Value: 1},
+				&ast.IntegerLiteral{Value: 2},
+			}},
+			&ast.IntegerLiteral{Value: 0},
+			TypeOf("int"),
+		},
+		{
+			"map[str] subscript returns str",
+			&ast.MapLiteral{Entries: []ast.MapEntry{
+				{Key: &ast.Identifier{Value: "k"}, Value: &ast.StringLiteral{Value: "v"}},
+			}},
+			&ast.StringLiteral{Value: "k"},
+			TypeOf("str"),
+		},
+		{
+			"untyped list subscript returns any",
+			&ast.ListLiteral{},
+			&ast.IntegerLiteral{Value: 0},
+			TypeOf("any"),
+		},
+		{
+			"untyped map subscript returns any",
+			&ast.MapLiteral{},
+			&ast.StringLiteral{Value: "k"},
+			TypeOf("any"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr := &ast.Subscription{Object: tt.object, Index: tt.index}
+			got := ExprType(expr, nil)
+			if !got.Equals(tt.expected) {
+				t.Errorf("ExprType() = %s, want %s", got.String(), tt.expected.String())
+			}
+		})
+	}
+}
+
 // TestExprTypeBinaryArrow verifies that an arrow expression returns any.
 func TestExprTypeBinaryArrow(t *testing.T) {
 	expr := &ast.BinaryExpression{

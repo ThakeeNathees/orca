@@ -308,6 +308,23 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if diags := checkReferences(e.Index, symbols); len(diags) > 0 {
 			return diags
 		}
+		// List subscripts must use an integer index.
+		objType := types.ExprType(e.Object, symbols)
+		if types.IsCompatible(objType, types.Type{Kind: types.List}) {
+			idxType := types.ExprType(e.Index, symbols)
+			if !idxType.IsAny() && !types.IsCompatible(idxType, types.TypeOf("int")) {
+				return []diagnostic.Diagnostic{{
+					Severity: diagnostic.Error,
+					Code:     diagnostic.CodeInvalidSubscript,
+					Position: diagnostic.Position{
+						Line:   e.Index.Start().Line,
+						Column: e.Index.Start().Column,
+					},
+					Message: fmt.Sprintf("list subscript requires an integer index, got %s", idxType.String()),
+					Source:  "analyzer",
+				}}
+			}
+		}
 	case *ast.CallExpression:
 		if diags := checkReferences(e.Callee, symbols); len(diags) > 0 {
 			return diags

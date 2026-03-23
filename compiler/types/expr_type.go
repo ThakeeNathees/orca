@@ -29,8 +29,7 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 		// TODO: infer result type from operator and operand types.
 		return TypeOf("any")
 	case *ast.Subscription:
-		// TODO: resolve element type from the object's type.
-		return TypeOf("any")
+		return subscriptionType(e, symbols)
 	case *ast.CallExpression:
 		// TODO: resolve return type from the callee's type.
 		return TypeOf("any")
@@ -71,6 +70,41 @@ func memberAccessType(ma *ast.MemberAccess, symbols *SymbolTable) Type {
 	}
 
 	return field.Type
+}
+
+// subscriptionType resolves the result type of a subscription expression.
+// For lists, returns the element type. For maps, returns the value type.
+// For unions, checks each member. Returns any if the type can't be resolved.
+func subscriptionType(sub *ast.Subscription, symbols *SymbolTable) Type {
+	objType := ExprType(sub.Object, symbols)
+	return subscriptResultType(objType)
+}
+
+// subscriptResultType returns the element/value type when subscripting a type.
+// For list[T] returns T, for map[K,V] returns V, for unions checks members.
+func subscriptResultType(t Type) Type {
+	switch t.Kind {
+	case List:
+		if t.ElementType != nil {
+			return *t.ElementType
+		}
+		return TypeOf("any")
+	case Map:
+		if t.ValueType != nil {
+			return *t.ValueType
+		}
+		return TypeOf("any")
+	case Union:
+		// Find the subscriptable member and return its result type.
+		for _, m := range t.Members {
+			if m.Kind == List || m.Kind == Map {
+				return subscriptResultType(m)
+			}
+		}
+		return TypeOf("any")
+	default:
+		return TypeOf("any")
+	}
 }
 
 // mapLiteralType infers the type of a map literal. Keys are always strings.

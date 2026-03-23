@@ -33,6 +33,7 @@ const (
 	CodeTypeMismatch  = "type-mismatch"   // field value type doesn't match schema
 	CodeUndefinedRef  = "undefined-ref"   // identifier not in symbol table
 	CodeUnknownMember = "unknown-member"  // member not found on block type
+	CodeInvalidSubscript = "invalid-subscript" // non-integer subscript on a list
 )
 
 // Diagnostic represents a single compiler message (error, warning, etc.)
