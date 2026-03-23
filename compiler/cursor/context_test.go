@@ -178,6 +178,86 @@ func TestResolveSchemaPopulated(t *testing.T) {
 	}
 }
 
+// TestFindNodeAtBlockName verifies that hovering a block name returns BlockNameNode.
+func TestFindNodeAtBlockName(t *testing.T) {
+	input := "model gpt4 {\n  provider = \"openai\"\n}"
+	program := parseProgram(t, input)
+
+	// "gpt4" starts at col 7.
+	node := FindNodeAt(program, 1, 7)
+	if node.Kind != BlockNameNode {
+		t.Errorf("Kind = %v, want BlockNameNode", node.Kind)
+	}
+	if node.Block == nil || node.Block.Name != "gpt4" {
+		t.Errorf("expected block 'gpt4'")
+	}
+}
+
+// TestFindNodeAtIdent verifies that hovering an identifier reference returns IdentNode.
+func TestFindNodeAtIdent(t *testing.T) {
+	input := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}"
+	program := parseProgram(t, input)
+
+	// "gpt4" reference on line 5, col 11.
+	node := FindNodeAt(program, 5, 11)
+	if node.Kind != IdentNode {
+		t.Errorf("Kind = %v, want IdentNode", node.Kind)
+	}
+	if node.Ident == nil || node.Ident.Value != "gpt4" {
+		t.Errorf("expected ident 'gpt4'")
+	}
+}
+
+// TestFindNodeAtFieldName verifies that hovering a field key returns FieldNameNode.
+func TestFindNodeAtFieldName(t *testing.T) {
+	input := "model gpt4 {\n  provider = \"openai\"\n}"
+	program := parseProgram(t, input)
+
+	// "provider" on line 2, col 3.
+	node := FindNodeAt(program, 2, 3)
+	if node.Kind != FieldNameNode {
+		t.Errorf("Kind = %v, want FieldNameNode", node.Kind)
+	}
+	if node.Assignment == nil || node.Assignment.Name != "provider" {
+		t.Errorf("expected assignment 'provider'")
+	}
+}
+
+// TestFindNodeAtIdentInList verifies that identifiers inside list literals are found.
+func TestFindNodeAtIdentInList(t *testing.T) {
+	input := "tool web_search {\n  provider = \"tavily\"\n}\nagent a {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n  tools = [web_search]\n}"
+	program := parseProgram(t, input)
+
+	// "web_search" inside the list on line 7.
+	node := FindNodeAt(program, 7, 12)
+	if node.Kind != IdentNode {
+		t.Errorf("Kind = %v, want IdentNode", node.Kind)
+	}
+	if node.Ident == nil || node.Ident.Value != "web_search" {
+		t.Errorf("expected ident 'web_search', got %v", node.Ident)
+	}
+}
+
+// TestFindNodeAtNone verifies that positions on literals return NoneNode.
+func TestFindNodeAtNone(t *testing.T) {
+	input := "model gpt4 {\n  provider = \"openai\"\n}"
+	program := parseProgram(t, input)
+
+	// On the string literal "openai" — not an ident.
+	node := FindNodeAt(program, 2, 16)
+	if node.Kind != NoneNode {
+		t.Errorf("Kind = %v, want NoneNode for string literal", node.Kind)
+	}
+}
+
+// TestFindNodeAtNilProgram verifies graceful handling of nil program.
+func TestFindNodeAtNilProgram(t *testing.T) {
+	node := FindNodeAt(nil, 1, 1)
+	if node.Kind != NoneNode {
+		t.Errorf("Kind = %v, want NoneNode for nil program", node.Kind)
+	}
+}
+
 // TestResolveEmptyBlock verifies that an empty block body returns BlockBody.
 func TestResolveEmptyBlock(t *testing.T) {
 	input := "model gpt4 {\n}"

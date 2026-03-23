@@ -232,27 +232,28 @@ func TestUnionTypeContains(t *testing.T) {
 	}
 }
 
-// TestTypeAnnotationToType verifies mapping from language-level type names to internal types.
-func TestTypeAnnotationToType(t *testing.T) {
+// TestPrimitiveType verifies mapping from primitive schema names to internal types.
+func TestPrimitiveType(t *testing.T) {
 	tests := []struct {
-		name       string
-		annotation string
-		expected   TypeKind
-		ok         bool
+		name     string
+		input    string
+		expected TypeKind
+		ok       bool
 	}{
-		{"str annotation", "str", String, true},
-		{"int annotation", "int", Int, true},
-		{"float annotation", "float", Float, true},
-		{"bool annotation", "bool", Bool, true},
-		{"list annotation", "list", List, true},
-		{"map annotation", "map", Map, true},
-		{"any annotation", "any", Any, true},
-		{"unknown annotation", "foobar", Any, false},
+		{"str", "str", String, true},
+		{"int", "int", Int, true},
+		{"float", "float", Float, true},
+		{"bool", "bool", Bool, true},
+		{"list", "list", List, true},
+		{"map", "map", Map, true},
+		{"any", "any", Any, true},
+		{"null", "null", Null, true},
+		{"unknown", "foobar", Any, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typ, ok := TypeFromAnnotation(tt.annotation)
+			typ, ok := PrimitiveType(tt.input)
 			if ok != tt.ok {
 				t.Errorf("ok = %v, want %v", ok, tt.ok)
 			}

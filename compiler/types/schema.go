@@ -31,6 +31,18 @@ func GetBlockSchema(blockType string) (BlockSchema, bool) {
 	return schema, ok
 }
 
+// BuiltinSchemaNames returns the names of all schemas loaded from
+// block_schemas.oc. Used by the analyzer to pre-populate the symbol
+// table so that built-in type names (str, int, model, etc.) are
+// recognized as valid references.
+func BuiltinSchemaNames() []string {
+	names := make([]string, 0, len(blockSchemas))
+	for name := range blockSchemas {
+		names = append(names, name)
+	}
+	return names
+}
+
 // GetFieldSchema returns the field schema for a specific field within
 // a block type. Returns the field schema and true if found.
 func GetFieldSchema(blockType, fieldName string) (FieldSchema, bool) {

@@ -24,6 +24,8 @@ const (
 	Any
 	// BlockRef represents a reference to another block by name.
 	BlockRef
+	// Null represents the null/nil type, used in unions to mark optional fields.
+	Null
 	// Union represents a type that can be one of several member types.
 	Union
 )
@@ -38,6 +40,7 @@ var kindStrings = map[TypeKind]string{
 	Map:      "map",
 	Any:      "any",
 	BlockRef: "block_ref",
+	Null:     "null",
 	Union:    "union",
 }
 
@@ -59,7 +62,8 @@ const (
 	BlockTask      BlockKind = "task"
 	BlockKnowledge BlockKind = "knowledge"
 	BlockWorkflow  BlockKind = "workflow"
-	BlockTrigger   BlockKind = "trigger"
+	BlockTrigger    BlockKind = "trigger"
+	BlockInput      BlockKind = "input"
 	BlockSchemaKind BlockKind = "schema"
 )
 
@@ -83,6 +87,7 @@ var (
 	FloatType  = Type{Kind: Float}
 	BoolType   = Type{Kind: Bool}
 	AnyType    = Type{Kind: Any}
+	NullType   = Type{Kind: Null}
 )
 
 // NewListType creates a list type with the given element type.
@@ -179,6 +184,8 @@ func (t Type) String() string {
 		return "map"
 	case Any:
 		return "any"
+	case Null:
+		return "null"
 	case BlockRef:
 		return string(t.BlockType)
 	case Union:
@@ -195,10 +202,10 @@ func (t Type) String() string {
 	}
 }
 
-// annotationMap maps language-level type annotation strings to their
-// corresponding internal types. These are the type names users write
-// in .oc files (e.g., `type = str`).
-var annotationMap = map[string]Type{
+// primitiveTypeMap maps primitive schema names to their internal Type
+// representations. Used by the schema loader to convert schema names
+// like "str" to the internal StringType.
+var primitiveTypeMap = map[string]Type{
 	"str":   StringType,
 	"int":   IntType,
 	"float": FloatType,
@@ -206,13 +213,13 @@ var annotationMap = map[string]Type{
 	"list":  {Kind: List},
 	"map":   {Kind: Map},
 	"any":   AnyType,
+	"null":  NullType,
 }
 
-// TypeFromAnnotation converts a language-level type annotation string
-// (e.g., "str", "int") to its internal Type representation. Returns
-// the type and true if the annotation is valid, or zero-value and false
-// if unrecognized.
-func TypeFromAnnotation(annotation string) (Type, bool) {
-	typ, ok := annotationMap[annotation]
+// PrimitiveType returns the internal Type for a primitive schema name.
+// Returns the type and true if the name is a primitive, or zero-value
+// and false otherwise.
+func PrimitiveType(name string) (Type, bool) {
+	typ, ok := primitiveTypeMap[name]
 	return typ, ok
 }

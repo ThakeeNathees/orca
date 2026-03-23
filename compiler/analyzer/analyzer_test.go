@@ -24,7 +24,7 @@ func parseProgram(t *testing.T, input string) *ast.Program {
 
 func TestAnalyzeEmptyProgram(t *testing.T) {
 	program := &ast.Program{}
-	diags := Analyze(program)
+	diags := Analyze(program).Diagnostics
 	if len(diags) != 0 {
 		t.Errorf("expected no diagnostics, got %v", diags)
 	}
@@ -101,7 +101,7 @@ func TestAnalyzeMissingRequiredField(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseProgram(t, tt.input)
-			diags := Analyze(program)
+			diags := Analyze(program).Diagnostics
 
 			if tt.expectError {
 				found := false
@@ -130,7 +130,7 @@ func TestAnalyzeMissingRequiredField(t *testing.T) {
 func TestAnalyzeMultipleMissingFields(t *testing.T) {
 	input := `agent researcher {}`
 	program := parseProgram(t, input)
-	diags := Analyze(program)
+	diags := Analyze(program).Diagnostics
 
 	errorCount := 0
 	for _, d := range diags {
@@ -187,7 +187,7 @@ func TestAnalyzeFieldTypeMismatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseProgram(t, tt.input)
-			diags := Analyze(program)
+			diags := Analyze(program).Diagnostics
 
 			hasTypeError := false
 			for _, d := range diags {
@@ -234,7 +234,7 @@ func TestAnalyzeBlockReferenceResolution(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseProgram(t, tt.input)
-			diags := Analyze(program)
+			diags := Analyze(program).Diagnostics
 
 			hasTypeError := false
 			for _, d := range diags {
@@ -285,7 +285,7 @@ func TestAnalyzeUndefinedReference(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseProgram(t, tt.input)
-			diags := Analyze(program)
+			diags := Analyze(program).Diagnostics
 			found := hasErrorContaining(diags, tt.errorSubstr)
 			if tt.expectError && !found {
 				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
@@ -325,7 +325,7 @@ func TestAnalyzeUnknownField(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseProgram(t, tt.input)
-			diags := Analyze(program)
+			diags := Analyze(program).Diagnostics
 			found := hasErrorContaining(diags, "unknown field")
 			if tt.expectError && !found {
 				t.Errorf("expected unknown field error, got %v", diags)
@@ -365,7 +365,7 @@ func TestAnalyzeDuplicateBlockName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseProgram(t, tt.input)
-			diags := Analyze(program)
+			diags := Analyze(program).Diagnostics
 			found := hasErrorContaining(diags, "duplicate")
 			if tt.expectError && !found {
 				t.Errorf("expected duplicate error, got %v", diags)
@@ -400,7 +400,7 @@ func TestAnalyzeDuplicateFieldName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseProgram(t, tt.input)
-			diags := Analyze(program)
+			diags := Analyze(program).Diagnostics
 			found := hasErrorContaining(diags, "duplicate field")
 			if tt.expectError && !found {
 				t.Errorf("expected duplicate field error, got %v", diags)
@@ -457,7 +457,80 @@ func TestAnalyzeMemberAccess(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseProgram(t, tt.input)
-			diags := Analyze(program)
+			diags := Analyze(program).Diagnostics
+			found := hasErrorContaining(diags, tt.errorSubstr)
+			if tt.expectError && !found {
+				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected error containing %q in %v", tt.errorSubstr, diags)
+			}
+		})
+	}
+}
+
+// TestAnalyzeInputBlock verifies the input block is recognized and validated.
+func TestAnalyzeInputBlock(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"valid input with all fields",
+			`input apikey {
+				type = str
+				desc = "the api key"
+				default = "sk-xxx"
+				sensitive = true
+			}`,
+			false,
+			"",
+		},
+		{
+			"valid input type only",
+			`input apikey {
+				type = str
+			}`,
+			false,
+			"",
+		},
+		{
+			"input missing required type",
+			`input apikey {
+				desc = "the api key"
+			}`,
+			true,
+			`missing required field "type"`,
+		},
+		{
+			"input unknown field",
+			`input apikey {
+				type = str
+				bogus = "nope"
+			}`,
+			true,
+			`unknown field "bogus"`,
+		},
+		{
+			"input with schema ref",
+			`schema vpc_data_t {
+				region = str
+			}
+			input vpc_data {
+				type = vpc_data_t
+				desc = "vpc config"
+			}`,
+			false,
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
 			found := hasErrorContaining(diags, tt.errorSubstr)
 			if tt.expectError && !found {
 				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)

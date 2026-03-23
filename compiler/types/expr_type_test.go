@@ -130,8 +130,9 @@ func typeKindPtr(k TypeKind) *TypeKind { return &k }
 // to their block reference type when a symbol table is provided.
 func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType(BlockModel))
-	st.Define("researcher", NewBlockRefType(BlockAgent))
+	st.Define("gpt4", NewBlockRefType(BlockModel), token.Token{})
+	st.Define("researcher", NewBlockRefType(BlockAgent), token.Token{})
+	st.Define("str", NewBlockRefType(BlockSchemaKind), token.Token{})
 
 	tests := []struct {
 		name      string
@@ -141,6 +142,7 @@ func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 	}{
 		{"defined model", "gpt4", BlockRef, BlockModel},
 		{"defined agent", "researcher", BlockRef, BlockAgent},
+		{"builtin schema str", "str", BlockRef, BlockSchemaKind},
 		{"undefined", "unknown", Any, ""},
 	}
 
@@ -162,7 +164,7 @@ func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 // to the field's type via the block schema.
 func TestExprTypeMemberAccess(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType(BlockModel))
+	st.Define("gpt4", NewBlockRefType(BlockModel), token.Token{})
 
 	tests := []struct {
 		name     string

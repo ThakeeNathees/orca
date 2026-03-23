@@ -17,6 +17,8 @@ func TestGetBlockSchema(t *testing.T) {
 		{"knowledge schema exists", "knowledge", true, 2},
 		{"workflow schema exists", "workflow", true, 2},
 		{"trigger schema exists", "trigger", true, 2},
+		{"input schema exists", "input", true, 4},
+		{"primitive str", "str", true, 0},
 		{"unknown block", "foobar", false, 0},
 	}
 

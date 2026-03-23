@@ -4,6 +4,8 @@
 package lsp
 
 import (
+	"fmt"
+
 	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -15,6 +17,8 @@ import (
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
+	"github.com/thakee/orca/compiler/token"
+	"github.com/thakee/orca/compiler/types"
 )
 
 const serverName = "orca-lsp"
@@ -22,12 +26,14 @@ const serverName = "orca-lsp"
 // handler is the LSP protocol handler with all method implementations.
 var handler protocol.Handler
 
-// documentState holds the current text, parsed AST, and diagnostics for an open file.
-// The parser produces a partial AST via error recovery, so Program is always set.
+// documentState holds the current text, parsed AST, symbol table, and diagnostics
+// for an open file. The parser produces a partial AST via error recovery, so
+// Program is always set.
 type documentState struct {
 	Text        string
 	Program     *ast.Program
-	Diagnostics []diagnostic.Diagnostic // parse + analyzer diagnostics
+	Symbols     *types.SymbolTable         // symbol table from analysis (nil if parse errors)
+	Diagnostics []diagnostic.Diagnostic    // parse + analyzer diagnostics
 }
 
 // documents tracks open file state by URI.
@@ -41,6 +47,8 @@ func init() {
 	handler.TextDocumentDidChange = textDocumentDidChange
 	handler.TextDocumentDidClose = textDocumentDidClose
 	handler.TextDocumentCompletion = textDocumentCompletion
+	handler.TextDocumentHover = textDocumentHover
+	handler.TextDocumentDefinition = textDocumentDefinition
 }
 
 // NewServer creates a glsp server wired to the Orca LSP handler.
@@ -60,6 +68,8 @@ func initialize(ctx *glsp.Context, params *protocol.InitializeParams) (any, erro
 				OpenClose: boolPtr(true),
 				Change:    &syncKind,
 			},
+			HoverProvider:      true,
+			DefinitionProvider: true,
 			CompletionProvider: &protocol.CompletionOptions{
 				TriggerCharacters: []string{"\n"},
 			},
@@ -208,6 +218,164 @@ func completeFieldNames(ctx cursor.Context) []protocol.CompletionItem {
 }
 
 
+// textDocumentHover returns type and definition information when the user
+// hovers over an identifier, block name, or field name.
+func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protocol.Hover, error) {
+	doc, ok := documents[params.TextDocument.URI]
+	if !ok || doc.Program == nil {
+		return nil, nil
+	}
+
+	line := int(params.Position.Line) + 1
+	col := int(params.Position.Character) + 1
+
+	node := cursor.FindNodeAt(doc.Program, line, col)
+
+	switch node.Kind {
+	case cursor.BlockNameNode:
+		blockType := token.BlockName(node.Block.TokenStart.Type)
+		content := fmt.Sprintf("```orca\n%s %s\n```", blockType, node.Block.Name)
+		return &protocol.Hover{
+			Contents: protocol.MarkupContent{Kind: protocol.MarkupKindMarkdown, Value: content},
+		}, nil
+
+	case cursor.IdentNode:
+		if doc.Symbols == nil {
+			return nil, nil
+		}
+		sym, found := doc.Symbols.LookupSymbol(node.Ident.Value)
+		if !found {
+			return nil, nil
+		}
+		content := fmt.Sprintf("```orca\n%s %s\n```", sym.Type.BlockType, node.Ident.Value)
+		return &protocol.Hover{
+			Contents: protocol.MarkupContent{Kind: protocol.MarkupKindMarkdown, Value: content},
+		}, nil
+
+	case cursor.MemberAccessNode:
+		if doc.Symbols == nil {
+			return nil, nil
+		}
+		objType := types.ExprType(node.MemberAccess.Object, doc.Symbols)
+		if objType.Kind != types.BlockRef {
+			return nil, nil
+		}
+		field, found := types.GetFieldSchema(string(objType.BlockType), node.MemberAccess.Member)
+		if !found {
+			return nil, nil
+		}
+		return fieldHover(node.MemberAccess.Member, field), nil
+
+	case cursor.FieldNameNode:
+		blockType := token.BlockName(node.Block.TokenStart.Type)
+		field, found := types.GetFieldSchema(blockType, node.Assignment.Name)
+		if !found {
+			return nil, nil
+		}
+		return fieldHover(node.Assignment.Name, field), nil
+	}
+
+	return nil, nil
+}
+
+// fieldHover builds a hover response for a field with its type and description.
+func fieldHover(name string, field types.FieldSchema) *protocol.Hover {
+	content := fmt.Sprintf("```orca\n%s: %s\n```", name, field.Type.String())
+	if field.Description != "" {
+		content += "\n\n" + field.Description
+	}
+	return &protocol.Hover{
+		Contents: protocol.MarkupContent{Kind: protocol.MarkupKindMarkdown, Value: content},
+	}
+}
+
+// textDocumentDefinition returns the definition location when the user
+// triggers go-to-definition on an identifier reference.
+func textDocumentDefinition(ctx *glsp.Context, params *protocol.DefinitionParams) (any, error) {
+	doc, ok := documents[params.TextDocument.URI]
+	if !ok || doc.Program == nil || doc.Symbols == nil {
+		return nil, nil
+	}
+
+	line := int(params.Position.Line) + 1
+	col := int(params.Position.Character) + 1
+
+	node := cursor.FindNodeAt(doc.Program, line, col)
+
+	switch node.Kind {
+	case cursor.IdentNode:
+		sym, found := doc.Symbols.LookupSymbol(node.Ident.Value)
+		if !found {
+			return nil, nil
+		}
+		return protocol.Location{
+			URI:   params.TextDocument.URI,
+			Range: tokenToRange(sym.DefToken),
+		}, nil
+
+	case cursor.MemberAccessNode:
+		// Go to the field assignment within the referenced block.
+		if ident, ok := node.MemberAccess.Object.(*ast.Identifier); ok {
+			block := findBlock(doc.Program, ident.Value)
+			if block == nil {
+				return nil, nil
+			}
+			for _, assign := range block.Assignments {
+				if assign.Name == node.MemberAccess.Member {
+					return protocol.Location{
+						URI:   params.TextDocument.URI,
+						Range: tokenToRange(assign.Start()),
+					}, nil
+				}
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+// findBlock returns the BlockStatement with the given name, or nil.
+func findBlock(program *ast.Program, name string) *ast.BlockStatement {
+	for _, stmt := range program.Statements {
+		block, ok := stmt.(*ast.BlockStatement)
+		if ok && block.Name == name {
+			return block
+		}
+	}
+	return nil
+}
+
+// tokenToRange converts a token's position to an LSP Range (0-based).
+func tokenToRange(tok token.Token) protocol.Range {
+	startLine := tok.Line
+	startCol := tok.Column
+	if startLine > 0 {
+		startLine--
+	}
+	if startCol > 0 {
+		startCol--
+	}
+	endLine := tok.EndLine
+	endCol := tok.EndCol
+	if endLine == 0 {
+		endLine = tok.Line
+	}
+	if endCol == 0 {
+		endCol = tok.Column + len(tok.Literal)
+	}
+	if endLine > 0 {
+		endLine--
+	}
+	// endCol is already 1 past the end (exclusive), convert to 0-based.
+	if endCol > 0 {
+		endCol--
+	}
+	return protocol.Range{
+		Start: protocol.Position{Line: protocol.UInteger(startLine), Character: protocol.UInteger(startCol)},
+		End:   protocol.Position{Line: protocol.UInteger(endLine), Character: protocol.UInteger(endCol)},
+	}
+}
+
 // updateDocument parses the text, runs analysis, and stores everything.
 // Called on every open/change — parses once and caches the results.
 func updateDocument(uri, text string) *documentState {
@@ -216,11 +384,14 @@ func updateDocument(uri, text string) *documentState {
 	program := p.ParseProgram()
 
 	diags := p.Diagnostics()
+	var symbols *types.SymbolTable
 	if !program.HasErrors {
-		diags = append(diags, analyzer.Analyze(program)...)
+		result := analyzer.Analyze(program)
+		diags = append(diags, result.Diagnostics...)
+		symbols = result.Symbols
 	}
 
-	doc := &documentState{Text: text, Program: program, Diagnostics: diags}
+	doc := &documentState{Text: text, Program: program, Symbols: symbols, Diagnostics: diags}
 	documents[uri] = doc
 	return doc
 }

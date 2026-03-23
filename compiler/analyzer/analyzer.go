@@ -13,10 +13,19 @@ import (
 	"github.com/thakee/orca/compiler/types"
 )
 
+// AnalyzeResult holds the output of semantic analysis: the symbol table
+// built from block definitions and any diagnostics produced.
+type AnalyzeResult struct {
+	Symbols     *types.SymbolTable
+	Diagnostics []diagnostic.Diagnostic
+}
+
 // Analyze walks the AST and performs semantic analysis.
 // Builds a symbol table from all block definitions, then validates
-// each block's fields against its schema.
-func Analyze(program *ast.Program) []diagnostic.Diagnostic {
+// each block's fields against its schema. Returns the symbol table
+// along with diagnostics so callers (like the LSP) can use it for
+// hover, go-to-definition, and other features.
+func Analyze(program *ast.Program) AnalyzeResult {
 	var diags []diagnostic.Diagnostic
 
 	symbols, dupDiags := buildSymbolTable(program)
@@ -30,7 +39,7 @@ func Analyze(program *ast.Program) []diagnostic.Diagnostic {
 		diags = append(diags, analyzeBlock(block, symbols)...)
 	}
 
-	return diags
+	return AnalyzeResult{Symbols: symbols, Diagnostics: diags}
 }
 
 // buildSymbolTable walks all block statements and registers each block
@@ -38,6 +47,18 @@ func Analyze(program *ast.Program) []diagnostic.Diagnostic {
 func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Diagnostic) {
 	st := types.NewSymbolTable()
 	var diags []diagnostic.Diagnostic
+
+	// Seed with built-in schema names (str, int, model, agent, etc.)
+	// so they are recognized as valid references in user code.
+	// Block types like "model" resolve to their own kind; primitives
+	// like "str" resolve to BlockRef(schema).
+	for _, name := range types.BuiltinSchemaNames() {
+		kind, ok := types.BlockKindFromName(name)
+		if !ok {
+			kind = types.BlockSchemaKind
+		}
+		st.Define(name, types.NewBlockRefType(kind), token.Token{})
+	}
 
 	for _, stmt := range program.Statements {
 		block, ok := stmt.(*ast.BlockStatement)
@@ -61,7 +82,7 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 				Source:  "analyzer",
 			})
 		}
-		st.Define(block.Name, types.NewBlockRefType(kind))
+		st.Define(block.Name, types.NewBlockRefType(kind), block.NameToken)
 	}
 	return st, diags
 }

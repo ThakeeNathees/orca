@@ -98,6 +98,150 @@ func posInBlock(block *ast.BlockStatement, line, col int) bool {
 		posBeforeOrAt(line, col, endLine, endCol)
 }
 
+// NodeKind classifies the kind of AST element found at a cursor position.
+type NodeKind int
+
+const (
+	// NoneNode means no relevant node was found at the position.
+	NoneNode NodeKind = iota
+	// BlockNameNode means the cursor is on a block's name token (definition site).
+	BlockNameNode
+	// IdentNode means the cursor is on an identifier reference.
+	IdentNode
+	// MemberAccessNode means the cursor is on a member access expression.
+	MemberAccessNode
+	// FieldNameNode means the cursor is on the key (left side) of an assignment.
+	FieldNameNode
+)
+
+// NodeAt describes which AST element the cursor is pointing at.
+type NodeAt struct {
+	Kind         NodeKind
+	Block        *ast.BlockStatement // enclosing block (always set if not NoneNode)
+	Ident        *ast.Identifier     // set for IdentNode
+	MemberAccess *ast.MemberAccess   // set for MemberAccessNode
+	Assignment   *ast.Assignment     // set for FieldNameNode
+}
+
+// FindNodeAt returns the AST element at the given 1-based line and column.
+// It checks block names, field names, and expressions within assignments.
+func FindNodeAt(program *ast.Program, line, col int) NodeAt {
+	if program == nil {
+		return NodeAt{}
+	}
+
+	for _, stmt := range program.Statements {
+		block, ok := stmt.(*ast.BlockStatement)
+		if !ok {
+			continue
+		}
+
+		// Check if cursor is on the block name token.
+		if posOnToken(block.NameToken, line, col) {
+			return NodeAt{Kind: BlockNameNode, Block: block}
+		}
+
+		if !posInBlock(block, line, col) {
+			continue
+		}
+
+		// Check assignments.
+		for _, assign := range block.Assignments {
+			// Check if cursor is on the field name (key).
+			keyTok := assign.Start()
+			if posOnToken(keyTok, line, col) {
+				return NodeAt{Kind: FieldNameNode, Block: block, Assignment: assign}
+			}
+
+			// Check expressions in the value.
+			if node := findInExpr(assign.Value, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
+	}
+
+	return NodeAt{}
+}
+
+// findInExpr recursively searches an expression tree for the deepest node
+// at the given position. Prefers more specific nodes (identifiers inside
+// member access) over broader ones.
+func findInExpr(expr ast.Expression, block *ast.BlockStatement, line, col int) NodeAt {
+	if expr == nil {
+		return NodeAt{}
+	}
+
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		if posOnToken(e.Start(), line, col) {
+			return NodeAt{Kind: IdentNode, Block: block, Ident: e}
+		}
+	case *ast.MemberAccess:
+		// Check the member name token (the end token).
+		if posOnToken(e.End(), line, col) {
+			return NodeAt{Kind: MemberAccessNode, Block: block, MemberAccess: e}
+		}
+		// Check the object side.
+		if node := findInExpr(e.Object, block, line, col); node.Kind != NoneNode {
+			return node
+		}
+	case *ast.ListLiteral:
+		for _, elem := range e.Elements {
+			if node := findInExpr(elem, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
+	case *ast.BinaryExpression:
+		if node := findInExpr(e.Left, block, line, col); node.Kind != NoneNode {
+			return node
+		}
+		if node := findInExpr(e.Right, block, line, col); node.Kind != NoneNode {
+			return node
+		}
+	case *ast.CallExpression:
+		if node := findInExpr(e.Callee, block, line, col); node.Kind != NoneNode {
+			return node
+		}
+		for _, arg := range e.Arguments {
+			if node := findInExpr(arg, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
+	case *ast.Subscription:
+		if node := findInExpr(e.Object, block, line, col); node.Kind != NoneNode {
+			return node
+		}
+		if node := findInExpr(e.Index, block, line, col); node.Kind != NoneNode {
+			return node
+		}
+	case *ast.MapLiteral:
+		for _, entry := range e.Entries {
+			if node := findInExpr(entry.Key, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+			if node := findInExpr(entry.Value, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
+	}
+
+	return NodeAt{}
+}
+
+// posOnToken returns true if (line, col) falls within the token's span.
+func posOnToken(tok token.Token, line, col int) bool {
+	startLine, startCol := tok.Line, tok.Column
+	endLine, endCol := tok.EndLine, tok.EndCol
+	if endLine == 0 {
+		endLine = startLine
+	}
+	if endCol == 0 {
+		endCol = startCol + len(tok.Literal) - 1
+	}
+	return posAfterOrAt(line, col, startLine, startCol) &&
+		posBeforeOrAt(line, col, endLine, endCol)
+}
+
 // posAfterOrAt returns true if (line, col) is at or after (refLine, refCol).
 func posAfterOrAt(line, col, refLine, refCol int) bool {
 	return line > refLine || (line == refLine && col >= refCol)

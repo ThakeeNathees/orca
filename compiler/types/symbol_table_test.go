@@ -1,12 +1,16 @@
 package types
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/thakee/orca/compiler/token"
+)
 
 // TestSymbolTableLookup verifies basic symbol table operations.
 func TestSymbolTableLookup(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType(BlockModel))
-	st.Define("researcher", NewBlockRefType(BlockAgent))
+	st.Define("gpt4", NewBlockRefType(BlockModel), token.Token{})
+	st.Define("researcher", NewBlockRefType(BlockAgent), token.Token{})
 
 	tests := []struct {
 		name     string
@@ -35,7 +39,7 @@ func TestSymbolTableLookup(t *testing.T) {
 // TestSymbolTableBlockType verifies that the BlockType is preserved.
 func TestSymbolTableBlockType(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType(BlockModel))
+	st.Define("gpt4", NewBlockRefType(BlockModel), token.Token{})
 
 	typ, ok := st.Lookup("gpt4")
 	if !ok {

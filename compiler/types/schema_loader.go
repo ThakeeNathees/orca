@@ -39,7 +39,7 @@ func loadSchemas() (map[string]BlockSchema, error) {
 
 		fields := make(map[string]FieldSchema)
 		for _, assign := range block.Assignments {
-			fieldSchema, err := resolveFieldSchema(assign.Value)
+			fieldSchema, err := resolveFieldSchema(assign)
 			if err != nil {
 				return nil, fmt.Errorf("schema %s.%s: %w", block.Name, assign.Name, err)
 			}
@@ -52,50 +52,56 @@ func loadSchemas() (map[string]BlockSchema, error) {
 	return schemas, nil
 }
 
-// resolveFieldSchema extracts a FieldSchema from a map literal expression
-// like {type: str, required: true}.
-func resolveFieldSchema(expr ast.Expression) (FieldSchema, error) {
-	mapLit, ok := expr.(*ast.MapLiteral)
-	if !ok {
-		return FieldSchema{}, fmt.Errorf("expected map literal, got %T", expr)
+// resolveFieldSchema extracts a FieldSchema from an assignment using the
+// annotation-based format. The assignment value is the type expression
+// (e.g. str, str | model | null). Annotations provide metadata:
+// @desc("...") for descriptions. Required is inferred: if the type
+// contains null in a union, the field is optional; otherwise required.
+func resolveFieldSchema(assign *ast.Assignment) (FieldSchema, error) {
+	typ, err := resolveType(assign.Value)
+	if err != nil {
+		return FieldSchema{}, fmt.Errorf("type: %w", err)
 	}
 
 	var fs FieldSchema
-	var hasType bool
 
-	for _, entry := range mapLit.Entries {
-		key, ok := entry.Key.(*ast.Identifier)
-		if !ok {
-			return FieldSchema{}, fmt.Errorf("expected identifier key, got %T", entry.Key)
-		}
-
-		switch key.Value {
-		case "type":
-			typ, err := resolveType(entry.Value)
-			if err != nil {
-				return FieldSchema{}, fmt.Errorf("type: %w", err)
+	// If the type is a union containing null, the field is optional.
+	// Strip null from the stored type — it's just an optionality marker.
+	if typ.Kind == Union {
+		var nonNull []Type
+		for _, m := range typ.Members {
+			if m.Kind == Null {
+				continue
 			}
+			nonNull = append(nonNull, m)
+		}
+		if len(nonNull) < len(typ.Members) {
+			// Had null member — field is optional.
+			fs.Required = false
+			if len(nonNull) == 1 {
+				fs.Type = nonNull[0]
+			} else {
+				fs.Type = NewUnionType(nonNull...)
+			}
+		} else {
+			fs.Required = true
 			fs.Type = typ
-			hasType = true
-		case "required":
-			boolLit, ok := entry.Value.(*ast.BooleanLiteral)
-			if !ok {
-				return FieldSchema{}, fmt.Errorf("required: expected boolean, got %T", entry.Value)
-			}
-			fs.Required = boolLit.Value
-		case "desc":
-			strLit, ok := entry.Value.(*ast.StringLiteral)
-			if !ok {
-				return FieldSchema{}, fmt.Errorf("desc: expected string, got %T", entry.Value)
-			}
-			fs.Description = strLit.Value
-		default:
-			return FieldSchema{}, fmt.Errorf("unknown field property %q", key.Value)
 		}
+	} else {
+		fs.Required = true
+		fs.Type = typ
 	}
 
-	if !hasType {
-		return FieldSchema{}, fmt.Errorf("missing 'type' property")
+	// Extract metadata from annotations.
+	for _, ann := range assign.Annotations {
+		switch ann.Name {
+		case "desc":
+			if len(ann.Arguments) == 1 {
+				if strLit, ok := ann.Arguments[0].(*ast.StringLiteral); ok {
+					fs.Description = strLit.Value
+				}
+			}
+		}
 	}
 
 	return fs, nil
@@ -106,6 +112,9 @@ func resolveFieldSchema(expr ast.Expression) (FieldSchema, error) {
 // binary expressions with pipe for union types (str | model).
 func resolveType(expr ast.Expression) (Type, error) {
 	switch e := expr.(type) {
+	case *ast.NullLiteral:
+		return NullType, nil
+
 	case *ast.Identifier:
 		return resolveIdentType(e.Value)
 
@@ -149,8 +158,18 @@ func resolveType(expr ast.Expression) (Type, error) {
 // chained `a | b | c`.
 func flattenUnion(expr ast.Expression) ([]Type, error) {
 	switch e := expr.(type) {
+	case *ast.NullLiteral:
+		return []Type{NullType}, nil
+
 	case *ast.Identifier:
 		typ, err := resolveIdentType(e.Value)
+		if err != nil {
+			return nil, err
+		}
+		return []Type{typ}, nil
+
+	case *ast.Subscription:
+		typ, err := resolveType(expr)
 		if err != nil {
 			return nil, err
 		}
@@ -175,13 +194,13 @@ func flattenUnion(expr ast.Expression) ([]Type, error) {
 	}
 }
 
-// resolveIdentType maps a type annotation identifier to an internal Type.
-// Type annotation keywords (str, int, float, bool, list, map, any) map
-// to their corresponding primitive types. Other identifiers are treated
-// as block references (e.g., "model" → BlockRef("model")).
+// resolveIdentType maps an identifier to an internal Type.
+// Primitive schema names (str, int, float, bool, etc.) map to their
+// corresponding internal types. Other identifiers are treated as block
+// references (e.g., "model" → BlockRef("model")).
 func resolveIdentType(name string) (Type, error) {
-	// Check if it's a type annotation keyword.
-	if typ, ok := TypeFromAnnotation(name); ok {
+	// Check if it's a primitive type schema.
+	if typ, ok := PrimitiveType(name); ok {
 		return typ, nil
 	}
 
@@ -202,6 +221,8 @@ var blockKindMap = map[string]BlockKind{
 	"knowledge": BlockKnowledge,
 	"workflow":  BlockWorkflow,
 	"trigger":   BlockTrigger,
+	"input":     BlockInput,
+	"schema":    BlockSchemaKind,
 }
 
 // BlockKindFromName returns the BlockKind for a given block type name.

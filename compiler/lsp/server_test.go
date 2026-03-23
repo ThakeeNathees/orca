@@ -5,6 +5,7 @@ import (
 
 	protocol "github.com/tliron/glsp/protocol_3_16"
 
+	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/cursor"
 	"github.com/thakee/orca/compiler/diagnostic"
 )
@@ -211,6 +212,112 @@ func TestCompleteFieldNamesInsertText(t *testing.T) {
 			t.Errorf("item %q InsertText = %q, want %q", item.Label, *item.InsertText, expected)
 		}
 	}
+}
+
+// TestHoverOnBlockName verifies that hovering a block name shows its type.
+func TestHoverOnBlockName(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n}"
+	doc := updateDocument("test://hover.oc", text)
+
+	node := findNodeAtDoc(doc, 0, 6) // 0-based: "gpt4" starts at char 6
+	if node.Kind != cursor.BlockNameNode {
+		t.Fatalf("Kind = %v, want BlockNameNode", node.Kind)
+	}
+}
+
+// TestHoverOnIdentReference verifies hover on an identifier reference.
+func TestHoverOnIdentReference(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://hover.oc", text)
+
+	// "gpt4" reference on line 4 (0-based), char 10.
+	node := findNodeAtDoc(doc, 4, 10)
+	if node.Kind != cursor.IdentNode {
+		t.Fatalf("Kind = %v, want IdentNode", node.Kind)
+	}
+	if node.Ident.Value != "gpt4" {
+		t.Errorf("Ident.Value = %q, want %q", node.Ident.Value, "gpt4")
+	}
+
+	// Verify symbol lookup works.
+	sym, found := doc.Symbols.LookupSymbol("gpt4")
+	if !found {
+		t.Fatal("expected gpt4 in symbol table")
+	}
+	if sym.DefToken.Line != 1 {
+		t.Errorf("DefToken.Line = %d, want 1", sym.DefToken.Line)
+	}
+}
+
+// TestHoverOnFieldName verifies hover on a field key.
+func TestHoverOnFieldName(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n}"
+	doc := updateDocument("test://hover.oc", text)
+
+	// "provider" on line 1 (0-based), char 2.
+	node := findNodeAtDoc(doc, 1, 2)
+	if node.Kind != cursor.FieldNameNode {
+		t.Fatalf("Kind = %v, want FieldNameNode", node.Kind)
+	}
+	if node.Assignment.Name != "provider" {
+		t.Errorf("Assignment.Name = %q, want %q", node.Assignment.Name, "provider")
+	}
+}
+
+// TestDefinitionJumpsToBlock verifies that go-to-definition on an ident
+// returns the block name's position.
+func TestDefinitionJumpsToBlock(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://def.oc", text)
+
+	sym, found := doc.Symbols.LookupSymbol("gpt4")
+	if !found {
+		t.Fatal("expected gpt4 in symbol table")
+	}
+
+	// Definition should point to line 1, col 7 (1-based) = the NameToken of "gpt4".
+	if sym.DefToken.Line != 1 || sym.DefToken.Column != 7 {
+		t.Errorf("DefToken = (%d, %d), want (1, 7)", sym.DefToken.Line, sym.DefToken.Column)
+	}
+}
+
+// TestDefinitionMemberJumpsToField verifies that go-to-definition on a
+// member access (e.g. gpt4.provider) jumps to the field assignment inside
+// the referenced block, not to the block name.
+func TestDefinitionMemberJumpsToField(t *testing.T) {
+	// gpt4.provider — "provider" is assigned on line 2, col 3.
+	text := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4.provider\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://memdef.oc", text)
+
+	// "provider" member token on line 5 (1-based), find the block.
+	block := findBlock(doc.Program, "gpt4")
+	if block == nil {
+		t.Fatal("expected block 'gpt4'")
+	}
+
+	// The "provider" assignment should be at line 2, col 3.
+	var providerAssign *ast.Assignment
+	for _, a := range block.Assignments {
+		if a.Name == "provider" {
+			providerAssign = a
+			break
+		}
+	}
+	if providerAssign == nil {
+		t.Fatal("expected 'provider' assignment in gpt4 block")
+	}
+	if providerAssign.Start().Line != 2 || providerAssign.Start().Column != 3 {
+		t.Errorf("provider assignment at (%d, %d), want (2, 3)",
+			providerAssign.Start().Line, providerAssign.Start().Column)
+	}
+}
+
+// findNodeAtDoc converts 0-based LSP positions to 1-based and calls FindNodeAt.
+func findNodeAtDoc(doc *documentState, line, char int) cursor.NodeAt {
+	if doc.Program == nil {
+		return cursor.NodeAt{}
+	}
+	return cursor.FindNodeAt(doc.Program, line+1, char+1)
 }
 
 // resolveAtDocPosition resolves cursor context from 0-based LSP positions.

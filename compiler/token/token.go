@@ -36,10 +36,12 @@ const (
 	SLASH    TokenType = "/"
 	ARROW    TokenType = "->"
 	PIPE     TokenType = "|"
+	AT       TokenType = "@"
 
-	// Boolean literals
+	// Boolean and null literals
 	TRUE  TokenType = "TRUE"
 	FALSE TokenType = "FALSE"
+	NULL  TokenType = "NULL"
 
 	// Keywords — each corresponds to a top-level block type in Orca syntax.
 	MODEL     TokenType = "MODEL"
@@ -49,16 +51,8 @@ const (
 	TRIGGER   TokenType = "TRIGGER"
 	WORKFLOW  TokenType = "WORKFLOW"
 	TOOL      TokenType = "TOOL"
+	INPUT     TokenType = "INPUT"
 	SCHEMA    TokenType = "SCHEMA"
-
-	// Type annotation keywords — used in type = <annotation> assignments.
-	TYPE_STR   TokenType = "TYPE_STR"
-	TYPE_INT   TokenType = "TYPE_INT"
-	TYPE_FLOAT TokenType = "TYPE_FLOAT"
-	TYPE_BOOL  TokenType = "TYPE_BOOL"
-	TYPE_LIST  TokenType = "TYPE_LIST"
-	TYPE_MAP   TokenType = "TYPE_MAP"
-	TYPE_ANY   TokenType = "TYPE_ANY"
 )
 
 // Operator precedence levels for Pratt parsing. Higher values bind tighter.
@@ -102,6 +96,8 @@ func Describe(t TokenType) string {
 		return "string"
 	case TRUE, FALSE:
 		return "boolean"
+	case NULL:
+		return "null"
 	case ASSIGN:
 		return "'='"
 	case DOT:
@@ -134,20 +130,8 @@ func Describe(t TokenType) string {
 		return "'->'"
 	case PIPE:
 		return "'|'"
-	case TYPE_STR:
-		return "type 'str'"
-	case TYPE_INT:
-		return "type 'int'"
-	case TYPE_FLOAT:
-		return "type 'float'"
-	case TYPE_BOOL:
-		return "type 'bool'"
-	case TYPE_LIST:
-		return "type 'list'"
-	case TYPE_MAP:
-		return "type 'map'"
-	case TYPE_ANY:
-		return "type 'any'"
+	case AT:
+		return "'@'"
 	default:
 		// Keywords like MODEL, AGENT, etc.
 		if IsBlockKeyword(t) {
@@ -162,6 +146,7 @@ func Describe(t TokenType) string {
 var keywords = map[string]TokenType{
 	"true":      TRUE,
 	"false":     FALSE,
+	"null":      NULL,
 	"model":     MODEL,
 	"agent":     AGENT,
 	"task":      TASK,
@@ -169,14 +154,8 @@ var keywords = map[string]TokenType{
 	"trigger":   TRIGGER,
 	"workflow":  WORKFLOW,
 	"tool":      TOOL,
+	"input":     INPUT,
 	"schema":    SCHEMA,
-	"str":       TYPE_STR,
-	"int":       TYPE_INT,
-	"float":     TYPE_FLOAT,
-	"bool":      TYPE_BOOL,
-	"list":      TYPE_LIST,
-	"map":       TYPE_MAP,
-	"any":       TYPE_ANY,
 }
 
 // LookupIdent checks if an identifier string is a reserved keyword.
@@ -192,7 +171,7 @@ func LookupIdent(ident string) TokenType {
 // (model, agent, tool, task, knowledge, trigger, workflow).
 func IsBlockKeyword(t TokenType) bool {
 	switch t {
-	case MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL, SCHEMA:
+	case MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL, INPUT, SCHEMA:
 		return true
 	}
 	return false
@@ -208,23 +187,12 @@ func BlockName(t TokenType) string {
 	return ""
 }
 
-// IsTypeAnnotation returns true if the token type is a type annotation
-// keyword (str, int, float, bool, list, map, any).
-func IsTypeAnnotation(t TokenType) bool {
-	switch t {
-	case TYPE_STR, TYPE_INT, TYPE_FLOAT, TYPE_BOOL, TYPE_LIST, TYPE_MAP, TYPE_ANY:
-		return true
-	}
-	return false
-}
-
 // IsIdentLike returns true if the token type can serve as an identifier
 // in contexts like assignment keys. Block keywords (model, agent, etc.)
-// and type annotations (str, int, etc.) are valid key names inside
-// blocks — e.g., `model = gpt4` inside an agent block uses "model"
-// as a key, and `type = str` uses "str" as a value.
+// are valid key names inside blocks — e.g., `model = gpt4` inside an
+// agent block uses "model" as a key.
 func IsIdentLike(t TokenType) bool {
-	return t == IDENT || IsBlockKeyword(t) || IsTypeAnnotation(t)
+	return t == IDENT || t == NULL || IsBlockKeyword(t)
 }
 
 // Precedence returns the binding power of a token type when used as a

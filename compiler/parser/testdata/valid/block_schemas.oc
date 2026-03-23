@@ -1,45 +1,23 @@
-// Schema definitions for all block types.
-// Each field is a map with type and required keys.
-// Union types use the pipe operator: str | model
+// Schema definitions using annotation-based format.
+
+schema str {}
+schema int {}
+schema float {}
+schema bool {}
+schema null {}
 
 schema model {
-  provider    = {type: str, required: true}
-  model_name  = {type: str | model, required: false}
-  temperature = {type: float, required: false}
+  @desc("The LLM provider.")
+  provider = str
+
+  model_name = str | model | null
+  temperature = float | null
 }
 
 schema agent {
-  model  = {type: str | model, required: true}
-  tools  = {type: list, required: false}
-  prompt = {type: str, required: true}
-}
+  @desc("The model to use.")
+  model = str | model
 
-schema tool {
-  type        = {type: str, required: true}
-  base_url    = {type: str, required: false}
-  auth        = {type: str, required: false}
-  scopes      = {type: list, required: false}
-  source      = {type: str, required: false}
-  description = {type: str, required: false}
-}
-
-schema task {
-  agent  = {type: agent, required: true}
-  prompt = {type: str, required: true}
-}
-
-schema knowledge {
-  source = {type: str, required: true}
-  type   = {type: str, required: false}
-}
-
-schema workflow {
-  flow     = {type: any, required: true}
-  on_error = {type: any, required: false}
-}
-
-schema trigger {
-  type     = {type: str, required: true}
-  schedule = {type: str, required: false}
-  workflow = {type: workflow, required: false}
+  persona = str
+  tools = list[tool] | null
 }

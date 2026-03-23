@@ -59,6 +59,14 @@ type Program struct {
 	HasErrors  bool // true if the source had parse errors; AST may be partial
 }
 
+// Annotation represents a decorator on a field or block: @name or @name(args...).
+// For example, @desc("The LLM provider") or @sensitive.
+type Annotation struct {
+	BaseNode
+	Name      string       // annotation name without the @
+	Arguments []Expression // e.g. @desc("text") has one StringLiteral arg
+}
+
 // BlockStatement represents any top-level block in Orca syntax:
 //
 //	keyword name {
@@ -73,6 +81,7 @@ type BlockStatement struct {
 	NameToken   token.Token   // the name token, used for diagnostic ranges
 	OpenBrace   token.Token   // the '{' token, used for diagnostic ranges
 	Assignments []*Assignment // key = value pairs inside the block body
+	Annotations []*Annotation // decorators before the block keyword (@sensitive, etc.)
 }
 
 func (b *BlockStatement) statementNode() {}
@@ -198,8 +207,17 @@ func (ll *ListLiteral) expressionNode() {}
 // BaseNode covers from the key identifier to the last token of the value.
 type Assignment struct {
 	BaseNode
-	Name  string     // the key (left-hand side)
-	Value Expression // the value (right-hand side)
+	Name        string        // the key (left-hand side)
+	Value       Expression    // the value (right-hand side)
+	Annotations []*Annotation // decorators before the key (@desc("..."), etc.)
 }
 
 func (a *Assignment) statementNode() {}
+
+// NullLiteral represents the null keyword.
+// Terminal node — start == end.
+type NullLiteral struct {
+	BaseNode
+}
+
+func (nl *NullLiteral) expressionNode() {}

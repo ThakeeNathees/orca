@@ -1188,3 +1188,130 @@ func TestInvalidFiles(t *testing.T) {
 		})
 	}
 }
+
+// TestParseNullLiteral verifies that null is parsed as a NullLiteral.
+func TestParseNullLiteral(t *testing.T) {
+	input := `input x { default = null }`
+	program := parseOrFail(t, input)
+	assertBlockCount(t, program, 1)
+	block := assertBlock(t, program.Statements[0], token.INPUT, "x")
+	if len(block.Assignments) != 1 {
+		t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
+	}
+	if _, ok := block.Assignments[0].Value.(*ast.NullLiteral); !ok {
+		t.Errorf("expected NullLiteral, got %T", block.Assignments[0].Value)
+	}
+}
+
+// TestParseNullInUnion verifies that str | null parses as a BinaryExpression.
+func TestParseNullInUnion(t *testing.T) {
+	input := `schema s { field = str | null }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.SCHEMA, "s")
+	binExpr, ok := block.Assignments[0].Value.(*ast.BinaryExpression)
+	if !ok {
+		t.Fatalf("expected BinaryExpression, got %T", block.Assignments[0].Value)
+	}
+	if binExpr.Operator.Type != token.PIPE {
+		t.Errorf("expected PIPE operator, got %s", binExpr.Operator.Type)
+	}
+	if _, ok := binExpr.Right.(*ast.NullLiteral); !ok {
+		t.Errorf("expected NullLiteral on right, got %T", binExpr.Right)
+	}
+}
+
+// TestParseFieldAnnotation verifies that annotations before assignments are parsed.
+func TestParseFieldAnnotation(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		annName     string
+		annArgCount int
+		fieldName   string
+	}{
+		{
+			"bare annotation",
+			"schema s {\n  @required\n  region = str\n}",
+			"required",
+			0,
+			"region",
+		},
+		{
+			"annotation with string arg",
+			"schema s {\n  @desc(\"AWS region\")\n  region = str\n}",
+			"desc",
+			1,
+			"region",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], token.SCHEMA, "s")
+			if len(block.Assignments) != 1 {
+				t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
+			}
+			assign := block.Assignments[0]
+			if assign.Name != tt.fieldName {
+				t.Errorf("field name = %q, want %q", assign.Name, tt.fieldName)
+			}
+			if len(assign.Annotations) != 1 {
+				t.Fatalf("expected 1 annotation, got %d", len(assign.Annotations))
+			}
+			ann := assign.Annotations[0]
+			if ann.Name != tt.annName {
+				t.Errorf("annotation name = %q, want %q", ann.Name, tt.annName)
+			}
+			if len(ann.Arguments) != tt.annArgCount {
+				t.Errorf("annotation args = %d, want %d", len(ann.Arguments), tt.annArgCount)
+			}
+		})
+	}
+}
+
+// TestParseMultipleAnnotations verifies that multiple annotations
+// on a single field are collected correctly.
+func TestParseMultipleAnnotations(t *testing.T) {
+	input := "schema s {\n  @required\n  @desc(\"region\")\n  region = str\n}"
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.SCHEMA, "s")
+	assign := block.Assignments[0]
+	if len(assign.Annotations) != 2 {
+		t.Fatalf("expected 2 annotations, got %d", len(assign.Annotations))
+	}
+	if assign.Annotations[0].Name != "required" {
+		t.Errorf("first annotation = %q, want %q", assign.Annotations[0].Name, "required")
+	}
+	if assign.Annotations[1].Name != "desc" {
+		t.Errorf("second annotation = %q, want %q", assign.Annotations[1].Name, "desc")
+	}
+}
+
+// TestParseBlockAnnotation verifies that annotations before a block keyword
+// are attached to the BlockStatement.
+func TestParseBlockAnnotation(t *testing.T) {
+	input := "@sensitive\ninput apikey {\n  type = str\n}"
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.INPUT, "apikey")
+	if len(block.Annotations) != 1 {
+		t.Fatalf("expected 1 block annotation, got %d", len(block.Annotations))
+	}
+	if block.Annotations[0].Name != "sensitive" {
+		t.Errorf("annotation name = %q, want %q", block.Annotations[0].Name, "sensitive")
+	}
+}
+
+// TestParseNoAnnotations verifies that assignments without annotations
+// have an empty annotations slice.
+func TestParseNoAnnotations(t *testing.T) {
+	input := `model m { provider = "openai" }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	if len(block.Assignments[0].Annotations) != 0 {
+		t.Errorf("expected 0 annotations, got %d", len(block.Assignments[0].Annotations))
+	}
+	if len(block.Annotations) != 0 {
+		t.Errorf("expected 0 block annotations, got %d", len(block.Annotations))
+	}
+}

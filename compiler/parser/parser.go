@@ -105,13 +105,17 @@ func (p *Parser) ParseProgram() *ast.Program {
 }
 
 // parseStatement dispatches to the appropriate block parser based on the
-// current token type. Returns nil with an error for unrecognized tokens.
+// current token type. Collects any leading annotations (@sensitive, etc.)
+// and attaches them to the block. Returns nil with an error for unrecognized tokens.
 func (p *Parser) parseStatement() ast.Statement {
+	annotations := p.collectAnnotations()
+
 	if token.IsBlockKeyword(p.curToken.Type) {
 		block := p.parseBlock()
 		if block == nil {
 			return nil
 		}
+		block.Annotations = annotations
 		return block
 	}
 	p.addError(fmt.Sprintf("expected block keyword (model, agent, tool, ...), got %s",
@@ -197,6 +201,8 @@ func (p *Parser) parseAssignments(blockType, blockName string) []*ast.Assignment
 // (next identifier-like token at the same nesting level, or '}'/EOF)
 // so subsequent assignments can still be parsed.
 func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
+	annotations := p.collectAnnotations()
+
 	if !token.IsIdentLike(p.curToken.Type) {
 		p.addError(fmt.Sprintf("expected property name in '%s %s' block, got %s",
 			blockType, blockName, token.Describe(p.curToken.Type)))
@@ -205,6 +211,7 @@ func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
 	}
 
 	a := &ast.Assignment{}
+	a.Annotations = annotations
 	a.TokenStart = p.curToken // the key identifier
 	a.Name = p.curToken.Literal
 	key := p.curToken.Literal
@@ -231,6 +238,59 @@ func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
 	a.TokenEnd = p.prevToken
 
 	return a
+}
+
+// collectAnnotations parses zero or more consecutive annotations.
+// Returns nil if no annotations are present (no allocation).
+func (p *Parser) collectAnnotations() []*ast.Annotation {
+	var annotations []*ast.Annotation
+	for p.curToken.Type == token.AT {
+		ann := p.parseAnnotation()
+		if ann != nil {
+			annotations = append(annotations, ann)
+		}
+	}
+	return annotations
+}
+
+// parseAnnotation parses an annotation: @name or @name(args...).
+// Assumes curToken is AT. Returns nil on error.
+func (p *Parser) parseAnnotation() *ast.Annotation {
+	ann := &ast.Annotation{}
+	ann.TokenStart = p.curToken // the @ token
+	p.nextToken()               // move past @
+
+	if p.curToken.Type != token.IDENT {
+		p.addError(fmt.Sprintf("expected annotation name after '@', got %s",
+			token.Describe(p.curToken.Type)))
+		return nil
+	}
+	ann.Name = p.curToken.Literal
+	ann.TokenEnd = p.curToken
+	p.nextToken() // move past name
+
+	// Check for optional argument list: @name(args...)
+	if p.curToken.Type == token.LPAREN {
+		p.nextToken() // move past (
+		for p.curToken.Type != token.RPAREN && p.curToken.Type != token.EOF {
+			arg := p.parseExpression(token.PrecLowest)
+			if arg == nil {
+				return nil
+			}
+			ann.Arguments = append(ann.Arguments, arg)
+			if p.curToken.Type == token.COMMA {
+				p.nextToken() // consume comma
+			}
+		}
+		if p.curToken.Type != token.RPAREN {
+			p.addError("expected ')' to close annotation arguments")
+			return nil
+		}
+		ann.TokenEnd = p.curToken
+		p.nextToken() // move past )
+	}
+
+	return ann
 }
 
 // --- error recovery ---
@@ -363,17 +423,20 @@ func (p *Parser) parsePrimary() ast.Expression {
 		p.nextToken()
 		return expr
 
+	case token.NULL:
+		expr := &ast.NullLiteral{BaseNode: ast.NewTerminal(p.curToken)}
+		p.nextToken()
+		return expr
+
 	case token.IDENT:
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr
 
-	case token.TYPE_STR, token.TYPE_INT, token.TYPE_FLOAT, token.TYPE_BOOL,
-		token.TYPE_LIST, token.TYPE_MAP, token.TYPE_ANY,
-		token.MODEL, token.AGENT, token.TASK, token.KNOWLEDGE,
-		token.TRIGGER, token.WORKFLOW, token.TOOL, token.SCHEMA:
-		// Type annotations and block keywords are valid as identifiers
-		// in expression position (e.g., type: str, model = gpt4).
+	case token.MODEL, token.AGENT, token.TASK, token.KNOWLEDGE,
+		token.TRIGGER, token.WORKFLOW, token.TOOL, token.INPUT, token.SCHEMA:
+		// Block keywords are valid as identifiers in expression position
+		// (e.g., model = gpt4 inside an agent block).
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr

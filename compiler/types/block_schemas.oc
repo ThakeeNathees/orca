@@ -1,108 +1,89 @@
 // Schema definitions for all block types.
-// Each field is a map with type, optional required (omit for optional fields), and optional desc keys.
-// Union types use the pipe operator: str | model
+// Fields without | null are required. Fields with | null are optional.
+// Use @desc("...") to add a description to a field.
+
+// Primitive type schemas — these define the built-in types.
+schema str {}
+schema int {}
+schema float {}
+schema bool {}
+schema list {}
+schema map {}
+schema any {}
+schema null {}
 
 schema model {
-  provider = {
-    type: str,
-    required: true,
-    desc: "The LLM provider to use (e.g. openai, anthropic).",
-  }
-  model_name = {
-    type: str | model,
-    desc: "The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash).",
-  }
-  temperature = {
-    type: float,
-    desc: "
-      Sampling temperature between 0 and 1. \
-      Controls the creativity and randomness of generated text. \
-      Lower values like 0.1 make responses more focused and deterministic, \
-      while higher values up to 1.0 yield more random and diverse outputs. \
-      For most use cases, values between 0.2 and 0.7 are recommended.
-      ",
-  }
+  @desc("The LLM provider to use (e.g. openai, anthropic).")
+  provider = str
+
+  @desc("The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash).")
+  model_name = str | model | null
+
+  @desc("Sampling temperature between 0 and 1.")
+  temperature = float | null
 }
 
 schema agent {
-  model = {
-    type: str | model,
-    required: true,
-    desc: "
-      The model to use. Can be a reference to a model block
-      or a string like \"gpt-4o\" or \"openai/gpt-4o\".
-      ",
-  }
-  persona = {
-    type: str,
-    required: true,
-    desc: "
-      The persona of the agent. e.g:
-        You are a helpful assistant. or
-        You are a helpful assistant that can search the web
-      ",
-  }
-  tools = {
-    type: list[tool],
-    desc: "The tools to use for this agent. (e.g. [web_search, gmail]).",
-  }
+  @desc("The model to use. Can be a reference to a model block or a string.")
+  model = str | model
+
+  @desc("The persona of the agent.")
+  persona = str
+
+  @desc("The tools to use for this agent.")
+  tools = list[tool] | null
 }
 
 schema tool {
-  name = {
-    type: str,
-    required: true,
-    desc: "The name of the tool.",
-  }
-  desc = {
-    type: str,
-    desc: "The description of the tool.",
-  }
+  @desc("The name of the tool.")
+  name = str
+
+  @desc("The description of the tool.")
+  desc = str | null
 }
 
 schema task {
-  agent = {
-    type: agent,
-    required: true,
-    desc: "The agent assigned to this task.",
-  }
-  prompt = {
-    type: str,
-    required: true,
-    desc: "The task prompt or instructions.",
-  }
+  @desc("The agent assigned to this task.")
+  agent = agent
+
+  @desc("The task prompt or instructions.")
+  prompt = str
 }
 
 schema knowledge {
-  name = {
-    type: str,
-    required: true,
-    desc: "The name of the knowledge source.",
-  }
-  desc = {
-    type: str,
-    desc: "The description of the knowledge source.",
-  }
+  @desc("The name of the knowledge source.")
+  name = str
+
+  @desc("The description of the knowledge source.")
+  desc = str | null
 }
 
 schema workflow {
-  name = {
-    type: str,
-    desc: "The name of the workflow.",
-  }
-  desc = {
-    type: str,
-    desc: "The description of the workflow.",
-  }
+  @desc("The name of the workflow.")
+  name = str | null
+
+  @desc("The description of the workflow.")
+  desc = str | null
 }
 
 schema trigger {
-  name = {
-    type: str,
-    desc: "The name of the trigger.",
-  }
-  desc = {
-    type: str,
-    desc: "The description of the trigger.",
-  }
+  @desc("The name of the trigger.")
+  name = str | null
+
+  @desc("The description of the trigger.")
+  desc = str | null
+}
+
+schema input {
+  @desc("The type of this input (e.g. str, int, or a user-defined schema).")
+  type = schema
+
+  @desc("A human-readable description of what this input is for.")
+  desc = str | null
+
+  @desc("The default value if no value is provided at runtime.")
+  default = any | null
+
+  @desc("Whether this input contains sensitive data that should be masked.")
+  sensitive = bool | null
 }

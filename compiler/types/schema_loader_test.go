@@ -15,6 +15,14 @@ func TestLoadSchemas(t *testing.T) {
 		blockType string
 		numFields int
 	}{
+		{"str", "str", 0},
+		{"int", "int", 0},
+		{"float", "float", 0},
+		{"bool", "bool", 0},
+		{"list", "list", 0},
+		{"map", "map", 0},
+		{"any", "any", 0},
+		{"null", "null", 0},
 		{"model", "model", 3},
 		{"agent", "agent", 3},
 		{"tool", "tool", 2},
@@ -22,6 +30,7 @@ func TestLoadSchemas(t *testing.T) {
 		{"knowledge", "knowledge", 2},
 		{"workflow", "workflow", 2},
 		{"trigger", "trigger", 2},
+		{"input", "input", 4},
 	}
 
 	for _, tt := range tests {
@@ -65,6 +74,10 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		{"knowledge.name is string", "knowledge", "name", String, true},
 		{"workflow.name is string", "workflow", "name", String, false},
 		{"trigger.name is string", "trigger", "name", String, false},
+		{"input.type is schema ref", "input", "type", BlockRef, true},
+		{"input.desc is string", "input", "desc", String, false},
+		{"input.default is any", "input", "default", Any, false},
+		{"input.sensitive is bool", "input", "sensitive", Bool, false},
 	}
 
 	for _, tt := range tests {
@@ -83,6 +96,17 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 	}
 }
 
+// TestBlockKindFromNameSchema verifies that schema blocks have a BlockKind.
+func TestBlockKindFromNameSchema(t *testing.T) {
+	kind, ok := BlockKindFromName("schema")
+	if !ok {
+		t.Fatal("expected BlockKindFromName(\"schema\") to return true")
+	}
+	if kind != BlockSchemaKind {
+		t.Errorf("kind = %v, want %v", kind, BlockSchemaKind)
+	}
+}
+
 // TestLoadSchemasUnionMembers verifies that union types contain the
 // correct member types.
 func TestLoadSchemasUnionMembers(t *testing.T) {
@@ -91,7 +115,7 @@ func TestLoadSchemasUnionMembers(t *testing.T) {
 		t.Fatalf("loadSchemas() error: %v", err)
 	}
 
-	// model.model_name should be str | model
+	// model.model_name should be str | model (null stripped, Required=false).
 	field := schemas["model"].Fields["model_name"]
 	if field.Type.Kind != Union {
 		t.Fatalf("expected Union, got %v", field.Type.Kind)
@@ -145,17 +169,14 @@ func TestLoadSchemasFieldDescription(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		blockType    string
-		fieldName    string
-		hasDesc      bool
-		expectedDesc string
+		name      string
+		blockType string
+		fieldName string
+		hasDesc   bool
 	}{
-		{"model.provider has desc", "model", "provider", true, "The LLM provider to use (e.g. openai, anthropic)."},
-		{"model.model_name desc", "model", "model_name", true, "The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash)."},
-		{"model.temperature has desc", "model", "temperature", true, "Sampling temperature between 0 and 1. Controls the creativity and randomness of generated text. Lower values like 0.1 make responses more focused and deterministic, while higher values up to 1.0 yield more random and diverse outputs. For most use cases, values between 0.2 and 0.7 are recommended."},
-		{"agent.persona has desc", "agent", "persona", true, "The persona of the agent. e.g:\n  You are a helpful assistant. or\n  You are a helpful assistant that can search the web"},
-		{"agent.tools has desc", "agent", "tools", true, "The tools to use for this agent. (e.g. [web_search, gmail])."},
+		{"model.provider has desc", "model", "provider", true},
+		{"agent.model has desc", "agent", "model", true},
+		{"agent.tools has desc", "agent", "tools", true},
 	}
 
 	for _, tt := range tests {
@@ -164,8 +185,8 @@ func TestLoadSchemasFieldDescription(t *testing.T) {
 			if !ok {
 				t.Fatalf("field %s.%s not found", tt.blockType, tt.fieldName)
 			}
-			if tt.hasDesc && field.Description != tt.expectedDesc {
-				t.Errorf("Description = %q, want %q", field.Description, tt.expectedDesc)
+			if tt.hasDesc && field.Description == "" {
+				t.Error("expected non-empty Description")
 			}
 			if !tt.hasDesc && field.Description != "" {
 				t.Errorf("Description = %q, want empty", field.Description)

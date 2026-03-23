@@ -103,7 +103,7 @@ func TestNextTokenSkipsWhitespace(t *testing.T) {
 }
 
 func TestNextTokenIdentAndKeyword(t *testing.T) {
-	input := "model smart_model agent"
+	input := "model smart_model agent input null"
 
 	tests := []struct {
 		expectedType    token.TokenType
@@ -112,6 +112,8 @@ func TestNextTokenIdentAndKeyword(t *testing.T) {
 		{token.MODEL, "model"},
 		{token.IDENT, "smart_model"},
 		{token.AGENT, "agent"},
+		{token.INPUT, "input"},
+		{token.NULL, "null"},
 		{token.EOF, ""},
 	}
 
@@ -218,9 +220,9 @@ func TestNextTokenOperators(t *testing.T) {
 		{token.ARROW, "->"},
 		{token.IDENT, "b"},
 		{token.PIPE, "|"},
-		{token.TYPE_STR, "str"},
+		{token.IDENT, "str"},
 		{token.PIPE, "|"},
-		{token.TYPE_INT, "int"},
+		{token.IDENT, "int"},
 		{token.EOF, ""},
 	}
 
@@ -477,5 +479,82 @@ func TestMultiLineStringInBlock(t *testing.T) {
 	tok = l.NextToken()
 	if tok.Type != token.RBRACE {
 		t.Fatalf("expected RBRACE, got %s", tok.Type)
+	}
+}
+
+// TestNextTokenAnnotation verifies that @ is lexed as an AT token
+// and that annotation-like sequences produce the expected token stream.
+func TestNextTokenAnnotation(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		expect []struct {
+			typ token.TokenType
+			lit string
+		}
+	}{
+		{
+			"bare annotation",
+			"@sensitive",
+			[]struct {
+				typ token.TokenType
+				lit string
+			}{
+				{token.AT, "@"},
+				{token.IDENT, "sensitive"},
+			},
+		},
+		{
+			"annotation with string arg",
+			`@desc("hello")`,
+			[]struct {
+				typ token.TokenType
+				lit string
+			}{
+				{token.AT, "@"},
+				{token.IDENT, "desc"},
+				{token.LPAREN, "("},
+				{token.STRING, "hello"},
+				{token.RPAREN, ")"},
+			},
+		},
+		{
+			"at sign position tracking",
+			"@x",
+			[]struct {
+				typ token.TokenType
+				lit string
+			}{
+				{token.AT, "@"},
+				{token.IDENT, "x"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := New(tt.input)
+			for i, exp := range tt.expect {
+				tok := l.NextToken()
+				if tok.Type != exp.typ {
+					t.Fatalf("token[%d] type = %q, want %q", i, tok.Type, exp.typ)
+				}
+				if tok.Literal != exp.lit {
+					t.Fatalf("token[%d] literal = %q, want %q", i, tok.Literal, exp.lit)
+				}
+			}
+		})
+	}
+}
+
+// TestNextTokenAtPosition verifies that the AT token has correct position.
+func TestNextTokenAtPosition(t *testing.T) {
+	l := New("  @desc")
+	tok := l.NextToken()
+	if tok.Type != token.AT {
+		t.Fatalf("expected AT, got %s", tok.Type)
+	}
+	if tok.Column != 3 {
+		t.Errorf("AT column = %d, want 3", tok.Column)
 	}
 }
