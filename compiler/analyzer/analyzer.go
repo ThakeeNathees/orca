@@ -223,7 +223,7 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 	}
 
 	expected := fieldSchema.Type
-	if typeMatches(exprType, expected) {
+	if types.IsCompatible(exprType, expected) {
 		return nil
 	}
 
@@ -389,23 +389,3 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 	return filtered
 }
 
-// typeMatches returns true if the expression type is compatible with the
-// expected schema type. Handles unions (expr matches if it matches any member)
-// and Any (always matches).
-func typeMatches(expr, expected types.Type) bool {
-	if expected.IsAny() {
-		return true
-	}
-	if expected.Kind == types.Union {
-		return expected.Contains(expr)
-	}
-	// For lists, match if kinds match (ignore element type for now).
-	if expected.Kind == types.List && expr.Kind == types.List {
-		return true
-	}
-	// For BlockRef types, compare by name.
-	if expected.Kind == types.BlockRef && expr.Kind == types.BlockRef {
-		return expr.BlockType == expected.BlockType
-	}
-	return expr.Kind == expected.Kind
-}

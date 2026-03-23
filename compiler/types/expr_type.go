@@ -29,7 +29,7 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 		// TODO: infer result type from operator and operand types.
 		return TypeOf("any")
 	case *ast.Subscription:
-		return subscriptionType(e, symbols)
+		return subscriptResultType(ExprType(e.Object, symbols))
 	case *ast.CallExpression:
 		// TODO: resolve return type from the callee's type.
 		return TypeOf("any")
@@ -70,14 +70,6 @@ func memberAccessType(ma *ast.MemberAccess, symbols *SymbolTable) Type {
 	}
 
 	return field.Type
-}
-
-// subscriptionType resolves the result type of a subscription expression.
-// For lists, returns the element type. For maps, returns the value type.
-// For unions, checks each member. Returns any if the type can't be resolved.
-func subscriptionType(sub *ast.Subscription, symbols *SymbolTable) Type {
-	objType := ExprType(sub.Object, symbols)
-	return subscriptResultType(objType)
 }
 
 // subscriptResultType returns the element/value type when subscripting a type.
