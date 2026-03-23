@@ -13,6 +13,28 @@ import (
 //go:embed block_schemas.oc
 var schemaSource string
 
+// primitiveTypeMap maps primitive schema names to their internal Type
+// representations. Used by the schema loader to convert schema names
+// like "str" to the internal StringType.
+var primitiveTypeMap = map[string]Type{
+	"str":   StringType,
+	"int":   IntType,
+	"float": FloatType,
+	"bool":  BoolType,
+	"list":  ListType,
+	"map":   MapType,
+	"any":   AnyType,
+	"null":  NullType,
+}
+
+// PrimitiveType returns the internal Type for a primitive schema name.
+// Returns the type and true if the name is a primitive, or zero-value
+// and false otherwise.
+func PrimitiveType(name string) (Type, bool) {
+	typ, ok := primitiveTypeMap[name]
+	return typ, ok
+}
+
 // loadSchemas parses the embedded block_schemas.oc file and builds
 // a map of block type names to their field schemas. This is the
 // single source of truth for block field definitions.
@@ -37,27 +59,37 @@ func loadSchemas() (map[string]BlockSchema, error) {
 			continue
 		}
 
-		fields := make(map[string]FieldSchema)
-		for _, assign := range block.Assignments {
-			fieldSchema, err := resolveFieldSchema(assign)
-			if err != nil {
-				return nil, fmt.Errorf("schema %s.%s: %w", block.Name, assign.Name, err)
-			}
-			fields[assign.Name] = fieldSchema
+		schema, err := SchemaFromBlock(block)
+		if err != nil {
+			return nil, err
 		}
-
-		schemas[block.Name] = BlockSchema{Fields: fields}
+		schemas[block.Name] = schema
 	}
 
 	return schemas, nil
 }
 
-// resolveFieldSchema extracts a FieldSchema from an assignment using the
+// SchemaFromBlock builds a BlockSchema from a schema block's assignments.
+// Each assignment is resolved using ResolveFieldSchema, producing field
+// types, required flags, and descriptions from annotations.
+func SchemaFromBlock(block *ast.BlockStatement) (BlockSchema, error) {
+	fields := make(map[string]FieldSchema)
+	for _, assign := range block.Assignments {
+		fs, err := ResolveFieldSchema(assign)
+		if err != nil {
+			return BlockSchema{}, fmt.Errorf("schema %s.%s: %w", block.Name, assign.Name, err)
+		}
+		fields[assign.Name] = fs
+	}
+	return BlockSchema{Fields: fields}, nil
+}
+
+// ResolveFieldSchema extracts a FieldSchema from an assignment using the
 // annotation-based format. The assignment value is the type expression
 // (e.g. str, str | model | null). Annotations provide metadata:
 // @desc("...") for descriptions. Required is inferred: if the type
 // contains null in a union, the field is optional; otherwise required.
-func resolveFieldSchema(assign *ast.Assignment) (FieldSchema, error) {
+func ResolveFieldSchema(assign *ast.Assignment) (FieldSchema, error) {
 	typ, err := resolveType(assign.Value)
 	if err != nil {
 		return FieldSchema{}, fmt.Errorf("type: %w", err)
@@ -212,25 +244,6 @@ func resolveIdentType(name string) (Type, error) {
 	return NewBlockRefType(kind), nil
 }
 
-// BlockKindFromName maps a block type name string to its BlockKind constant.
-var blockKindMap = map[string]BlockKind{
-	"model":     BlockModel,
-	"agent":     BlockAgent,
-	"tool":      BlockTool,
-	"task":      BlockTask,
-	"knowledge": BlockKnowledge,
-	"workflow":  BlockWorkflow,
-	"trigger":   BlockTrigger,
-	"input":     BlockInput,
-	"schema":    BlockSchemaKind,
-}
-
-// BlockKindFromName returns the BlockKind for a given block type name.
-func BlockKindFromName(name string) (BlockKind, bool) {
-	kind, ok := blockKindMap[name]
-	return kind, ok
-}
-
 // init loads the embedded schemas and replaces the blockSchemas map.
 func init() {
 	schemas, err := loadSchemas()
@@ -238,4 +251,8 @@ func init() {
 		panic(fmt.Sprintf("failed to load embedded schemas: %v", err))
 	}
 	blockSchemas = schemas
+	builtinNames = make([]string, 0, len(schemas))
+	for name := range schemas {
+		builtinNames = append(builtinNames, name)
+	}
 }

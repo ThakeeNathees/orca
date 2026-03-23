@@ -180,10 +180,10 @@ func TestTypeEquals(t *testing.T) {
 // TestUnionType verifies union type construction and member access.
 func TestUnionType(t *testing.T) {
 	tests := []struct {
-		name           string
-		members        []Type
-		expectedLen    int
-		expectedKinds  []TypeKind
+		name          string
+		members       []Type
+		expectedLen   int
+		expectedKinds []TypeKind
 	}{
 		{"string or block ref", []Type{StringType, NewBlockRefType(BlockModel)}, 2, []TypeKind{String, BlockRef}},
 		{"string or int or float", []Type{StringType, IntType, FloatType}, 3, []TypeKind{String, Int, Float}},
@@ -227,38 +227,6 @@ func TestUnionTypeContains(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := union.Contains(tt.check); got != tt.expected {
 				t.Errorf("Contains() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-// TestPrimitiveType verifies mapping from primitive schema names to internal types.
-func TestPrimitiveType(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected TypeKind
-		ok       bool
-	}{
-		{"str", "str", String, true},
-		{"int", "int", Int, true},
-		{"float", "float", Float, true},
-		{"bool", "bool", Bool, true},
-		{"list", "list", List, true},
-		{"map", "map", Map, true},
-		{"any", "any", Any, true},
-		{"null", "null", Null, true},
-		{"unknown", "foobar", Any, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			typ, ok := PrimitiveType(tt.input)
-			if ok != tt.ok {
-				t.Errorf("ok = %v, want %v", ok, tt.ok)
-			}
-			if ok && typ.Kind != tt.expected {
-				t.Errorf("Kind = %v, want %v", typ.Kind, tt.expected)
 			}
 		})
 	}

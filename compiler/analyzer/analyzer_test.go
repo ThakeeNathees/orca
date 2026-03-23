@@ -542,6 +542,144 @@ func TestAnalyzeInputBlock(t *testing.T) {
 	}
 }
 
+// TestInputTypeResolution verifies that input blocks resolve to their
+// declared type, so member access works through the schema.
+func TestInputTypeResolution(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"access field on input with user schema",
+			`schema vpc_data_t {
+				region = str
+				instance_count = int | null
+			}
+			input vpc_data {
+				type = vpc_data_t
+			}
+			agent a {
+				model = vpc_data.region
+				persona = "hi"
+			}`,
+			false,
+			"",
+		},
+		{
+			"access nonexistent field on input",
+			`schema vpc_data_t {
+				region = str
+			}
+			input vpc_data {
+				type = vpc_data_t
+			}
+			agent a {
+				model = vpc_data.bogus
+				persona = "hi"
+			}`,
+			true,
+			`has no field "bogus"`,
+		},
+		{
+			"input with primitive type has no fields",
+			`input apikey {
+				type = str
+			}
+			agent a {
+				model = apikey.something
+				persona = "hi"
+			}`,
+			true,
+			`has no field "something"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
+			if tt.expectError {
+				found := hasErrorContaining(diags, tt.errorSubstr)
+				if !found {
+					t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+				}
+			} else {
+				if len(diags) != 0 {
+					t.Errorf("expected no diagnostics, got %v", diags)
+				}
+			}
+		})
+	}
+}
+
+// TestCheckReferencesRecursive verifies that reference checking recurses
+// into all expression types (lists, subscriptions, binary expressions, etc.).
+func TestCheckReferencesRecursive(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"undefined ref in list element",
+			`agent a {
+				model = "gpt-4o"
+				persona = "hi"
+				tools = [nonexistent]
+			}`,
+			true,
+			`undefined reference "nonexistent"`,
+		},
+		{
+			"valid ref in list element",
+			`tool web_search {
+				name = "web_search"
+			}
+			agent a {
+				model = "gpt-4o"
+				persona = "hi"
+				tools = [web_search]
+			}`,
+			false,
+			"",
+		},
+		{
+			"undefined ref in subscription object",
+			`model gpt5 {
+				provider = "openai"
+				model_name = nonexistent[0]
+			}`,
+			true,
+			`undefined reference "nonexistent"`,
+		},
+		{
+			"undefined ref in binary expression",
+			`workflow w {
+				name = nonexistent + "suffix"
+			}`,
+			true,
+			`undefined reference "nonexistent"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
+			found := hasErrorContaining(diags, tt.errorSubstr)
+			if tt.expectError && !found {
+				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+			}
+			if !tt.expectError && found {
+				t.Errorf("unexpected error containing %q in %v", tt.errorSubstr, diags)
+			}
+		})
+	}
+}
+
 // TestSuppressBlockLevel verifies that @suppress on a block suppresses diagnostics.
 func TestSuppressBlockLevel(t *testing.T) {
 	tests := []struct {

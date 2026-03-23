@@ -56,16 +56,29 @@ func (k TypeKind) String() string {
 type BlockKind string
 
 const (
-	BlockModel     BlockKind = "model"
-	BlockAgent     BlockKind = "agent"
-	BlockTool      BlockKind = "tool"
-	BlockTask      BlockKind = "task"
-	BlockKnowledge BlockKind = "knowledge"
-	BlockWorkflow  BlockKind = "workflow"
+	BlockModel      BlockKind = "model"
+	BlockAgent      BlockKind = "agent"
+	BlockTool       BlockKind = "tool"
+	BlockTask       BlockKind = "task"
+	BlockKnowledge  BlockKind = "knowledge"
+	BlockWorkflow   BlockKind = "workflow"
 	BlockTrigger    BlockKind = "trigger"
 	BlockInput      BlockKind = "input"
 	BlockSchemaKind BlockKind = "schema"
 )
+
+// BlockKindFromName maps a block type name string to its BlockKind constant.
+var blockKindMap = map[string]BlockKind{
+	"model":     BlockModel,
+	"agent":     BlockAgent,
+	"tool":      BlockTool,
+	"task":      BlockTask,
+	"knowledge": BlockKnowledge,
+	"workflow":  BlockWorkflow,
+	"trigger":   BlockTrigger,
+	"input":     BlockInput,
+	"schema":    BlockSchemaKind,
+}
 
 // Type represents a concrete type in the Orca type system.
 // Primitive types (string, int, float, bool, any) use only Kind.
@@ -73,11 +86,11 @@ const (
 // KeyType/ValueType for maps, and BlockType for block references.
 type Type struct {
 	Kind        TypeKind
-	ElementType *Type  // non-nil for List types
-	KeyType     *Type  // non-nil for Map types
-	ValueType   *Type  // non-nil for Map types
+	ElementType *Type     // non-nil for List types
+	KeyType     *Type     // non-nil for Map types
+	ValueType   *Type     // non-nil for Map types
 	BlockType   BlockKind // non-empty for BlockRef types (e.g., BlockModel, BlockAgent)
-	Members     []Type // non-nil for Union types — the set of acceptable types
+	Members     []Type    // non-nil for Union types — the set of acceptable types
 }
 
 // Pre-defined primitive type singletons for convenience.
@@ -88,6 +101,8 @@ var (
 	BoolType   = Type{Kind: Bool}
 	AnyType    = Type{Kind: Any}
 	NullType   = Type{Kind: Null}
+	ListType   = Type{Kind: List}
+	MapType    = Type{Kind: Map}
 )
 
 // NewListType creates a list type with the given element type.
@@ -202,24 +217,8 @@ func (t Type) String() string {
 	}
 }
 
-// primitiveTypeMap maps primitive schema names to their internal Type
-// representations. Used by the schema loader to convert schema names
-// like "str" to the internal StringType.
-var primitiveTypeMap = map[string]Type{
-	"str":   StringType,
-	"int":   IntType,
-	"float": FloatType,
-	"bool":  BoolType,
-	"list":  {Kind: List},
-	"map":   {Kind: Map},
-	"any":   AnyType,
-	"null":  NullType,
-}
-
-// PrimitiveType returns the internal Type for a primitive schema name.
-// Returns the type and true if the name is a primitive, or zero-value
-// and false otherwise.
-func PrimitiveType(name string) (Type, bool) {
-	typ, ok := primitiveTypeMap[name]
-	return typ, ok
+// BlockKindFromName returns the BlockKind for a given block type name.
+func BlockKindFromName(name string) (BlockKind, bool) {
+	kind, ok := blockKindMap[name]
+	return kind, ok
 }

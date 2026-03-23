@@ -29,6 +29,7 @@ func Analyze(program *ast.Program) AnalyzeResult {
 	var diags []diagnostic.Diagnostic
 
 	symbols, dupDiags := buildSymbolTable(program)
+	registerUserSchemas(program)
 	diags = append(diags, dupDiags...)
 
 	for _, stmt := range program.Statements {
@@ -90,9 +91,48 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 				})
 			}
 		}
-		st.Define(block.Name, types.NewBlockRefType(kind), block.NameToken)
+		// For input blocks, resolve the declared type so that member
+		// access works through the schema (e.g. vpc_data.region).
+		typ := types.NewBlockRefType(kind)
+		if kind == types.BlockInput {
+			if declared := inputDeclaredType(block); declared != "" {
+				typ = types.Type{Kind: types.BlockRef, BlockType: types.BlockKind(declared)}
+			}
+		}
+		st.Define(block.Name, typ, block.NameToken)
 	}
 	return st, diags
+}
+
+// registerUserSchemas processes user-defined schema blocks and registers
+// their field schemas using the same SchemaFromBlock as the built-in
+// schema loader.
+func registerUserSchemas(program *ast.Program) {
+	for _, stmt := range program.Statements {
+		block, ok := stmt.(*ast.BlockStatement)
+		if !ok || block.TokenStart.Type != token.SCHEMA {
+			continue
+		}
+		schema, err := types.SchemaFromBlock(block)
+		if err != nil {
+			continue
+		}
+		types.RegisterSchema(block.Name, schema)
+	}
+}
+
+// inputDeclaredType extracts the schema name from an input block's type field.
+// For `input x { type = vpc_data_t }`, returns "vpc_data_t".
+// Returns empty string if the type field is missing or not an identifier.
+func inputDeclaredType(block *ast.BlockStatement) string {
+	for _, assign := range block.Assignments {
+		if assign.Name == "type" {
+			if ident, ok := assign.Value.(*ast.Identifier); ok {
+				return ident.Value
+			}
+		}
+	}
+	return ""
 }
 
 // analyzeBlock performs all validation checks on a single block statement.
@@ -205,8 +245,8 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 	}}
 }
 
-// checkReferences validates identifier and member access expressions,
-// reporting errors for undefined block references and unknown members.
+// checkReferences recursively validates all identifier and member access
+// expressions, reporting errors for undefined block references and unknown members.
 func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	switch e := expr.(type) {
 	case *ast.Identifier:
@@ -224,9 +264,8 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		}
 	case *ast.MemberAccess:
 		// First check the object is defined.
-		objDiags := checkReferences(e.Object, symbols)
-		if len(objDiags) > 0 {
-			return objDiags
+		if diags := checkReferences(e.Object, symbols); len(diags) > 0 {
+			return diags
 		}
 		// Then check the member exists on the object's type.
 		objType := types.ExprType(e.Object, symbols)
@@ -238,7 +277,6 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			return nil
 		}
 		if _, ok := schema.Fields[e.Member]; !ok {
-			// Underline the member name, not the whole expression.
 			return []diagnostic.Diagnostic{{
 				Severity: diagnostic.Error,
 				Code:     diagnostic.CodeUnknownMember,
@@ -249,6 +287,44 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 				Message: fmt.Sprintf("%q has no field %q", objType.BlockType, e.Member),
 				Source:  "analyzer",
 			}}
+		}
+	case *ast.ListLiteral:
+		for _, elem := range e.Elements {
+			if diags := checkReferences(elem, symbols); len(diags) > 0 {
+				return diags
+			}
+		}
+	case *ast.BinaryExpression:
+		if diags := checkReferences(e.Left, symbols); len(diags) > 0 {
+			return diags
+		}
+		if diags := checkReferences(e.Right, symbols); len(diags) > 0 {
+			return diags
+		}
+	case *ast.Subscription:
+		if diags := checkReferences(e.Object, symbols); len(diags) > 0 {
+			return diags
+		}
+		if diags := checkReferences(e.Index, symbols); len(diags) > 0 {
+			return diags
+		}
+	case *ast.CallExpression:
+		if diags := checkReferences(e.Callee, symbols); len(diags) > 0 {
+			return diags
+		}
+		for _, arg := range e.Arguments {
+			if diags := checkReferences(arg, symbols); len(diags) > 0 {
+				return diags
+			}
+		}
+	case *ast.MapLiteral:
+		for _, entry := range e.Entries {
+			if diags := checkReferences(entry.Key, symbols); len(diags) > 0 {
+				return diags
+			}
+			if diags := checkReferences(entry.Value, symbols); len(diags) > 0 {
+				return diags
+			}
 		}
 	}
 	return nil

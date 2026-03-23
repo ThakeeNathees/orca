@@ -23,6 +23,10 @@ type BlockSchema struct {
 // have the correct types and that required fields are present.
 var blockSchemas map[string]BlockSchema
 
+// builtinNames tracks the schema names loaded at init time.
+// BuiltinSchemaNames returns only these, not user-registered schemas.
+var builtinNames []string
+
 // GetBlockSchema returns the schema for the given block type name.
 // Returns the schema and true if found, or an empty schema and false
 // if the block type has no schema defined.
@@ -36,11 +40,14 @@ func GetBlockSchema(blockType string) (BlockSchema, bool) {
 // table so that built-in type names (str, int, model, etc.) are
 // recognized as valid references.
 func BuiltinSchemaNames() []string {
-	names := make([]string, 0, len(blockSchemas))
-	for name := range blockSchemas {
-		names = append(names, name)
-	}
-	return names
+	return builtinNames
+}
+
+// RegisterSchema adds a schema to the global schema map. Used by the
+// analyzer to register user-defined schema blocks so that member access
+// and field validation work for custom types.
+func RegisterSchema(name string, schema BlockSchema) {
+	blockSchemas[name] = schema
 }
 
 // GetFieldSchema returns the field schema for a specific field within
