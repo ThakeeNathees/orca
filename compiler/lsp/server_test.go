@@ -265,50 +265,121 @@ func TestHoverOnFieldName(t *testing.T) {
 }
 
 // TestDefinitionJumpsToBlock verifies that go-to-definition on an ident
-// returns the block name's position.
+// reference jumps to the block's name token.
 func TestDefinitionJumpsToBlock(t *testing.T) {
-	text := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}"
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}"
 	doc := updateDocument("test://def.oc", text)
 
-	sym, found := doc.Symbols.LookupSymbol("gpt4")
+	// "gpt4" reference on line 6 (1-based), col 11.
+	loc, found := resolveDefinition(doc, 6, 11)
 	if !found {
-		t.Fatal("expected gpt4 in symbol table")
+		t.Fatal("expected definition location")
 	}
-
-	// Definition should point to line 1, col 7 (1-based) = the NameToken of "gpt4".
-	if sym.DefToken.Line != 1 || sym.DefToken.Column != 7 {
-		t.Errorf("DefToken = (%d, %d), want (1, 7)", sym.DefToken.Line, sym.DefToken.Column)
+	// Should jump to line 1, col 7 (1-based) → LSP 0-based: line 0, char 6.
+	if loc.Range.Start.Line != 0 || loc.Range.Start.Character != 6 {
+		t.Errorf("definition at (%d, %d), want (0, 6)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
 	}
 }
 
 // TestDefinitionMemberJumpsToField verifies that go-to-definition on a
 // member access (e.g. gpt4.provider) jumps to the field assignment inside
-// the referenced block, not to the block name.
+// the referenced block.
 func TestDefinitionMemberJumpsToField(t *testing.T) {
-	// gpt4.provider — "provider" is assigned on line 2, col 3.
-	text := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4.provider\n  persona = \"hi\"\n}"
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.provider\n  persona = \"hi\"\n}"
 	doc := updateDocument("test://memdef.oc", text)
 
-	// "provider" member token on line 5 (1-based), find the block.
-	block := findBlock(doc.Program, "gpt4")
-	if block == nil {
-		t.Fatal("expected block 'gpt4'")
+	// "provider" member on line 6 (1-based). "gpt4.provider" starts at col 11.
+	// "provider" starts at col 16 (after "gpt4.").
+	loc, found := resolveDefinition(doc, 6, 16)
+	if !found {
+		t.Fatal("expected definition location for gpt4.provider")
 	}
+	// "provider" assignment is on line 2, col 3 → LSP 0-based: line 1, char 2.
+	if loc.Range.Start.Line != 1 || loc.Range.Start.Character != 2 {
+		t.Errorf("definition at (%d, %d), want (1, 2)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
 
-	// The "provider" assignment should be at line 2, col 3.
-	var providerAssign *ast.Assignment
-	for _, a := range block.Assignments {
-		if a.Name == "provider" {
-			providerAssign = a
-			break
-		}
+// TestDefinitionMemberModelName verifies go-to-definition on gpt4.model_name
+// jumps to the model_name field assignment.
+func TestDefinitionMemberModelName(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.model_name\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://memdef2.oc", text)
+
+	// "model_name" member on line 6. "gpt4.model_name" starts at col 11.
+	// "model_name" starts at col 16 (after "gpt4.").
+	loc, found := resolveDefinition(doc, 6, 16)
+	if !found {
+		t.Fatal("expected definition location for gpt4.model_name")
 	}
-	if providerAssign == nil {
-		t.Fatal("expected 'provider' assignment in gpt4 block")
+	// "model_name" assignment is on line 3, col 3 → LSP 0-based: line 2, char 2.
+	if loc.Range.Start.Line != 2 || loc.Range.Start.Character != 2 {
+		t.Errorf("definition at (%d, %d), want (2, 2)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
 	}
-	if providerAssign.Start().Line != 2 || providerAssign.Start().Column != 3 {
-		t.Errorf("provider assignment at (%d, %d), want (2, 3)",
-			providerAssign.Start().Line, providerAssign.Start().Column)
+}
+
+// TestDefinitionMemberUnassignedField verifies that go-to-definition on a
+// schema field that isn't assigned falls back to the block name.
+func TestDefinitionMemberUnassignedField(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.temperature\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://memdef3.oc", text)
+
+	// "temperature" is a valid schema field for model but not assigned.
+	// "gpt4.temperature" — "temperature" starts at col 16.
+	loc, found := resolveDefinition(doc, 6, 16)
+	if !found {
+		t.Fatal("expected fallback definition location for unassigned schema field")
+	}
+	// Should fall back to block name "gpt4" at line 1, col 7 → LSP: line 0, char 6.
+	if loc.Range.Start.Line != 0 || loc.Range.Start.Character != 6 {
+		t.Errorf("definition at (%d, %d), want (0, 6)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
+
+// TestDefinitionMemberInvalidField verifies that go-to-definition on a
+// member that doesn't exist in the block or schema returns nothing.
+func TestDefinitionMemberInvalidField(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.nonexistent\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://memdef4.oc", text)
+
+	// "nonexistent" is not a schema field and not assigned.
+	loc, found := resolveDefinition(doc, 6, 16)
+	if found {
+		t.Errorf("expected no definition for nonexistent field, got (%d, %d)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
+
+// TestDefinitionMemberChained verifies go-to-definition through chained
+// member access (e.g. researcher.model resolves to the model block,
+// then researcher.model.provider goes to that model's provider field).
+func TestDefinitionMemberChained(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}\ntask t1 {\n  agent = researcher.model\n  action = \"do stuff\"\n}"
+	doc := updateDocument("test://chain.oc", text)
+
+	// "researcher.model" — "model" starts at col 22 on line 10.
+	loc, found := resolveDefinition(doc, 10, 22)
+	if !found {
+		t.Fatal("expected definition location for researcher.model")
+	}
+	// "model" assignment in researcher block at line 6, col 3 → LSP: line 5, char 2.
+	if loc.Range.Start.Line != 5 || loc.Range.Start.Character != 2 {
+		t.Errorf("definition at (%d, %d), want (5, 2)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
+
+// TestDefinitionNoSymbols verifies graceful handling when symbols are nil
+// (e.g. parse errors prevent analysis).
+func TestDefinitionNoSymbols(t *testing.T) {
+	doc := &documentState{Program: &ast.Program{}, Symbols: nil}
+	_, found := resolveDefinition(doc, 1, 1)
+	if found {
+		t.Error("expected no definition when symbols are nil")
 	}
 }
 

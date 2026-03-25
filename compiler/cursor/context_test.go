@@ -238,6 +238,41 @@ func TestFindNodeAtIdentInList(t *testing.T) {
 	}
 }
 
+// TestFindNodeAtMemberAccess verifies that hovering a member name in a
+// member access expression (e.g. gpt4.model_name) returns MemberAccessNode.
+func TestFindNodeAtMemberAccess(t *testing.T) {
+	input := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4.provider\n  persona = \"hi\"\n}"
+	program := parseProgram(t, input)
+
+	tests := []struct {
+		name   string
+		line   int
+		col    int
+		kind   NodeKind
+		member string
+		ident  string
+	}{
+		// "gpt4.provider" on line 5: gpt4 starts at col 11, dot at col 15, provider at col 16
+		{"on member name", 5, 16, MemberAccessNode, "provider", ""},
+		{"on object ident", 5, 11, IdentNode, "", "gpt4"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := FindNodeAt(program, tt.line, tt.col)
+			if node.Kind != tt.kind {
+				t.Errorf("Kind = %v, want %v", node.Kind, tt.kind)
+			}
+			if tt.member != "" && (node.MemberAccess == nil || node.MemberAccess.Member != tt.member) {
+				t.Errorf("expected member %q", tt.member)
+			}
+			if tt.ident != "" && (node.Ident == nil || node.Ident.Value != tt.ident) {
+				t.Errorf("expected ident %q", tt.ident)
+			}
+		})
+	}
+}
+
 // TestFindNodeAtNone verifies that positions on literals return NoneNode.
 func TestFindNodeAtNone(t *testing.T) {
 	input := "model gpt4 {\n  provider = \"openai\"\n}"

@@ -300,38 +300,94 @@ func textDocumentDefinition(ctx *glsp.Context, params *protocol.DefinitionParams
 	line := int(params.Position.Line) + 1
 	col := int(params.Position.Character) + 1
 
+	loc, found := resolveDefinition(doc, line, col)
+	if !found {
+		return nil, nil
+	}
+	loc.URI = params.TextDocument.URI
+	return loc, nil
+}
+
+// resolveDefinition resolves the definition location for the node at the given
+// 1-based position. Returns the location (without URI set) and whether one was found.
+// Handles identifiers (jump to block), member access (jump to field assignment
+// in the referenced block, using schema to resolve through any block type), and
+// field names (jump to the field's assignment in the current block).
+func resolveDefinition(doc *documentState, line, col int) (protocol.Location, bool) {
 	node := cursor.FindNodeAt(doc.Program, line, col)
 
 	switch node.Kind {
 	case cursor.IdentNode:
 		sym, found := doc.Symbols.LookupSymbol(node.Ident.Value)
 		if !found {
-			return nil, nil
+			return protocol.Location{}, false
 		}
-		return protocol.Location{
-			URI:   params.TextDocument.URI,
-			Range: tokenToRange(sym.DefToken),
-		}, nil
+		return protocol.Location{Range: tokenToRange(sym.DefToken)}, true
 
 	case cursor.MemberAccessNode:
-		// Go to the field assignment within the referenced block.
-		if ident, ok := node.MemberAccess.Object.(*ast.Identifier); ok {
-			block := findBlock(doc.Program, ident.Value)
-			if block == nil {
-				return nil, nil
-			}
-			for _, assign := range block.Assignments {
-				if assign.Name == node.MemberAccess.Member {
-					return protocol.Location{
-						URI:   params.TextDocument.URI,
-						Range: tokenToRange(assign.Start()),
-					}, nil
-				}
-			}
+		return resolveMemberDefinition(doc, node.MemberAccess)
+	}
+
+	return protocol.Location{}, false
+}
+
+// resolveMemberDefinition resolves go-to-definition for a member access expression.
+// It walks the object expression to find the target block, then locates the field
+// assignment within it. Supports chained access (e.g. a.b.c) by resolving through
+// the schema to find intermediate block types.
+func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol.Location, bool) {
+	// Resolve the object to find the target block.
+	block := resolveObjectBlock(doc, ma.Object)
+	if block == nil {
+		return protocol.Location{}, false
+	}
+
+	// Look for the field assignment in the block.
+	for _, assign := range block.Assignments {
+		if assign.Name == ma.Member {
+			return protocol.Location{Range: tokenToRange(assign.Start())}, true
 		}
 	}
 
-	return nil, nil
+	// Field not assigned — fall back to the block name token so the user
+	// still navigates to the block that owns the schema field.
+	blockType := token.BlockName(block.TokenStart.Type)
+	if _, ok := types.GetFieldSchema(blockType, ma.Member); ok {
+		return protocol.Location{Range: tokenToRange(block.NameToken)}, true
+	}
+
+	return protocol.Location{}, false
+}
+
+// resolveObjectBlock resolves an expression to the BlockStatement it references.
+// For simple identifiers, looks up the block by name. For nested member access,
+// follows schema types to resolve the chain (e.g. in a.b, finds a's block,
+// looks up b's type in a's schema, then finds the block that b references).
+func resolveObjectBlock(doc *documentState, expr ast.Expression) *ast.BlockStatement {
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		return findBlock(doc.Program, e.Value)
+
+	case *ast.MemberAccess:
+		// Resolve the parent object first.
+		parentBlock := resolveObjectBlock(doc, e.Object)
+		if parentBlock == nil {
+			return nil
+		}
+
+		// Find the assignment for the member in the parent block.
+		for _, assign := range parentBlock.Assignments {
+			if assign.Name == e.Member {
+				// If the value is an identifier, resolve it as a block reference.
+				if ident, ok := assign.Value.(*ast.Identifier); ok {
+					return findBlock(doc.Program, ident.Value)
+				}
+				return nil
+			}
+		}
+		return nil
+	}
+	return nil
 }
 
 // findBlock returns the BlockStatement with the given name, or nil.
