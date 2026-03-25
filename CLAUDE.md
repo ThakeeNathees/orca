@@ -6,17 +6,24 @@ File extension: `.oc`
 
 ## Repository structure
 
-Monorepo containing the compiler, VS Code extension, and platform.
-
 ```
 orca/
 ├── compiler/          # Go — the Orca compiler
-├── docs/              # Design proposals and syntax explorations
+├── docs/              # VitePress documentation site
+├── editor/            # Editor integrations (VS Code extension)
+├── experiments/        # Python experiments and prototypes
 ├── paper/             # LaTeX research paper (build with `make build` in paper/)
 └── CLAUDE.md
 ```
 
-Future additions: `vscode-extension/`, `platform/`.
+## Docs (`docs/`)
+
+VitePress documentation site hosted on GitHub Pages.
+
+- **Dev**: `cd docs && pnpm run dev`
+- **Build**: `cd docs && pnpm run build`
+- **Preview**: `cd docs && pnpm run preview`
+- **Auto-maintain**: When a compiler feature is implemented, update the relevant docs page to reflect the new capability. Fill in TODO comments with real content as features are completed.
 
 ## Paper (`paper/`)
 
@@ -32,7 +39,7 @@ LaTeX research paper: *"Orca: A Declarative Language for AI Agent Orchestration"
 ### Pipeline
 
 ```
-.oc files → token/lexer → ast/parser → analyzer → codegen (Python)
+.oc files → token/lexer → ast/parser → analyzer → ir → codegen (Python)
 ```
 
 Currently targeting **LangGraph** as the sole codegen backend.
@@ -44,7 +51,12 @@ Currently targeting **LangGraph** as the sole codegen backend.
 - `ast/` — AST node definitions
 - `parser/` — Pratt parser producing AST from tokens
 - `analyzer/` — semantic analysis (reference resolution, type checking, validation)
+- `ir/` — intermediate representation and build logic
 - `codegen/` — Python/LangGraph code generation from analyzed AST
+- `diagnostic/` — compiler diagnostics (errors, warnings with source locations)
+- `cursor/` — cursor context for editor tooling
+- `lsp/` — Language Server Protocol implementation
+- `cmd/` — CLI commands (`build`, `run`, `lsp`)
 
 ### Commands
 
@@ -68,13 +80,14 @@ make lint           # fmt + vet
 | `tool` | External integrations (gmail, slack, notion, web_search, etc.) |
 | `task` | Work units assigned to agents |
 | `knowledge` | RAG/data sources |
-| `workflow` | Agent orchestration graphs (see `docs/`) |
+| `workflow` | Agent orchestration graphs |
 | `trigger` | Cron, webhook, or event-based execution triggers |
 
 ## CLI
 
 - `orca build` — reads all `.oc` files in the current directory, produces a `build/` folder with generated Python code
 - `orca run` — builds and runs (future)
+- `orca lsp` — starts the language server
 
 ## Debug / source mapping
 
@@ -88,6 +101,7 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **File layout**: Types and constants at the top of the file, functions at the bottom. Keep declarations before behavior.
 - **No Makefiles bloat**: Keep the Makefile minimal and standard.
 - **Git**: Commit directly on main. Small, atomic commits. Never mention Claude, add Co-Authored-By, or include any AI attribution in commit messages.
+- **Commit messages**: Always start with a relevant Unicode emoji. Pick an icon that reflects the change — e.g. 🐛 bug fix, 🔐 auth/security, 🔧 config/tooling, ✨ new feature, ♻️ refactor, 📝 docs, 🧪 tests, 🎨 UI/style, ⚡ performance, 🗑️ removal, 📦 dependencies, 🚀 deploy/release.
 
 ## Testing rules (enforced)
 
@@ -106,4 +120,3 @@ Programmers who want a concise, declarative alternative to writing verbose LangG
 ## Important notes
 
 - If the user is wrong, suggest the correct approach rather than just taking orders.
-- Design proposals and syntax explorations go in `docs/`.

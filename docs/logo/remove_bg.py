@@ -5,7 +5,7 @@ import sys
 # Usage: python remove-bg.py <none|white>
 
 INPUT_FILENAME = 'logo-nano-banana.png'
-VALID_MODES = ['none', 'white']
+VALID_MODES = ['none', 'white', 'white-none']
 
 if len(sys.argv) != 2 or sys.argv[1] not in VALID_MODES:
     print(f"Usage: python {sys.argv[0]} <{'|'.join(VALID_MODES)}>")
@@ -37,6 +37,12 @@ if mode == 'white':
     result = np.full_like(img, (255, 255, 255))
     result[mask_final > 0] = 0
     cv2.imwrite(OUTPUT_FILENAME, result)
+elif mode == 'white-none':
+    # White foreground on transparent background
+    result_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+    result_rgba[:, :, 0:3] = 255  # set RGB to white
+    result_rgba[:, :, 3] = mask_final  # alpha from mask
+    cv2.imwrite(OUTPUT_FILENAME, result_rgba)
 else:
     result_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
     result_rgba[:, :, 3] = mask_final
