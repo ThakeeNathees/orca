@@ -1,4 +1,4 @@
-package codegen
+package codegen_test
 
 import (
 	"flag"
@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/thakee/orca/compiler/analyzer"
+	"github.com/thakee/orca/compiler/codegen"
+	"github.com/thakee/orca/compiler/codegen/langgraph"
 	"github.com/thakee/orca/compiler/ir"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
@@ -16,7 +18,7 @@ import (
 var updateGolden = flag.Bool("update-golden", false, "update golden files")
 
 // buildFromSource parses, analyzes, builds IR, and generates output.
-func buildFromSource(t *testing.T, source string) Output {
+func buildFromSource(t *testing.T, source string) codegen.Output {
 	t.Helper()
 	l := lexer.New(source)
 	p := parser.New(l)
@@ -29,7 +31,8 @@ func buildFromSource(t *testing.T, source string) Output {
 		t.Fatalf("analyzer diagnostics: %v", result.Diagnostics)
 	}
 	built := ir.Build(program)
-	return Generate(built)
+	backend := langgraph.New(built)
+	return backend.Generate()
 }
 
 // TestGoldenFiles runs golden file tests for codegen. Each test case

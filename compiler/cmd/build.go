@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
-	"github.com/thakee/orca/compiler/codegen"
+	"github.com/thakee/orca/compiler/codegen/langgraph"
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/ir"
 	"github.com/thakee/orca/compiler/lexer"
@@ -84,7 +84,8 @@ func runBuild(cmd *cobra.Command, args []string) error {
 
 	// Build IR and generate code.
 	built := ir.Build(&program)
-	output := codegen.Generate(built)
+	backend := langgraph.New(built)
+	output := backend.Generate()
 
 	// Write build/ directory.
 	if err := os.MkdirAll("build", 0755); err != nil {
