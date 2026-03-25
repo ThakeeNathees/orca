@@ -8,17 +8,16 @@ import (
 	"testing"
 
 	"github.com/thakee/orca/compiler/analyzer"
-	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/langgraph"
-	"github.com/thakee/orca/compiler/ir"
+	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "update golden files")
 
-// buildFromSource parses, analyzes, builds IR, and generates output.
-func buildFromSource(t *testing.T, source string) codegen.Output {
+// buildFromSource parses, analyzes, and generates output directly from the AST.
+func buildFromSource(t *testing.T, source string) python.Output {
 	t.Helper()
 	l := lexer.New(source)
 	p := parser.New(l)
@@ -30,8 +29,7 @@ func buildFromSource(t *testing.T, source string) codegen.Output {
 	if len(result.Diagnostics) > 0 {
 		t.Fatalf("analyzer diagnostics: %v", result.Diagnostics)
 	}
-	built := ir.Build(program)
-	backend := langgraph.New(built)
+	backend := langgraph.New(program)
 	return backend.Generate()
 }
 

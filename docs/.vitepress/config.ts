@@ -16,11 +16,6 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    logo: {
-      light: '/logo.png',
-      dark: '/logo-dark.png',
-    },
-
     nav: [
       { text: 'Guide', link: '/guide/introduction' },
       { text: 'Reference', link: '/reference/syntax-overview' },

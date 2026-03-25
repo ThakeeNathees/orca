@@ -10,7 +10,6 @@ import (
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen/langgraph"
 	"github.com/thakee/orca/compiler/diagnostic"
-	"github.com/thakee/orca/compiler/ir"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
 )
@@ -82,9 +81,8 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build IR and generate code.
-	built := ir.Build(&program)
-	backend := langgraph.New(built)
+	// Generate code directly from the analyzed AST.
+	backend := langgraph.New(&program)
 	output := backend.Generate()
 
 	// Write build/ directory.
