@@ -12,10 +12,20 @@ Monorepo containing the compiler, VS Code extension, and platform.
 orca/
 ├── compiler/          # Go — the Orca compiler
 ├── docs/              # Design proposals and syntax explorations
+├── paper/             # LaTeX research paper (build with `make build` in paper/)
 └── CLAUDE.md
 ```
 
 Future additions: `vscode-extension/`, `platform/`.
+
+## Paper (`paper/`)
+
+LaTeX research paper: *"Orca: A Declarative Language for AI Agent Orchestration"*.
+
+- **Auto-maintain**: When a significant compiler feature is implemented, update the relevant paper section to reflect the new capability. Remove TODO boxes and fill in content as features are completed. Add image placeholder boxes where figures are needed.
+- **Build**: `cd paper && make build` — outputs PDF to `paper/out/main.pdf`
+- **Watch**: `make watch` — auto-rebuilds on changes
+- Generated files in `paper/out/` are gitignored.
 
 ## Compiler (`compiler/`)
 
@@ -77,7 +87,7 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **Comments**: Always add comments to all exported and unexported functions, types, and non-trivial logic. Comments should explain *why* and *what* for someone reading the code to understand it quickly. Not for end-user docs — for developer comprehension.
 - **File layout**: Types and constants at the top of the file, functions at the bottom. Keep declarations before behavior.
 - **No Makefiles bloat**: Keep the Makefile minimal and standard.
-- **Git**: Commit directly on main. Small, atomic commits.
+- **Git**: Commit directly on main. Small, atomic commits. Never mention Claude, add Co-Authored-By, or include any AI attribution in commit messages.
 
 ## Testing rules (enforced)
 

@@ -1,0 +1,914 @@
+\documentclass[sigconf,nonacm]{acmart}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{tcolorbox}
+\usepackage{multicol}
+\usepackage{enumitem}
+
+\tcbuselibrary{skins,breakable}
+
+% ── TODO box ──────────────────────────────────────────────────────────────────
+\newtcolorbox{todobox}[1][]{
+  colback=yellow!10,
+  colframe=orange!80!black,
+  fonttitle=\bfseries,
+  title={TODO},
+  #1
+}
+
+% ── Image placeholder box ────────────────────────────────────────────────────
+\newtcolorbox{imgplaceholder}[1][]{
+  colback=gray!10,
+  colframe=gray!60!black,
+  fonttitle=\bfseries,
+  title={Figure Placeholder},
+  #1
+}
+
+% ── Code listing style ───────────────────────────────────────────────────────
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{keyword}{RGB}{0,0,180}
+\definecolor{string}{RGB}{0,128,0}
+\definecolor{comment}{RGB}{128,128,128}
+\definecolor{pykey}{RGB}{175,0,219}
+
+\lstdefinelanguage{orca}{
+  keywords={model, agent, tool, task, knowledge, workflow, trigger, schema, input, edge, true, false, null},
+  keywordstyle=\color{keyword}\bfseries,
+  commentstyle=\color{comment}\itshape,
+  stringstyle=\color{string},
+  morecomment=[l]{//},
+  morecomment=[l]{\#},
+  morestring=[b]",
+  sensitive=true,
+}
+
+\lstdefinestyle{orcaStyle}{
+  language=orca,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!50},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  tabsize=2,
+  captionpos=b,
+  aboveskip=6pt,
+  belowskip=4pt,
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em,
+  showspaces=false,
+  showstringspaces=false,
+}
+
+\lstdefinestyle{pythonStyle}{
+  language=Python,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!50},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  tabsize=2,
+  captionpos=b,
+  aboveskip=6pt,
+  belowskip=4pt,
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em,
+  keywordstyle=\color{pykey}\bfseries,
+  stringstyle=\color{string},
+  commentstyle=\color{comment}\itshape,
+}
+
+\lstset{style=orcaStyle}
+
+% ── Metadata ─────────────────────────────────────────────────────────────────
+\title{Orca: A Declarative Language for AI Agent Orchestration}
+
+\author{Thakee Nathees}
+\email{t.abdulmaj@student.curtin.edu.au}
+\affiliation{%
+  \institution{Curtin University}
+  \department{Department of Computing}
+  \city{Perth}
+  \country{Australia}
+}
+
+\begin{document}
+
+\begin{abstract}
+As AI agent frameworks such as LangGraph, AutoGen, and CrewAI grow in
+capability, they also grow in complexity---requiring developers to write
+hundreds of lines of imperative Python to wire models, tools, prompts, and
+orchestration graphs. This paper presents \textbf{Orca}, a declarative
+domain-specific language (DSL) for AI agent orchestration. Orca uses an
+HCL-inspired block syntax to define models, agents, tools, tasks, and
+workflows in a concise, readable notation that compiles to
+Python/LangGraph code. The Orca compiler performs static semantic analysis
+including reference resolution, type checking, and schema validation,
+catching at compile time errors that would otherwise surface only at
+runtime. Generated code is fully annotated with source mappings back to
+the original \texttt{.oc} source, enabling debugging at the DSL level.
+We describe the language design, the four-stage compiler pipeline
+(lexer, parser, analyzer, code generator), and the type system that
+underpins both static checking and editor integration via the Language
+Server Protocol.
+\end{abstract}
+
+\maketitle
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Introduction}
+\label{sec:intro}
+% ══════════════════════════════════════════════════════════════════════════════
+
+The rise of large language models (LLMs) has given birth to a new class of
+software: \emph{AI agent systems}---programs that combine one or more LLMs
+with external tools, memory, and orchestration logic to accomplish complex
+tasks autonomously. Frameworks such as LangGraph~\cite{langgraph},
+AutoGen~\cite{autogen}, and CrewAI~\cite{crewai} provide the primitives for
+building such systems, but they require developers to express agent
+configurations, tool bindings, and execution graphs in general-purpose
+imperative Python code.
+
+This approach has several drawbacks. First, \textbf{boilerplate}: defining a
+simple two-agent pipeline in LangGraph requires importing modules, defining
+state schemas, instantiating models, writing node functions, constructing a
+state graph, adding nodes and edges, and compiling the graph---often spanning
+100+ lines for what is conceptually a five-line description. Second,
+\textbf{late error detection}: misconfigurations such as referencing a
+non-existent tool, assigning a string where a model reference is expected, or
+omitting a required field are only caught at runtime, often deep inside a
+framework stack trace. Third, \textbf{poor readability}: the intent of an
+agent system---which agents exist, what tools they use, and how they
+orchestrate---is buried within imperative wiring code.
+
+We present \textbf{Orca}, a domain-specific language designed to address
+these problems. Orca adopts an HCL-inspired~\cite{terraform} declarative
+block syntax where developers describe \emph{what} an agent system consists
+of, rather than \emph{how} to wire it together. The Orca compiler translates
+these declarations into fully functional Python/LangGraph code, performing
+static analysis along the way.
+
+This paper makes the following contributions:
+\begin{enumerate}[leftmargin=*]
+  \item A \textbf{declarative language design} for AI agent orchestration,
+        with a uniform block syntax covering models, agents, tools, tasks,
+        workflows, and triggers.
+  \item A \textbf{four-stage compiler} (lexer, Pratt parser, semantic
+        analyzer, code generator) implemented in Go, featuring error-tolerant
+        parsing and a unified type system.
+  \item A \textbf{static analysis framework} that catches reference errors,
+        type mismatches, and schema violations at compile time, with
+        diagnostic codes suitable for IDE integration.
+  \item \textbf{Source-mapped code generation} that annotates every line of
+        generated Python with its originating \texttt{.oc} source location,
+        enabling DSL-level debugging.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Background}
+\label{sec:background}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\subsection{AI Agent Frameworks}
+\label{sec:background:frameworks}
+
+Modern AI agent frameworks provide the building blocks for constructing
+systems where LLMs interact with tools, databases, and other agents.
+\textbf{LangGraph}~\cite{langgraph} models agent systems as stateful graphs
+where nodes represent computation steps (agent invocations, tool calls) and
+edges represent control flow, including conditional branching and cycles.
+\textbf{AutoGen}~\cite{autogen} focuses on multi-agent conversation, where
+agents communicate via message passing. \textbf{CrewAI}~\cite{crewai}
+introduces role-based agent definitions with task assignment.
+
+All of these frameworks share a common programming model: Python classes
+and function calls. A typical LangGraph program involves:
+\begin{enumerate}[leftmargin=*]
+  \item Defining a \texttt{TypedDict} for the graph state.
+  \item Instantiating LLM clients (\texttt{ChatOpenAI}, etc.).
+  \item Writing Python functions for each graph node.
+  \item Constructing a \texttt{StateGraph}, adding nodes and edges.
+  \item Compiling and invoking the graph.
+\end{enumerate}
+
+This imperative approach means that the \emph{structure} of an agent
+system---which agents exist, what tools they use, how they
+connect---is expressed procedurally rather than declaratively, making it
+difficult to extract at a glance.
+
+\subsection{Domain-Specific Languages for Configuration}
+\label{sec:background:dsls}
+
+Domain-specific languages have a long history of success in configuration-heavy
+domains. HCL (HashiCorp Configuration Language)~\cite{terraform}, used by
+Terraform, allows infrastructure to be declared as blocks:
+
+\begin{lstlisting}[language={},keywordstyle=\color{keyword}\bfseries,
+  morekeywords={resource,ami,instance_type}]
+resource "aws_instance" "web" {
+  ami           = "ami-0c55b159"
+  instance_type = "t2.micro"
+}
+\end{lstlisting}
+
+This block syntax---a keyword, a name, and a body of key-value
+pairs---is both human-readable and machine-parseable. It separates
+\emph{what} (a resource with these properties) from \emph{how} (the
+provider creates it). Orca applies this same principle to AI agent
+orchestration: declare the agents, tools, and workflows; let the compiler
+handle the Python wiring.
+
+Other DSL approaches in the AI space include DSPy~\cite{dspy}, which
+provides a programming model for composing LLM pipelines as optimizable
+modules, and LMQL~\cite{lmql}, a query language for constrained LLM
+generation. Orca differs from these in targeting the \emph{orchestration}
+layer---the composition of multiple agents, tools, and workflows---rather
+than individual prompt or generation control.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Language Design}
+\label{sec:language}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Design Goals}
+\label{sec:language:goals}
+
+Orca's design is guided by five principles:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Declarative over imperative.} Developers describe the
+        components of an agent system and their relationships; the compiler
+        handles code generation.
+  \item \textbf{Conciseness.} An agent system expressible in 30 lines of
+        Orca should not require 300 lines of Python.
+  \item \textbf{Static safety.} The compiler catches misconfigurations---undefined
+        references, type mismatches, missing required fields---before any
+        code runs.
+  \item \textbf{Debuggability.} Generated code carries source mappings back
+        to the \texttt{.oc} file, so developers debug in terms of their
+        declarations, not generated Python.
+  \item \textbf{Framework independence.} The language is decoupled from any
+        single backend. The current compiler targets LangGraph, but the
+        design permits additional backends.
+\end{enumerate}
+
+\subsection{Syntax Overview}
+\label{sec:language:syntax}
+
+Every Orca construct is a \textbf{block}: a keyword identifying the block
+type, a user-chosen name, and a brace-delimited body of key-value
+assignments:
+
+\begin{lstlisting}
+keyword name {
+  key1 = value1
+  key2 = value2
+}
+\end{lstlisting}
+
+Orca defines seven block types, each corresponding to a component of an
+agent system. Figure~\ref{fig:full-example} shows a complete Orca program.
+
+\begin{figure}[t]
+\begin{lstlisting}[caption={A complete Orca program defining a multi-agent
+  research-and-writing pipeline.},label={fig:full-example}]
+model gpt4 {
+  provider    = "openai"
+  model_name  = "gpt-4o"
+  temperature = 0.2
+}
+
+tool web_search {
+  name = "web_search"
+}
+
+agent researcher {
+  model   = gpt4
+  tools   = [web_search]
+  persona = "
+    You research topics thoroughly
+    and return structured findings.
+    "
+}
+
+agent writer {
+  model   = gpt4
+  persona = "You are a technical writer."
+}
+
+task research {
+  agent  = researcher
+  prompt = "Research the given topic."
+}
+
+workflow report_pipeline {
+  name = "report"
+}
+
+trigger daily {
+  name     = "daily_report"
+}
+\end{lstlisting}
+\end{figure}
+
+\noindent\textbf{Block types.} Table~\ref{tab:blocks} summarizes each
+block type and its purpose.
+
+\begin{table}[t]
+\caption{Orca block types and their roles in an agent system.}
+\label{tab:blocks}
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Block} & \textbf{Purpose} \\
+\midrule
+\texttt{model}     & LLM provider configuration (provider, model, temperature) \\
+\texttt{agent}     & Agent definition (model, persona, tools) \\
+\texttt{tool}      & External integration (API, builtin, function) \\
+\texttt{task}      & Work unit assigned to an agent \\
+\texttt{knowledge} & RAG / data source attachment \\
+\texttt{workflow}  & Agent orchestration graph \\
+\texttt{trigger}   & Cron, webhook, or event-based execution \\
+\texttt{schema}    & User-defined type for structured data \\
+\texttt{input}     & Runtime input parameter with type and default \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Value types.} Assignments support string, integer, float,
+boolean, and null literals; lists (\texttt{[a, b, c]}); maps
+(\texttt{\{key: value\}}); and \emph{block references}---bare identifiers
+that refer to other blocks by name (e.g., \texttt{model = gpt4}).
+
+\noindent\textbf{Annotations.} Orca supports annotations prefixed with
+\texttt{@}, used for metadata and compiler directives:
+
+\begin{lstlisting}
+@desc("Sampling temperature between 0 and 1.")
+temperature = float | null
+
+@suppress("unknown-field")
+custom_param = "value"
+\end{lstlisting}
+
+The \texttt{@desc} annotation documents fields; \texttt{@suppress}
+silences specific diagnostics when the developer intentionally deviates
+from the schema.
+
+\noindent\textbf{Workflow arrow syntax.} Workflows use an arrow operator
+(\texttt{->}) to express agent execution order:
+
+\begin{lstlisting}
+workflow pipeline {
+  flow = researcher -> writer -> reviewer
+}
+\end{lstlisting}
+
+This compiles to a linear graph:
+\texttt{START} $\rightarrow$ \texttt{researcher} $\rightarrow$
+\texttt{writer} $\rightarrow$ \texttt{reviewer} $\rightarrow$ \texttt{END}.
+
+\begin{todobox}
+Add branching and parallel workflow syntax examples once implemented
+in the compiler (conditional edges, parallel fan-out with
+\texttt{[a, b, c] -> aggregator}).
+\end{todobox}
+
+\subsection{Type System}
+\label{sec:language:types}
+
+Orca employs a structural type system designed to validate block
+configurations at compile time. The type system is built around four
+type kinds:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{BlockRef}: Named types encompassing both primitives
+        (\texttt{str}, \texttt{int}, \texttt{float}, \texttt{bool},
+        \texttt{null}) and block references (\texttt{model}, \texttt{agent},
+        \texttt{tool}, etc.). Every user-defined \texttt{schema} block
+        also becomes a \texttt{BlockRef} type.
+  \item \textbf{List}: Parameterized ordered collections, e.g.,
+        \texttt{list[tool]}.
+  \item \textbf{Map}: Key-value collections with string keys, e.g.,
+        \texttt{map[str]}.
+  \item \textbf{Union}: Disjunctive types using the pipe operator, e.g.,
+        \texttt{str | model} or \texttt{float | null}.
+\end{enumerate}
+
+A key design decision is the \emph{unification of primitives and block
+references}: both are represented as \texttt{BlockRef} with a
+\texttt{BlockKind} string. This simplifies the type checker---there is
+no special case for primitives versus user-defined types---and allows
+the schema system to be extended naturally by user-defined \texttt{schema}
+blocks.
+
+\noindent\textbf{Type compatibility.} The function
+\texttt{IsCompatible(got, expected)} determines whether a value of type
+\texttt{got} can be assigned to a field expecting \texttt{expected}. The
+rules are:
+\begin{itemize}[leftmargin=*]
+  \item The \texttt{any} type is compatible with every type.
+  \item Unions are compatible if the \texttt{got} type matches any member.
+  \item Numeric widening: \texttt{int} is compatible with \texttt{float}.
+  \item Block references match by name equality.
+  \item List and map types check element/value type compatibility recursively.
+\end{itemize}
+
+\noindent\textbf{Type inference.} Expression types are inferred
+bottom-up from literals and symbol table lookups. For example, the
+expression \texttt{[web\_search, gmail]} is inferred as
+\texttt{list[tool]} if both identifiers resolve to \texttt{tool} blocks
+in the symbol table.
+
+\subsection{Block Schemas}
+\label{sec:language:schemas}
+
+Each block type has a \textbf{schema} defining its valid fields, their
+types, optionality, and descriptions. Schemas serve as the contract between
+the developer and the compiler: any field not in the schema is flagged,
+any required field that is missing is reported, and any value whose type
+does not match the schema triggers a type mismatch diagnostic.
+
+Orca's built-in schemas are themselves defined in Orca syntax in an
+embedded \texttt{builtins.oc} file, parsed at compiler initialization:
+
+\begin{lstlisting}
+schema agent {
+  @desc("The model to use.")
+  model = str | model
+
+  @desc("The persona of the agent.")
+  persona = str
+
+  @desc("The tools available to this agent.")
+  tools = list[tool] | null
+}
+\end{lstlisting}
+
+This self-hosting approach---defining the compiler's type information in
+the language it compiles---ensures that the schema notation is
+battle-tested and that adding a new block type requires only adding a
+schema definition, not modifying the compiler.
+
+Users can define custom schemas using the \texttt{schema} block:
+
+\begin{lstlisting}
+schema vpc_data_t {
+  region      = str
+  cidr_blocks = list[str]
+}
+
+input vpc {
+  type = vpc_data_t
+  desc = "VPC configuration"
+}
+\end{lstlisting}
+
+The compiler registers user schemas alongside built-in schemas, enabling
+full type checking on \texttt{input} blocks and member access expressions
+like \texttt{vpc.region}.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Compiler Architecture}
+\label{sec:compiler}
+% ══════════════════════════════════════════════════════════════════════════════
+
+The Orca compiler is implemented in Go and follows a classical four-stage
+pipeline:
+
+\begin{center}
+\texttt{.oc} $\xrightarrow{\text{Lexer}}$ Tokens
+$\xrightarrow{\text{Parser}}$ AST
+$\xrightarrow{\text{Analyzer}}$ Diagnostics
+$\xrightarrow{\text{Codegen}}$ Python
+\end{center}
+
+\begin{imgplaceholder}
+Detailed pipeline diagram showing all four stages with intermediate
+representations. Left to right: source text, token stream (with example
+tokens), AST tree (with example nodes), annotated AST with diagnostics,
+and generated Python output. Show a small concrete example flowing through
+each stage.
+\end{imgplaceholder}
+
+Each stage is implemented as an independent Go package with a clean
+interface, enabling isolated testing and future extension.
+
+\subsection{Lexer}
+\label{sec:compiler:lexer}
+
+The lexer is a hand-written, character-at-a-time scanner that produces a
+stream of typed tokens. It maintains a two-character lookahead window
+(\texttt{ch} and \texttt{peekChar}) and tracks line and column positions
+incrementally.
+
+Each token carries four source coordinates: \texttt{Line}, \texttt{Column},
+\texttt{EndLine}, and \texttt{EndCol}. This range information is essential
+for two purposes: precise diagnostic reporting (``error at line 7, columns
+3--15'') and source mapping in generated code.
+
+The lexer recognizes 39 token types organized into categories:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Literals}: identifiers, integers, floats, strings.
+  \item \textbf{Keywords}: the nine block types plus \texttt{true},
+        \texttt{false}, \texttt{null}.
+  \item \textbf{Operators}: \texttt{=}, \texttt{.}, \texttt{->},
+        \texttt{|}, \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/},
+        \texttt{@}.
+  \item \textbf{Delimiters}: braces, brackets, parentheses, comma, colon.
+\end{itemize}
+
+\noindent\textbf{String handling.} The lexer supports escape sequences
+(\texttt{\textbackslash n}, \texttt{\textbackslash t},
+\texttt{\textbackslash\textbackslash},
+\texttt{\textbackslash"}), line continuation with trailing
+\texttt{\textbackslash}, and multi-line string auto-dedenting. For
+multi-line strings, the baseline indentation is determined by the column
+position of the closing quote, and leading whitespace up to that column
+is stripped from each line. This allows developers to write:
+
+\begin{lstlisting}
+agent researcher {
+  persona = "
+    You research topics thoroughly.
+    Always cite your sources.
+    "
+}
+\end{lstlisting}
+
+\noindent without the indentation leaking into the string value.
+
+\subsection{Parser}
+\label{sec:compiler:parser}
+
+The parser combines recursive descent for top-level structure with a
+\textbf{Pratt parser}~\cite{pratt1973} for expressions. It maintains a
+three-token window (\texttt{prevToken}, \texttt{curToken},
+\texttt{peekToken}) for one-token lookahead decisions.
+
+\noindent\textbf{Top-level parsing.} The parser loops over the token
+stream, collecting annotations and dispatching to a unified block parser
+for any block keyword. All nine block types share the same syntactic
+structure (\texttt{keyword name \{ assignments \}}), so a single parsing
+function handles them all---the block's semantic identity is determined
+by its keyword token, not by specialized grammar rules.
+
+\noindent\textbf{Expression parsing.} The Pratt parser handles six
+precedence levels, from lowest (\texttt{->}) to highest (member access,
+subscript, and call):
+
+\begin{table}[t]
+\caption{Operator precedence levels (lowest to highest).}
+\label{tab:precedence}
+\centering
+\small
+\begin{tabular}{@{}cll@{}}
+\toprule
+\textbf{Level} & \textbf{Operators} & \textbf{Associativity} \\
+\midrule
+1 & \texttt{->}             & Left \\
+2 & \texttt{|}              & Left \\
+3 & \texttt{+}, \texttt{-}  & Left \\
+4 & \texttt{*}, \texttt{/}  & Left \\
+5 & \texttt{.}, \texttt{[]}, \texttt{()} & Left \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Error recovery.} A critical design decision is that the
+parser is \emph{error-tolerant}: it produces a (possibly partial) AST even
+when the input contains syntax errors. Two recovery strategies are used:
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{syncToBlockEnd}: after a block header error, advance to the
+        closing \texttt{\}} or the next block keyword.
+  \item \texttt{syncToNextAssignment}: after an assignment error, advance to
+        the next \texttt{identifier = ...} pattern or \texttt{\}}.
+\end{itemize}
+
+Both strategies guarantee forward progress (at least one token consumed)
+to prevent infinite loops. Error-tolerant parsing is essential for
+editor integration: the Language Server Protocol (LSP) server
+re-parses on every keystroke, and incomplete input must not crash the
+pipeline.
+
+\subsection{Semantic Analysis}
+\label{sec:compiler:analyzer}
+
+The analyzer performs two passes over the AST:
+
+\noindent\textbf{Pass 1: Symbol table construction.} The analyzer walks
+all block statements and registers each block's name in a symbol table,
+mapping names to their \texttt{BlockRefType}. Built-in type names
+(\texttt{str}, \texttt{int}, \texttt{float}, etc.) are pre-seeded. This
+pass also detects duplicate block names.
+
+\noindent\textbf{Pass 2: Block validation.} For each block, the analyzer
+retrieves the corresponding schema and performs three categories of checks:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Field coverage}: every required (non-optional) field in the
+        schema must be present. Missing fields produce a
+        \texttt{missing-field} diagnostic spanning the block's braces.
+  \item \textbf{Field validation}: each assignment is checked against the
+        schema. Unknown fields produce \texttt{unknown-field}; type
+        mismatches (via \texttt{IsCompatible}) produce \texttt{type-mismatch}.
+  \item \textbf{Reference resolution}: all identifier expressions are
+        looked up in the symbol table. Undefined identifiers produce
+        \texttt{undefined-ref}. Member access expressions (e.g.,
+        \texttt{vpc.region}) are validated by resolving the object's type
+        and checking the member against the type's schema.
+\end{enumerate}
+
+Table~\ref{tab:diagnostics} lists all diagnostic codes.
+
+\begin{table}[t]
+\caption{Diagnostic codes emitted by the Orca compiler.}
+\label{tab:diagnostics}
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Code} & \textbf{Severity} & \textbf{Description} \\
+\midrule
+\texttt{syntax}            & Error   & Parse error \\
+\texttt{duplicate-block}   & Error   & Block name already defined \\
+\texttt{duplicate-field}   & Error   & Field assigned twice in a block \\
+\texttt{missing-field}     & Error   & Required schema field absent \\
+\texttt{unknown-field}     & Warning & Field not defined in schema \\
+\texttt{type-mismatch}     & Error   & Value incompatible with field type \\
+\texttt{undefined-ref}     & Error   & Identifier not in symbol table \\
+\texttt{unknown-member}    & Error   & Member not on resolved type \\
+\texttt{invalid-subscript} & Error   & Non-integer index on list \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Diagnostic suppression.} The \texttt{@suppress}
+annotation allows developers to silence specific diagnostics:
+
+\begin{lstlisting}
+@suppress("unknown-field")
+custom_param = "value"
+\end{lstlisting}
+
+Suppression can be applied at the block level (suppressing all diagnostics
+within the block) or at the field level. This mechanism is essential during
+language evolution: when a developer uses a field that is planned but not
+yet in the schema, suppression provides an escape hatch without disabling
+all checking.
+
+\subsection{Code Generation}
+\label{sec:compiler:codegen}
+
+\begin{todobox}
+The code generation backend is under active development. This section will
+describe:
+\begin{itemize}
+  \item How each block type maps to Python/LangGraph constructs:
+        \texttt{model} $\rightarrow$ \texttt{ChatOpenAI(...)},
+        \texttt{agent} $\rightarrow$ node function,
+        \texttt{workflow} $\rightarrow$ \texttt{StateGraph} edges.
+  \item Source mapping annotations: every generated line carries a comment
+        \texttt{\# source.oc:L:C} tracing back to the originating
+        declaration.
+  \item The generated project structure in the \texttt{build/} directory.
+\end{itemize}
+Show concrete input/output example once codegen is complete.
+\end{todobox}
+
+The intended generated output for the program in Figure~\ref{fig:full-example}
+follows this structure:
+
+\begin{lstlisting}[style=pythonStyle,caption={Expected generated Python
+  for a two-agent workflow (illustrative).},label={fig:generated}]
+# Auto-generated by Orca compiler
+# Source: agents.oc
+
+from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+from langchain_openai import ChatOpenAI
+
+# --- Models ---          # agents.oc:1:1
+gpt4 = ChatOpenAI(        # agents.oc:1:1
+    model="gpt-4o",       # agents.oc:3:3
+    temperature=0.2,       # agents.oc:4:3
+)
+
+# --- Nodes ---
+def researcher_node(state):  # agents.oc:11:1
+    """You research topics thoroughly..."""
+    pass  # tool-bound agent invocation
+
+def writer_node(state):      # agents.oc:20:1
+    """You are a technical writer."""
+    pass  # agent invocation
+
+# --- Graph ---              # agents.oc:28:1
+graph = StateGraph(dict)
+graph.add_node("researcher", researcher_node)
+graph.add_node("writer", writer_node)
+graph.add_edge(START, "researcher")
+graph.add_edge("researcher", "writer")
+graph.add_edge("writer", END)
+
+app = graph.compile()
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Editor Support}
+\label{sec:editor}
+% ══════════════════════════════════════════════════════════════════════════════
+
+The compiler's architecture is designed to support rich editor integration
+through the Language Server Protocol (LSP). Because the parser is
+error-tolerant, the LSP server can re-parse and re-analyze on every
+keystroke, providing real-time feedback.
+
+The LSP server maintains a document state for each open file, comprising
+the current AST, symbol table, and diagnostics. Three features are
+currently supported:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Diagnostics}: parse errors and semantic diagnostics are
+        published as editor squiggly lines with precise ranges derived from
+        token coordinates.
+  \item \textbf{Hover}: hovering over a block name or field shows type
+        information and \texttt{@desc} documentation from the schema.
+  \item \textbf{Go-to-definition}: jumping from a block reference
+        (e.g., \texttt{model = gpt4}) to the referenced block's definition.
+\end{itemize}
+
+A \textbf{cursor context resolver} determines the semantic context at any
+cursor position---whether the cursor is at the top level, inside a block
+body, or within a field value---and which block and schema apply. This
+context drives context-aware completions: inside an \texttt{agent} block,
+the completion list shows the agent schema's fields; for a \texttt{tools}
+field, it offers defined \texttt{tool} blocks.
+
+\begin{todobox}
+Add screenshots of VS Code extension showing diagnostics, hover, and
+completion once the extension is polished. Include the cursor context
+resolution algorithm.
+\end{todobox}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Evaluation}
+\label{sec:evaluation}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Conciseness}
+\label{sec:eval:conciseness}
+
+\begin{todobox}
+Quantitative comparison once codegen is complete. Plan:
+\begin{itemize}
+  \item Select 3--5 agent systems of increasing complexity.
+  \item Implement each in both Orca and raw LangGraph Python.
+  \item Compare lines of code, token count, and cyclomatic complexity.
+  \item Present results in a table and bar chart.
+\end{itemize}
+Preliminary estimate from the illustrative example: the Orca version is
+$\sim$35 lines vs.\ $\sim$120 lines of Python (3.4$\times$ reduction).
+\end{todobox}
+
+\subsection{Error Detection}
+\label{sec:eval:errors}
+
+The Orca compiler currently detects nine categories of errors at compile
+time (Table~\ref{tab:diagnostics}). Each corresponds to an error that
+would be a runtime exception or silent misconfiguration in Python:
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{undefined-ref}: in Python, referencing a variable before
+        assignment raises \texttt{NameError} at runtime.
+  \item \texttt{type-mismatch}: passing a string where a model object is
+        expected may cause a cryptic \texttt{AttributeError} deep in
+        LangGraph.
+  \item \texttt{missing-field}: omitting a required parameter often results
+        in a \texttt{TypeError} during framework initialization.
+  \item \texttt{unknown-field}: misspelling a field name is silently ignored
+        in dictionary-based configuration; Orca flags it immediately.
+\end{itemize}
+
+\begin{todobox}
+Construct a systematic catalog: for each diagnostic code, show the Orca
+error message alongside the Python exception that would occur without
+static checking. Include timing comparison (compile-time instant vs.\
+runtime after potentially long LLM calls).
+\end{todobox}
+
+\subsection{Source Mapping}
+\label{sec:eval:sourcemap}
+
+\begin{todobox}
+Demonstrate the debugging workflow once codegen produces source-mapped
+output:
+\begin{enumerate}
+  \item A runtime error in the generated Python stack trace.
+  \item The source map annotation on the failing line.
+  \item Tracing back to the originating \texttt{.oc} declaration.
+\end{enumerate}
+Show that developers can reason about errors in terms of their 35-line
+Orca program rather than 120 lines of generated Python.
+\end{todobox}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Related Work}
+\label{sec:related}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\noindent\textbf{Agent frameworks.}
+LangGraph~\cite{langgraph} provides the most flexible graph-based
+orchestration model but requires imperative Python for all configuration.
+AutoGen~\cite{autogen} simplifies multi-agent conversation but lacks
+static analysis. CrewAI~\cite{crewai} introduces role-based agents with
+YAML configuration, moving toward declarative definitions but without a
+type system or compiler. Orca occupies a different point in this design
+space: a full language with static checking that compiles to framework
+code, rather than a framework itself.
+
+\noindent\textbf{Infrastructure DSLs.}
+HCL/Terraform~\cite{terraform} is the closest analogue to Orca's approach:
+a declarative block language that compiles to imperative API calls. Orca
+adapts HCL's syntax philosophy---keyword-name-body blocks, references by
+name, schema-driven validation---to the agent orchestration domain. Pulumi
+takes the opposite approach, embedding infrastructure in general-purpose
+languages; Orca argues that a dedicated syntax yields better readability
+and static analysis for the agent domain.
+
+\noindent\textbf{AI programming DSLs.}
+DSPy~\cite{dspy} provides a programming model for composing and optimizing
+LLM pipelines as declarative modules. LMQL~\cite{lmql} extends Python with
+a query syntax for constrained LLM generation. Both target individual
+model interactions rather than multi-agent orchestration. Orca is
+complementary: it could potentially use DSPy modules as tool
+implementations within an Orca-orchestrated system.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Future Work}
+\label{sec:future}
+% ══════════════════════════════════════════════════════════════════════════════
+
+Several extensions are planned:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Additional codegen backends.} The language-backend separation
+        allows targeting frameworks beyond LangGraph, such as AutoGen or
+        direct API calls.
+  \item \textbf{Visual editor.} A node-and-edge graph editor that generates
+        \texttt{.oc} files, providing a visual frontend for users who prefer
+        graphical workflow design.
+  \item \textbf{Full LSP server.} Expanding editor support with rename
+        refactoring, find-all-references, code actions, and workspace-wide
+        diagnostics.
+  \item \textbf{Runtime debugging.} Integrating source maps with a debugger
+        that allows breakpoints and stepping in terms of \texttt{.oc}
+        source lines.
+  \item \textbf{Package system.} A module system for reusable agent
+        components (e.g., a pre-built \texttt{web\_researcher} agent
+        importable across projects).
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Conclusion}
+\label{sec:conclusion}
+% ══════════════════════════════════════════════════════════════════════════════
+
+We have presented Orca, a declarative domain-specific language for AI
+agent orchestration. Orca's HCL-inspired block syntax allows developers
+to define models, agents, tools, tasks, and workflows concisely, while
+the compiler's static analysis catches misconfigurations at compile time
+that would otherwise surface as runtime errors. The four-stage compiler
+pipeline---lexer, Pratt parser with error recovery, semantic analyzer with
+a unified type system, and source-mapped code generator---demonstrates that
+the agent orchestration domain is amenable to the same
+declare-then-compile approach that has proven successful for infrastructure
+(Terraform/HCL) and data pipelines.
+
+As AI agent systems grow in complexity, the gap between declarative intent
+and imperative implementation widens. Orca aims to bridge this gap:
+developers describe \emph{what} their agent system does, and the compiler
+handles \emph{how}. We believe this \emph{agents-as-code} paradigm,
+analogous to infrastructure-as-code, will become increasingly important as
+agent systems move from prototypes to production.
+
+% ══════════════════════════════════════════════════════════════════════════════
+% References
+% ══════════════════════════════════════════════════════════════════════════════
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}
