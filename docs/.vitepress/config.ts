@@ -5,6 +5,12 @@ export default defineConfig({
   description: 'A declarative language for defining AI agents',
   base: '/orca/',
 
+  markdown: {
+    languageAlias: {
+      'orca': 'hcl',
+    },
+  },
+
   head: [
     ['link', { rel: 'icon', href: '/orca/logo.png' }],
   ],
@@ -44,6 +50,9 @@ export default defineConfig({
             { text: 'knowledge', link: '/reference/knowledge' },
             { text: 'workflow', link: '/reference/workflow' },
             { text: 'trigger', link: '/reference/trigger' },
+            { text: 'input', link: '/reference/input' },
+            { text: 'schema', link: '/reference/schema' },
+            { text: 'let', link: '/reference/let' },
           ],
         },
       ],

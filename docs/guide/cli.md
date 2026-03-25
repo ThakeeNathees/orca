@@ -1,6 +1,48 @@
 # CLI Reference
 
-<!-- TODO: `orca build` — compile .oc files to Python -->
-<!-- TODO: `orca run` — build and run (future) -->
-<!-- TODO: `orca lsp` — start the language server -->
-<!-- TODO: Command flags and options -->
+## `orca build`
+
+Compiles all `.oc` files in the current directory and generates Python code.
+
+```bash
+orca build
+```
+
+**Output:**
+- `build/main.py` — Generated Python source code with source mapping comments.
+- `build/pyproject.toml` — Python project configuration with dependencies.
+
+**Behavior:**
+- Reads every `.oc` file in the current working directory.
+- Runs the full pipeline: parse → analyze → generate.
+- Reports diagnostics (errors, warnings) to stderr.
+- Exits with a non-zero code if there are errors.
+
+**Example output:**
+```
+compiled 3 .oc file(s) → build/main.py, build/pyproject.toml
+```
+
+## `orca lsp`
+
+Starts the Orca Language Server Protocol server for editor integration.
+
+```bash
+orca lsp
+```
+
+The LSP server communicates over stdin/stdout and provides:
+- Diagnostics (errors, warnings) as you type.
+- Integration with VS Code and other editors that support LSP.
+
+## `orca run`
+
+Builds and runs the generated Python code.
+
+```bash
+orca run
+```
+
+::: warning
+This command is not yet implemented.
+:::
