@@ -61,6 +61,12 @@ schema tool {
 
   @desc("The description of the tool.")
   desc = str | null
+
+  @desc("The input schema for the tool.")
+  input_schema = schema | null
+
+  @desc("The function to call for the tool.")
+  invoke = str | null
 }
 
 @suppress("duplicate-block")

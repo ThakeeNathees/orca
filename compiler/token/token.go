@@ -17,7 +17,8 @@ const (
 	IDENT  TokenType = "IDENT"  // user-defined names (variable names, block references)
 	INT    TokenType = "INT"    // integer literal: 123
 	FLOAT  TokenType = "FLOAT"  // float literal: 0.2
-	STRING TokenType = "STRING" // string literal: "hello"
+	STRING    TokenType = "STRING"    // string literal: "hello"
+	RAWSTRING TokenType = "RAWSTRING" // raw multi-line string: ```md ... ```
 
 	// Operators & Delimiters
 	ASSIGN   TokenType = "="
@@ -95,6 +96,8 @@ func Describe(t TokenType) string {
 		return "number"
 	case STRING:
 		return "string"
+	case RAWSTRING:
+		return "raw string"
 	case TRUE, FALSE:
 		return "boolean"
 	case NULL:

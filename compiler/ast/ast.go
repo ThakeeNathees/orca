@@ -97,11 +97,13 @@ type Identifier struct {
 
 func (i *Identifier) expressionNode() {}
 
-// StringLiteral represents a double-quoted string value like "openai".
+// StringLiteral represents a string value — either a double-quoted string
+// like "openai" or a triple-backtick raw string like ```md ... ```.
 // Terminal node — start == end.
 type StringLiteral struct {
 	BaseNode
-	Value string // the string content without surrounding quotes
+	Value string // the string content without surrounding delimiters
+	Lang  string // optional language tag for raw strings (e.g. "md", "py")
 }
 
 func (s *StringLiteral) expressionNode() {}

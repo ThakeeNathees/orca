@@ -52,6 +52,45 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(restartCmd);
+
+  // Auto-close triple backticks via completion provider.
+  // When the user types ` after ``, offer a completion that expands to
+  // the full raw string template with closing ``` and cursor in the middle.
+  const rawStringCompleter = vscode.languages.registerCompletionItemProvider(
+    "orca",
+    {
+      provideCompletionItems(document, position) {
+        const lineText = document.lineAt(position.line).text;
+        const textBefore = lineText.substring(0, position.character);
+
+        // Only trigger when the line ends with ``` (just typed the third backtick).
+        if (!textBefore.endsWith("```")) return undefined;
+
+        // Don't trigger on a standalone closing ``` line.
+        const beforeBackticks = textBefore.slice(0, -3).trimEnd();
+        if (beforeBackticks.length === 0) return undefined;
+
+        const indent = lineText.match(/^(\s*)/)?.[1] ?? "";
+        const item = new vscode.CompletionItem(
+          "``` raw string",
+          vscode.CompletionItemKind.Snippet
+        );
+        item.detail = "Triple-backtick raw string";
+        // Replace the ``` the user already typed, then expand the snippet.
+        item.range = new vscode.Range(
+          position.translate(0, -3),
+          position
+        );
+        item.insertText = new vscode.SnippetString(
+          "```${1:md}\n" + indent + "    $0\n" + indent + "```"
+        );
+        item.sortText = "!0"; // sort to top
+        return [item];
+      },
+    },
+    "`" // trigger on backtick
+  );
+  context.subscriptions.push(rawStringCompleter);
 }
 
 export function deactivate(): Thenable<void> | undefined {

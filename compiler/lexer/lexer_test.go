@@ -322,8 +322,6 @@ func TestStringEscapeSequences(t *testing.T) {
 		{"escaped backslash", `"path\\to"`, "path\\to"},
 		{"escaped quote", `"say \"hi\""`, `say "hi"`},
 		{"multiple escapes", `"a\nb\tc"`, "a\nb\tc"},
-		{"line continuation", "\"foo\\\nbar\"", "foobar"},
-		{"line continuation strips indent", "\"foo\\\n    bar\"", "foobar"},
 		{"no escapes", `"plain"`, "plain"},
 	}
 
@@ -341,53 +339,50 @@ func TestStringEscapeSequences(t *testing.T) {
 	}
 }
 
-// TestMultiLineString verifies that strings containing newlines are
-// correctly dedented based on the closing quote's column.
-func TestMultiLineString(t *testing.T) {
+// TestRawString verifies that triple-backtick raw strings are correctly
+// lexed and dedented based on the closing backtick's column.
+// TestRawString verifies that triple-backtick raw strings are correctly
+// lexed and dedented. The Literal format is "lang\ncontent".
+func TestRawString(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected string
+		expected string // full Literal including "lang\n" prefix
 	}{
 		{
 			"basic dedent",
-			"\"\n    Hello\n    World\n    \"",
-			"Hello\nWorld",
+			"```\n    Hello\n    World\n    ```",
+			"\nHello\nWorld",
+		},
+		{
+			"with language tag",
+			"```md\n    Hello\n    World\n    ```",
+			"md\nHello\nWorld",
 		},
 		{
 			"preserves relative indentation",
-			"\"\n    Hello\n      Indented\n    World\n    \"",
-			"Hello\n  Indented\nWorld",
+			"```\n    Hello\n      Indented\n    World\n    ```",
+			"\nHello\n  Indented\nWorld",
 		},
 		{
 			"empty lines preserved",
-			"\"\n    Hello\n\n    World\n    \"",
-			"Hello\n\nWorld",
+			"```\n    Hello\n\n    World\n    ```",
+			"\nHello\n\nWorld",
 		},
 		{
-			"no indent (closing quote at column 1)",
-			"\"\nHello\nWorld\n\"",
-			"Hello\nWorld",
+			"no indent (closing at column 1)",
+			"```\nHello\nWorld\n```",
+			"\nHello\nWorld",
 		},
 		{
 			"two space baseline",
-			"\"\n  line one\n    line two\n  \"",
-			"line one\n  line two",
+			"```\n  line one\n    line two\n  ```",
+			"\nline one\n  line two",
 		},
 		{
-			"escape sequences in multi-line",
-			"\"\n  hello\\tworld\n  foo\\nbar\n  \"",
-			"hello\tworld\nfoo\nbar",
-		},
-		{
-			"content on first line",
-			"\"Hello\n    World\n    \"",
-			"Hello\nWorld",
-		},
-		{
-			"content on first line no indent",
-			"\"Hello\nWorld\n\"",
-			"Hello\nWorld",
+			"python language tag",
+			"```py\nprint('hello')\n```",
+			"py\nprint('hello')",
 		},
 	}
 
@@ -395,8 +390,8 @@ func TestMultiLineString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			l := New(tt.input)
 			tok := l.NextToken()
-			if tok.Type != token.STRING {
-				t.Fatalf("expected STRING, got %s", tok.Type)
+			if tok.Type != token.RAWSTRING {
+				t.Fatalf("expected RAWSTRING, got %s", tok.Type)
 			}
 			if tok.Literal != tt.expected {
 				t.Errorf("literal = %q, want %q", tok.Literal, tt.expected)
@@ -405,15 +400,15 @@ func TestMultiLineString(t *testing.T) {
 	}
 }
 
-// TestMultiLineStringLineTracking verifies that the lexer correctly
-// tracks line numbers through multi-line strings.
-func TestMultiLineStringLineTracking(t *testing.T) {
-	input := "\"\n  hello\n  world\n  \"\nident"
+// TestRawStringLineTracking verifies that the lexer correctly
+// tracks line numbers through raw strings.
+func TestRawStringLineTracking(t *testing.T) {
+	input := "```\n  hello\n  world\n```\nident"
 	l := New(input)
 
 	strTok := l.NextToken()
-	if strTok.Type != token.STRING {
-		t.Fatalf("expected STRING, got %s", strTok.Type)
+	if strTok.Type != token.RAWSTRING {
+		t.Fatalf("expected RAWSTRING, got %s", strTok.Type)
 	}
 	if strTok.Line != 1 {
 		t.Errorf("string line = %d, want 1", strTok.Line)
@@ -428,16 +423,16 @@ func TestMultiLineStringLineTracking(t *testing.T) {
 	}
 }
 
-// TestMultiLineStringInBlock verifies multi-line strings work inside
-// a block parsed by the lexer token stream.
-func TestMultiLineStringInBlock(t *testing.T) {
+// TestRawStringInBlock verifies raw strings work inside a block.
+// Closing ``` at 4 spaces indent strips 4 spaces from content.
+func TestRawStringInBlock(t *testing.T) {
 	input := strings.Join([]string{
-		`agent a {`,
-		`  prompt = "`,
-		`    You are a helpful assistant.`,
-		`    Be concise.`,
-		`    "`,
-		`}`,
+		"agent a {",
+		"    prompt = ```md",
+		"        You are a helpful assistant.",
+		"        Be concise.",
+		"        ```",
+		"}",
 	}, "\n")
 
 	l := New(input)
@@ -466,12 +461,12 @@ func TestMultiLineStringInBlock(t *testing.T) {
 	if tok.Type != token.ASSIGN {
 		t.Fatalf("expected ASSIGN, got %s", tok.Type)
 	}
-	// the multi-line string
+	// the raw string (Literal format: "lang\ncontent")
 	tok = l.NextToken()
-	if tok.Type != token.STRING {
-		t.Fatalf("expected STRING, got %s", tok.Type)
+	if tok.Type != token.RAWSTRING {
+		t.Fatalf("expected RAWSTRING, got %s", tok.Type)
 	}
-	expected := "You are a helpful assistant.\nBe concise."
+	expected := "md\nYou are a helpful assistant.\nBe concise."
 	if tok.Literal != expected {
 		t.Errorf("literal = %q, want %q", tok.Literal, expected)
 	}
@@ -544,6 +539,95 @@ func TestNextTokenAnnotation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestStringIsSingleLineOnly verifies that double-quoted strings stop at newlines.
+func TestStringIsSingleLineOnly(t *testing.T) {
+	// A newline inside a double-quoted string terminates the string.
+	input := "\"hello\nworld\""
+	l := New(input)
+	tok := l.NextToken()
+	if tok.Type != token.STRING {
+		t.Fatalf("expected STRING, got %s", tok.Type)
+	}
+	if tok.Literal != "hello" {
+		t.Errorf("literal = %q, want %q", tok.Literal, "hello")
+	}
+}
+
+// TestRawStringUnterminatedEOF verifies that an unterminated raw string
+// reads until EOF without crashing.
+func TestRawStringUnterminatedEOF(t *testing.T) {
+	input := "```\nhello\nworld"
+	l := New(input)
+	tok := l.NextToken()
+	if tok.Type != token.RAWSTRING {
+		t.Fatalf("expected RAWSTRING, got %s", tok.Type)
+	}
+}
+
+// TestRawStringPositionTracking verifies start/end positions on raw strings.
+func TestRawStringPositionTracking(t *testing.T) {
+	input := "  ```md\n    content\n  ```"
+	l := New(input)
+	tok := l.NextToken()
+	if tok.Type != token.RAWSTRING {
+		t.Fatalf("expected RAWSTRING, got %s", tok.Type)
+	}
+	if tok.Line != 1 {
+		t.Errorf("Line = %d, want 1", tok.Line)
+	}
+	if tok.Column != 3 {
+		t.Errorf("Column = %d, want 3", tok.Column)
+	}
+	if tok.EndLine != 3 {
+		t.Errorf("EndLine = %d, want 3", tok.EndLine)
+	}
+}
+
+// TestSingleBacktickIsIllegal verifies that a lone ` is an ILLEGAL token.
+func TestSingleBacktickIsIllegal(t *testing.T) {
+	l := New("`")
+	tok := l.NextToken()
+	if tok.Type != token.ILLEGAL {
+		t.Fatalf("expected ILLEGAL, got %s", tok.Type)
+	}
+}
+
+// TestDoubleBacktickIsIllegal verifies that `` is two ILLEGAL tokens.
+func TestDoubleBacktickIsIllegal(t *testing.T) {
+	l := New("``")
+	tok := l.NextToken()
+	if tok.Type != token.ILLEGAL {
+		t.Fatalf("expected ILLEGAL, got %s", tok.Type)
+	}
+}
+
+// TestRawStringFollowedByTokens verifies tokens after a raw string are correct.
+func TestRawStringFollowedByTokens(t *testing.T) {
+	input := "```\nfoo\n``` = 42"
+	l := New(input)
+
+	tok := l.NextToken()
+	if tok.Type != token.RAWSTRING {
+		t.Fatalf("expected RAWSTRING, got %s", tok.Type)
+	}
+	if tok.Literal != "\nfoo" {
+		t.Errorf("literal = %q, want %q", tok.Literal, "\nfoo")
+	}
+
+	tok = l.NextToken()
+	if tok.Type != token.ASSIGN {
+		t.Fatalf("expected ASSIGN, got %s (%q)", tok.Type, tok.Literal)
+	}
+
+	tok = l.NextToken()
+	if tok.Type != token.INT {
+		t.Fatalf("expected INT, got %s (%q)", tok.Type, tok.Literal)
+	}
+	if tok.Literal != "42" {
+		t.Errorf("literal = %q, want %q", tok.Literal, "42")
 	}
 }
 

@@ -180,9 +180,16 @@ schema report {
 
 ## Strings
 
-All strings are double-quoted and support escape sequences and multiple lines.
+Orca has two string types: **double-quoted strings** for single-line values and **raw strings** (triple-backtick) for multi-line content.
 
-### Escape sequences
+### Double-quoted strings
+
+Single-line strings with escape sequence support:
+
+```orca
+provider = "openai"
+greeting = "hello\nworld"
+```
 
 | Sequence | Result |
 |----------|--------|
@@ -191,20 +198,20 @@ All strings are double-quoted and support escape sequences and multiple lines.
 | `\\` | Literal `\` |
 | `\"` | Literal `"` |
 
-### Multi-line strings
+### Raw strings (triple-backtick)
 
-Any string can span lines. Indentation is automatically stripped based on the closing quote's position:
+Multi-line strings use triple backticks with an optional language tag:
 
-```orca
+~~~orca
 agent researcher {
-  persona = "
+  persona = ```md
     You are a research assistant.
     You search the web for information.
 
     Always cite your sources.
-    "
+    ```
 }
-```
+~~~
 
 The value of `persona` is:
 
@@ -215,18 +222,20 @@ You search the web for information.
 Always cite your sources.
 ```
 
+The language tag (`md`, `py`, `json`, `yaml`, etc.) is optional and enables syntax highlighting in editors.
+
 #### How indentation stripping works
 
-The **closing quote's column** defines the baseline. That many leading spaces are stripped from every content line.
+The **closing `` ``` ``'s column** defines the baseline. That many leading spaces are stripped from every content line.
 
-**Rule:** `baseline = closing_quote_column - 1` (columns are 1-based).
+**Rule:** `baseline = closing_backtick_column - 1` (columns are 1-based).
 
 ```
-  persona = "
+  persona = ```md
     Hello               ← 4 spaces before content
       Indented          ← 6 spaces (2 extra will remain)
     World               ← 4 spaces before content
-    "                   ← closing " at column 5 → baseline = 4
+    ```                 ← closing ``` at column 5 → baseline = 4
 ```
 
 Result:
@@ -239,5 +248,4 @@ World
 
 - Lines indented more than the baseline keep their extra indentation.
 - Empty lines in the middle are preserved.
-- If the first line after the opening `"` is empty, that empty line is removed.
-- The last line (whitespace before the closing `"`) is removed.
+- The last line (whitespace before the closing `` ``` ``) is removed.

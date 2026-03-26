@@ -1,0 +1,11 @@
+{
+  "Raw String": {
+    "prefix": "```",
+    "body": [
+      "```${1:md}",
+      "    $0",
+      "```"
+    ],
+    "description": "Triple-backtick raw string"
+  }
+}

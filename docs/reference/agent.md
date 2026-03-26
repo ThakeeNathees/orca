@@ -77,15 +77,15 @@ agent analyst {
 
 ### Multi-line persona
 
-```orca
+~~~orca
 agent researcher {
   model   = gpt4
-  persona = "
+  persona = ```md
     You are a research assistant.
     You search the web for information.
 
     Always cite your sources.
     Follow APA citation format.
-    "
+    ```
 }
-```
+~~~

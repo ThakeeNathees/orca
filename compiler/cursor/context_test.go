@@ -131,16 +131,16 @@ func TestResolveMultipleBlocks(t *testing.T) {
 	}
 }
 
-// TestResolveInsideMultiLineString verifies that the cursor inside a
-// multi-line string value returns FieldValue, not BlockBody.
-func TestResolveInsideMultiLineString(t *testing.T) {
-	input := "agent researcher {\n  persona = \"\n    You are a helpful assistant.\n    \"\n}"
+// TestResolveInsideRawString verifies that the cursor inside a
+// raw string value returns FieldValue, not BlockBody.
+func TestResolveInsideRawString(t *testing.T) {
+	input := "agent researcher {\n  persona = ```\n    You are a helpful assistant.\n  ```\n}"
 	program := parseProgram(t, input)
 
-	// Line 3 is inside the multi-line string value.
+	// Line 3 is inside the raw string value.
 	ctx := Resolve(program, 3, 5)
 	if ctx.Position != FieldValue {
-		t.Errorf("Position = %v, want FieldValue (inside multi-line string)", ctx.Position)
+		t.Errorf("Position = %v, want FieldValue (inside raw string)", ctx.Position)
 	}
 	if ctx.Assignment == nil {
 		t.Fatal("Assignment should not be nil")

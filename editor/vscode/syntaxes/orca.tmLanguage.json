@@ -81,6 +81,97 @@
       ]
     },
     "string": {
+      "patterns": [
+        { "include": "#raw-string" },
+        { "include": "#quoted-string" }
+      ]
+    },
+    "raw-string": {
+      "patterns": [
+        { "include": "#raw-string-python" },
+        { "include": "#raw-string-markdown" },
+        { "include": "#raw-string-json" },
+        { "include": "#raw-string-yaml" },
+        { "include": "#raw-string-plain" }
+      ]
+    },
+    "raw-string-python": {
+      "begin": "(```)(py|python)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.string.begin.orca" },
+        "2": { "name": "entity.name.tag.language.orca" }
+      },
+      "end": "^\\s*```",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.orca" }
+      },
+      "name": "string.unquoted.raw.orca",
+      "contentName": "meta.embedded.block.python",
+      "patterns": [
+        { "include": "source.python" }
+      ]
+    },
+    "raw-string-markdown": {
+      "begin": "(```)(md|markdown)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.string.begin.orca" },
+        "2": { "name": "entity.name.tag.language.orca" }
+      },
+      "end": "^\\s*```",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.orca" }
+      },
+      "name": "string.unquoted.raw.orca",
+      "contentName": "meta.embedded.block.markdown",
+      "patterns": [
+        { "include": "text.html.markdown" }
+      ]
+    },
+    "raw-string-json": {
+      "begin": "(```)(json)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.string.begin.orca" },
+        "2": { "name": "entity.name.tag.language.orca" }
+      },
+      "end": "^\\s*```",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.orca" }
+      },
+      "name": "string.unquoted.raw.orca",
+      "contentName": "meta.embedded.block.json",
+      "patterns": [
+        { "include": "source.json" }
+      ]
+    },
+    "raw-string-yaml": {
+      "begin": "(```)(yaml|yml)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.string.begin.orca" },
+        "2": { "name": "entity.name.tag.language.orca" }
+      },
+      "end": "^\\s*```",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.orca" }
+      },
+      "name": "string.unquoted.raw.orca",
+      "contentName": "meta.embedded.block.yaml",
+      "patterns": [
+        { "include": "source.yaml" }
+      ]
+    },
+    "raw-string-plain": {
+      "begin": "(```)(\\w*)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.string.begin.orca" },
+        "2": { "name": "entity.name.tag.language.orca" }
+      },
+      "end": "^\\s*```",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.orca" }
+      },
+      "name": "string.unquoted.raw.orca"
+    },
+    "quoted-string": {
       "begin": "\"",
       "end": "\"",
       "name": "string.quoted.double.orca",

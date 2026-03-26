@@ -278,6 +278,85 @@ func TestParseAgentBlockValues(t *testing.T) {
 	}
 }
 
+// TestParseRawStringValue verifies that raw strings parse into StringLiteral
+// with the correct Value and Lang fields.
+func TestParseRawStringValue(t *testing.T) {
+	input := "agent a {\n    persona = ```md\n        Hello world.\n        ```\n}"
+	program := parseOrFail(t, input)
+	assertBlockCount(t, program, 1)
+	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+
+	a0 := block.Assignments[0]
+	if a0.Name != "persona" {
+		t.Errorf("expected key 'persona', got %q", a0.Name)
+	}
+	str, ok := a0.Value.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("expected StringLiteral, got %T", a0.Value)
+	}
+	if str.Value != "Hello world." {
+		t.Errorf("Value = %q, want %q", str.Value, "Hello world.")
+	}
+	if str.Lang != "md" {
+		t.Errorf("Lang = %q, want %q", str.Lang, "md")
+	}
+}
+
+// TestParseRawStringNoLang verifies raw strings without a language tag.
+func TestParseRawStringNoLang(t *testing.T) {
+	input := "agent a {\n    persona = ```\n        Hello.\n        ```\n}"
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+
+	str, ok := block.Assignments[0].Value.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("expected StringLiteral, got %T", block.Assignments[0].Value)
+	}
+	if str.Value != "Hello." {
+		t.Errorf("Value = %q, want %q", str.Value, "Hello.")
+	}
+	if str.Lang != "" {
+		t.Errorf("Lang = %q, want empty", str.Lang)
+	}
+}
+
+// TestParseRawStringContentStartingWithIdentifier verifies that content
+// like "foo\nbar" is not mistaken for a language tag.
+func TestParseRawStringContentStartingWithIdentifier(t *testing.T) {
+	input := "agent a {\n    persona = ```\n        foo\n        bar\n        ```\n}"
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+
+	str, ok := block.Assignments[0].Value.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("expected StringLiteral, got %T", block.Assignments[0].Value)
+	}
+	if str.Lang != "" {
+		t.Errorf("Lang = %q, want empty", str.Lang)
+	}
+	expected := "foo\nbar"
+	if str.Value != expected {
+		t.Errorf("Value = %q, want %q", str.Value, expected)
+	}
+}
+
+// TestParseRawStringMultiLine verifies multi-line raw strings preserve
+// relative indentation and newlines.
+func TestParseRawStringMultiLine(t *testing.T) {
+	input := "agent a {\n    persona = ```md\n        Line one.\n          Indented.\n\n        Line three.\n        ```\n}"
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+
+	str, ok := block.Assignments[0].Value.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("expected StringLiteral, got %T", block.Assignments[0].Value)
+	}
+	expected := "Line one.\n  Indented.\n\nLine three."
+	if str.Value != expected {
+		t.Errorf("Value = %q, want %q", str.Value, expected)
+	}
+}
+
 // --- multiple blocks ---
 
 func TestParseMultipleBlocks(t *testing.T) {

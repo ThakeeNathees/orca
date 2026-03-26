@@ -32,7 +32,19 @@
       {
         "language": "orca",
         "scopeName": "source.orca",
-        "path": "./syntaxes/orca.tmLanguage.json"
+        "path": "./syntaxes/orca.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.python": "python",
+          "meta.embedded.block.markdown": "markdown",
+          "meta.embedded.block.json": "json",
+          "meta.embedded.block.yaml": "yaml"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "orca",
+        "path": "./snippets/orca.json"
       }
     ],
     "commands": [

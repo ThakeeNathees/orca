@@ -134,6 +134,17 @@ func (l *Lexer) NextToken() token.Token {
 		}
 		tok.Type = token.DOT
 		tok.Literal = "."
+	case '`':
+		// Triple backtick starts a raw multi-line string.
+		if l.peekIsTripleBacktick() {
+			tok.Type = token.RAWSTRING
+			tok.Literal = l.readRawString()
+			tok.EndLine = l.line
+			tok.EndCol = l.column - 1
+			return tok
+		}
+		tok.Type = token.ILLEGAL
+		tok.Literal = string(l.ch)
 	case '"':
 		tok.Type = token.STRING
 		tok.Literal = l.readString()
@@ -209,17 +220,14 @@ func (l *Lexer) readIdentifier() string {
 	return l.input[pos:l.position]
 }
 
-// readString reads a double-quoted string with escape sequence support
-// (\n, \t, \\, \"). All strings can span multiple lines. If the string
-// contains newlines, the closing quote's column defines the baseline
-// indentation to strip. For single-line strings (no newlines), the
-// content is returned as-is after escape processing.
+// readString reads a double-quoted single-line string with escape sequence
+// support (\n, \t, \\, \"). Newlines are not allowed — use triple-backtick
+// raw strings for multi-line content.
 func (l *Lexer) readString() string {
 	l.readChar() // skip opening quote
 
-	isMultiLine := false
 	var sb strings.Builder
-	for l.ch != '"' && l.ch != 0 {
+	for l.ch != '"' && l.ch != '\n' && l.ch != 0 {
 		if l.ch == '\\' {
 			l.readChar() // skip backslash
 			switch l.ch {
@@ -231,40 +239,119 @@ func (l *Lexer) readString() string {
 				sb.WriteByte('\\')
 			case '"':
 				sb.WriteByte('"')
-			case '\n':
-				// Line continuation: backslash-newline joins lines.
-				// Skip the newline and any leading whitespace on the next line.
-				l.line++
-				l.column = 0
-				l.readChar()
-				for l.ch == ' ' || l.ch == '\t' {
-					l.readChar()
-				}
-				continue // skip the l.readChar() at the end of the loop
 			default:
 				sb.WriteByte('\\')
 				sb.WriteByte(l.ch)
 			}
 		} else {
-			if l.ch == '\n' {
-				isMultiLine = true
-				l.line++
-				l.column = 0
-			}
 			sb.WriteByte(l.ch)
 		}
 		l.readChar()
 	}
 
-	// For multi-line strings, use the closing quote's column as baseline.
-	baseline := l.column - 1
 	l.readChar() // skip closing quote
+	return sb.String()
+}
+
+// readRawString reads a triple-backtick delimited raw string (``` ... ```).
+// The opening backticks may be followed by an optional language tag (e.g. ```md).
+// Content is auto-dedented based on the closing ```'s column position.
+// Sets l.RawStringLang to the language tag (or empty string).
+func (l *Lexer) readRawString() string {
+	// Skip the three opening backticks (l.ch is on the first `)
+	l.readChar() // move to second `
+	l.readChar() // move to third `
+	l.readChar() // move past third `
+
+	// Read optional language tag (letters/digits until newline or whitespace).
+	var lang strings.Builder
+	for l.ch != '\n' && l.ch != 0 && l.ch != ' ' && l.ch != '\t' && l.ch != '\r' {
+		lang.WriteByte(l.ch)
+		l.readChar()
+	}
+
+	// Skip the rest of the opening line (whitespace after lang tag).
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\r' {
+		l.readChar()
+	}
+	// Skip the newline after opening backticks.
+	if l.ch == '\n' {
+		l.line++
+		l.column = 0
+		l.readChar()
+	}
+
+	// Read content until closing ```.
+	var sb strings.Builder
+	for l.ch != 0 {
+		if l.ch == '`' && l.peekIsTripleBacktick() {
+			break
+		}
+		if l.ch == '\n' {
+			l.line++
+			l.column = 0
+		}
+		sb.WriteByte(l.ch)
+		l.readChar()
+	}
+
+	// The closing ``` column is the baseline for dedenting.
+	baseline := l.column - 1
+
+	// Skip the three closing backticks.
+	l.readChar() // skip first `
+	l.readChar() // skip second `
+	l.readChar() // skip third `
 
 	raw := sb.String()
-	if isMultiLine {
-		return dedentString(raw, baseline)
+	return lang.String() + "\n" + dedentRawString(raw, baseline)
+}
+
+// peekIsTripleBacktick checks if the current char and next two chars form ```.
+func (l *Lexer) peekIsTripleBacktick() bool {
+	if l.ch != '`' {
+		return false
 	}
-	return raw
+	if l.readPosition >= len(l.input) {
+		return false
+	}
+	if l.input[l.readPosition] != '`' {
+		return false
+	}
+	if l.readPosition+1 >= len(l.input) {
+		return false
+	}
+	return l.input[l.readPosition+1] == '`'
+}
+
+// dedentRawString strips baseline indentation from a raw string's content.
+// Removes the trailing line (whitespace before closing ```), and strips
+// up to baseline leading spaces from each remaining line.
+func dedentRawString(raw string, baseline int) string {
+	lines := strings.Split(raw, "\n")
+
+	// Remove the last line (whitespace before closing ```).
+	if len(lines) > 0 {
+		lines = lines[:len(lines)-1]
+	}
+
+	// Strip baseline indentation from each line.
+	for i, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		strip := baseline
+		if strip > len(line) {
+			strip = len(line)
+		}
+		j := 0
+		for j < strip && j < len(line) && line[j] == ' ' {
+			j++
+		}
+		lines[i] = line[j:]
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // readNumber reads an integer or float literal. Handles numbers starting
@@ -292,43 +379,6 @@ func (l *Lexer) readNumber() token.Token {
 	return tok
 }
 
-// dedentString strips baseline indentation from a multi-line string's
-// raw content. Removes the first line if empty (right after opening quote's
-// newline), removes the trailing line (whitespace before closing quote),
-// and strips up to baseline leading spaces from each remaining line.
-// Empty lines are preserved as empty.
-func dedentString(raw string, baseline int) string {
-	lines := strings.Split(raw, "\n")
-
-	// Remove the first line if it's empty (opening " followed by newline).
-	if len(lines) > 0 && lines[0] == "" {
-		lines = lines[1:]
-	}
-
-	// Remove the last line (whitespace before closing quote).
-	if len(lines) > 0 {
-		lines = lines[:len(lines)-1]
-	}
-
-	// Strip baseline indentation from each line.
-	for i, line := range lines {
-		if len(line) == 0 {
-			continue
-		}
-		strip := baseline
-		if strip > len(line) {
-			strip = len(line)
-		}
-		// Only strip space characters (don't strip content).
-		j := 0
-		for j < strip && j < len(line) && line[j] == ' ' {
-			j++
-		}
-		lines[i] = line[j:]
-	}
-
-	return strings.Join(lines, "\n")
-}
 
 // isLetter returns true for ASCII letters and underscore.
 // Underscores are allowed in identifiers (e.g., web_search).

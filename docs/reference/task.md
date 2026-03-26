@@ -28,11 +28,11 @@ task write_report {
 
 task review_code {
   agent  = reviewer
-  prompt = "
+  prompt = ```
     Review the following code for:
     - Security vulnerabilities
     - Performance issues
     - Code style violations
-    "
+    ```
 }
 ```

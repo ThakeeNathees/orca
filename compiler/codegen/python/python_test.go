@@ -25,6 +25,16 @@ func TestExprToPython(t *testing.T) {
 			expected: `"say \"hi\""`,
 		},
 		{
+			name:     "raw string with lang",
+			expr:     &ast.StringLiteral{Value: "hello world", Lang: "md"},
+			expected: `"hello world"`,
+		},
+		{
+			name:     "raw string multiline",
+			expr:     &ast.StringLiteral{Value: "line one\nline two", Lang: "py"},
+			expected: "\"line one\\nline two\"",
+		},
+		{
 			name:     "integer literal",
 			expr:     &ast.IntegerLiteral{Value: 42},
 			expected: "42",

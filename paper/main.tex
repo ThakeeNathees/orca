@@ -44,6 +44,7 @@
   morecomment=[l]{//},
   morecomment=[l]{\#},
   morestring=[b]",
+  morestring=[s]{```}{```},
   sensitive=true,
 }
 
@@ -295,10 +296,10 @@ tool web_search {
 agent researcher {
   model   = gpt4
   tools   = [web_search]
-  persona = "
+  persona = ```
     You research topics thoroughly
     and return structured findings.
-    "
+    ```
 }
 
 agent writer {
@@ -530,25 +531,28 @@ The lexer recognizes 39 token types organized into categories:
   \item \textbf{Delimiters}: braces, brackets, parentheses, comma, colon.
 \end{itemize}
 
-\noindent\textbf{String handling.} The lexer supports escape sequences
-(\texttt{\textbackslash n}, \texttt{\textbackslash t},
-\texttt{\textbackslash\textbackslash},
-\texttt{\textbackslash"}), line continuation with trailing
-\texttt{\textbackslash}, and multi-line string auto-dedenting. For
-multi-line strings, the baseline indentation is determined by the column
-position of the closing quote, and leading whitespace up to that column
-is stripped from each line. This allows developers to write:
+\noindent\textbf{String handling.} Orca has two string types.
+\emph{Double-quoted strings} (\texttt{"..."}) are single-line and support
+escape sequences (\texttt{\textbackslash n}, \texttt{\textbackslash t},
+\texttt{\textbackslash\textbackslash}, \texttt{\textbackslash"}).
+\emph{Raw strings} use triple backticks (\texttt{```...```}) for
+multi-line content with an optional language tag (e.g.
+\texttt{```md}, \texttt{```py}). The closing triple backtick's column
+position defines the baseline indentation, and leading whitespace up to
+that column is stripped from each line. This allows developers to write:
 
 \begin{lstlisting}
 agent researcher {
-  persona = "
+  persona = ```md
     You research topics thoroughly.
     Always cite your sources.
-    "
+    ```
 }
 \end{lstlisting}
 
-\noindent without the indentation leaking into the string value.
+\noindent without the indentation leaking into the string value. The
+language tag enables embedded syntax highlighting in editors and is
+stored on the AST node for potential use by code generation backends.
 
 \subsection{Parser}
 \label{sec:compiler:parser}

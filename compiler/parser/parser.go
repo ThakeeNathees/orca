@@ -6,6 +6,7 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
@@ -427,6 +428,13 @@ func (p *Parser) parsePrimary() ast.Expression {
 	switch p.curToken.Type {
 	case token.STRING:
 		expr := &ast.StringLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
+		p.nextToken()
+		return expr
+
+	case token.RAWSTRING:
+		// Raw string literal is "lang\ncontent" — split on first newline.
+		lang, content, _ := strings.Cut(p.curToken.Literal, "\n")
+		expr := &ast.StringLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: content, Lang: lang}
 		p.nextToken()
 		return expr
 
