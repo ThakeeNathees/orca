@@ -266,18 +266,40 @@ Orca's design is guided by five principles:
 \subsection{Syntax Overview}
 \label{sec:language:syntax}
 
-Every Orca construct is a \textbf{block}: a keyword identifying the block
-type, a user-chosen name, and a brace-delimited body of key-value
-assignments:
+The syntax of Orca is defined by the following grammar:
 
-\begin{lstlisting}
-keyword name {
-  key1 = value1
-  key2 = value2
-}
-\end{lstlisting}
+\begin{definition}[Orca Grammar]\label{def:grammar}
+A program $P$ is defined by the grammar:
+\begin{align}
+  \mathit{Program}   &::= \mathit{Block}^* \\
+  \mathit{Block}     &::= \mathit{BlockType} \;\; \mathit{Ident} \;\; \texttt{\{} \;\; \mathit{Field}^* \;\; \texttt{\}} \\
+  \mathit{BlockType} &::= \texttt{model} \mid \texttt{agent} \mid \texttt{tool} \mid \texttt{input} \nonumber \\
+                     &\quad\mid \texttt{output} \mid \texttt{let} \mid \texttt{workflow} \nonumber \\
+                     &\quad\mid \texttt{cron} \mid \texttt{event} \mid \texttt{webhook} \\
+  \mathit{Field}     &::= \mathit{Ident} \;\; \texttt{=} \;\; \mathit{Expr} \\
+  \mathit{Expr}      &::= \mathit{Literal} \mid \mathit{Ident} \mid \mathit{List} \mid \mathit{FlowExpr} \nonumber \\
+                     &\quad\mid \mathit{Expr}\texttt{.}\mathit{Ident} \nonumber \\
+                     &\quad\mid \mathit{Expr}\texttt{[}\mathit{Expr}\texttt{]} \\
+  \mathit{Literal}   &::= \mathit{String} \mid \mathit{Number} \mid \mathit{Bool} \\
+  \mathit{String}    &::= \texttt{"} \; (\mathit{char} \mid \texttt{\$\{} \mathit{Expr} \texttt{\}})^* \; \texttt{"} \nonumber \\
+                     &\quad\mid \texttt{```} \; \mathit{char}^* \; \texttt{```} \\
+  \mathit{List}      &::= \texttt{[} \; (\mathit{Expr} \; (\texttt{,} \; \mathit{Expr})^*)? \; \texttt{]} \\
+  \mathit{FlowExpr}  &::= \mathit{Expr} \; (\texttt{->} \; \mathit{Expr})^+
+\end{align}
+\end{definition}
 
-Orca defines seven block types, each corresponding to a component of an
+\noindent where $\mathit{Ident}$ denotes an identifier,
+$\mathit{Expr}\texttt{.}\mathit{Ident}$ is member access (e.g.\
+\texttt{builtins.web\_search}),
+$\mathit{Expr}\texttt{[}\mathit{Expr}\texttt{]}$ is subscript access,
+$\texttt{\$\{}\mathit{Expr}\texttt{\}}$ is string interpolation within
+double-quoted strings, and \texttt{```} delimiters denote raw
+multi-line strings. $\mathit{FlowExpr}$ defines agent sequencing in
+workflows using the arrow operator.
+
+Every construct is a \textbf{block}: a keyword identifying the block type,
+a user-chosen name, and a brace-delimited body of key-value assignments.
+Orca defines ten block types, each corresponding to a component of an
 agent system. Figure~\ref{fig:full-example} shows a complete Orca program.
 
 \begin{figure}[t]

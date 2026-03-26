@@ -46,7 +46,7 @@ func (b *Backend) generateMain() string {
 				s.WriteString("\n")
 				fmt.Fprintf(&s, "%s = %s  # %s\n",
 					assign.Name,
-					python.ExprToPython(assign.Value),
+					python.OrcaToPythonExpression(assign.Value),
 					codegen.SourceComment(block.SourceFile, assign.TokenStart.Line))
 			}
 		}
@@ -103,9 +103,9 @@ func (b *Backend) collectLets() []*ast.BlockStatement {
 
 func (b *Backend) writeImports(s *strings.Builder, providers []string) {
 	for _, p := range providers {
-		if imp, ok := providerImport[p]; ok {
+		if info, ok := providerRegistry[p]; ok {
 			s.WriteString("\n")
-			s.WriteString(imp)
+			s.WriteString(info.Import)
 			s.WriteString("\n")
 		}
 	}
@@ -139,8 +139,8 @@ func writeModel(s *strings.Builder, block *ast.BlockStatement) {
 		}
 	}
 
-	class := providerClass[provider]
-	if class == "" {
+	info, ok := providerRegistry[provider]
+	if !ok {
 		return
 	}
 
@@ -151,7 +151,7 @@ func writeModel(s *strings.Builder, block *ast.BlockStatement) {
 	}
 
 	fmt.Fprintf(s, "%s = %s(%s)  # %s\n",
-		block.Name, class, strings.Join(params, ", "),
+		block.Name, info.Class, strings.Join(params, ", "),
 		codegen.SourceComment(block.SourceFile, block.TokenStart.Line))
 }
 
@@ -181,7 +181,8 @@ func providerDeps(providers []string) []string {
 	seen := make(map[string]bool)
 	var deps []string
 	for _, p := range providers {
-		if dep, ok := providerDep[p]; ok && !seen[dep] {
+		if info, ok := providerRegistry[p]; ok && !seen[info.Dep] {
+			dep := info.Dep
 			deps = append(deps, dep)
 			seen[dep] = true
 		}
