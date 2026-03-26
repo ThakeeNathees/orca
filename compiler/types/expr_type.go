@@ -56,6 +56,11 @@ func identType(ident *ast.Identifier, symbols *SymbolTable) Type {
 // (e.g. gpt4.model_name). Looks up the object's type, then finds
 // the member's type in the corresponding block schema.
 func memberAccessType(ma *ast.MemberAccess, symbols *SymbolTable) Type {
+	// Incomplete member access (e.g. "gpt4." while typing).
+	if ma.Member == "" {
+		return TypeOf("any")
+	}
+
 	objType := ExprType(ma.Object, symbols)
 	if objType.Kind != BlockRef {
 		return TypeOf("any")

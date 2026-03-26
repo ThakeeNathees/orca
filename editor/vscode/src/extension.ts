@@ -18,6 +18,7 @@ function createClient(): LanguageClient {
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "orca" }],
+    outputChannel: outputChannel,
   };
 
   return new LanguageClient(
@@ -28,7 +29,13 @@ function createClient(): LanguageClient {
   );
 }
 
+// Shared output channel so restarts don't create duplicate entries.
+let outputChannel: vscode.OutputChannel | undefined;
+
 export function activate(context: vscode.ExtensionContext) {
+  outputChannel = vscode.window.createOutputChannel("Orca Language Server");
+  context.subscriptions.push(outputChannel);
+
   client = createClient();
   client.start();
 

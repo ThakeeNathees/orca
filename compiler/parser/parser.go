@@ -382,17 +382,11 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	for token.Precedence(p.curToken.Type) > precedence {
 		if p.curToken.Type == token.DOT {
 			left = p.parseMemberAccess(left)
-			if left == nil {
-				return nil
-			}
 			continue
 		}
 
 		if p.curToken.Type == token.LBRACKET {
 			left = p.parseSubscription(left)
-			if left == nil {
-				return nil
-			}
 			continue
 		}
 
@@ -509,12 +503,24 @@ func (p *Parser) parsePrimary() ast.Expression {
 // parseMemberAccess parses a dot access: object.member.
 // The dot token must be the current token. The right side must be an identifier.
 func (p *Parser) parseMemberAccess(object ast.Expression) *ast.MemberAccess {
+	dotToken := p.curToken
 	p.nextToken() // consume the dot
 
 	if !token.IsIdentLike(p.curToken.Type) {
 		p.addError(fmt.Sprintf("expected member name after '.', got %s",
 			token.Describe(p.curToken.Type)))
-		return nil
+		// Return a partial MemberAccess with empty Member so the AST is
+		// never nil. This allows the analyzer and LSP to work with
+		// incomplete expressions (e.g. "gpt4." while the user is typing).
+		return &ast.MemberAccess{
+			BaseNode: ast.BaseNode{
+				TokenStart: object.Start(),
+				TokenEnd:   dotToken,
+			},
+			Object: object,
+			Dot:    dotToken,
+			Member: "",
+		}
 	}
 
 	ma := &ast.MemberAccess{
@@ -523,6 +529,7 @@ func (p *Parser) parseMemberAccess(object ast.Expression) *ast.MemberAccess {
 			TokenEnd:   p.curToken,
 		},
 		Object: object,
+		Dot:    dotToken,
 		Member: p.curToken.Literal,
 	}
 	p.nextToken() // consume the member identifier
@@ -532,17 +539,35 @@ func (p *Parser) parseMemberAccess(object ast.Expression) *ast.MemberAccess {
 // parseSubscription parses an index access: object[index].
 // The '[' token must be the current token. The index is any expression.
 func (p *Parser) parseSubscription(object ast.Expression) *ast.Subscription {
+	openBracket := p.curToken
 	p.nextToken() // consume the [
 
 	index := p.parseExpression(token.PrecLowest)
 	if index == nil {
-		return nil
+		// Return a partial Subscription with nil Index so the AST is never
+		// nil. The analyzer will skip validation for nil sub-expressions.
+		return &ast.Subscription{
+			BaseNode: ast.BaseNode{
+				TokenStart: object.Start(),
+				TokenEnd:   openBracket,
+			},
+			Object: object,
+			Index:  nil,
+		}
 	}
 
 	if p.curToken.Type != token.RBRACKET {
 		p.addError(fmt.Sprintf("expected ']' to close subscript, got %s",
 			token.Describe(p.curToken.Type)))
-		return nil
+		// Return partial with what we have so far.
+		return &ast.Subscription{
+			BaseNode: ast.BaseNode{
+				TokenStart: object.Start(),
+				TokenEnd:   index.End(),
+			},
+			Object: object,
+			Index:  index,
+		}
 	}
 
 	sub := &ast.Subscription{

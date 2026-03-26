@@ -150,8 +150,9 @@ func (be *BinaryExpression) expressionNode() {}
 // BaseNode spans from the object's start to the member identifier.
 type MemberAccess struct {
 	BaseNode
-	Object Expression // the left-hand side expression
-	Member string     // the member name (right of the dot)
+	Object Expression  // the left-hand side expression
+	Dot    token.Token // the '.' token, used for cursor position detection
+	Member string      // the member name (right of the dot)
 }
 
 func (ma *MemberAccess) expressionNode() {}

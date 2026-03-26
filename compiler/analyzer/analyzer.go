@@ -249,6 +249,11 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 		}}
 	}
 
+	// Skip validation if the value is nil (incomplete parse).
+	if assign.Value == nil {
+		return nil
+	}
+
 	// Check for undefined references in identifiers and member access.
 	if diags := checkReferences(assign.Value, symbols); len(diags) > 0 {
 		return diags
@@ -286,8 +291,14 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 // checkReferences recursively validates all identifier and member access
 // expressions, reporting errors for undefined block references and unknown members.
 func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	if expr == nil {
+		return nil
+	}
 	switch e := expr.(type) {
 	case *ast.Identifier:
+		if e == nil {
+			return nil
+		}
 		if _, found := symbols.Lookup(e.Value); !found {
 			return []diagnostic.Diagnostic{{
 				Severity: diagnostic.Error,
@@ -301,11 +312,17 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			}}
 		}
 	case *ast.MemberAccess:
-		// First check the object is defined.
+		if e == nil {
+			return nil
+		}
 		if diags := checkReferences(e.Object, symbols); len(diags) > 0 {
 			return diags
 		}
-		// Then check the member exists on the object's type.
+		// Skip member validation for incomplete member access (empty Member
+		// from partial parse, e.g. "gpt4." while typing).
+		if e.Member == "" {
+			return nil
+		}
 		objType := types.ExprType(e.Object, symbols)
 		if objType.Kind != types.BlockRef {
 			return nil
@@ -327,12 +344,18 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			}}
 		}
 	case *ast.ListLiteral:
+		if e == nil {
+			return nil
+		}
 		for _, elem := range e.Elements {
 			if diags := checkReferences(elem, symbols); len(diags) > 0 {
 				return diags
 			}
 		}
 	case *ast.BinaryExpression:
+		if e == nil {
+			return nil
+		}
 		if diags := checkReferences(e.Left, symbols); len(diags) > 0 {
 			return diags
 		}
@@ -340,13 +363,18 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			return diags
 		}
 	case *ast.Subscription:
+		if e == nil {
+			return nil
+		}
 		if diags := checkReferences(e.Object, symbols); len(diags) > 0 {
 			return diags
+		}
+		if e.Index == nil {
+			return nil
 		}
 		if diags := checkReferences(e.Index, symbols); len(diags) > 0 {
 			return diags
 		}
-		// List subscripts must use an integer index.
 		objType := types.ExprType(e.Object, symbols)
 		if types.IsCompatible(objType, types.Type{Kind: types.List}) {
 			idxType := types.ExprType(e.Index, symbols)
@@ -364,6 +392,9 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			}
 		}
 	case *ast.CallExpression:
+		if e == nil {
+			return nil
+		}
 		if diags := checkReferences(e.Callee, symbols); len(diags) > 0 {
 			return diags
 		}
@@ -373,6 +404,9 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			}
 		}
 	case *ast.MapLiteral:
+		if e == nil {
+			return nil
+		}
 		for _, entry := range e.Entries {
 			if diags := checkReferences(entry.Key, symbols); len(diags) > 0 {
 				return diags
@@ -382,6 +416,9 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			}
 		}
 	case *ast.SchemaExpression:
+		if e == nil {
+			return nil
+		}
 		for _, assign := range e.Assignments {
 			if diags := checkReferences(assign.Value, symbols); len(diags) > 0 {
 				return diags

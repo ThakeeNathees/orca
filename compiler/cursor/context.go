@@ -116,11 +116,12 @@ const (
 
 // NodeAt describes which AST element the cursor is pointing at.
 type NodeAt struct {
-	Kind         NodeKind
-	Block        *ast.BlockStatement // enclosing block (always set if not NoneNode)
-	Ident        *ast.Identifier     // set for IdentNode
-	MemberAccess *ast.MemberAccess   // set for MemberAccessNode
-	Assignment   *ast.Assignment     // set for FieldNameNode
+	Kind          NodeKind
+	Block         *ast.BlockStatement // enclosing block (always set if not NoneNode)
+	Ident         *ast.Identifier     // set for IdentNode
+	MemberAccess  *ast.MemberAccess   // set for MemberAccessNode
+	Assignment    *ast.Assignment     // set for FieldNameNode
+	DotCompletion bool                // true when cursor is right after '.' (needs member completions)
 }
 
 // FindNodeAt returns the AST element at the given 1-based line and column.
@@ -177,9 +178,19 @@ func findInExpr(expr ast.Expression, block *ast.BlockStatement, line, col int) N
 			return NodeAt{Kind: IdentNode, Block: block, Ident: e}
 		}
 	case *ast.MemberAccess:
-		// Check the member name token (the end token).
-		if posOnToken(e.End(), line, col) {
-			return NodeAt{Kind: MemberAccessNode, Block: block, MemberAccess: e}
+		// Check if cursor is right after the dot (dot-completion position).
+		// This covers both incomplete "gpt4." (empty Member) and recovered
+		// "gpt4.persona" where persona was on the next line.
+		dot := e.Dot
+		afterDotCol := dot.Column + len(dot.Literal)
+		if line == dot.Line && col == afterDotCol {
+			return NodeAt{Kind: MemberAccessNode, Block: block, MemberAccess: e, DotCompletion: true}
+		}
+		if e.Member != "" {
+			// Check the member name token (the end token).
+			if posOnToken(e.End(), line, col) {
+				return NodeAt{Kind: MemberAccessNode, Block: block, MemberAccess: e}
+			}
 		}
 		// Check the object side.
 		if node := findInExpr(e.Object, block, line, col); node.Kind != NoneNode {

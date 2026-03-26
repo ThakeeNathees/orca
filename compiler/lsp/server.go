@@ -71,7 +71,7 @@ func initialize(ctx *glsp.Context, params *protocol.InitializeParams) (any, erro
 			HoverProvider:      true,
 			DefinitionProvider: true,
 			CompletionProvider: &protocol.CompletionOptions{
-				TriggerCharacters: []string{"\n"},
+				TriggerCharacters: []string{"\n", "."},
 			},
 		},
 		ServerInfo: &protocol.InitializeResultServerInfo{
@@ -139,6 +139,15 @@ func textDocumentCompletion(ctx *glsp.Context, params *protocol.CompletionParams
 	// LSP positions are 0-based, compiler positions are 1-based.
 	line := int(params.Position.Line) + 1
 	col := int(params.Position.Character) + 1
+
+	// Check for member access completion (triggered by '.').
+	// Uses the AST: cursor right after '.' triggers member field completions.
+	node := cursor.FindNodeAt(doc.Program, line, col)
+	if node.Kind == cursor.MemberAccessNode && node.DotCompletion {
+		if items := completeMemberFields(doc, node.MemberAccess); len(items) > 0 {
+			return items, nil
+		}
+	}
 
 	cursorCtx := cursor.Resolve(doc.Program, line, col)
 	return completionItems(cursorCtx), nil
@@ -217,6 +226,52 @@ func completeFieldNames(ctx cursor.Context) []protocol.CompletionItem {
 	return items
 }
 
+// completeMemberFields returns completion items for an incomplete member access
+// expression (e.g. "gpt4." parsed as MemberAccess with empty Member). Resolves
+// the object's type through the AST and symbol table, then returns all schema
+// fields for that block type. Works with chained access like "foo.bar." by
+// recursively resolving the object expression's type.
+func completeMemberFields(doc *documentState, ma *ast.MemberAccess) []protocol.CompletionItem {
+	if doc.Symbols == nil {
+		return nil
+	}
+
+	// Resolve the object expression's type through the AST.
+	objType := types.ExprType(ma.Object, doc.Symbols)
+	if objType.Kind != types.BlockRef {
+		return nil
+	}
+
+	// Get the schema for that block type.
+	schema, ok := types.GetBlockSchema(string(objType.BlockType))
+	if !ok {
+		return nil
+	}
+
+	var items []protocol.CompletionItem
+	for name, field := range schema.Fields {
+		kind := protocol.CompletionItemKindProperty
+		detail := field.Type.String()
+
+		item := protocol.CompletionItem{
+			Label:  name,
+			Kind:   &kind,
+			Detail: &detail,
+		}
+
+		if field.Description != "" {
+			docContent := protocol.MarkupContent{
+				Kind:  protocol.MarkupKindPlainText,
+				Value: field.Description,
+			}
+			item.Documentation = docContent
+		}
+
+		items = append(items, item)
+	}
+
+	return items
+}
 
 // textDocumentHover returns type and definition information when the user
 // hovers over an identifier, block name, or field name.
@@ -440,12 +495,15 @@ func updateDocument(uri, text string) *documentState {
 	program := p.ParseProgram()
 
 	diags := p.Diagnostics()
-	var symbols *types.SymbolTable
+	// Always run the analyzer, even with parse errors. The parser produces
+	// partial ASTs via error recovery, so we can still resolve symbols for
+	// successfully parsed blocks. This enables completions and hover to work
+	// while the user is actively typing (which often produces transient errors).
+	result := analyzer.Analyze(program)
 	if !program.HasErrors {
-		result := analyzer.Analyze(program)
 		diags = append(diags, result.Diagnostics...)
-		symbols = result.Symbols
 	}
+	symbols := result.Symbols
 
 	doc := &documentState{Text: text, Program: program, Symbols: symbols, Diagnostics: diags}
 	documents[uri] = doc

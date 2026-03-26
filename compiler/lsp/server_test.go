@@ -214,6 +214,81 @@ func TestCompleteFieldNamesInsertText(t *testing.T) {
 	}
 }
 
+// findMemberCompletion is a test helper that finds a dot-completion position
+// at the given 0-based position and returns completion items for it.
+func findMemberCompletion(doc *documentState, line, char int) []protocol.CompletionItem {
+	node := cursor.FindNodeAt(doc.Program, line+1, char+1)
+	if node.Kind != cursor.MemberAccessNode || !node.DotCompletion {
+		return nil
+	}
+	return completeMemberFields(doc, node.MemberAccess)
+}
+
+// TestCompleteMemberAccess verifies that typing "gpt4." suggests all fields
+// of the model block.
+func TestCompleteMemberAccess(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://dotcomp.oc", text)
+
+	// Cursor is right after "gpt4." on line 6 (0-based: line 5, char 15).
+	items := findMemberCompletion(doc, 5, 15)
+	if len(items) == 0 {
+		t.Fatal("expected completion items after 'gpt4.'")
+	}
+
+	labels := make(map[string]bool)
+	for _, item := range items {
+		labels[item.Label] = true
+	}
+	// model schema has: provider, model_name, temperature.
+	if !labels["provider"] {
+		t.Error("should suggest 'provider'")
+	}
+	if !labels["model_name"] {
+		t.Error("should suggest 'model_name'")
+	}
+	if !labels["temperature"] {
+		t.Error("should suggest 'temperature'")
+	}
+}
+
+// TestCompleteMemberAccessKind verifies that member completions use Property kind.
+func TestCompleteMemberAccessKind(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://dotcomp2.oc", text)
+
+	items := findMemberCompletion(doc, 5, 15)
+	for _, item := range items {
+		if item.Kind == nil || *item.Kind != protocol.CompletionItemKindProperty {
+			t.Errorf("item %q should have Property kind", item.Label)
+		}
+	}
+}
+
+// TestCompleteMemberAccessNoResults verifies no completions for unknown identifiers.
+func TestCompleteMemberAccessNoResults(t *testing.T) {
+	text := "agent researcher {\n  model = unknown.\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://dotcomp3.oc", text)
+
+	items := findMemberCompletion(doc, 1, 18)
+	if len(items) != 0 {
+		t.Errorf("expected no completions for unknown block, got %d", len(items))
+	}
+}
+
+// TestCompleteMemberAccessDescription verifies that completions include field descriptions.
+func TestCompleteMemberAccessDescription(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://dotcomp4.oc", text)
+
+	items := findMemberCompletion(doc, 5, 15)
+	for _, item := range items {
+		if item.Detail == nil || *item.Detail == "" {
+			t.Errorf("item %q should have a type detail", item.Label)
+		}
+	}
+}
+
 // TestHoverOnBlockName verifies that hovering a block name shows its type.
 func TestHoverOnBlockName(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n}"
@@ -380,6 +455,135 @@ func TestDefinitionNoSymbols(t *testing.T) {
 	_, found := resolveDefinition(doc, 1, 1)
 	if found {
 		t.Error("expected no definition when symbols are nil")
+	}
+}
+
+// --- Crash prevention tests ---
+// These test partial/broken source that the user types mid-edit. The LSP must
+// never panic on any of these inputs — it should process them gracefully
+// (returning diagnostics, empty completions, etc.) without crashing.
+
+// TestNoCrashIncompleteMemberAccess verifies the analyzer doesn't crash on "gpt4."
+// where the member name is missing.
+func TestNoCrashIncompleteMemberAccess(t *testing.T) {
+	inputs := []struct {
+		name  string
+		input string
+	}{
+		{"dot at end of field", "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent a {\n  model = gpt4.\n  persona = \"hi\"\n}"},
+		{"dot at end of file", "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent a {\n  model = gpt4."},
+		{"double dot", "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent a {\n  model = gpt4..\n  persona = \"hi\"\n}"},
+		{"dot then brace", "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent a {\n  model = gpt4.}"},
+	}
+
+	for _, tt := range inputs {
+		t.Run(tt.name, func(t *testing.T) {
+			// Must not panic.
+			_ = updateDocument("test://crash-member.oc", tt.input)
+		})
+	}
+}
+
+// TestNoCrashIncompleteSubscription verifies the analyzer doesn't crash on
+// incomplete subscript expressions like "list[", "list[0", "list[]".
+func TestNoCrashIncompleteSubscription(t *testing.T) {
+	inputs := []struct {
+		name  string
+		input string
+	}{
+		{"open bracket only", "agent a {\n  model = i.key[\n  persona = \"hi\"\n}"},
+		{"bracket with value no close", "agent a {\n  model = i.key[0\n  persona = \"hi\"\n}"},
+		{"empty brackets", "agent a {\n  model = i.key[]\n  persona = \"hi\"\n}"},
+		{"nested incomplete", "agent a {\n  model = i.key[foo.\n  persona = \"hi\"\n}"},
+		{"bracket at end of file", "agent a {\n  model = i.key["},
+		{"subscription then dot", "agent a {\n  model = i.key[0].\n  persona = \"hi\"\n}"},
+	}
+
+	for _, tt := range inputs {
+		t.Run(tt.name, func(t *testing.T) {
+			// Must not panic.
+			_ = updateDocument("test://crash-sub.oc", tt.input)
+		})
+	}
+}
+
+// TestNoCrashMalformedExpressions verifies the analyzer doesn't crash on
+// various malformed expressions that can appear while the user is typing.
+func TestNoCrashMalformedExpressions(t *testing.T) {
+	inputs := []struct {
+		name  string
+		input string
+	}{
+		{"incomplete binary", "agent a {\n  model = gpt4 +\n  persona = \"hi\"\n}"},
+		{"missing value", "agent a {\n  model =\n  persona = \"hi\"\n}"},
+		{"missing value at eof", "agent a {\n  model ="},
+		{"incomplete list", "agent a {\n  tools = [\n  persona = \"hi\"\n}"},
+		{"incomplete map", "agent a {\n  model = {\n  persona = \"hi\"\n}"},
+		{"incomplete call", "agent a {\n  model = foo(\n  persona = \"hi\"\n}"},
+		{"just an equals", "agent a {\n  =\n}"},
+		{"keyword as field", "agent a {\n  model\n}"},
+		{"empty block", "agent a {}"},
+		{"nested member then bracket", "agent a {\n  model = gpt4.provider[\n  persona = \"hi\"\n}"},
+		{"chained dots incomplete", "agent a {\n  model = a.b.c.\n  persona = \"hi\"\n}"},
+	}
+
+	for _, tt := range inputs {
+		t.Run(tt.name, func(t *testing.T) {
+			// Must not panic.
+			_ = updateDocument("test://crash-expr.oc", tt.input)
+		})
+	}
+}
+
+// TestNoCrashCompletionOnPartialParse verifies that completion requests on
+// broken source don't crash.
+func TestNoCrashCompletionOnPartialParse(t *testing.T) {
+	inputs := []struct {
+		name string
+		input string
+		line int
+		char int
+	}{
+		{"dot completion", "model m {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent a {\n  model = m.\n  persona = \"hi\"\n}", 5, 13},
+		{"bracket mid-type", "agent a {\n  model = i.key[\n  persona = \"hi\"\n}", 1, 16},
+		{"empty file", "", 0, 0},
+		{"just block keyword", "model", 0, 5},
+	}
+
+	for _, tt := range inputs {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := updateDocument("test://crash-comp.oc", tt.input)
+			// Must not panic — simulate what the LSP handler does.
+			line := tt.line + 1
+			col := tt.char + 1
+			node := cursor.FindNodeAt(doc.Program, line, col)
+			if node.Kind == cursor.MemberAccessNode && node.DotCompletion {
+				_ = completeMemberFields(doc, node.MemberAccess)
+			}
+			cursorCtx := cursor.Resolve(doc.Program, line, col)
+			_ = completionItems(cursorCtx)
+		})
+	}
+}
+
+// TestNoCrashHoverOnPartialParse verifies that hover on broken source doesn't crash.
+func TestNoCrashHoverOnPartialParse(t *testing.T) {
+	inputs := []struct {
+		name  string
+		input string
+		line  int
+		char  int
+	}{
+		{"incomplete member", "model m {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent a {\n  model = m.\n  persona = \"hi\"\n}", 5, 13},
+		{"incomplete subscription", "agent a {\n  model = i.key[\n  persona = \"hi\"\n}", 1, 14},
+	}
+
+	for _, tt := range inputs {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := updateDocument("test://crash-hover.oc", tt.input)
+			// Must not panic.
+			_ = cursor.FindNodeAt(doc.Program, tt.line+1, tt.char+1)
+		})
 	}
 }
 
