@@ -448,6 +448,110 @@ func TestDefinitionMemberChained(t *testing.T) {
 	}
 }
 
+// TestDefinitionSchemaField verifies that go-to-definition on a member of an
+// inline schema expression jumps to the field assignment inside the schema.
+// e.g. cursor on "draft" in "researcher.output.draft" → schema { draft = str }.
+func TestDefinitionSchemaField(t *testing.T) {
+	text := "agent researcher {\n  persona = \"hi\"\n  output = schema {\n    draft = str\n    score = int\n  }\n}\ntask t1 {\n  agent = researcher\n  prompt = researcher.output.draft\n}"
+	doc := updateDocument("test://schema-def.oc", text)
+
+	// "draft" in "researcher.output.draft" on line 10, col 30.
+	loc, found := resolveDefinition(doc, 10, 30)
+	if !found {
+		t.Fatal("expected definition for researcher.output.draft")
+	}
+	// "draft = str" is at line 4, col 5 → LSP: line 3, char 4.
+	if loc.Range.Start.Line != 3 || loc.Range.Start.Character != 4 {
+		t.Errorf("definition at (%d, %d), want (3, 4)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
+
+// TestDefinitionSchemaFieldScore verifies go-to-definition on a second field
+// in an inline schema to make sure it's not always matching the first field.
+func TestDefinitionSchemaFieldScore(t *testing.T) {
+	text := "agent researcher {\n  persona = \"hi\"\n  output = schema {\n    draft = str\n    score = int\n  }\n}\ntask t1 {\n  agent = researcher\n  prompt = researcher.output.score\n}"
+	doc := updateDocument("test://schema-def2.oc", text)
+
+	loc, found := resolveDefinition(doc, 10, 30)
+	if !found {
+		t.Fatal("expected definition for researcher.output.score")
+	}
+	// "score = int" is at line 5, col 5 → LSP: line 4, char 4.
+	if loc.Range.Start.Line != 4 || loc.Range.Start.Character != 4 {
+		t.Errorf("definition at (%d, %d), want (4, 4)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
+
+// TestDefinitionSchemaUnknownField verifies that go-to-definition returns
+// nothing for a member that doesn't exist in the inline schema.
+func TestDefinitionSchemaUnknownField(t *testing.T) {
+	text := "agent researcher {\n  persona = \"hi\"\n  output = schema {\n    draft = str\n  }\n}\ntask t1 {\n  agent = researcher\n  prompt = researcher.output.missing\n}"
+	doc := updateDocument("test://schema-def3.oc", text)
+
+	_, found := resolveDefinition(doc, 9, 30)
+	if found {
+		t.Error("expected no definition for researcher.output.missing")
+	}
+}
+
+// TestDefinitionInputBlock verifies that go-to-definition on an input block
+// reference jumps to the input block definition.
+func TestDefinitionInputBlock(t *testing.T) {
+	text := "input topic {\n  type = schema {\n    name = str\n  }\n  desc = \"The topic\"\n}\nagent researcher {\n  persona = topic\n}"
+	doc := updateDocument("test://input-def.oc", text)
+
+	// "topic" on line 8, col 13.
+	loc, found := resolveDefinition(doc, 8, 13)
+	if !found {
+		t.Fatal("expected definition for topic reference")
+	}
+	// "input topic" — name token at line 1, col 7 → LSP: line 0, char 6.
+	if loc.Range.Start.Line != 0 || loc.Range.Start.Character != 6 {
+		t.Errorf("definition at (%d, %d), want (0, 6)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
+
+// TestDefinitionInputSchemaField verifies that go-to-definition on a member
+// of an input block's type schema jumps to the field inside the schema.
+func TestDefinitionInputSchemaField(t *testing.T) {
+	text := "input topic {\n  type = schema {\n    name = str\n    tags = list\n  }\n  desc = \"The topic\"\n}\nagent researcher {\n  persona = topic.type.name\n}"
+	doc := updateDocument("test://input-schema-def.oc", text)
+
+	// "name" in "topic.type.name" on line 9.
+	loc, found := resolveDefinition(doc, 9, 24)
+	if !found {
+		t.Fatal("expected definition for topic.type.name")
+	}
+	// "name = str" at line 3, col 5 → LSP: line 2, char 4.
+	if loc.Range.Start.Line != 2 || loc.Range.Start.Character != 4 {
+		t.Errorf("definition at (%d, %d), want (2, 4)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
+
+// TestDefinitionInputDirectMember verifies that go-to-definition on a direct
+// member of an input block resolves through the input's type schema.
+// e.g. some_input.model_name → type = schema { model_name = str }.
+func TestDefinitionInputDirectMember(t *testing.T) {
+	text := "input some_input {\n  type = schema {\n    model_name = str\n  }\n}\nmodel some_model {\n  model_name = some_input.model_name\n  provider = \"openai\"\n}"
+	doc := updateDocument("test://input-direct.oc", text)
+
+	// "model_name" in "some_input.model_name" on line 7.
+	// some_input ends at col 25, dot at 26, model_name starts at col 27.
+	loc, found := resolveDefinition(doc, 7, 27)
+	if !found {
+		t.Fatal("expected definition for some_input.model_name")
+	}
+	// "model_name = str" at line 3, col 5 → LSP: line 2, char 4.
+	if loc.Range.Start.Line != 2 || loc.Range.Start.Character != 4 {
+		t.Errorf("definition at (%d, %d), want (2, 4)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
+}
+
 // TestDefinitionNoSymbols verifies graceful handling when symbols are nil
 // (e.g. parse errors prevent analysis).
 func TestDefinitionNoSymbols(t *testing.T) {

@@ -387,60 +387,127 @@ func resolveDefinition(doc *documentState, line, col int) (protocol.Location, bo
 }
 
 // resolveMemberDefinition resolves go-to-definition for a member access expression.
-// It walks the object expression to find the target block, then locates the field
-// assignment within it. Supports chained access (e.g. a.b.c) by resolving through
-// the schema to find intermediate block types.
+// It resolves the object to either a BlockStatement or SchemaExpression, then
+// locates the member's assignment within it. Supports chained access (e.g. a.b.c)
+// by recursively resolving intermediate targets.
 func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol.Location, bool) {
-	// Resolve the object to find the target block.
-	block := resolveObjectBlock(doc, ma.Object)
-	if block == nil {
-		return protocol.Location{}, false
-	}
+	target := resolveObjectTarget(doc, ma.Object)
 
-	// Look for the field assignment in the block.
-	for _, assign := range block.Assignments {
-		if assign.Name == ma.Member {
-			return protocol.Location{Range: tokenToRange(assign.Start())}, true
+	switch t := target.(type) {
+	case *ast.BlockStatement:
+		// Look for the field assignment in the block.
+		for _, assign := range t.Assignments {
+			if assign.Name == ma.Member {
+				return protocol.Location{Range: tokenToRange(assign.Start())}, true
+			}
 		}
-	}
+		// For input blocks, members access the value schema (the "type" field),
+		// not the input block's own fields. e.g. some_input.model_name resolves
+		// through input's type = schema { model_name = str }.
+		if token.BlockName(t.TokenStart.Type) == "input" {
+			if schema := findTypeSchema(t); schema != nil {
+				for _, assign := range schema.Assignments {
+					if assign.Name == ma.Member {
+						return protocol.Location{Range: tokenToRange(assign.Start())}, true
+					}
+				}
+			}
+		}
+		// Field not assigned — fall back to the block name token so the user
+		// still navigates to the block that owns the schema field.
+		blockType := token.BlockName(t.TokenStart.Type)
+		if _, ok := types.GetFieldSchema(blockType, ma.Member); ok {
+			return protocol.Location{Range: tokenToRange(t.NameToken)}, true
+		}
 
-	// Field not assigned — fall back to the block name token so the user
-	// still navigates to the block that owns the schema field.
-	blockType := token.BlockName(block.TokenStart.Type)
-	if _, ok := types.GetFieldSchema(blockType, ma.Member); ok {
-		return protocol.Location{Range: tokenToRange(block.NameToken)}, true
+	case *ast.SchemaExpression:
+		// Look for the field assignment in the inline schema.
+		for _, assign := range t.Assignments {
+			if assign.Name == ma.Member {
+				return protocol.Location{Range: tokenToRange(assign.Start())}, true
+			}
+		}
 	}
 
 	return protocol.Location{}, false
 }
 
-// resolveObjectBlock resolves an expression to the BlockStatement it references.
-// For simple identifiers, looks up the block by name. For nested member access,
-// follows schema types to resolve the chain (e.g. in a.b, finds a's block,
-// looks up b's type in a's schema, then finds the block that b references).
-func resolveObjectBlock(doc *documentState, expr ast.Expression) *ast.BlockStatement {
+// resolveObjectTarget resolves an expression to the AST node that defines its
+// members. Returns a *ast.BlockStatement for block references (e.g. gpt4),
+// or a *ast.SchemaExpression for inline schemas (e.g. output = schema { ... }).
+// For chained access (a.b), recursively resolves the parent then finds the
+// member's value within it.
+func resolveObjectTarget(doc *documentState, expr ast.Expression) ast.Node {
 	switch e := expr.(type) {
 	case *ast.Identifier:
 		return findBlock(doc.Program, e.Value)
 
 	case *ast.MemberAccess:
 		// Resolve the parent object first.
-		parentBlock := resolveObjectBlock(doc, e.Object)
-		if parentBlock == nil {
-			return nil
-		}
+		parent := resolveObjectTarget(doc, e.Object)
+		return findMemberValue(parent, e.Member, doc)
+	}
+	return nil
+}
 
-		// Find the assignment for the member in the parent block.
-		for _, assign := range parentBlock.Assignments {
-			if assign.Name == e.Member {
-				// If the value is an identifier, resolve it as a block reference.
-				if ident, ok := assign.Value.(*ast.Identifier); ok {
-					return findBlock(doc.Program, ident.Value)
+// findMemberValue finds the assignment named `member` within a target node
+// (BlockStatement or SchemaExpression) and returns what it resolves to.
+// For identifier values, follows the reference to the block. For schema
+// expression values, returns the schema itself. Returns nil if not found.
+func findMemberValue(target ast.Node, member string, doc *documentState) ast.Node {
+	var assignments []*ast.Assignment
+
+	switch t := target.(type) {
+	case *ast.BlockStatement:
+		assignments = t.Assignments
+	case *ast.SchemaExpression:
+		assignments = t.Assignments
+	default:
+		return nil
+	}
+
+	for _, assign := range assignments {
+		if assign.Name != member {
+			continue
+		}
+		switch v := assign.Value.(type) {
+		case *ast.Identifier:
+			return findBlock(doc.Program, v.Value)
+		case *ast.SchemaExpression:
+			return v
+		}
+		return nil
+	}
+
+	// For input blocks, members access the value schema (the "type" field).
+	if block, ok := target.(*ast.BlockStatement); ok && token.BlockName(block.TokenStart.Type) == "input" {
+		if schema := findTypeSchema(block); schema != nil {
+			for _, assign := range schema.Assignments {
+				if assign.Name != member {
+					continue
+				}
+				if se, ok := assign.Value.(*ast.SchemaExpression); ok {
+					return se
 				}
 				return nil
 			}
 		}
-		return nil
+	}
+
+	return nil
+}
+
+// findTypeSchema returns the SchemaExpression from the "type" field of a block,
+// or nil if not found. Used for input blocks where `type = schema { ... }` defines
+// the value schema that members are accessed through.
+func findTypeSchema(block *ast.BlockStatement) *ast.SchemaExpression {
+	for _, assign := range block.Assignments {
+		if assign.Name == "type" {
+			if se, ok := assign.Value.(*ast.SchemaExpression); ok {
+				return se
+			}
+			return nil
+		}
 	}
 	return nil
 }
