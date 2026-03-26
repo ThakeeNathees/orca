@@ -181,7 +181,23 @@ See [CLAUDE.md](CLAUDE.md) for development conventions and detailed project stru
 
 ## References
 
-Orca is accompanied by a research paper: *"Orca: A Declarative Language for AI Agent Orchestration"* (see `paper/`).
+Orca is accompanied by a research paper: *"Orca: A Declarative Language for AI Agent Orchestration"* (see [`paper/`](paper/)).
+
+- Harrison Chase et al. (2025) *LangGraph: Multi-Actor Programs with LLMs* [online] Available at https://github.com/langchain-ai/langgraph
+
+- Sirui Hong et al. (2023) *MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework* [online] Available at https://arxiv.org/abs/2308.00352
+
+- Omar Khattab et al. (2023) *DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines* [online] Available at https://arxiv.org/abs/2310.03714
+
+- Dawei Gao et al. (2024) *AgentScope: A Flexible yet Robust Multi-Agent Platform* [online] Available at https://arxiv.org/abs/2402.14034
+
+- Mitchell Hashimoto et al. (2014) *HCL: HashiCorp Configuration Language* [online] Available at https://github.com/hashicorp/hcl
+
+- Jieyuan Wu et al. (2023) *AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation* [online] Available at https://arxiv.org/abs/2308.08155
+
+- João Moura. (2024) *CrewAI: Framework for Orchestrating Role-Playing AI Agents* [online] Available at https://github.com/crewAIInc/crewAI
+
+- Alexey Kladov. (2020) *Simple but Powerful Pratt Parsing* [online] Available at https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
 ## License
 
