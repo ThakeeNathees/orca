@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>A declarative language for AI agent orchestration.</strong><br>
-  Define agents, tools, and workflows in 20 lines — not 200.
+  A research agent-as-a-code language for expressing agentic systems as declarative programs
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@ Orca is a domain-specific language that lets you **declare** what your agent sys
 <tr>
 <td width="45%" valign="top">
 
-**Orca** (.oc)
+**Orca**
 
 ```hcl
 model claude {
@@ -35,36 +35,31 @@ model claude {
   temperature = 0.3
 }
 
-tool web_search {
-  type = "builtin"
-}
-
 agent researcher {
-  model  = claude
-  tools  = [web_search]
-  prompt = "Research topics thoroughly."
+  model   = claude
+  tools   = [builtins.web_search]
+  persona = "You're a tech trends researcher"
 }
 
 agent writer {
-  model  = claude
-  prompt = "Write reports from research."
+  model   = claude
+  persona = "You're a professional writer"
 }
 
-workflow pipeline {
+workflow search_and_write {
   flow = researcher -> writer
 }
 
-trigger daily {
-  type     = "cron"
+cron daily {
   schedule = "0 9 * * 1-5"
-  starts   = pipeline
+  run      = search_and_write
 }
 ```
 
 </td>
 <td width="55%" valign="top">
 
-**LangGraph equivalent** (Python)
+**Python**
 
 ```python
 from langchain_anthropic import ChatAnthropic
@@ -139,14 +134,14 @@ model gpt4 {
 
 agent assistant {
   model  = gpt4
-  prompt = "You are a helpful assistant."
+  persona = "You are a helpful assistant."
 }
 ```
 
 Compile it:
 
 ```bash
-./bin/orca build
+orca build
 ```
 
 This reads all `.oc` files in the current directory and generates a `build/` directory with runnable Python and LangGraph code.
@@ -165,9 +160,15 @@ The code generator is behind a `Backend` interface. Adding a new target (CrewAI,
 
 Every block type in the language — `model`, `agent`, `tool`, `task`, `workflow`, `trigger` — is defined by a **schema** that specifies its fields, types, and constraints. The analyzer validates `.oc` files against these schemas at compile time, catching errors that frameworks would only surface at runtime.
 
+## Editor Support
+
+Orca ships with a VS Code extension that provides syntax highlighting, autocomplete, and go-to-definition for `.oc` files.
+
+<img src="docs/public/vscode-extension.png" alt="VS Code extension showing syntax highlighting and autocomplete" width="700">
+
 ## Contributing
 
-The compiler has 570+ tests across all pipeline stages. TDD is enforced — no code without a failing test first.
+The compiler has 570+ tests across all pipeline stages. TDD is enforced.
 
 ```bash
 cd compiler
