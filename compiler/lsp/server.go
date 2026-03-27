@@ -243,7 +243,7 @@ func completeMemberFields(doc *documentState, ma *ast.MemberAccess) []protocol.C
 	}
 
 	// Get the schema for that block type.
-	schema, ok := types.GetBlockSchema(string(objType.BlockType))
+	schema, ok := types.LookupBlockSchema(objType)
 	if !ok {
 		return nil
 	}
@@ -288,8 +288,11 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 
 	switch node.Kind {
 	case cursor.BlockNameNode:
-		blockType := token.BlockName(node.Block.TokenStart.Type)
-		content := fmt.Sprintf("```orca\n%s %s\n```", blockType, node.Block.Name)
+		kind, ok := token.TokenTypeToBlockKind(node.Block.TokenStart.Type)
+		if !ok {
+			return nil, nil
+		}
+		content := fmt.Sprintf("```orca\n%s %s\n```", kind.String(), node.Block.Name)
 		return &protocol.Hover{
 			Contents: protocol.MarkupContent{Kind: protocol.MarkupKindMarkdown, Value: content},
 		}, nil
@@ -302,7 +305,7 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 		if !found {
 			return nil, nil
 		}
-		content := fmt.Sprintf("```orca\n%s %s\n```", sym.Type.BlockType, node.Ident.Value)
+		content := fmt.Sprintf("```orca\n%s %s\n```", sym.Type.String(), node.Ident.Value)
 		return &protocol.Hover{
 			Contents: protocol.MarkupContent{Kind: protocol.MarkupKindMarkdown, Value: content},
 		}, nil
@@ -315,15 +318,18 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 		if objType.Kind != types.BlockRef {
 			return nil, nil
 		}
-		field, found := types.GetFieldSchema(string(objType.BlockType), node.MemberAccess.Member)
+		field, found := types.LookupFieldSchema(objType, node.MemberAccess.Member)
 		if !found {
 			return nil, nil
 		}
 		return fieldHover(node.MemberAccess.Member, field), nil
 
 	case cursor.FieldNameNode:
-		blockType := token.BlockName(node.Block.TokenStart.Type)
-		field, found := types.GetFieldSchema(blockType, node.Assignment.Name)
+		kind, ok := token.TokenTypeToBlockKind(node.Block.TokenStart.Type)
+		if !ok {
+			return nil, nil
+		}
+		field, found := types.GetFieldSchema(kind, node.Assignment.Name)
 		if !found {
 			return nil, nil
 		}
@@ -404,7 +410,8 @@ func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol
 		// For input blocks, members access the value schema (the "type" field),
 		// not the input block's own fields. e.g. some_input.model_name resolves
 		// through input's type = schema { model_name = str }.
-		if token.BlockName(t.TokenStart.Type) == "input" {
+		kind, ok := token.TokenTypeToBlockKind(t.TokenStart.Type)
+		if ok && kind == token.BlockInput {
 			if schema := findTypeSchema(t); schema != nil {
 				for _, assign := range schema.Assignments {
 					if assign.Name == ma.Member {
@@ -415,8 +422,7 @@ func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol
 		}
 		// Field not assigned — fall back to the block name token so the user
 		// still navigates to the block that owns the schema field.
-		blockType := token.BlockName(t.TokenStart.Type)
-		if _, ok := types.GetFieldSchema(blockType, ma.Member); ok {
+		if _, ok := types.GetFieldSchema(kind, ma.Member); ok {
 			return protocol.Location{Range: tokenToRange(t.NameToken)}, true
 		}
 
@@ -480,16 +486,19 @@ func findMemberValue(target ast.Node, member string, doc *documentState) ast.Nod
 	}
 
 	// For input blocks, members access the value schema (the "type" field).
-	if block, ok := target.(*ast.BlockStatement); ok && token.BlockName(block.TokenStart.Type) == "input" {
-		if schema := findTypeSchema(block); schema != nil {
-			for _, assign := range schema.Assignments {
-				if assign.Name != member {
-					continue
+	if block, ok := target.(*ast.BlockStatement); ok {
+		kind, ok := token.TokenTypeToBlockKind(block.TokenStart.Type)
+		if ok && kind == token.BlockInput {
+			if schema := findTypeSchema(block); schema != nil {
+				for _, assign := range schema.Assignments {
+					if assign.Name != member {
+						continue
+					}
+					if se, ok := assign.Value.(*ast.SchemaExpression); ok {
+						return se
+					}
+					return nil
 				}
-				if se, ok := assign.Value.(*ast.SchemaExpression); ok {
-					return se
-				}
-				return nil
 			}
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
+	"github.com/thakee/orca/compiler/token"
 )
 
 // parseProgram is a test helper that parses input and fails on parse errors.
@@ -59,11 +60,11 @@ func TestResolveBlockBody(t *testing.T) {
 		line      int
 		col       int
 		expect    CursorPosition
-		blockType string
+		blockKind token.BlockKind
 		blockName string
 	}{
-		{"start of field line", 2, 1, BlockBody, "model", "gpt4"},
-		{"on closing brace line", 3, 1, BlockBody, "model", "gpt4"},
+		{"start of field line", 2, 1, BlockBody, token.BlockModel, "gpt4"},
+		{"on closing brace line", 3, 1, BlockBody, token.BlockModel, "gpt4"},
 	}
 
 	for _, tt := range tests {
@@ -75,8 +76,8 @@ func TestResolveBlockBody(t *testing.T) {
 			if ctx.Block == nil {
 				t.Fatalf("Block should not be nil")
 			}
-			if ctx.BlockType != tt.blockType {
-				t.Errorf("BlockType = %q, want %q", ctx.BlockType, tt.blockType)
+			if ctx.BlockKind != tt.blockKind {
+				t.Errorf("BlockKind = %v, want %v", ctx.BlockKind, tt.blockKind)
 			}
 			if ctx.Block.Name != tt.blockName {
 				t.Errorf("Block.Name = %q, want %q", ctx.Block.Name, tt.blockName)
@@ -290,6 +291,162 @@ func TestFindNodeAtNilProgram(t *testing.T) {
 	node := FindNodeAt(nil, 1, 1)
 	if node.Kind != NoneNode {
 		t.Errorf("Kind = %v, want NoneNode for nil program", node.Kind)
+	}
+}
+
+// TestFindNodeAtBinaryExpression verifies that identifiers inside binary
+// expressions (e.g. a -> b) are found via findInExpr.
+func TestFindNodeAtBinaryExpression(t *testing.T) {
+	// graph = a -> a produces BinaryExpression with ident nodes.
+	// Line layout:
+	// 1: model gpt4 {
+	// 2:   provider = "openai"
+	// 3: }
+	// 4: agent a {
+	// 5:   model = "gpt-4o"
+	// 6:   persona = "hi"
+	// 7: }
+	// 8: workflow w {
+	// 9:   name = "test"
+	// 10:  graph = a -> a
+	// 11: }
+	input := "model gpt4 {\n  provider = \"openai\"\n}\nagent a {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n}\nworkflow w {\n  name = \"test\"\n  graph = a -> a\n}"
+	program := parseProgram(t, input)
+
+	tests := []struct {
+		name  string
+		line  int
+		col   int
+		kind  NodeKind
+		ident string
+	}{
+		// "graph = a -> a": graph at col 3, a at col 11, -> at col 13, a at col 16
+		{"left of arrow", 10, 11, IdentNode, "a"},
+		{"right of arrow", 10, 16, IdentNode, "a"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := FindNodeAt(program, tt.line, tt.col)
+			if node.Kind != tt.kind {
+				t.Errorf("Kind = %v, want %v", node.Kind, tt.kind)
+			}
+			if node.Ident == nil || node.Ident.Value != tt.ident {
+				t.Errorf("expected ident %q", tt.ident)
+			}
+		})
+	}
+}
+
+// TestFindNodeAtSubscription verifies that identifiers inside subscription
+// expressions (e.g. items[0]) are found via findInExpr.
+func TestFindNodeAtSubscription(t *testing.T) {
+	// tools[0] produces Subscription with ident "tools" as object.
+	// Line layout:
+	// 1: let {
+	// 2:   items = tools[0]
+	// 3: }
+	input := "tool web_search {\n  provider = \"tavily\"\n}\nlet {\n  items = web_search[0]\n}"
+	program := parseProgram(t, input)
+
+	// "web_search" starts at col 11 on line 5
+	node := FindNodeAt(program, 5, 11)
+	if node.Kind != IdentNode {
+		t.Errorf("Kind = %v, want IdentNode (subscription object)", node.Kind)
+	}
+	if node.Ident == nil || node.Ident.Value != "web_search" {
+		t.Errorf("expected ident 'web_search'")
+	}
+}
+
+// TestFindNodeAtMapLiteral verifies that identifiers inside map literal
+// values are found via findInExpr.
+func TestFindNodeAtMapLiteral(t *testing.T) {
+	// config = {"key": gpt4} produces MapLiteral with ident "gpt4" as a value.
+	input := "model gpt4 {\n  provider = \"openai\"\n}\nlet {\n  config = {\"key\": gpt4}\n}"
+	program := parseProgram(t, input)
+
+	// "gpt4" in the map value on line 5.
+	// config = {"key": gpt4}
+	// col:  3         15   20
+	node := FindNodeAt(program, 5, 21)
+	if node.Kind != IdentNode {
+		t.Errorf("Kind = %v, want IdentNode (map value)", node.Kind)
+	}
+	if node.Ident == nil || node.Ident.Value != "gpt4" {
+		t.Errorf("expected ident 'gpt4'")
+	}
+}
+
+// TestFindNodeAtCallExpression verifies that identifiers inside call
+// expressions (callee and args) are found via findInExpr.
+func TestFindNodeAtCallExpression(t *testing.T) {
+	// tools = foo(bar) produces CallExpression.
+	input := "model gpt4 {\n  provider = \"openai\"\n}\nlet {\n  result = gpt4(gpt4)\n}"
+	program := parseProgram(t, input)
+
+	tests := []struct {
+		name  string
+		line  int
+		col   int
+		kind  NodeKind
+		ident string
+	}{
+		// "result = gpt4(gpt4)": gpt4 callee at col 12, arg gpt4 at col 17
+		{"callee", 5, 12, IdentNode, "gpt4"},
+		{"argument", 5, 17, IdentNode, "gpt4"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := FindNodeAt(program, tt.line, tt.col)
+			if node.Kind != tt.kind {
+				t.Errorf("Kind = %v, want %v", node.Kind, tt.kind)
+			}
+			if node.Ident == nil || node.Ident.Value != tt.ident {
+				t.Errorf("expected ident %q", tt.ident)
+			}
+		})
+	}
+}
+
+// TestFindNodeAtDotCompletion verifies that placing the cursor right after
+// a dot triggers DotCompletion mode.
+func TestFindNodeAtDotCompletion(t *testing.T) {
+	input := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4.provider\n  persona = \"hi\"\n}"
+	program := parseProgram(t, input)
+
+	// Dot is at col 15, cursor right after dot is col 16.
+	node := FindNodeAt(program, 5, 16)
+	if node.Kind != MemberAccessNode {
+		t.Errorf("Kind = %v, want MemberAccessNode", node.Kind)
+	}
+}
+
+// TestResolveNilProgram verifies that Resolve handles nil program gracefully.
+func TestResolveNilProgram(t *testing.T) {
+	ctx := Resolve(nil, 1, 1)
+	if ctx.Position != TopLevel {
+		t.Errorf("Position = %v, want TopLevel for nil program", ctx.Position)
+	}
+}
+
+// TestResolveUserSchemaBlock verifies that Resolve inside a user-defined
+// schema block looks up the schema by block name.
+func TestResolveUserSchemaBlock(t *testing.T) {
+	input := "schema vpc_data_t {\n  region = str\n  count = int\n\n}"
+	program := parseProgram(t, input)
+
+	// Line 4 is a blank line inside the block — BlockBody position.
+	ctx := Resolve(program, 4, 1)
+	if ctx.Position != BlockBody {
+		t.Errorf("Position = %v, want BlockBody", ctx.Position)
+	}
+	if ctx.Block == nil {
+		t.Fatal("Block should not be nil")
+	}
+	if ctx.BlockKind != token.BlockSchema {
+		t.Errorf("BlockKind = %v, want BlockSchema", ctx.BlockKind)
 	}
 }
 

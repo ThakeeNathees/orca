@@ -3,8 +3,6 @@
 // and source position (line/column) for error reporting and source mapping.
 package token
 
-import "strings"
-
 // TokenType identifies what kind of token this is (keyword, literal, operator, etc.).
 type TokenType string
 
@@ -66,6 +64,54 @@ const (
 	PrecProduct     // * /
 	PrecAccess      // .
 )
+
+// BlockKind identifies the kind of a top-level block or a primitive/built-in type.
+type BlockKind int
+
+const (
+	BlockModel     BlockKind = iota // model block
+	BlockAgent                      // agent block
+	BlockTool                       // tool block
+	BlockTask                       // task block
+	BlockKnowledge                  // knowledge block
+	BlockWorkflow                   // workflow block
+	BlockTrigger                    // trigger block
+	BlockInput                      // input block
+	BlockSchema                     // schema block / user-defined schema types
+	BlockLet                        // let block
+
+	// Primitive types
+	BlockStr   // str
+	BlockInt   // int
+	BlockFloat // float
+	BlockBool  // bool
+	BlockAny   // any (wildcard type)
+	BlockNull  // null
+)
+
+// blockKindStrings maps each BlockKind to its string representation.
+// Indexed directly by BlockKind (contiguous iota values).
+var blockKindStrings = [...]string{
+	BlockModel: "model", BlockAgent: "agent", BlockTool: "tool",
+	BlockTask: "task", BlockKnowledge: "knowledge", BlockWorkflow: "workflow",
+	BlockTrigger: "trigger", BlockInput: "input", BlockSchema: "schema",
+	BlockLet: "let", BlockStr: "str", BlockInt: "int", BlockFloat: "float",
+	BlockBool: "bool", BlockAny: "any", BlockNull: "null",
+}
+
+// String returns the string representation of a BlockKind.
+func (k BlockKind) String() string {
+	if int(k) >= 0 && int(k) < len(blockKindStrings) {
+		return blockKindStrings[k]
+	}
+	return "unknown"
+}
+
+// BlockKinds lists all block kinds (not primitives).
+var BlockKinds = []BlockKind{
+	BlockModel, BlockAgent, BlockTool, BlockTask, BlockKnowledge,
+	BlockWorkflow, BlockTrigger, BlockInput, BlockSchema, BlockLet,
+}
 
 // Token represents a single lexical token with its type, literal text,
 // and source position. Line and Column enable source mapping from generated
@@ -138,7 +184,7 @@ func Describe(t TokenType) string {
 		return "'@'"
 	default:
 		// Keywords like MODEL, AGENT, etc.
-		if IsBlockKeyword(t) {
+		if IsTokenBlockName(t) {
 			return "'" + string(t) + "'"
 		}
 		return string(t)
@@ -172,9 +218,9 @@ func LookupIdent(ident string) TokenType {
 	return IDENT
 }
 
-// IsBlockKeyword returns true if the token type introduces a block
-// (model, agent, tool, task, knowledge, trigger, workflow).
-func IsBlockKeyword(t TokenType) bool {
+// IsTokenBlockName returns true if the token type introduces a block
+// (model, agent, tool, task, knowledge, trigger, workflow, input, schema, let).
+func IsTokenBlockName(t TokenType) bool {
 	switch t {
 	case MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL, INPUT, SCHEMA, LET:
 		return true
@@ -182,14 +228,32 @@ func IsBlockKeyword(t TokenType) bool {
 	return false
 }
 
-// BlockName returns the lowercase block type name for a block keyword token
-// (e.g. MODEL → "model"). Used for schema lookups. Returns empty string
-// for non-block tokens.
-func BlockName(t TokenType) string {
-	if IsBlockKeyword(t) {
-		return strings.ToLower(string(t))
+// TokenTypeToBlockKind returns the BlockKind for a block keyword token type.
+func TokenTypeToBlockKind(t TokenType) (BlockKind, bool) {
+	switch t {
+	case MODEL:
+		return BlockModel, true
+	case AGENT:
+		return BlockAgent, true
+	case TOOL:
+		return BlockTool, true
+	case TASK:
+		return BlockTask, true
+	case KNOWLEDGE:
+		return BlockKnowledge, true
+	case WORKFLOW:
+		return BlockWorkflow, true
+	case TRIGGER:
+		return BlockTrigger, true
+	case INPUT:
+		return BlockInput, true
+	case SCHEMA:
+		return BlockSchema, true
+	case LET:
+		return BlockLet, true
+	default:
+		return 0, false
 	}
-	return ""
 }
 
 // IsIdentLike returns true if the token type can serve as an identifier
@@ -197,7 +261,7 @@ func BlockName(t TokenType) string {
 // are valid key names inside blocks — e.g., `model = gpt4` inside an
 // agent block uses "model" as a key.
 func IsIdentLike(t TokenType) bool {
-	return t == IDENT || t == NULL || IsBlockKeyword(t)
+	return t == IDENT || t == NULL || IsTokenBlockName(t)
 }
 
 // Precedence returns the binding power of a token type when used as a

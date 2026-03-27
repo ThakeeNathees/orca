@@ -3,6 +3,8 @@
 // these schemas to validate assignments in .oc files.
 package types
 
+import "github.com/thakee/orca/compiler/token"
+
 // FieldSchema describes the expected type and constraints for a single
 // field within a block.
 type FieldSchema struct {
@@ -27,11 +29,18 @@ var blockSchemas map[string]BlockSchema
 // BuiltinSchemaNames returns only these, not user-registered schemas.
 var builtinNames []string
 
-// GetBlockSchema returns the schema for the given block type name.
+// GetBlockSchema returns the schema for the given BlockKind.
 // Returns the schema and true if found, or an empty schema and false
 // if the block type has no schema defined.
-func GetBlockSchema(blockType string) (BlockSchema, bool) {
-	schema, ok := blockSchemas[blockType]
+func GetBlockSchema(kind token.BlockKind) (BlockSchema, bool) {
+	schema, ok := blockSchemas[kind.String()]
+	return schema, ok
+}
+
+// GetSchema returns the schema for the given name string.
+// Used for user-defined schema lookups.
+func GetSchema(name string) (BlockSchema, bool) {
+	schema, ok := blockSchemas[name]
 	return schema, ok
 }
 
@@ -51,9 +60,30 @@ func RegisterSchema(name string, schema BlockSchema) {
 }
 
 // GetFieldSchema returns the field schema for a specific field within
-// a block type. Returns the field schema and true if found.
-func GetFieldSchema(blockType, fieldName string) (FieldSchema, bool) {
-	schema, ok := blockSchemas[blockType]
+// a block type identified by BlockKind. Returns the field schema and true if found.
+func GetFieldSchema(kind token.BlockKind, fieldName string) (FieldSchema, bool) {
+	schema, ok := blockSchemas[kind.String()]
+	if !ok {
+		return FieldSchema{}, false
+	}
+	field, ok := schema.Fields[fieldName]
+	return field, ok
+}
+
+// LookupBlockSchema returns the schema for a Type, dispatching between
+// built-in block schemas (by BlockKind) and user-defined schemas (by SchemaName).
+func LookupBlockSchema(t Type) (BlockSchema, bool) {
+	if t.BlockKind == token.BlockSchema && t.SchemaName != "" {
+		s, ok := blockSchemas[t.SchemaName]
+		return s, ok
+	}
+	return GetBlockSchema(t.BlockKind)
+}
+
+// LookupFieldSchema returns the field schema for a named field within a Type,
+// dispatching between built-in block schemas and user-defined schemas.
+func LookupFieldSchema(t Type, fieldName string) (FieldSchema, bool) {
+	schema, ok := LookupBlockSchema(t)
 	if !ok {
 		return FieldSchema{}, false
 	}

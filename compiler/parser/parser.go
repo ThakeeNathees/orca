@@ -121,7 +121,7 @@ func (p *Parser) parseStatement() ast.Statement {
 		return block
 	}
 
-	if token.IsBlockKeyword(p.curToken.Type) {
+	if token.IsTokenBlockName(p.curToken.Type) {
 		block := p.parseBlock()
 		if block == nil {
 			return nil
@@ -347,7 +347,7 @@ func (p *Parser) syncToBlockEnd() {
 			p.nextToken() // consume the }
 			return
 		}
-		if token.IsBlockKeyword(p.curToken.Type) {
+		if token.IsTokenBlockName(p.curToken.Type) {
 			return // stop before the keyword so the main loop can parse it
 		}
 		p.nextToken()

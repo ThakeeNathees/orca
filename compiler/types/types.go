@@ -1,8 +1,10 @@
 // Package types defines the Orca type system used for semantic analysis.
 // All named types (str, int, model, agent, user-defined schemas) are
-// represented as BlockRef with a BlockType name. Structural types
+// represented as BlockRef with a BlockKind enum. Structural types
 // (List, Map, Union) are separate kinds.
 package types
+
+import "github.com/thakee/orca/compiler/token"
 
 // TypeKind classifies the broad category of a type.
 type TypeKind int
@@ -27,6 +29,9 @@ var kindStrings = map[TypeKind]string{
 	Union:    "union",
 }
 
+// BlockKind is a type alias for token.BlockKind, used throughout the types package.
+type BlockKind = token.BlockKind
+
 // String returns the human-readable name of this type kind.
 func (k TypeKind) String() string {
 	if s, ok := kindStrings[k]; ok {
@@ -35,72 +40,56 @@ func (k TypeKind) String() string {
 	return "unknown"
 }
 
-// BlockKind identifies which kind of block a BlockRef type points to.
-type BlockKind string
-
-const (
-	BlockModel      BlockKind = "model"
-	BlockAgent      BlockKind = "agent"
-	BlockTool       BlockKind = "tool"
-	BlockTask       BlockKind = "task"
-	BlockKnowledge  BlockKind = "knowledge"
-	BlockWorkflow   BlockKind = "workflow"
-	BlockTrigger    BlockKind = "trigger"
-	BlockInput      BlockKind = "input"
-	BlockSchemaKind BlockKind = "schema"
-	BlockLet        BlockKind = "let"
-)
-
-// BlockKindFromName maps a block type name string to its BlockKind constant.
-var blockKindMap = map[string]BlockKind{
-	"model":     BlockModel,
-	"agent":     BlockAgent,
-	"tool":      BlockTool,
-	"task":      BlockTask,
-	"knowledge": BlockKnowledge,
-	"workflow":  BlockWorkflow,
-	"trigger":   BlockTrigger,
-	"input":     BlockInput,
-	"schema":    BlockSchemaKind,
-	"let":       BlockLet,
-}
-
 // Type represents a concrete type in the Orca type system.
 // Named types (str, int, model, agent, user schemas) use Kind=BlockRef
-// with BlockType set to the type name. Structural types use Kind=List,
+// with BlockKind set to the enum constant. Structural types use Kind=List,
 // Map, or Union with their respective fields.
 type Type struct {
 	Kind        TypeKind
-	ElementType *Type     // non-nil for List types
-	KeyType     *Type     // non-nil for Map types
-	ValueType   *Type     // non-nil for Map types
-	BlockType   BlockKind // the type name for BlockRef types (e.g. "str", "model", "vpc_data_t")
-	Members     []Type    // non-nil for Union types — the set of acceptable types
+	ElementType *Type           // non-nil for List types
+	KeyType     *Type           // non-nil for Map types
+	ValueType   *Type           // non-nil for Map types
+	BlockKind   token.BlockKind // the block kind for BlockRef types
+	SchemaName  string          // non-empty for user-defined schemas (BlockKind == token.BlockSchema)
+	Members     []Type          // non-nil for Union types — the set of acceptable types
 }
 
-// typeCache stores BlockRef types keyed by name, extended on demand
-// by TypeOf. Populated from blockSchemas keys at init time.
-var typeCache = make(map[BlockKind]Type)
+// typeCache stores BlockRef types keyed by BlockKind, extended on demand by TypeOf.
+var typeCache = make(map[token.BlockKind]Type)
 
-// TypeOf returns the cached BlockRef type for a given name.
+// schemaTypeCache stores BlockRef types for user-defined schemas keyed by name.
+var schemaTypeCache = make(map[string]Type)
+
+// TypeOf returns the cached BlockRef type for a given BlockKind.
 // Creates and caches the type on first access if not already present.
-func TypeOf(name BlockKind) Type {
-	if t, ok := typeCache[name]; ok {
+func TypeOf(kind token.BlockKind) Type {
+	if t, ok := typeCache[kind]; ok {
 		return t
 	}
-	t := Type{Kind: BlockRef, BlockType: name}
-	typeCache[name] = t
+	t := Type{Kind: BlockRef, BlockKind: kind}
+	typeCache[kind] = t
+	return t
+}
+
+// SchemaTypeOf returns the cached BlockRef type for a user-defined schema name.
+// Creates and caches the type on first access if not already present.
+func SchemaTypeOf(name string) Type {
+	if t, ok := schemaTypeCache[name]; ok {
+		return t
+	}
+	t := Type{Kind: BlockRef, BlockKind: token.BlockSchema, SchemaName: name}
+	schemaTypeCache[name] = t
 	return t
 }
 
 // IsAny returns true if this type is the "any" type (matches everything).
 func (t Type) IsAny() bool {
-	return t.Kind == BlockRef && t.BlockType == "any"
+	return t.Kind == BlockRef && t.BlockKind == token.BlockAny
 }
 
 // IsNull returns true if this type is the "null" type.
 func (t Type) IsNull() bool {
-	return t.Kind == BlockRef && t.BlockType == "null"
+	return t.Kind == BlockRef && t.BlockKind == token.BlockNull
 }
 
 // NewListType creates a list type with the given element type.
@@ -113,9 +102,9 @@ func NewMapType(key, value Type) Type {
 	return Type{Kind: Map, KeyType: &key, ValueType: &value}
 }
 
-// NewBlockRefType creates a block reference type with the given name.
-func NewBlockRefType(blockType BlockKind) Type {
-	return Type{Kind: BlockRef, BlockType: blockType}
+// NewBlockRefType creates a block reference type with the given BlockKind.
+func NewBlockRefType(kind token.BlockKind) Type {
+	return Type{Kind: BlockRef, BlockKind: kind}
 }
 
 // NewUnionType creates a union type that accepts any of the given member types.
@@ -144,7 +133,14 @@ func (t Type) Equals(other Type) bool {
 	}
 	switch t.Kind {
 	case BlockRef:
-		return t.BlockType == other.BlockType
+		if t.BlockKind != other.BlockKind {
+			return false
+		}
+		// For schema types, also compare the schema name.
+		if t.BlockKind == token.BlockSchema {
+			return t.SchemaName == other.SchemaName
+		}
+		return true
 	case List:
 		if t.ElementType == nil || other.ElementType == nil {
 			return t.ElementType == other.ElementType
@@ -174,7 +170,10 @@ func (t Type) Equals(other Type) bool {
 func (t Type) String() string {
 	switch t.Kind {
 	case BlockRef:
-		return string(t.BlockType)
+		if t.BlockKind == token.BlockSchema && t.SchemaName != "" {
+			return t.SchemaName
+		}
+		return t.BlockKind.String()
 	case List:
 		if t.ElementType != nil {
 			return "list[" + t.ElementType.String() + "]"
@@ -230,7 +229,7 @@ func IsCompatible(got, expected Type) bool {
 
 	// Numeric widening: int is compatible with float.
 	if got.Kind == BlockRef && expected.Kind == BlockRef {
-		if got.BlockType == "int" && expected.BlockType == "float" {
+		if got.BlockKind == token.BlockInt && expected.BlockKind == token.BlockFloat {
 			return true
 		}
 	}
@@ -245,16 +244,16 @@ func IsCompatible(got, expected Type) bool {
 		return true
 	}
 
-	// BlockRef types must match by name.
+	// BlockRef types must match by kind and schema name.
 	if got.Kind == BlockRef && expected.Kind == BlockRef {
-		return got.BlockType == expected.BlockType
+		if got.BlockKind != expected.BlockKind {
+			return false
+		}
+		if got.BlockKind == token.BlockSchema {
+			return got.SchemaName == expected.SchemaName
+		}
+		return true
 	}
 
 	return got.Kind == expected.Kind
-}
-
-// BlockKindFromName returns the BlockKind for a given block type name.
-func BlockKindFromName(name string) (BlockKind, bool) {
-	kind, ok := blockKindMap[name]
-	return kind, ok
 }

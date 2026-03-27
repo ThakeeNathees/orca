@@ -142,7 +142,7 @@ func ResolveTypeExpr(expr ast.Expression) (Type, error) {
 func resolveType(expr ast.Expression) (Type, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
-		return TypeOf("null"), nil
+		return TypeOf(token.BlockNull), nil
 
 	case *ast.Identifier:
 		return resolveIdentType(e.Value)
@@ -161,7 +161,7 @@ func resolveType(expr ast.Expression) (Type, error) {
 		case "list":
 			return NewListType(elemType), nil
 		case "map":
-			return NewMapType(TypeOf("str"), elemType), nil
+			return NewMapType(TypeOf(token.BlockStr), elemType), nil
 		default:
 			return Type{}, fmt.Errorf("parameterized type not supported for %q", baseIdent.Value)
 		}
@@ -175,7 +175,7 @@ func resolveType(expr ast.Expression) (Type, error) {
 		}
 		name := fmt.Sprintf("__anon_%d", inlineCounter.Add(1))
 		RegisterSchema(name, schema)
-		return NewBlockRefType(BlockKind(name)), nil
+		return SchemaTypeOf(name), nil
 
 	case *ast.BinaryExpression:
 		if e.Operator.Type != token.PIPE {
@@ -199,7 +199,7 @@ func resolveType(expr ast.Expression) (Type, error) {
 func flattenUnion(expr ast.Expression) ([]Type, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
-		return []Type{TypeOf("null")}, nil
+		return []Type{TypeOf(token.BlockNull)}, nil
 
 	case *ast.Identifier:
 		typ, err := resolveIdentType(e.Value)
@@ -235,15 +235,31 @@ func flattenUnion(expr ast.Expression) ([]Type, error) {
 }
 
 // resolveIdentType maps an identifier name to an internal Type.
-// All names resolve to BlockRef with the name as BlockType. Block type
-// names (model, agent, etc.) use their BlockKind constant; everything
-// else (str, int, user schemas) uses the name directly.
+// Block type names resolve via TokenTypeToBlockKind; primitives resolve
+// by name; everything else is treated as a user-defined schema.
 func resolveIdentType(name string) (Type, error) {
-	if kind, ok := BlockKindFromName(name); ok {
+	// Check if it's a block keyword → use its BlockKind.
+	tokType := token.LookupIdent(name)
+	if kind, ok := token.TokenTypeToBlockKind(tokType); ok {
 		return NewBlockRefType(kind), nil
 	}
-	// Treat as a named type (primitive or user-defined schema).
-	return Type{Kind: BlockRef, BlockType: BlockKind(name)}, nil
+	// Check primitives by name.
+	switch name {
+	case "str":
+		return TypeOf(token.BlockStr), nil
+	case "int":
+		return TypeOf(token.BlockInt), nil
+	case "float":
+		return TypeOf(token.BlockFloat), nil
+	case "bool":
+		return TypeOf(token.BlockBool), nil
+	case "any":
+		return TypeOf(token.BlockAny), nil
+	case "null":
+		return TypeOf(token.BlockNull), nil
+	}
+	// User-defined schema type.
+	return SchemaTypeOf(name), nil
 }
 
 // init loads the embedded schemas and replaces the blockSchemas map.
@@ -254,9 +270,7 @@ func init() {
 	}
 	blockSchemas = schemas
 	builtinNames = make([]string, 0, len(schemas))
-	typeCache = make(map[BlockKind]Type, len(schemas))
 	for name := range schemas {
 		builtinNames = append(builtinNames, name)
-		typeCache[BlockKind(name)] = Type{Kind: BlockRef, BlockType: BlockKind(name)}
 	}
 }

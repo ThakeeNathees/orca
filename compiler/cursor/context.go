@@ -27,7 +27,7 @@ const (
 type Context struct {
 	Position   CursorPosition      // where the cursor sits structurally
 	Block      *ast.BlockStatement // enclosing block, nil if TopLevel
-	BlockType  string              // lowercase block type name (e.g. "model")
+	BlockKind  token.BlockKind     // block kind enum
 	Schema     *types.BlockSchema  // schema for the block type, nil if unknown
 	Assignment *ast.Assignment     // enclosing assignment, nil if not on a value
 }
@@ -49,15 +49,25 @@ func Resolve(program *ast.Program, line, col int) Context {
 			continue
 		}
 
-		blockType := token.BlockName(block.TokenStart.Type)
+		kind, ok := token.TokenTypeToBlockKind(block.TokenStart.Type)
+		if !ok {
+			continue
+		}
 		ctx := Context{
 			Position:  BlockBody,
 			Block:     block,
-			BlockType: blockType,
+			BlockKind: kind,
 		}
 
-		// Attach schema if available.
-		if schema, ok := types.GetBlockSchema(blockType); ok {
+		// Attach schema if available. For user-defined schema blocks,
+		// look up by block name (e.g. "vpc_data_t") instead of "schema".
+		var schemaName string
+		if kind == token.BlockSchema {
+			schemaName = block.Name
+		} else {
+			schemaName = kind.String()
+		}
+		if schema, ok := types.GetSchema(schemaName); ok {
 			ctx.Schema = &schema
 		}
 

@@ -1,6 +1,9 @@
 package types
 
-import "github.com/thakee/orca/compiler/ast"
+import (
+	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/token"
+)
 
 // ExprType returns the type of an expression. Uses the symbol table to
 // resolve identifiers and member access. If symbols is nil, identifiers
@@ -8,15 +11,15 @@ import "github.com/thakee/orca/compiler/ast"
 func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 	switch e := expr.(type) {
 	case *ast.StringLiteral:
-		return TypeOf("str")
+		return TypeOf(token.BlockStr)
 	case *ast.IntegerLiteral:
-		return TypeOf("int")
+		return TypeOf(token.BlockInt)
 	case *ast.FloatLiteral:
-		return TypeOf("float")
+		return TypeOf(token.BlockFloat)
 	case *ast.BooleanLiteral:
-		return TypeOf("bool")
+		return TypeOf(token.BlockBool)
 	case *ast.NullLiteral:
-		return TypeOf("null")
+		return TypeOf(token.BlockNull)
 	case *ast.ListLiteral:
 		return listLiteralType(e, symbols)
 	case *ast.MapLiteral:
@@ -26,17 +29,17 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 	case *ast.MemberAccess:
 		return memberAccessType(e, symbols)
 	case *ast.SchemaExpression:
-		return TypeOf("schema")
+		return TypeOf(token.BlockSchema)
 	case *ast.BinaryExpression:
 		// TODO: infer result type from operator and operand types.
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	case *ast.Subscription:
 		return subscriptResultType(ExprType(e.Object, symbols))
 	case *ast.CallExpression:
 		// TODO: resolve return type from the callee's type.
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	default:
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	}
 }
 
@@ -44,12 +47,12 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 // Returns the block reference type if found, any otherwise.
 func identType(ident *ast.Identifier, symbols *SymbolTable) Type {
 	if symbols == nil {
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	}
 	if typ, ok := symbols.Lookup(ident.Value); ok {
 		return typ
 	}
-	return TypeOf("any")
+	return TypeOf(token.BlockAny)
 }
 
 // memberAccessType resolves the type of a member access expression
@@ -58,22 +61,22 @@ func identType(ident *ast.Identifier, symbols *SymbolTable) Type {
 func memberAccessType(ma *ast.MemberAccess, symbols *SymbolTable) Type {
 	// Incomplete member access (e.g. "gpt4." while typing).
 	if ma.Member == "" {
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	}
 
 	objType := ExprType(ma.Object, symbols)
 	if objType.Kind != BlockRef {
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	}
 
-	schema, ok := GetBlockSchema(string(objType.BlockType))
+	schema, ok := LookupBlockSchema(objType)
 	if !ok {
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	}
 
 	field, ok := schema.Fields[ma.Member]
 	if !ok {
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	}
 
 	return field.Type
@@ -87,12 +90,12 @@ func subscriptResultType(t Type) Type {
 		if t.ElementType != nil {
 			return *t.ElementType
 		}
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	case Map:
 		if t.ValueType != nil {
 			return *t.ValueType
 		}
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	case Union:
 		// Find the subscriptable member and return its result type.
 		for _, m := range t.Members {
@@ -100,9 +103,9 @@ func subscriptResultType(t Type) Type {
 				return subscriptResultType(m)
 			}
 		}
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	default:
-		return TypeOf("any")
+		return TypeOf(token.BlockAny)
 	}
 }
 
@@ -120,7 +123,7 @@ func mapLiteralType(m *ast.MapLiteral, symbols *SymbolTable) Type {
 			return Type{Kind: Map}
 		}
 	}
-	return NewMapType(TypeOf("str"), first)
+	return NewMapType(TypeOf(token.BlockStr), first)
 }
 
 // listLiteralType infers the type of a list literal. If all elements

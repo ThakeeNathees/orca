@@ -63,9 +63,10 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 	// Block types like "model" resolve to their own kind; primitives
 	// like "str" resolve to BlockRef(schema).
 	for _, name := range types.BuiltinSchemaNames() {
-		kind, ok := types.BlockKindFromName(name)
+		tokType := token.LookupIdent(name)
+		kind, ok := token.TokenTypeToBlockKind(tokType)
 		if !ok {
-			kind = types.BlockSchemaKind
+			kind = token.BlockSchema
 		}
 		st.Define(name, types.NewBlockRefType(kind), token.Token{})
 	}
@@ -99,8 +100,7 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 			continue
 		}
 
-		blockType := token.BlockName(block.TokenStart.Type)
-		kind, ok := types.BlockKindFromName(blockType)
+		kind, ok := token.TokenTypeToBlockKind(block.TokenStart.Type)
 		if !ok {
 			continue
 		}
@@ -123,9 +123,9 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 		// For input blocks, resolve the declared type so that member
 		// access works through the schema (e.g. vpc_data.region).
 		typ := types.NewBlockRefType(kind)
-		if kind == types.BlockInput {
+		if kind == token.BlockInput {
 			if declared := inputDeclaredType(block); declared != "" {
-				typ = types.Type{Kind: types.BlockRef, BlockType: types.BlockKind(declared)}
+				typ = types.SchemaTypeOf(declared)
 			}
 		}
 		st.Define(block.Name, typ, block.NameToken)
@@ -166,7 +166,7 @@ func inputDeclaredType(block *ast.BlockStatement) string {
 				if err != nil {
 					return ""
 				}
-				return string(typ.BlockType)
+				return typ.SchemaName
 			}
 		}
 	}
@@ -177,8 +177,16 @@ func inputDeclaredType(block *ast.BlockStatement) string {
 // Checks for duplicate fields, unknown fields, missing required fields,
 // undefined references, and type mismatches.
 func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
-	typeName := token.BlockName(block.TokenStart.Type)
-	schema, ok := types.GetBlockSchema(typeName)
+	kind, ok := token.TokenTypeToBlockKind(block.TokenStart.Type)
+	if !ok {
+		return nil
+	}
+	// Use the generic "schema" schema here, not the block's own definition.
+	// Schema blocks are type declarations (e.g. `region = str` means "region
+	// is of type str"), not regular blocks with typed values. Validating
+	// against the block's own schema would incorrectly type-check declaration
+	// values as field assignments.
+	schema, ok := types.GetBlockSchema(kind)
 	if !ok {
 		return nil
 	}
@@ -197,12 +205,12 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 					Line:   assign.Start().Line,
 					Column: assign.Start().Column,
 				},
-				Message: fmt.Sprintf("duplicate field %q in %s %q", assign.Name, typeName, block.Name),
+				Message: fmt.Sprintf("duplicate field %q in %s %q", assign.Name, kind.String(), block.Name),
 				Source:  "analyzer",
 			})
 		}
 		seen[assign.Name] = true
-		fieldDiags := validateField(block, assign, schema, symbols)
+		fieldDiags := validateField(assign, kind, schema, symbols)
 		// Apply field-level @suppress annotations.
 		fieldCodes, fieldAll := suppressedCodes(assign.Annotations)
 		fieldDiags = filterSuppressed(fieldDiags, fieldCodes, fieldAll)
@@ -234,7 +242,7 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 
 // validateField checks a single field assignment against the block's schema.
 // Reports unknown fields, undefined identifier references, and type mismatches.
-func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+func validateField(assign *ast.Assignment, kind token.BlockKind, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	fieldSchema, ok := schema.Fields[assign.Name]
 	if !ok {
 		return []diagnostic.Diagnostic{{
@@ -244,7 +252,7 @@ func validateField(block *ast.BlockStatement, assign *ast.Assignment, schema typ
 				Line:   assign.Start().Line,
 				Column: assign.Start().Column,
 			},
-			Message: fmt.Sprintf("unknown field %q in %s block", assign.Name, token.BlockName(block.TokenStart.Type)),
+			Message: fmt.Sprintf("unknown field %q in %s block", assign.Name, kind.String()),
 			Source:  "analyzer",
 		}}
 	}
@@ -327,8 +335,8 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if objType.Kind != types.BlockRef {
 			return nil
 		}
-		schema, ok := types.GetBlockSchema(string(objType.BlockType))
-		if !ok {
+		schema, schemaOk := types.LookupBlockSchema(objType)
+		if !schemaOk {
 			return nil
 		}
 		if _, ok := schema.Fields[e.Member]; !ok {
@@ -339,7 +347,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 					Line:   e.End().Line,
 					Column: e.End().Column,
 				},
-				Message: fmt.Sprintf("%q has no field %q", objType.BlockType, e.Member),
+				Message: fmt.Sprintf("%q has no field %q", objType.BlockKind.String(), e.Member),
 				Source:  "analyzer",
 			}}
 		}
@@ -378,7 +386,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		objType := types.ExprType(e.Object, symbols)
 		if types.IsCompatible(objType, types.Type{Kind: types.List}) {
 			idxType := types.ExprType(e.Index, symbols)
-			if !idxType.IsAny() && !types.IsCompatible(idxType, types.TypeOf("int")) {
+			if !idxType.IsAny() && !types.IsCompatible(idxType, types.TypeOf(token.BlockInt)) {
 				return []diagnostic.Diagnostic{{
 					Severity: diagnostic.Error,
 					Code:     diagnostic.CodeInvalidSubscript,

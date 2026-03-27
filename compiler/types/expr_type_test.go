@@ -12,15 +12,15 @@ func TestExprType(t *testing.T) {
 	tests := []struct {
 		name      string
 		expr      ast.Expression
-		blockType BlockKind
+		blockKind token.BlockKind
 	}{
-		{"string literal", &ast.StringLiteral{Value: "hello"}, "str"},
-		{"integer literal", &ast.IntegerLiteral{Value: 42}, "int"},
-		{"float literal", &ast.FloatLiteral{Value: 0.5}, "float"},
-		{"boolean true", &ast.BooleanLiteral{Value: true}, "bool"},
-		{"boolean false", &ast.BooleanLiteral{Value: false}, "bool"},
-		{"null literal", &ast.NullLiteral{}, "null"},
-		{"identifier", &ast.Identifier{Value: "gpt4"}, "any"},
+		{"string literal", &ast.StringLiteral{Value: "hello"}, token.BlockStr},
+		{"integer literal", &ast.IntegerLiteral{Value: 42}, token.BlockInt},
+		{"float literal", &ast.FloatLiteral{Value: 0.5}, token.BlockFloat},
+		{"boolean true", &ast.BooleanLiteral{Value: true}, token.BlockBool},
+		{"boolean false", &ast.BooleanLiteral{Value: false}, token.BlockBool},
+		{"null literal", &ast.NullLiteral{}, token.BlockNull},
+		{"identifier", &ast.Identifier{Value: "gpt4"}, token.BlockAny},
 	}
 
 	for _, tt := range tests {
@@ -29,8 +29,8 @@ func TestExprType(t *testing.T) {
 			if got.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", got.Kind)
 			}
-			if got.BlockType != tt.blockType {
-				t.Errorf("BlockType = %q, want %q", got.BlockType, tt.blockType)
+			if got.BlockKind != tt.blockKind {
+				t.Errorf("BlockKind = %v, want %v", got.BlockKind, tt.blockKind)
 			}
 		})
 	}
@@ -56,27 +56,27 @@ func TestExprTypeList(t *testing.T) {
 	if got.ElementType == nil {
 		t.Fatal("ElementType should not be nil")
 	}
-	if got.ElementType.BlockType != "str" {
-		t.Errorf("ElementType.BlockType = %q, want %q", got.ElementType.BlockType, "str")
+	if got.ElementType.BlockKind != token.BlockStr {
+		t.Errorf("ElementType.BlockKind = %v, want %v", got.ElementType.BlockKind, token.BlockStr)
 	}
 }
 
 // TestExprTypeMapLiteral verifies map literal type inference.
 func TestExprTypeMapLiteral(t *testing.T) {
 	tests := []struct {
-		name   string
+		name    string
 		entries []ast.MapEntry
-		hasVal bool
-		valBT  BlockKind
+		hasVal  bool
+		valBK   token.BlockKind
 	}{
-		{"empty map", nil, false, ""},
+		{"empty map", nil, false, 0},
 		{
 			"uniform string values",
 			[]ast.MapEntry{
 				{Key: &ast.Identifier{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
 				{Key: &ast.Identifier{Value: "b"}, Value: &ast.StringLiteral{Value: "y"}},
 			},
-			true, "str",
+			true, token.BlockStr,
 		},
 		{
 			"uniform int values",
@@ -84,7 +84,7 @@ func TestExprTypeMapLiteral(t *testing.T) {
 				{Key: &ast.Identifier{Value: "a"}, Value: &ast.IntegerLiteral{Value: 1}},
 				{Key: &ast.Identifier{Value: "b"}, Value: &ast.IntegerLiteral{Value: 2}},
 			},
-			true, "int",
+			true, token.BlockInt,
 		},
 		{
 			"mixed values",
@@ -92,7 +92,7 @@ func TestExprTypeMapLiteral(t *testing.T) {
 				{Key: &ast.Identifier{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
 				{Key: &ast.Identifier{Value: "b"}, Value: &ast.IntegerLiteral{Value: 1}},
 			},
-			false, "",
+			false, 0,
 		},
 	}
 
@@ -107,10 +107,10 @@ func TestExprTypeMapLiteral(t *testing.T) {
 				if got.ValueType == nil {
 					t.Fatal("ValueType should not be nil")
 				}
-				if got.ValueType.BlockType != tt.valBT {
-					t.Errorf("ValueType.BlockType = %q, want %q", got.ValueType.BlockType, tt.valBT)
+				if got.ValueType.BlockKind != tt.valBK {
+					t.Errorf("ValueType.BlockKind = %v, want %v", got.ValueType.BlockKind, tt.valBK)
 				}
-				if got.KeyType == nil || got.KeyType.BlockType != "str" {
+				if got.KeyType == nil || got.KeyType.BlockKind != token.BlockStr {
 					t.Error("KeyType should be str")
 				}
 			} else if got.ValueType != nil {
@@ -124,19 +124,19 @@ func TestExprTypeMapLiteral(t *testing.T) {
 // to their block reference type when a symbol table is provided.
 func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType(BlockModel), token.Token{})
-	st.Define("researcher", NewBlockRefType(BlockAgent), token.Token{})
-	st.Define("str", NewBlockRefType(BlockSchemaKind), token.Token{})
+	st.Define("gpt4", NewBlockRefType(token.BlockModel), token.Token{})
+	st.Define("researcher", NewBlockRefType(token.BlockAgent), token.Token{})
+	st.Define("str", NewBlockRefType(token.BlockSchema), token.Token{})
 
 	tests := []struct {
 		name      string
 		ident     string
-		blockType BlockKind
+		blockKind token.BlockKind
 	}{
-		{"defined model", "gpt4", BlockModel},
-		{"defined agent", "researcher", BlockAgent},
-		{"builtin schema str", "str", BlockSchemaKind},
-		{"undefined", "unknown", "any"},
+		{"defined model", "gpt4", token.BlockModel},
+		{"defined agent", "researcher", token.BlockAgent},
+		{"builtin schema str", "str", token.BlockSchema},
+		{"undefined", "unknown", token.BlockAny},
 	}
 
 	for _, tt := range tests {
@@ -146,8 +146,8 @@ func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 			if got.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", got.Kind)
 			}
-			if got.BlockType != tt.blockType {
-				t.Errorf("BlockType = %q, want %q", got.BlockType, tt.blockType)
+			if got.BlockKind != tt.blockKind {
+				t.Errorf("BlockKind = %v, want %v", got.BlockKind, tt.blockKind)
 			}
 		})
 	}
@@ -157,19 +157,20 @@ func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 // to the field's type via the block schema.
 func TestExprTypeMemberAccess(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType(BlockModel), token.Token{})
+	st.Define("gpt4", NewBlockRefType(token.BlockModel), token.Token{})
 
 	tests := []struct {
 		name      string
 		object    string
 		member    string
-		blockType BlockKind
+		blockKind token.BlockKind
+		isUnion   bool
 	}{
-		{"model.provider", "gpt4", "provider", "str"},
-		{"model.temperature", "gpt4", "temperature", "float"},
-		{"model.model_name (union)", "gpt4", "model_name", ""},
-		{"unknown member", "gpt4", "nonexistent", "any"},
-		{"unknown object", "unknown", "anything", "any"},
+		{"model.provider", "gpt4", "provider", token.BlockStr, false},
+		{"model.temperature", "gpt4", "temperature", token.BlockFloat, false},
+		{"model.model_name (union)", "gpt4", "model_name", 0, true},
+		{"unknown member", "gpt4", "nonexistent", token.BlockAny, false},
+		{"unknown object", "unknown", "anything", token.BlockAny, false},
 	}
 
 	for _, tt := range tests {
@@ -179,13 +180,13 @@ func TestExprTypeMemberAccess(t *testing.T) {
 				Member: tt.member,
 			}
 			got := ExprType(expr, st)
-			if tt.blockType != "" {
-				if got.BlockType != tt.blockType {
-					t.Errorf("BlockType = %q, want %q", got.BlockType, tt.blockType)
-				}
-			} else {
+			if tt.isUnion {
 				if got.Kind != Union {
 					t.Errorf("Kind = %v, want Union", got.Kind)
+				}
+			} else {
+				if got.BlockKind != tt.blockKind {
+					t.Errorf("BlockKind = %v, want %v", got.BlockKind, tt.blockKind)
 				}
 			}
 		})
@@ -208,7 +209,7 @@ func TestExprTypeSubscription(t *testing.T) {
 				&ast.StringLiteral{Value: "b"},
 			}},
 			&ast.IntegerLiteral{Value: 0},
-			TypeOf("str"),
+			TypeOf(token.BlockStr),
 		},
 		{
 			"list[int] subscript returns int",
@@ -217,7 +218,7 @@ func TestExprTypeSubscription(t *testing.T) {
 				&ast.IntegerLiteral{Value: 2},
 			}},
 			&ast.IntegerLiteral{Value: 0},
-			TypeOf("int"),
+			TypeOf(token.BlockInt),
 		},
 		{
 			"map[str] subscript returns str",
@@ -225,19 +226,19 @@ func TestExprTypeSubscription(t *testing.T) {
 				{Key: &ast.Identifier{Value: "k"}, Value: &ast.StringLiteral{Value: "v"}},
 			}},
 			&ast.StringLiteral{Value: "k"},
-			TypeOf("str"),
+			TypeOf(token.BlockStr),
 		},
 		{
 			"untyped list subscript returns any",
 			&ast.ListLiteral{},
 			&ast.IntegerLiteral{Value: 0},
-			TypeOf("any"),
+			TypeOf(token.BlockAny),
 		},
 		{
 			"untyped map subscript returns any",
 			&ast.MapLiteral{},
 			&ast.StringLiteral{Value: "k"},
-			TypeOf("any"),
+			TypeOf(token.BlockAny),
 		},
 	}
 
