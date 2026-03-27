@@ -276,6 +276,27 @@ func TestCompleteMemberAccessNoResults(t *testing.T) {
 	}
 }
 
+// TestCompleteMemberAccessPrimitiveInput verifies that dot-completing on an input
+// block with a primitive type (e.g. str) returns no completions instead of
+// falling through to the enclosing block's field suggestions.
+func TestCompleteMemberAccessPrimitiveInput(t *testing.T) {
+	// "dev_vars." with a following field causes the parser to recover a
+	// MemberAccess node, matching the real editing scenario.
+	text := "input dev_vars {\n  type = str\n}\n\nmodel my_model {\n  provider = dev_vars.\n  model_name = \"gpt-4o\"\n}"
+	doc := updateDocument("test://dotcomp_input.oc", text)
+
+	// "dev_vars." — the dot is recovered as a MemberAccess.
+	// completeMemberFields should return nil (str has no schema fields),
+	// and we must NOT fall through to model block body completions.
+	items := findMemberCompletion(doc, 5, 22)
+	if len(items) != 0 {
+		t.Errorf("expected no completions for primitive-typed input dot-access, got %d", len(items))
+		for _, item := range items {
+			t.Errorf("  unexpected: %s", item.Label)
+		}
+	}
+}
+
 // TestCompleteMemberAccessDescription verifies that completions include field descriptions.
 func TestCompleteMemberAccessDescription(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.\n  persona = \"hi\"\n}"

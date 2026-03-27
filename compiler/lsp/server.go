@@ -144,9 +144,7 @@ func textDocumentCompletion(ctx *glsp.Context, params *protocol.CompletionParams
 	// Uses the AST: cursor right after '.' triggers member field completions.
 	node := cursor.FindNodeAt(doc.Program, line, col)
 	if node.Kind == cursor.MemberAccessNode && node.DotCompletion {
-		if items := completeMemberFields(doc, node.MemberAccess); len(items) > 0 {
-			return items, nil
-		}
+		return completeMemberFields(doc, node.MemberAccess), nil
 	}
 
 	cursorCtx := cursor.Resolve(doc.Program, line, col)

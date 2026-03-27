@@ -35,6 +35,7 @@ const (
 	CodeUnknownMember = "unknown-member"  // member not found on block type
 	CodeInvalidSubscript = "invalid-subscript" // non-integer subscript on a list
 	CodeInvalidValue     = "invalid-value"     // field value not in allowed set
+	CodeUnknownProvider  = "unknown-provider"  // model provider not supported by backend
 )
 
 // Diagnostic represents a single compiler message (error, warning, etc.)

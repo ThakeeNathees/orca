@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/thakee/orca/compiler/analyzer"
+	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/langgraph"
-	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
 )
@@ -17,7 +17,7 @@ import (
 var updateGolden = flag.Bool("update-golden", false, "update golden files")
 
 // buildFromSource parses, analyzes, and generates output directly from the AST.
-func buildFromSource(t *testing.T, source string) python.Output {
+func buildFromSource(t *testing.T, source string) codegen.CodegenOutput {
 	t.Helper()
 	l := lexer.New(source)
 	p := parser.New(l)
@@ -31,6 +31,26 @@ func buildFromSource(t *testing.T, source string) python.Output {
 	}
 	backend := langgraph.New(program)
 	return backend.Generate()
+}
+
+// fileMap flattens the output tree into a name→content map for easy lookup.
+func fileMap(dir codegen.OutputDirectory) map[string]string {
+	m := make(map[string]string)
+	for _, f := range dir.Files {
+		m[f.Name] = f.Content
+	}
+	for _, d := range dir.Directories {
+		sub := fileMap(d)
+		for k, v := range sub {
+			m[d.Name+"/"+k] = v
+		}
+	}
+	return m
+}
+
+// goldenExtensions maps golden file extensions to output file names.
+var goldenExtensions = map[string]string{
+	".py": "main.py",
 }
 
 // TestGoldenFiles runs golden file tests for codegen. Each test case
@@ -55,36 +75,27 @@ func TestGoldenFiles(t *testing.T) {
 			}
 
 			output := buildFromSource(t, string(source))
+			files := fileMap(output.RootDir)
 
-			pyPath := filepath.Join(goldenDir, name+".py")
-			tomlPath := filepath.Join(goldenDir, name+".toml")
+			for ext, outputName := range goldenExtensions {
+				goldenPath := filepath.Join(goldenDir, name+ext)
+				got := files[outputName]
 
-			if *updateGolden {
-				if err := os.WriteFile(pyPath, []byte(output.MainPy), 0644); err != nil {
-					t.Fatalf("failed to update %s: %v", pyPath, err)
+				if *updateGolden {
+					if err := os.WriteFile(goldenPath, []byte(got), 0644); err != nil {
+						t.Fatalf("failed to update %s: %v", goldenPath, err)
+					}
+					continue
 				}
-				if err := os.WriteFile(tomlPath, []byte(output.PyProjectTOML), 0644); err != nil {
-					t.Fatalf("failed to update %s: %v", tomlPath, err)
+
+				expected, err := os.ReadFile(goldenPath)
+				if err != nil {
+					t.Fatalf("failed to read %s (run with -update-golden to create): %v", goldenPath, err)
 				}
-				return
-			}
-
-			expectedPy, err := os.ReadFile(pyPath)
-			if err != nil {
-				t.Fatalf("failed to read %s (run with -update-golden to create): %v", pyPath, err)
-			}
-			if output.MainPy != string(expectedPy) {
-				t.Errorf("main.py mismatch for %s:\n--- expected ---\n%s\n--- got ---\n%s",
-					name, string(expectedPy), output.MainPy)
-			}
-
-			expectedTOML, err := os.ReadFile(tomlPath)
-			if err != nil {
-				t.Fatalf("failed to read %s (run with -update-golden to create): %v", tomlPath, err)
-			}
-			if output.PyProjectTOML != string(expectedTOML) {
-				t.Errorf("pyproject.toml mismatch for %s:\n--- expected ---\n%s\n--- got ---\n%s",
-					name, string(expectedTOML), output.PyProjectTOML)
+				if got != string(expected) {
+					t.Errorf("%s mismatch for %s:\n--- expected ---\n%s\n--- got ---\n%s",
+						outputName, name, string(expected), got)
+				}
 			}
 		})
 	}

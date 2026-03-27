@@ -142,7 +142,7 @@ func ResolveTypeExpr(expr ast.Expression) (Type, error) {
 func resolveType(expr ast.Expression) (Type, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
-		return TypeOf(token.BlockNull), nil
+		return Null(), nil
 
 	case *ast.Identifier:
 		return resolveIdentType(e.Value)
@@ -161,7 +161,7 @@ func resolveType(expr ast.Expression) (Type, error) {
 		case "list":
 			return NewListType(elemType), nil
 		case "map":
-			return NewMapType(TypeOf(token.BlockStr), elemType), nil
+			return NewMapType(Str(), elemType), nil
 		default:
 			return Type{}, fmt.Errorf("parameterized type not supported for %q", baseIdent.Value)
 		}
@@ -199,7 +199,7 @@ func resolveType(expr ast.Expression) (Type, error) {
 func flattenUnion(expr ast.Expression) ([]Type, error) {
 	switch e := expr.(type) {
 	case *ast.NullLiteral:
-		return []Type{TypeOf(token.BlockNull)}, nil
+		return []Type{Null()}, nil
 
 	case *ast.Identifier:
 		typ, err := resolveIdentType(e.Value)
@@ -243,22 +243,9 @@ func resolveIdentType(name string) (Type, error) {
 	if kind, ok := token.TokenTypeToBlockKind(tokType); ok {
 		return NewBlockRefType(kind), nil
 	}
-	// Check primitives by name.
-	switch name {
-	case "str":
-		return TypeOf(token.BlockStr), nil
-	case "int":
-		return TypeOf(token.BlockInt), nil
-	case "float":
-		return TypeOf(token.BlockFloat), nil
-	case "bool":
-		return TypeOf(token.BlockBool), nil
-	case "any":
-		return TypeOf(token.BlockAny), nil
-	case "null":
-		return TypeOf(token.BlockNull), nil
-	}
-	// User-defined schema type.
+	// All other identifiers are schema types — built-in primitives
+	// (str, int, float, bool, any, null) and user-defined schemas
+	// are both represented as SchemaTypeOf.
 	return SchemaTypeOf(name), nil
 }
 

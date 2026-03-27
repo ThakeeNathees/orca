@@ -9,6 +9,9 @@ import (
 	"github.com/thakee/orca/compiler/token"
 )
 
+// typePtr returns a pointer to a Type value for use in test tables.
+func typePtr(t Type) *Type { return &t }
+
 // TestLoadSchemas verifies that the embedded builtins.oc file
 // is parsed and produces the expected schema map.
 func TestLoadSchemas(t *testing.T) {
@@ -62,31 +65,30 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		block     string
-		field     string
-		kind      TypeKind        // expected Kind
-		bk        token.BlockKind // expected BlockKind (for BlockRef)
-		checkBK   bool            // whether to check BlockKind
-		required  bool
+		name     string
+		block    string
+		field    string
+		kind     TypeKind // expected Kind
+		expType  *Type    // expected type (for BlockRef, nil to skip)
+		required bool
 	}{
-		{"model.provider", "model", "provider", BlockRef, token.BlockStr, true, true},
-		{"model.model_name", "model", "model_name", Union, 0, false, true},
-		{"model.temperature", "model", "temperature", BlockRef, token.BlockFloat, true, false},
-		{"agent.model", "agent", "model", Union, 0, false, true},
-		{"agent.persona", "agent", "persona", BlockRef, token.BlockStr, true, true},
-		{"agent.tools", "agent", "tools", List, 0, false, false},
-		{"tool.name", "tool", "name", BlockRef, token.BlockStr, true, true},
-		{"tool.desc", "tool", "desc", BlockRef, token.BlockStr, true, false},
-		{"task.agent", "task", "agent", BlockRef, token.BlockAgent, true, true},
-		{"task.prompt", "task", "prompt", BlockRef, token.BlockStr, true, true},
-		{"knowledge.name", "knowledge", "name", BlockRef, token.BlockStr, true, true},
-		{"workflow.name", "workflow", "name", BlockRef, token.BlockStr, true, false},
-		{"trigger.name", "trigger", "name", BlockRef, token.BlockStr, true, false},
-		{"input.type", "input", "type", BlockRef, token.BlockSchema, true, true},
-		{"input.desc", "input", "desc", BlockRef, token.BlockStr, true, false},
-		{"input.default", "input", "default", BlockRef, token.BlockAny, true, false},
-		{"input.sensitive", "input", "sensitive", BlockRef, token.BlockBool, true, false},
+		{"model.provider", "model", "provider", BlockRef, typePtr(Str()), true},
+		{"model.model_name", "model", "model_name", Union, nil, true},
+		{"model.temperature", "model", "temperature", BlockRef, typePtr(Float()), false},
+		{"agent.model", "agent", "model", Union, nil, true},
+		{"agent.persona", "agent", "persona", BlockRef, typePtr(Str()), true},
+		{"agent.tools", "agent", "tools", List, nil, false},
+		{"tool.name", "tool", "name", BlockRef, typePtr(Str()), true},
+		{"tool.desc", "tool", "desc", BlockRef, typePtr(Str()), false},
+		{"task.agent", "task", "agent", BlockRef, typePtr(NewBlockRefType(token.BlockAgent)), true},
+		{"task.prompt", "task", "prompt", BlockRef, typePtr(Str()), true},
+		{"knowledge.name", "knowledge", "name", BlockRef, typePtr(Str()), true},
+		{"workflow.name", "workflow", "name", BlockRef, typePtr(Str()), false},
+		{"trigger.name", "trigger", "name", BlockRef, typePtr(Str()), false},
+		{"input.type", "input", "type", BlockRef, typePtr(TypeOf(token.BlockSchema)), true},
+		{"input.desc", "input", "desc", BlockRef, typePtr(Str()), false},
+		{"input.default", "input", "default", BlockRef, typePtr(Any()), false},
+		{"input.sensitive", "input", "sensitive", BlockRef, typePtr(Bool()), false},
 	}
 
 	for _, tt := range tests {
@@ -98,8 +100,8 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 			if field.Type.Kind != tt.kind {
 				t.Errorf("Kind = %v, want %v", field.Type.Kind, tt.kind)
 			}
-			if tt.checkBK && field.Type.BlockKind != tt.bk {
-				t.Errorf("BlockKind = %v, want %v", field.Type.BlockKind, tt.bk)
+			if tt.expType != nil && !field.Type.Equals(*tt.expType) {
+				t.Errorf("Type = %s, want %s", field.Type.String(), tt.expType.String())
 			}
 			if field.Required != tt.required {
 				t.Errorf("Required = %v, want %v", field.Required, tt.required)
@@ -135,8 +137,8 @@ func TestLoadSchemasUnionMembers(t *testing.T) {
 	if len(field.Type.Members) != 2 {
 		t.Fatalf("expected 2 members, got %d", len(field.Type.Members))
 	}
-	if field.Type.Members[0].BlockKind != token.BlockStr {
-		t.Errorf("first member BlockKind = %v, want %v", field.Type.Members[0].BlockKind, token.BlockStr)
+	if !field.Type.Members[0].Equals(Str()) {
+		t.Errorf("first member = %s, want str", field.Type.Members[0].String())
 	}
 	if field.Type.Members[1].BlockKind != token.BlockModel {
 		t.Errorf("second member BlockKind = %v, want %v", field.Type.Members[1].BlockKind, token.BlockModel)
@@ -209,21 +211,20 @@ func TestLoadSchemasFieldDescription(t *testing.T) {
 // all produce BlockRef types.
 func TestResolveIdentTypeUnified(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     string
-		blockKind token.BlockKind
-		schema    string // expected SchemaName for user schemas
-		wantErr   bool
+		name     string
+		input    string
+		expected Type
+		wantErr  bool
 	}{
-		{"primitive str", "str", token.BlockStr, "", false},
-		{"primitive int", "int", token.BlockInt, "", false},
-		{"primitive float", "float", token.BlockFloat, "", false},
-		{"primitive bool", "bool", token.BlockBool, "", false},
-		{"primitive any", "any", token.BlockAny, "", false},
-		{"block type model", "model", token.BlockModel, "", false},
-		{"block type agent", "agent", token.BlockAgent, "", false},
-		{"block type schema", "schema", token.BlockSchema, "", false},
-		{"user schema name", "vpc_data_t", token.BlockSchema, "vpc_data_t", false},
+		{"primitive str", "str", Str(), false},
+		{"primitive int", "int", Int(), false},
+		{"primitive float", "float", Float(), false},
+		{"primitive bool", "bool", Bool(), false},
+		{"primitive any", "any", Any(), false},
+		{"block type model", "model", TypeOf(token.BlockModel), false},
+		{"block type agent", "agent", TypeOf(token.BlockAgent), false},
+		{"block type schema", "schema", TypeOf(token.BlockSchema), false},
+		{"user schema name", "vpc_data_t", SchemaTypeOf("vpc_data_t"), false},
 	}
 
 	for _, tt := range tests {
@@ -241,11 +242,8 @@ func TestResolveIdentTypeUnified(t *testing.T) {
 			if typ.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", typ.Kind)
 			}
-			if typ.BlockKind != tt.blockKind {
-				t.Errorf("BlockKind = %v, want %v", typ.BlockKind, tt.blockKind)
-			}
-			if tt.schema != "" && typ.SchemaName != tt.schema {
-				t.Errorf("SchemaName = %q, want %q", typ.SchemaName, tt.schema)
+			if !typ.Equals(tt.expected) {
+				t.Errorf("resolveIdentType(%q) = %s, want %s", tt.input, typ.String(), tt.expected.String())
 			}
 		})
 	}
@@ -259,23 +257,23 @@ func TestResolveTypeExpr(t *testing.T) {
 		name    string
 		expr    ast.Expression
 		kind    TypeKind
-		bk      token.BlockKind
+		expType *Type // expected type to check with Equals (nil to skip)
 		wantErr bool
 	}{
 		{
 			"null literal resolves to null type",
 			&ast.NullLiteral{},
-			BlockRef, token.BlockNull, false,
+			BlockRef, typePtr(Null()), false,
 		},
 		{
 			"identifier str resolves to str",
 			&ast.Identifier{Value: "str"},
-			BlockRef, token.BlockStr, false,
+			BlockRef, typePtr(Str()), false,
 		},
 		{
 			"identifier model resolves to model ref",
 			&ast.Identifier{Value: "model"},
-			BlockRef, token.BlockModel, false,
+			BlockRef, typePtr(TypeOf(token.BlockModel)), false,
 		},
 		{
 			"subscription list[str] resolves to list type",
@@ -283,7 +281,7 @@ func TestResolveTypeExpr(t *testing.T) {
 				Object: &ast.Identifier{Value: "list"},
 				Index:  &ast.Identifier{Value: "str"},
 			},
-			List, 0, false,
+			List, nil, false,
 		},
 		{
 			"subscription map[int] resolves to map type",
@@ -291,7 +289,7 @@ func TestResolveTypeExpr(t *testing.T) {
 				Object: &ast.Identifier{Value: "map"},
 				Index:  &ast.Identifier{Value: "int"},
 			},
-			Map, 0, false,
+			Map, nil, false,
 		},
 		{
 			"unsupported parameterized type errors",
@@ -299,7 +297,7 @@ func TestResolveTypeExpr(t *testing.T) {
 				Object: &ast.Identifier{Value: "set"},
 				Index:  &ast.Identifier{Value: "str"},
 			},
-			0, 0, true,
+			0, nil, true,
 		},
 		{
 			"subscription with non-identifier base errors",
@@ -307,7 +305,7 @@ func TestResolveTypeExpr(t *testing.T) {
 				Object: &ast.IntegerLiteral{Value: 1},
 				Index:  &ast.Identifier{Value: "str"},
 			},
-			0, 0, true,
+			0, nil, true,
 		},
 		{
 			"union via binary pipe expression",
@@ -316,7 +314,7 @@ func TestResolveTypeExpr(t *testing.T) {
 				Operator: token.Token{Type: token.PIPE},
 				Right:    &ast.Identifier{Value: "int"},
 			},
-			Union, 0, false,
+			Union, nil, false,
 		},
 		{
 			"binary expression with non-pipe operator errors",
@@ -325,13 +323,13 @@ func TestResolveTypeExpr(t *testing.T) {
 				Operator: token.Token{Type: token.PLUS, Literal: "+"},
 				Right:    &ast.Identifier{Value: "int"},
 			},
-			0, 0, true,
+			0, nil, true,
 		},
 		{
 			// Coverage: exercises the default case in resolveType for unsupported expression types.
 			"unsupported expression type errors",
 			&ast.IntegerLiteral{Value: 42},
-			0, 0, true,
+			0, nil, true,
 		},
 	}
 
@@ -350,8 +348,8 @@ func TestResolveTypeExpr(t *testing.T) {
 			if typ.Kind != tt.kind {
 				t.Errorf("Kind = %v, want %v", typ.Kind, tt.kind)
 			}
-			if tt.bk != 0 && typ.BlockKind != tt.bk {
-				t.Errorf("BlockKind = %v, want %v", typ.BlockKind, tt.bk)
+			if tt.expType != nil && !typ.Equals(*tt.expType) {
+				t.Errorf("Type = %s, want %s", typ.String(), tt.expType.String())
 			}
 		})
 	}
@@ -401,24 +399,23 @@ func TestNullStrippingInUnion(t *testing.T) {
 		input       string
 		required    bool
 		resultKind  TypeKind
-		resultBK    token.BlockKind
-		checkBK     bool
+		expType     *Type // expected type to check with Equals (nil to skip)
 		memberCount int
 	}{
 		{
 			"str | null becomes optional str",
 			"schema test_strip {\n  @suppress(\"duplicate-block\")\n  field = str | null\n}",
-			false, BlockRef, token.BlockStr, true, 0,
+			false, BlockRef, typePtr(Str()), 0,
 		},
 		{
 			"str | model | null becomes optional union",
 			"schema test_strip2 {\n  @suppress(\"duplicate-block\")\n  field = str | model | null\n}",
-			false, Union, 0, false, 2,
+			false, Union, nil, 2,
 		},
 		{
 			"str (no null) is required",
 			"schema test_strip3 {\n  @suppress(\"duplicate-block\")\n  field = str\n}",
-			true, BlockRef, token.BlockStr, true, 0,
+			true, BlockRef, typePtr(Str()), 0,
 		},
 	}
 
@@ -442,8 +439,8 @@ func TestNullStrippingInUnion(t *testing.T) {
 			if fs.Type.Kind != tt.resultKind {
 				t.Errorf("Kind = %v, want %v", fs.Type.Kind, tt.resultKind)
 			}
-			if tt.checkBK && fs.Type.BlockKind != tt.resultBK {
-				t.Errorf("BlockKind = %v, want %v", fs.Type.BlockKind, tt.resultBK)
+			if tt.expType != nil && !fs.Type.Equals(*tt.expType) {
+				t.Errorf("Type = %s, want %s", fs.Type.String(), tt.expType.String())
 			}
 			if tt.memberCount > 0 && len(fs.Type.Members) != tt.memberCount {
 				t.Errorf("Members = %d, want %d", len(fs.Type.Members), tt.memberCount)

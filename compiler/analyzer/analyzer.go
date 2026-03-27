@@ -386,7 +386,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		objType := types.ExprType(e.Object, symbols)
 		if types.IsCompatible(objType, types.Type{Kind: types.List}) {
 			idxType := types.ExprType(e.Index, symbols)
-			if !idxType.IsAny() && !types.IsCompatible(idxType, types.TypeOf(token.BlockInt)) {
+			if !idxType.IsAny() && !types.IsCompatible(idxType, types.Int()) {
 				return []diagnostic.Diagnostic{{
 					Severity: diagnostic.Error,
 					Code:     diagnostic.CodeInvalidSubscript,

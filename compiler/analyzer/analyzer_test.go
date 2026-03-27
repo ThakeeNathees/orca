@@ -584,6 +584,33 @@ func TestInputTypeResolution(t *testing.T) {
 			`has no field "bogus"`,
 		},
 		{
+			"input with primitive type is compatible with that type",
+			`input prov {
+				type = str
+			}
+			model my_model {
+				provider = prov
+				model_name = "gpt"
+			}`,
+			false,
+			"",
+		},
+		{
+			"input member type mismatch with expected field type",
+			`input inp {
+				type = schema {
+					lst = list[str]
+				}
+			}
+			agent foo {
+				model = ""
+				persona = ""
+				tools = inp.lst
+			}`,
+			true,
+			"expects type list[tool], got list[str]",
+		},
+		{
 			"input with primitive type has no fields",
 			`input apikey {
 				type = str

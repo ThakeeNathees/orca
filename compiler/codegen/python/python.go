@@ -8,18 +8,6 @@ import (
 	"github.com/thakee/orca/compiler/ast"
 )
 
-// Output holds the generated files from a Python codegen backend.
-type Output struct {
-	MainPy        string // generated Python source
-	PyProjectTOML string // generated pyproject.toml
-}
-
-// Backend defines a Python code generation target. Each backend (LangGraph, CrewAI, etc.)
-// implements this interface to produce Python code from the analyzed AST.
-type Backend interface {
-	Generate() Output
-}
-
 // OrcaToPythonExpression converts an AST expression to its Python representation.
 // Shared across all Python-targeting backends.
 func OrcaToPythonExpression(expr ast.Expression) string {

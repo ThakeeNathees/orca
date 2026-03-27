@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/langgraph"
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/lexer"
@@ -85,19 +86,45 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	backend := langgraph.New(&program)
 	output := backend.Generate()
 
-	// Write build/ directory.
-	if err := os.MkdirAll("build", 0755); err != nil {
-		return fmt.Errorf("failed to create build directory: %w", err)
+	// Check for codegen diagnostics.
+	if len(output.Diagnostics) > 0 {
+		hasError := false
+		for _, d := range output.Diagnostics {
+			fmt.Fprintln(os.Stderr, d.Error())
+			if d.Severity == diagnostic.Error {
+				hasError = true
+			}
+		}
+		if hasError {
+			return fmt.Errorf("compilation failed with codegen errors")
+		}
 	}
 
-	if err := os.WriteFile("build/main.py", []byte(output.MainPy), 0644); err != nil {
-		return fmt.Errorf("failed to write main.py: %w", err)
+	// Write output tree to disk.
+	if err := writeOutputDir(".", output.RootDir); err != nil {
+		return err
 	}
 
-	if err := os.WriteFile("build/pyproject.toml", []byte(output.PyProjectTOML), 0644); err != nil {
-		return fmt.Errorf("failed to write pyproject.toml: %w", err)
-	}
+	fmt.Printf("compiled %d .oc file(s) → %s/\n", len(files), output.RootDir.Name)
+	return nil
+}
 
-	fmt.Printf("compiled %d .oc file(s) → build/main.py, build/pyproject.toml\n", len(files))
+// writeOutputDir recursively writes an OutputDirectory tree to disk under parent.
+func writeOutputDir(parent string, dir codegen.OutputDirectory) error {
+	dirPath := filepath.Join(parent, dir.Name)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dirPath, err)
+	}
+	for _, f := range dir.Files {
+		fPath := filepath.Join(dirPath, f.Name)
+		if err := os.WriteFile(fPath, []byte(f.Content), 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", fPath, err)
+		}
+	}
+	for _, sub := range dir.Directories {
+		if err := writeOutputDir(dirPath, sub); err != nil {
+			return err
+		}
+	}
 	return nil
 }

@@ -58,12 +58,6 @@ func TestBlockKindString(t *testing.T) {
 		{BlockInput, "input"},
 		{BlockSchema, "schema"},
 		{BlockLet, "let"},
-		{BlockStr, "str"},
-		{BlockInt, "int"},
-		{BlockFloat, "float"},
-		{BlockBool, "bool"},
-		{BlockAny, "any"},
-		{BlockNull, "null"},
 		{BlockKind(999), "unknown"},
 	}
 
@@ -122,17 +116,6 @@ func TestBlockKindsSlice(t *testing.T) {
 	for _, k := range BlockKinds {
 		if k.String() == "unknown" {
 			t.Errorf("BlockKinds contains unknown kind: %d", k)
-		}
-	}
-	// Primitives should not be in BlockKinds.
-	primitives := []BlockKind{BlockStr, BlockInt, BlockFloat, BlockBool, BlockAny, BlockNull}
-	kindSet := make(map[BlockKind]bool)
-	for _, k := range BlockKinds {
-		kindSet[k] = true
-	}
-	for _, p := range primitives {
-		if kindSet[p] {
-			t.Errorf("BlockKinds should not contain primitive %v", p)
 		}
 	}
 }

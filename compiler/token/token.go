@@ -65,7 +65,9 @@ const (
 	PrecAccess      // .
 )
 
-// BlockKind identifies the kind of a top-level block or a primitive/built-in type.
+// BlockKind identifies the kind of a top-level block.
+// Primitive types (str, int, float, bool, any, null) are NOT block kinds —
+// they are schemas defined in builtins.oc and represented as SchemaType.
 type BlockKind int
 
 const (
@@ -79,14 +81,6 @@ const (
 	BlockInput                      // input block
 	BlockSchema                     // schema block / user-defined schema types
 	BlockLet                        // let block
-
-	// Primitive types
-	BlockStr   // str
-	BlockInt   // int
-	BlockFloat // float
-	BlockBool  // bool
-	BlockAny   // any (wildcard type)
-	BlockNull  // null
 )
 
 // blockKindStrings maps each BlockKind to its string representation.
@@ -95,8 +89,7 @@ var blockKindStrings = [...]string{
 	BlockModel: "model", BlockAgent: "agent", BlockTool: "tool",
 	BlockTask: "task", BlockKnowledge: "knowledge", BlockWorkflow: "workflow",
 	BlockTrigger: "trigger", BlockInput: "input", BlockSchema: "schema",
-	BlockLet: "let", BlockStr: "str", BlockInt: "int", BlockFloat: "float",
-	BlockBool: "bool", BlockAny: "any", BlockNull: "null",
+	BlockLet: "let",
 }
 
 // String returns the string representation of a BlockKind.

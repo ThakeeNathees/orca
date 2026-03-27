@@ -22,7 +22,7 @@ func TestGetBlockSchema(t *testing.T) {
 		{"workflow schema exists", token.BlockWorkflow, true, 2},
 		{"trigger schema exists", token.BlockTrigger, true, 2},
 		{"input schema exists", token.BlockInput, true, 4},
-		{"primitive str", token.BlockStr, true, 0},
+		{"schema kind has no builtin schema", token.BlockSchema, false, 0},
 	}
 
 	for _, tt := range tests {
@@ -64,7 +64,7 @@ func TestGetSchemaByName(t *testing.T) {
 func TestGetSchemaUserDefined(t *testing.T) {
 	RegisterSchema("test_user_schema", BlockSchema{
 		Fields: map[string]FieldSchema{
-			"name": {Type: TypeOf(token.BlockStr), Required: true},
+			"name": {Type: Str(), Required: true},
 		},
 	})
 	schema, ok := GetSchema("test_user_schema")
@@ -85,7 +85,7 @@ func TestLookupBlockSchemaBuiltin(t *testing.T) {
 	}{
 		{"model type", NewBlockRefType(token.BlockModel), true},
 		{"agent type", NewBlockRefType(token.BlockAgent), true},
-		{"str type", TypeOf(token.BlockStr), true},
+		{"str type", Str(), true},
 	}
 
 	for _, tt := range tests {
@@ -103,8 +103,8 @@ func TestLookupBlockSchemaBuiltin(t *testing.T) {
 func TestLookupBlockSchemaUserSchema(t *testing.T) {
 	RegisterSchema("test_lookup_schema", BlockSchema{
 		Fields: map[string]FieldSchema{
-			"host": {Type: TypeOf(token.BlockStr), Required: true},
-			"port": {Type: TypeOf(token.BlockInt), Required: false},
+			"host": {Type: Str(), Required: true},
+			"port": {Type: Int(), Required: false},
 		},
 	})
 
@@ -135,8 +135,8 @@ func TestLookupFieldSchemaBuiltin(t *testing.T) {
 	if !ok {
 		t.Fatal("expected model.provider to be found")
 	}
-	if field.Type.BlockKind != token.BlockStr {
-		t.Errorf("BlockKind = %v, want %v", field.Type.BlockKind, token.BlockStr)
+	if !field.Type.Equals(Str()) {
+		t.Errorf("Type = %s, want str", field.Type.String())
 	}
 }
 
@@ -145,7 +145,7 @@ func TestLookupFieldSchemaBuiltin(t *testing.T) {
 func TestLookupFieldSchemaUserSchema(t *testing.T) {
 	RegisterSchema("test_field_lookup", BlockSchema{
 		Fields: map[string]FieldSchema{
-			"region": {Type: TypeOf(token.BlockStr), Required: true},
+			"region": {Type: Str(), Required: true},
 		},
 	})
 
@@ -154,8 +154,8 @@ func TestLookupFieldSchemaUserSchema(t *testing.T) {
 	if !ok {
 		t.Fatal("expected field 'region' to be found")
 	}
-	if field.Type.BlockKind != token.BlockStr {
-		t.Errorf("BlockKind = %v, want %v", field.Type.BlockKind, token.BlockStr)
+	if !field.Type.Equals(Str()) {
+		t.Errorf("Type = %s, want str", field.Type.String())
 	}
 
 	// Unknown field returns false.
@@ -211,15 +211,15 @@ func TestRegisterSchemaAndGetSchema(t *testing.T) {
 			"register single-field schema",
 			"test_reg_schema_1",
 			map[string]FieldSchema{
-				"url": {Type: TypeOf(token.BlockStr), Required: true},
+				"url": {Type: Str(), Required: true},
 			},
 		},
 		{
 			"register multi-field schema",
 			"test_reg_schema_2",
 			map[string]FieldSchema{
-				"host": {Type: TypeOf(token.BlockStr), Required: true},
-				"port": {Type: TypeOf(token.BlockInt), Required: false},
+				"host": {Type: Str(), Required: true},
+				"port": {Type: Int(), Required: false},
 			},
 		},
 	}
@@ -288,17 +288,16 @@ func TestGetFieldSchema(t *testing.T) {
 		field     string
 		ok        bool
 		kind      TypeKind
-		bk        token.BlockKind
-		checkBK   bool
+		expType   *Type // expected type to check with Equals (nil to skip)
 		required  bool
 	}{
-		{"model provider", token.BlockModel, "provider", true, BlockRef, token.BlockStr, true, true},
-		{"model model_name", token.BlockModel, "model_name", true, Union, 0, false, true},
-		{"model temperature", token.BlockModel, "temperature", true, BlockRef, token.BlockFloat, true, false},
-		{"agent model union", token.BlockAgent, "model", true, Union, 0, false, true},
-		{"agent persona", token.BlockAgent, "persona", true, BlockRef, token.BlockStr, true, true},
-		{"agent tools list", token.BlockAgent, "tools", true, List, 0, false, false},
-		{"unknown field", token.BlockModel, "nonexistent", false, BlockRef, 0, false, false},
+		{"model provider", token.BlockModel, "provider", true, BlockRef, typePtr(Str()), true},
+		{"model model_name", token.BlockModel, "model_name", true, Union, nil, true},
+		{"model temperature", token.BlockModel, "temperature", true, BlockRef, typePtr(Float()), false},
+		{"agent model union", token.BlockAgent, "model", true, Union, nil, true},
+		{"agent persona", token.BlockAgent, "persona", true, BlockRef, typePtr(Str()), true},
+		{"agent tools list", token.BlockAgent, "tools", true, List, nil, false},
+		{"unknown field", token.BlockModel, "nonexistent", false, BlockRef, nil, false},
 	}
 
 	for _, tt := range tests {
@@ -311,8 +310,8 @@ func TestGetFieldSchema(t *testing.T) {
 				if field.Type.Kind != tt.kind {
 					t.Errorf("Kind = %v, want %v", field.Type.Kind, tt.kind)
 				}
-				if tt.checkBK && field.Type.BlockKind != tt.bk {
-					t.Errorf("BlockKind = %v, want %v", field.Type.BlockKind, tt.bk)
+				if tt.expType != nil && !field.Type.Equals(*tt.expType) {
+					t.Errorf("Type = %s, want %s", field.Type.String(), tt.expType.String())
 				}
 				if field.Required != tt.required {
 					t.Errorf("Required = %v, want %v", field.Required, tt.required)
