@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>A declarative language for AI agent orchestration.</strong><br>
-  A research agent-as-a-code language for expressing agentic systems as declarative programs
+  A research agents-as-a-code language for expressing agentic systems as declarative programs
 </p>
 
 <p align="center">
@@ -114,13 +114,15 @@ app = graph.compile()
 
 **Declarative over imperative.** You describe the components of an agent system and their relationships. The compiler handles the code generation. No state schemas, no graph wiring, no boilerplate.
 
-**Static safety.** The compiler catches misconfigurations — undefined references, type mismatches, missing required fields — at compile time, before any code runs. No more discovering a typo three layers deep in a runtime stack trace.
+**Convention over configuration** Sensible defaults for everything. A model block with just a provider should work. Only override what you need to customize.
 
-**Framework independent.** Orca is not a wrapper around LangGraph. It's a language with its own compiler, type system, and semantic analysis. The current backend targets LangGraph, but the architecture is designed for multiple backends (CrewAI, AutoGen, and others). Your `.oc` files stay the same — only the generated output changes.
+**Composability** Agents, tools, models, and workflows are independent blocks that compose freely. Build complex systems by combining simple, self-contained pieces.
 
-**Language independent.** The compiler currently generates Python, but the language design is not tied to Python. Future backends can target other languages and runtimes.
+**Highly orthogonal syntax.** The basic construct of orca is declarative blocks with parameters as key-value assignments with predictable syntax.
 
-**Source-mapped output.** Every line of generated Python is annotated with its originating `.oc` source location. When something goes wrong, you debug in terms of your declarations, not generated code.
+**Language/Framework independent.** Orca is not a wrapper around LangGraph. It's a language with its own compiler, type system, and semantic analysis. The current backend targets LangGraph, but the architecture is designed for multiple backends (CrewAI, AutoGen, and others).
+
+**Static safety.** The compiler catches misconfigurations - undefined references, type mismatches, missing required fields - at compile time, before any code runs. No more discovering a typo three layers deep in a runtime stack trace.
 
 ## Quick Start
 
@@ -165,7 +167,7 @@ The **lexer** tokenizes `.oc` source files with full line and column tracking. T
 
 The code generator is behind a `Backend` interface. Adding a new target (CrewAI, AutoGen, or a different language entirely) means implementing that interface — the rest of the pipeline stays unchanged.
 
-Every block type in the language — `model`, `agent`, `tool`, `task`, `workflow`, `trigger` — is defined by a **schema** that specifies its fields, types, and constraints. The analyzer validates `.oc` files against these schemas at compile time, catching errors that frameworks would only surface at runtime.
+Every block type in the language — `model`, `agent`, `tool`, `task`, `workflow`, `webhook` — is defined by a **schema** that specifies its fields, types, and constraints. The analyzer validates `.oc` files against these schemas at compile time, catching errors that frameworks would only surface at runtime.
 
 ## Editor Support
 
@@ -175,16 +177,7 @@ Orca ships with a VS Code extension that provides syntax highlighting, autocompl
 
 ## Contributing
 
-The compiler has 570+ tests across all pipeline stages. TDD is enforced.
-
-```bash
-cd compiler
-make build          # compile the binary
-make test           # run all tests
-make lint           # fmt + vet
-```
-
-See [CLAUDE.md](CLAUDE.md) for development conventions and detailed project structure.
+Test Driven Development is enforced throughout the project: every new feature or change starts with a failing test case. See [CLAUDE.md](CLAUDE.md) for development conventions and detailed project structure.
 
 ## Papers
 
