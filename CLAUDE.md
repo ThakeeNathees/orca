@@ -12,7 +12,9 @@ orca/
 ├── docs/              # VitePress documentation site
 ├── editor/            # Editor integrations (VS Code extension)
 ├── experiments/        # Python experiments and prototypes
-├── paper/             # LaTeX research paper (build with `make build` in paper/)
+├── paper/             # LaTeX research papers
+│   ├── agents-as-code/    # "Orca: A Declarative Language for AI Agent Orchestration"
+│   └── compiling-intent/  # "Compiling Intent: An Agentic Compiler for Multi-Agent System Generation"
 └── CLAUDE.md
 ```
 
@@ -25,14 +27,21 @@ VitePress documentation site hosted on GitHub Pages.
 - **Preview**: `cd docs && pnpm run preview`
 - **Auto-maintain**: When a compiler feature is implemented, update the relevant docs page to reflect the new capability. Fill in TODO comments with real content as features are completed.
 
-## Paper (`paper/`)
+## Papers (`paper/`)
 
-LaTeX research paper: *"Orca: A Declarative Language for AI Agent Orchestration"*.
+Two LaTeX research papers:
 
-- **Auto-maintain**: When a significant compiler feature is implemented, update the relevant paper section to reflect the new capability. Remove TODO boxes and fill in content as features are completed. Add image placeholder boxes where figures are needed.
-- **Build**: `cd paper && make build` — outputs PDF to `paper/out/main.pdf`
-- **Watch**: `make watch` — auto-rebuilds on changes
-- Generated files in `paper/out/` are gitignored.
+### `paper/agents-as-code/` — *Orca: A Declarative Language for AI Agent Orchestration*
+- **Auto-maintain**: When a compiler feature is implemented, update the relevant section. Remove TODO boxes and fill in content as features are completed.
+- **Build**: `cd paper/agents-as-code && make build` — outputs PDF to `out/main.pdf`
+
+### `paper/compiling-intent/` — *Compiling Intent: An Agentic Compiler for Multi-Agent System Generation*
+- About the agentic compiler that takes natural language and generates `.oc` files (bootstrapped in Orca itself).
+- **Auto-maintain**: When agentic compiler features are implemented in `experiments/orca/`, update the relevant section.
+- **Build**: `cd paper/compiling-intent && make build` — outputs PDF to `out/main.pdf`
+
+- **Watch**: `make watch` — auto-rebuilds on changes (in either paper directory)
+- Generated files in `*/out/` are gitignored.
 
 ## Compiler (`compiler/`)
 

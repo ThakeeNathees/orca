@@ -1,25 +1,32 @@
+"""Remove or replace background on docs/img/logo-nano-banana.png.
+
+Usage: python remove_bg.py <none|white|white-none>
+"""
+
 import cv2
 import numpy as np
 import sys
+from pathlib import Path
 
-# Usage: python remove-bg.py <none|white>
+VALID_MODES = ["none", "white", "white-none"]
 
-INPUT_FILENAME = 'logo-nano-banana.png'
-VALID_MODES = ['none', 'white', 'white-none']
+# docs/scripts/ -> docs/img/
+_IMG_DIR = Path(__file__).resolve().parent.parent / "img"
+INPUT_PATH = _IMG_DIR / "logo-nano-banana.png"
 
 if len(sys.argv) != 2 or sys.argv[1] not in VALID_MODES:
     print(f"Usage: python {sys.argv[0]} <{'|'.join(VALID_MODES)}>")
     sys.exit(1)
 
 mode = sys.argv[1]
-OUTPUT_FILENAME = f'logo-bg-{mode}.png'
+output_path = _IMG_DIR / f"logo-bg-{mode}.png"
 
-img = cv2.imread(INPUT_FILENAME)
+img = cv2.imread(str(INPUT_PATH))
 if img is None:
-    print(f"Error: Could not read '{INPUT_FILENAME}'.")
+    print(f"Error: Could not read '{INPUT_PATH}'.")
     sys.exit(1)
 
-print(f"Processing '{INPUT_FILENAME}' -> '{OUTPUT_FILENAME}'...")
+print(f"Processing '{INPUT_PATH}' -> '{output_path}'...")
 
 # Convert to grayscale and blur slightly to reduce noise
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -33,20 +40,20 @@ kernel = np.ones((3, 3), np.uint8)
 mask_cleaned = cv2.morphologyEx(thresholded_mask, cv2.MORPH_OPEN, kernel, iterations=1)
 mask_final = cv2.morphologyEx(mask_cleaned, cv2.MORPH_CLOSE, kernel, iterations=1)
 
-if mode == 'white':
+if mode == "white":
     result = np.full_like(img, (255, 255, 255))
     result[mask_final > 0] = 0
-    cv2.imwrite(OUTPUT_FILENAME, result)
-elif mode == 'white-none':
+    cv2.imwrite(str(output_path), result)
+elif mode == "white-none":
     # White foreground on transparent background
     result_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
     result_rgba[:, :, 0:3] = 255  # set RGB to white
     result_rgba[:, :, 3] = mask_final  # alpha from mask
-    cv2.imwrite(OUTPUT_FILENAME, result_rgba)
+    cv2.imwrite(str(output_path), result_rgba)
 else:
     result_rgba = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
     result_rgba[:, :, 3] = mask_final
     result_rgba[mask_final > 0, 0:3] = 0
-    cv2.imwrite(OUTPUT_FILENAME, result_rgba)
+    cv2.imwrite(str(output_path), result_rgba)
 
-print(f"Done: '{OUTPUT_FILENAME}'")
+print(f"Done: '{output_path}'")

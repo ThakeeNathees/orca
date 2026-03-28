@@ -5,7 +5,7 @@ OUTDIR = out
 
 build:
 	@mkdir -p $(OUTDIR)
-	BIBINPUTS=..: latexmk -pdf -pdflatex="pdflatex -interaction=nonstopmode" \
+	latexmk -pdf -pdflatex="pdflatex -interaction=nonstopmode" \
 		-bibtex -outdir=$(OUTDIR) $(MAIN).tex
 
 watch:

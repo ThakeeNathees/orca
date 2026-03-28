@@ -1,6 +1,14 @@
-# Orca Research Paper
+# Orca Research Papers
 
-*"Orca: A Declarative Language for AI Agent Orchestration"*
+## Papers
+
+### [agents-as-code](agents-as-code/) — *Orca: A Declarative Language for AI Agent Orchestration*
+
+The core Orca language paper: declarative DSL design, four-stage compiler pipeline, type system, and editor integration.
+
+### [compiling-intent](compiling-intent/) — *Compiling Intent: An Agentic Compiler for Multi-Agent System Generation*
+
+An agentic compiler (written in Orca itself) that takes natural language prompts and generates `.oc` files, which then compile to Python/LangGraph.
 
 ## Prerequisites
 
@@ -14,8 +22,6 @@
 sudo pacman -S texlive-basic texlive-latex texlive-latexrecommended texlive-latexextra texlive-bibtexextra texlive-fontsrecommended
 ```
 
-`latexmk` is included in `texlive-basic`.
-
 ### Installing on Ubuntu/Debian
 
 ```bash
@@ -28,28 +34,11 @@ sudo apt install texlive-latex-recommended texlive-latex-extra texlive-bibtex-ex
 brew install --cask mactex
 ```
 
-`latexmk` is included with MacTeX.
-
 ## Building
 
 ```bash
-make build
+cd agents-as-code && make build
+cd compiling-intent && make build
 ```
 
-Output PDF is written to `out/main.pdf`.
-
-## Watch mode
-
-Auto-rebuilds on file changes:
-
-```bash
-make watch
-```
-
-## Clean
-
-Remove all generated files:
-
-```bash
-make clean
-```
+Output PDFs are written to `<paper>/out/main.pdf`.

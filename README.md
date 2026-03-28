@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo/logo-bg-white.png" alt="Orca">
+  <img src="docs/img/logo-bg-white.png" alt="Orca">
 </p>
 
 <p align="center">
@@ -12,6 +12,13 @@
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#how-it-works">How It Works</a> &middot;
   <a href="#contributing">Contributing</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/status-work%20in%20progress-orange" alt="Status: Work in Progress">
+  <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version">
+  <img src="https://img.shields.io/github/license/ThakeeNathees/orca" alt="License">
+
 </p>
 
 ---
@@ -179,9 +186,30 @@ make lint           # fmt + vet
 
 See [CLAUDE.md](CLAUDE.md) for development conventions and detailed project structure.
 
-## References
+## Papers
 
-Orca is accompanied by a research paper: *"Orca: A Declarative Language for AI Agent Orchestration"* (see [`paper/`](paper/)).
+Orca is accompanied by two research papers exploring declarative agent orchestration and intent compilation. Both are work-in-progress and live in the [`paper/`](paper/) directory.
+
+<p align="center">
+  <img src="docs/public/papers-preview.png" alt="Research papers preview" width="700">
+</p>
+
+To build a paper’s PDF (LaTeX required), run `make build` from that paper’s folder. The PDF is written to `out/main.pdf`.
+
+```bash
+cd paper/agents-as-code && make build
+cd paper/compiling-intent && make build
+```
+
+### Paper 1: [Orca: A Declarative Language for AI Agent Orchestration](paper/agents-as-code/)
+
+Presents Orca as a domain-specific language for AI agent orchestration. Describes the HCL-inspired block syntax, the four-stage compiler pipeline (lexer, Pratt parser, semantic analyzer, code generator), and the type system that enables static checking and editor integration via the Language Server Protocol. The compiler catches misconfigurations — undefined references, type mismatches, missing fields — at compile time, before any LLM is invoked.
+
+### Paper 2: [Compiling Intent: An Agentic Compiler for Multi-Agent System Generation](paper/compiling-intent/)
+
+Argues that the path to robust multi-agent systems is not smarter prompting but smarter engineering. Applies classical compiler design principles — parsing, semantic analysis, optimization, and code generation — to the problem of transforming natural language intent into executable agent graphs. The agentic compiler, itself written in Orca, takes natural language descriptions and generates valid `.oc` source files, which are then compiled by the Orca compiler into Python/LangGraph code — creating a two-stage pipeline that isolates LLM non-determinism from deterministic compilation.
+
+### References
 
 - Harrison Chase et al. (2025) *LangGraph: Multi-Actor Programs with LLMs* [online] Available at https://github.com/langchain-ai/langgraph
 
