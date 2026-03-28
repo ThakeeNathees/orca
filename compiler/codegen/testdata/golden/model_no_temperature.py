@@ -4,4 +4,6 @@ from langchain_anthropic import ChatAnthropic
 
 # --- Models ---
 
-claude = ChatAnthropic(model="claude-sonnet-4-20250514")  # line 1
+claude = ChatAnthropic(  # line 1
+    model="claude-sonnet-4-20250514",
+)

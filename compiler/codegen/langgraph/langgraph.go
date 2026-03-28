@@ -25,9 +25,28 @@ func New(program *ast.Program) codegen.CodegenBackend {
 // resolvedProviders holds the result of a single pass over model blocks,
 // extracting known providers and emitting diagnostics for unknown ones.
 type resolvedProviders struct {
-	names []string                  // sorted, deduplicated known provider names
-	deps  []codegen.Dependency      // langchain-core + provider-specific deps
-	diags []diagnostic.Diagnostic   // errors for unknown providers
+	names []string                // sorted, deduplicated known provider names
+	deps  []codegen.Dependency    // langchain-core + provider-specific deps
+	diags []diagnostic.Diagnostic // errors for unknown providers
+}
+
+// Generate produces a tree-structured output targeting LangGraph.
+func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
+	var diags []diagnostic.Diagnostic
+
+	rp := b.resolveProviders()
+	diags = append(diags, rp.diags...)
+
+	return codegen.CodegenOutput{
+		RootDir: codegen.OutputDirectory{
+			Name: "build",
+			Files: []codegen.OutputFile{
+				{Name: "main.py", Content: b.generateMain(rp.names)},
+			},
+		},
+		Dependencies: rp.deps,
+		Diagnostics:  diags,
+	}
 }
 
 // resolveProviders walks model blocks once to collect known providers,
@@ -75,25 +94,6 @@ func (b *LangGraphBackend) resolveProviders() resolvedProviders {
 	return resolvedProviders{names: names, deps: deps, diags: diags}
 }
 
-// Generate produces a tree-structured output targeting LangGraph.
-func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
-	var diags []diagnostic.Diagnostic
-
-	rp := b.resolveProviders()
-	diags = append(diags, rp.diags...)
-
-	return codegen.CodegenOutput{
-		RootDir: codegen.OutputDirectory{
-			Name: "build",
-			Files: []codegen.OutputFile{
-				{Name: "main.py", Content: b.generateMain(rp.names)},
-			},
-		},
-		Dependencies: rp.deps,
-		Diagnostics:  diags,
-	}
-}
-
 func (b *LangGraphBackend) generateMain(providers []string) string {
 	var s strings.Builder
 
@@ -123,6 +123,16 @@ func (b *LangGraphBackend) generateMain(providers []string) string {
 		for _, block := range models {
 			s.WriteString("\n")
 			writeModel(&s, block)
+		}
+	}
+
+	// Write agent definitions.
+	agents := b.CollectBlocks(token.AGENT)
+	if len(agents) > 0 {
+		s.WriteString("\n# --- Agents ---\n")
+		for _, block := range agents {
+			s.WriteString("\n")
+			writeAgent(&s, block)
 		}
 	}
 
@@ -178,9 +188,46 @@ func writeModel(s *strings.Builder, block *ast.BlockStatement) {
 		params = append(params, fmt.Sprintf("temperature=%s", python.FormatFloat(temperature)))
 	}
 
-	fmt.Fprintf(s, "%s = %s(%s)  # %s\n",
-		block.Name, info.Class, strings.Join(params, ", "),
+	fmt.Fprintf(s, "%s = %s(  # %s\n", block.Name, info.Class,
 		codegen.SourceComment(block.SourceFile, block.TokenStart.Line))
+	for _, p := range params {
+		fmt.Fprintf(s, "    %s,\n", p)
+	}
+	s.WriteString(")\n")
+}
+
+// writeAgent generates a Python create_react_agent call from an agent block.
+// Produces: name = create_react_agent(model, tools=[...], prompt="persona")
+func writeAgent(s *strings.Builder, block *ast.BlockStatement) {
+	var model, persona string
+	var tools string
+
+	for _, assign := range block.Assignments {
+		switch assign.Name {
+		case "model":
+			model = python.OrcaToPythonExpression(assign.Value)
+		case "persona":
+			persona = python.OrcaToPythonExpression(assign.Value)
+		case "tools":
+			if list, ok := assign.Value.(*ast.ListLiteral); ok && len(list.Elements) > 0 {
+				tools = python.OrcaToPythonExpression(assign.Value)
+			}
+		}
+	}
+
+	var params []string
+	params = append(params, model)
+	if tools != "" {
+		params = append(params, fmt.Sprintf("tools=%s", tools))
+	}
+	params = append(params, fmt.Sprintf("prompt=%s", persona))
+
+	fmt.Fprintf(s, "%s = create_react_agent(  # %s\n", block.Name,
+		codegen.SourceComment(block.SourceFile, block.TokenStart.Line))
+	for _, p := range params {
+		fmt.Fprintf(s, "    %s,\n", p)
+	}
+	s.WriteString(")\n")
 }
 
 // providerDeps returns sorted, deduplicated pip dependencies.

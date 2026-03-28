@@ -4,4 +4,14 @@ from langchain_openai import ChatOpenAI
 
 # --- Models ---
 
-gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.7)  # line 1
+gpt4 = ChatOpenAI(  # line 1
+    model="gpt-4o",
+    temperature=0.7,
+)
+
+# --- Agents ---
+
+writer = create_react_agent(  # line 7
+    gpt4,
+    prompt="You are a helpful writer.",
+)

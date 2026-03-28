@@ -190,8 +190,8 @@ func TestWriteModel(t *testing.T) {
 			block: modelBlockWithTemp("gpt4", "openai", "gpt-4o", 0.7),
 			contains: []string{
 				"gpt4 = ChatOpenAI(",
-				`model="gpt-4o"`,
-				"temperature=0.7",
+				`    model="gpt-4o",`,
+				"    temperature=0.7,",
 			},
 		},
 		{
@@ -199,8 +199,8 @@ func TestWriteModel(t *testing.T) {
 			block: modelBlockWithTemp("claude", "anthropic", "claude-sonnet-4-20250514", 0.5),
 			contains: []string{
 				"claude = ChatAnthropic(",
-				`model="claude-sonnet-4-20250514"`,
-				"temperature=0.5",
+				`    model="claude-sonnet-4-20250514",`,
+				"    temperature=0.5,",
 			},
 		},
 		{
@@ -208,14 +208,14 @@ func TestWriteModel(t *testing.T) {
 			block: modelBlock("gemini", "google", "gemini-pro"),
 			contains: []string{
 				"gemini = ChatGoogleGenerativeAI(",
-				`model="gemini-pro"`,
+				`    model="gemini-pro",`,
 			},
 		},
 		{
 			name:  "integer temperature",
 			block: modelBlockWithIntTemp("m1", "openai", "gpt-4o", 1),
 			contains: []string{
-				"temperature=1.0",
+				"    temperature=1.0,",
 			},
 		},
 		{
@@ -228,6 +228,28 @@ func TestWriteModel(t *testing.T) {
 			block: modelBlockAtLine("gpt4", "openai", "gpt-4o", 42),
 			contains: []string{
 				"# line 42",
+			},
+		},
+		{
+			name:  "closing paren on its own line",
+			block: modelBlock("m", "openai", "gpt-4o"),
+			contains: []string{
+				"\n)",
+			},
+		},
+		{
+			name:  "google provider class",
+			block: modelBlock("gem", "google", "gemini-2.0-flash"),
+			contains: []string{
+				"gem = ChatGoogleGenerativeAI(",
+				`    model="gemini-2.0-flash",`,
+			},
+		},
+		{
+			name:  "zero temperature",
+			block: modelBlockWithIntTemp("m", "openai", "gpt-4o", 0),
+			contains: []string{
+				"    temperature=0.0,",
 			},
 		},
 	}
@@ -244,6 +266,101 @@ func TestWriteModel(t *testing.T) {
 				}
 				return
 			}
+
+			for _, exp := range tt.contains {
+				if !strings.Contains(result, exp) {
+					t.Errorf("expected %q in output:\n%s", exp, result)
+				}
+			}
+		})
+	}
+}
+
+// TestWriteAgent verifies Python agent generation from agent blocks.
+func TestWriteAgent(t *testing.T) {
+	tests := []struct {
+		name     string
+		block    *ast.BlockStatement
+		contains []string
+	}{
+		{
+			name: "basic agent without tools",
+			block: agentBlock("writer", "gpt4", "You are a helpful writer."),
+			contains: []string{
+				"writer = create_react_agent(",
+				"    gpt4,",
+				`    prompt="You are a helpful writer.",`,
+			},
+		},
+		{
+			name: "agent with tools",
+			block: agentBlockWithTools("researcher", "gpt4", "You are a researcher.", []string{"search", "calculator"}),
+			contains: []string{
+				"researcher = create_react_agent(",
+				"    gpt4,",
+				"    tools=[search, calculator],",
+				`    prompt="You are a researcher.",`,
+			},
+		},
+		{
+			name: "agent with single tool",
+			block: agentBlockWithTools("bot", "claude", "You help.", []string{"gmail"}),
+			contains: []string{
+				"bot = create_react_agent(",
+				"    claude,",
+				"    tools=[gmail],",
+				`    prompt="You help.",`,
+			},
+		},
+		{
+			name: "source comment included",
+			block: &ast.BlockStatement{
+				BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Line: 15}},
+				Name:     "a1",
+				Assignments: []*ast.Assignment{
+					{Name: "model", Value: &ast.Identifier{Value: "gpt4"}},
+					{Name: "persona", Value: &ast.StringLiteral{Value: "test"}},
+				},
+			},
+			contains: []string{
+				"# line 15",
+			},
+		},
+		{
+			name: "closing paren on its own line",
+			block: agentBlock("a", "m", "p"),
+			contains: []string{
+				"\n)",
+			},
+		},
+		{
+			name: "persona with escaped quotes",
+			block: agentBlock("bot", "gpt4", `You are a "helpful" assistant.`),
+			contains: []string{
+				`prompt="You are a \"helpful\" assistant."`,
+			},
+		},
+		{
+			name: "many tools preserves order",
+			block: agentBlockWithTools("a", "m", "p", []string{"t1", "t2", "t3", "t4"}),
+			contains: []string{
+				"tools=[t1, t2, t3, t4],",
+			},
+		},
+		{
+			name: "empty tools list omitted",
+			block: agentBlockWithTools("a", "m", "p", nil),
+			contains: []string{
+				"    m,\n    prompt=",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var s strings.Builder
+			writeAgent(&s, tt.block)
+			result := s.String()
 
 			for _, exp := range tt.contains {
 				if !strings.Contains(result, exp) {
@@ -482,6 +599,32 @@ func modelBlockWithIntTemp(name, provider, modelName string, temp int64) *ast.Bl
 func modelBlockAtLine(name, provider, modelName string, line int) *ast.BlockStatement {
 	block := modelBlock(name, provider, modelName)
 	block.BaseNode = ast.BaseNode{TokenStart: token.Token{Type: token.MODEL, Literal: "model", Line: line}}
+	return block
+}
+
+// agentBlock creates an agent block with model and persona.
+func agentBlock(name, model, persona string) *ast.BlockStatement {
+	return &ast.BlockStatement{
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Literal: "agent"}},
+		Name:     name,
+		Assignments: []*ast.Assignment{
+			{Name: "model", Value: &ast.Identifier{Value: model}},
+			{Name: "persona", Value: &ast.StringLiteral{Value: persona}},
+		},
+	}
+}
+
+// agentBlockWithTools creates an agent block with model, persona, and tools.
+func agentBlockWithTools(name, model, persona string, tools []string) *ast.BlockStatement {
+	block := agentBlock(name, model, persona)
+	elems := make([]ast.Expression, len(tools))
+	for i, t := range tools {
+		elems[i] = &ast.Identifier{Value: t}
+	}
+	block.Assignments = append(block.Assignments, &ast.Assignment{
+		Name:  "tools",
+		Value: &ast.ListLiteral{Elements: elems},
+	})
 	return block
 }
 
