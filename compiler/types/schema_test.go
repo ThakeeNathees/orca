@@ -106,7 +106,7 @@ func TestLookupBlockSchemaUserSchema(t *testing.T) {
 		},
 	})
 
-	typ := SchemaTypeOf("test_lookup_schema")
+	typ := CreateSchema("test_lookup_schema")
 	schema, ok := LookupBlockSchema(typ)
 	if !ok {
 		t.Fatal("expected user schema to be found via LookupBlockSchema")
@@ -119,7 +119,7 @@ func TestLookupBlockSchemaUserSchema(t *testing.T) {
 // TestLookupBlockSchemaUnknown verifies LookupBlockSchema returns false for
 // unknown schema names.
 func TestLookupBlockSchemaUnknown(t *testing.T) {
-	typ := SchemaTypeOf("nonexistent_schema")
+	typ := CreateSchema("nonexistent_schema")
 	_, ok := LookupBlockSchema(typ)
 	if ok {
 		t.Error("expected unknown user schema to return false")
@@ -147,7 +147,7 @@ func TestLookupFieldSchemaUserSchema(t *testing.T) {
 		},
 	})
 
-	typ := SchemaTypeOf("test_field_lookup")
+	typ := CreateSchema("test_field_lookup")
 	field, ok := LookupFieldSchema(typ, "region")
 	if !ok {
 		t.Fatal("expected field 'region' to be found")
@@ -265,7 +265,7 @@ func TestLookupFieldSchemaUnknownSchema(t *testing.T) {
 		field string
 		ok    bool
 	}{
-		{"nonexistent user schema", SchemaTypeOf("totally_unknown_schema"), "field", false},
+		{"nonexistent user schema", CreateSchema("totally_unknown_schema"), "field", false},
 	}
 
 	for _, tt := range tests {

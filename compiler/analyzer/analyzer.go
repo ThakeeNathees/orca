@@ -170,10 +170,7 @@ func registerUserSchemas(program *ast.Program) {
 func inputDeclaredType(block *ast.BlockStatement) (types.Type, bool) {
 	for _, assign := range block.Assignments {
 		if assign.Name == "type" {
-			typ, err := types.ResolveTypeExpr(assign.Value)
-			if err != nil {
-				return types.Type{}, false
-			}
+			typ := types.ExprType(assign.Value, nil)
 			return typ, true
 		}
 	}

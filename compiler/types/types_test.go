@@ -6,7 +6,6 @@ import (
 	"github.com/thakee/orca/compiler/token"
 )
 
-
 // TestTypeKindString verifies that each TypeKind has a correct string representation.
 func TestTypeKindString(t *testing.T) {
 	tests := []struct {
@@ -297,7 +296,7 @@ func TestIsNull(t *testing.T) {
 // TestTypeOfUserDefinedSchema verifies that SchemaTypeOf works for user-defined
 // schema names.
 func TestTypeOfUserDefinedSchema(t *testing.T) {
-	vpc := SchemaTypeOf("vpc_data_t")
+	vpc := CreateSchema("vpc_data_t")
 	str := Str()
 
 	// Both are BlockRef — no distinction in Kind.
@@ -309,14 +308,14 @@ func TestTypeOfUserDefinedSchema(t *testing.T) {
 		t.Error("vpc_data_t should not equal str")
 	}
 	// Same name returns equal.
-	if !vpc.Equals(SchemaTypeOf("vpc_data_t")) {
+	if !vpc.Equals(CreateSchema("vpc_data_t")) {
 		t.Error("vpc_data_t should equal vpc_data_t")
 	}
 }
 
 // TestSchemaTypeOfFields verifies SchemaTypeOf sets BlockKind and SchemaName correctly.
 func TestSchemaTypeOfFields(t *testing.T) {
-	typ := SchemaTypeOf("my_schema")
+	typ := CreateSchema("my_schema")
 	if typ.Kind != BlockRef {
 		t.Errorf("Kind = %v, want BlockRef", typ.Kind)
 	}
@@ -330,8 +329,8 @@ func TestSchemaTypeOfFields(t *testing.T) {
 
 // TestSchemaTypeOfCaching verifies SchemaTypeOf returns equal types for the same name.
 func TestSchemaTypeOfCaching(t *testing.T) {
-	a := SchemaTypeOf("cached_schema")
-	b := SchemaTypeOf("cached_schema")
+	a := CreateSchema("cached_schema")
+	b := CreateSchema("cached_schema")
 	if !a.Equals(b) {
 		t.Error("SchemaTypeOf should return equal values for the same name")
 	}
@@ -346,10 +345,10 @@ func TestSchemaTypeEquality(t *testing.T) {
 		b      Type
 		expect bool
 	}{
-		{"same schema", SchemaTypeOf("foo"), SchemaTypeOf("foo"), true},
-		{"different schemas", SchemaTypeOf("foo"), SchemaTypeOf("bar"), false},
-		{"schema vs model", SchemaTypeOf("foo"), NewBlockRefType(token.BlockModel), false},
-		{"schema vs bare BlockSchema", SchemaTypeOf("foo"), TypeOf(token.BlockSchema), false},
+		{"same schema", CreateSchema("foo"), CreateSchema("foo"), true},
+		{"different schemas", CreateSchema("foo"), CreateSchema("bar"), false},
+		{"schema vs model", CreateSchema("foo"), NewBlockRefType(token.BlockModel), false},
+		{"schema vs bare BlockSchema", CreateSchema("foo"), TypeOf(token.BlockSchema), false},
 	}
 
 	for _, tt := range tests {
@@ -363,8 +362,8 @@ func TestSchemaTypeEquality(t *testing.T) {
 
 // TestSchemaTypeCompatibility verifies IsCompatible for user-defined schema types.
 func TestSchemaTypeCompatibility(t *testing.T) {
-	fooSchema := SchemaTypeOf("foo_t")
-	barSchema := SchemaTypeOf("bar_t")
+	fooSchema := CreateSchema("foo_t")
+	barSchema := CreateSchema("bar_t")
 	anyT := Any()
 
 	tests := []struct {
@@ -397,7 +396,7 @@ func TestSchemaTypeString(t *testing.T) {
 		typ    Type
 		expect string
 	}{
-		{"named schema", SchemaTypeOf("vpc_data_t"), "vpc_data_t"},
+		{"named schema", CreateSchema("vpc_data_t"), "vpc_data_t"},
 		{"bare BlockSchema", TypeOf(token.BlockSchema), "schema"},
 	}
 
@@ -423,7 +422,7 @@ func TestTypeStringRendering(t *testing.T) {
 		{"null", Null(), "null"},
 		{"any", Any(), "any"},
 		{"model", NewBlockRefType(token.BlockModel), "model"},
-		{"user schema", SchemaTypeOf("vpc_data_t"), "vpc_data_t"},
+		{"user schema", CreateSchema("vpc_data_t"), "vpc_data_t"},
 		{"list", Type{Kind: List}, "list"},
 		{"list[str]", NewListType(Str()), "list[str]"},
 		{"map", Type{Kind: Map}, "map"},

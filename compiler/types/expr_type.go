@@ -1,12 +1,16 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/token"
 )
 
 // ExprType returns the type of an expression. Uses the symbol table to
-// resolve identifiers and member access. If symbols is nil, identifiers
-// return any.
+// resolve identifiers and member access. When symbols is nil (bootstrap
+// mode), identifiers are resolved as type names — this is used when
+// loading builtins.oc where the RHS of assignments are type declarations.
 func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 	switch e := expr.(type) {
 	case *ast.StringLiteral:
@@ -28,12 +32,11 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 	case *ast.MemberAccess:
 		return memberAccessType(e, symbols)
 	case *ast.BlockExpression:
-		return TypeOf(e.Kind)
+		return blockExprType(e)
 	case *ast.BinaryExpression:
-		// TODO: infer result type from operator and operand types.
-		return Any()
+		return binaryExprType(e, symbols)
 	case *ast.Subscription:
-		return subscriptResultType(ExprType(e.Object, symbols))
+		return subscriptionType(e, symbols)
 	case *ast.CallExpression:
 		// TODO: resolve return type from the callee's type.
 		return Any()
@@ -42,16 +45,94 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 	}
 }
 
-// identType resolves an identifier's type from the symbol table.
-// Returns the block reference type if found, any otherwise.
+// identType resolves an identifier's type. With a symbol table, looks up the
+// identifier. Without one (bootstrap mode), resolves as a type name — block
+// keywords become block references, everything else is a schema type.
 func identType(ident *ast.Identifier, symbols *SymbolTable) Type {
-	if symbols == nil {
+	if symbols != nil {
+		if typ, ok := symbols.Lookup(ident.Value); ok {
+			return typ
+		}
+	}
+	// Bootstrap / fallback: resolve as a type name.
+	return resolveIdentAsType(ident.Value)
+}
+
+// resolveIdentAsType maps an identifier name to an internal Type.
+// Block type names resolve via TokenTypeToBlockKind; primitives and
+// user-defined names resolve as schema types.
+func resolveIdentAsType(name string) Type {
+	tokType := token.LookupIdent(name)
+	if kind, ok := token.TokenTypeToBlockKind(tokType); ok {
+		return NewBlockRefType(kind)
+	}
+	return CreateSchema(name)
+}
+
+// blockExprType returns the type of an inline block expression.
+// For schema blocks, registers the inline schema under a synthetic name
+// so member access can resolve through it.
+func blockExprType(e *ast.BlockExpression) Type {
+	if e.Kind == token.BlockSchema {
+		schema, err := SchemaFromAssignments(e.Assignments)
+		if err != nil {
+			return TypeOf(token.BlockSchema)
+		}
+		name := fmt.Sprintf("__anon_%d", inlineCounter.Add(1))
+		RegisterSchema(name, schema)
+		return CreateSchema(name)
+	}
+	return TypeOf(e.Kind)
+}
+
+// binaryExprType resolves the type of a binary expression. Pipe operators
+// produce union types (e.g. str | null). Other operators return any.
+func binaryExprType(e *ast.BinaryExpression, symbols *SymbolTable) Type {
+	if e.Operator.Type != token.PIPE {
+		// TODO: infer result type from operator and operand types.
 		return Any()
 	}
-	if typ, ok := symbols.Lookup(ident.Value); ok {
-		return typ
+	members := flattenUnionTypes(e, symbols)
+	if len(members) == 0 {
+		return Any()
 	}
-	return Any()
+	return NewUnionType(members...)
+}
+
+// flattenUnionTypes recursively collects all members of a pipe-separated
+// union expression into a flat slice.
+func flattenUnionTypes(expr ast.Expression, symbols *SymbolTable) []Type {
+	switch e := expr.(type) {
+	case *ast.BinaryExpression:
+		if e.Operator.Type != token.PIPE {
+			return []Type{ExprType(expr, symbols)}
+		}
+		left := flattenUnionTypes(e.Left, symbols)
+		right := flattenUnionTypes(e.Right, symbols)
+		return append(left, right...)
+	default:
+		return []Type{ExprType(expr, symbols)}
+	}
+}
+
+// subscriptionType returns the type of a subscription expression.
+// In bootstrap mode (symbols == nil), first tries to resolve parameterized
+// types like list[tool] or map[str], then falls back to subscript result
+// type inference. With symbols, always infers from the object type.
+func subscriptionType(e *ast.Subscription, symbols *SymbolTable) Type {
+	if symbols == nil {
+		// Bootstrap: try parameterized type like list[tool] or map[str].
+		if baseIdent, ok := e.Object.(*ast.Identifier); ok {
+			elemType := ExprType(e.Index, nil)
+			switch baseIdent.Value {
+			case "list":
+				return NewListType(elemType)
+			case "map":
+				return NewMapType(Str(), elemType)
+			}
+		}
+	}
+	return subscriptResultType(ExprType(e.Object, symbols))
 }
 
 // memberAccessType resolves the type of a member access expression

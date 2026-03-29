@@ -20,7 +20,7 @@ func TestExprType(t *testing.T) {
 		{"boolean true", &ast.BooleanLiteral{Value: true}, Bool()},
 		{"boolean false", &ast.BooleanLiteral{Value: false}, Bool()},
 		{"null literal", &ast.NullLiteral{}, Null()},
-		{"identifier", &ast.Identifier{Value: "gpt4"}, Any()},
+		{"identifier without symbols resolves as schema type", &ast.Identifier{Value: "gpt4"}, CreateSchema("gpt4")},
 	}
 
 	for _, tt := range tests {
@@ -64,10 +64,10 @@ func TestExprTypeList(t *testing.T) {
 // TestExprTypeMapLiteral verifies map literal type inference.
 func TestExprTypeMapLiteral(t *testing.T) {
 	tests := []struct {
-		name   string
+		name    string
 		entries []ast.MapEntry
-		hasVal bool
-		valTyp Type
+		hasVal  bool
+		valTyp  Type
 	}{
 		{"empty map", nil, false, Type{}},
 		{
@@ -136,7 +136,7 @@ func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 		{"defined model", "gpt4", NewBlockRefType(token.BlockModel)},
 		{"defined agent", "researcher", NewBlockRefType(token.BlockAgent)},
 		{"builtin schema str", "str", Str()},
-		{"undefined", "unknown", Any()},
+		{"undefined falls back to schema type", "unknown", CreateSchema("unknown")},
 	}
 
 	for _, tt := range tests {

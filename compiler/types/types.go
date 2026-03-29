@@ -52,7 +52,7 @@ type Type struct {
 	KeyType     *Type           // non-nil for Map types
 	ValueType   *Type           // non-nil for Map types
 	BlockKind   token.BlockKind // the block kind for BlockRef types
-	SchemaName  string          // non-empty for schema types (BlockKind == token.BlockSchema)
+	SchemaName  string          // for schema types (BlockKind == BlockSchema): empty means "any schema", non-empty is a specific schema name (__anon_N for inline, user name for declared)
 	Members     []Type          // non-nil for Union types — the set of acceptable types
 }
 
@@ -73,9 +73,9 @@ func TypeOf(kind token.BlockKind) Type {
 	return t
 }
 
-// SchemaTypeOf returns the cached BlockRef type for a schema name.
+// CreateSchema returns the cached BlockRef type for a schema name.
 // Used for both built-in primitives (str, int, etc.) and user-defined schemas.
-func SchemaTypeOf(name string) Type {
+func CreateSchema(name string) Type {
 	if t, ok := schemaTypeCache[name]; ok {
 		return t
 	}
@@ -85,12 +85,12 @@ func SchemaTypeOf(name string) Type {
 }
 
 // Primitive type accessors for built-in types defined in builtins.oc.
-func Str() Type   { return SchemaTypeOf("str") }
-func Int() Type   { return SchemaTypeOf("int") }
-func Float() Type { return SchemaTypeOf("float") }
-func Bool() Type  { return SchemaTypeOf("bool") }
-func Any() Type   { return SchemaTypeOf("any") }
-func Null() Type  { return SchemaTypeOf("null") }
+func Str() Type   { return CreateSchema("str") }
+func Int() Type   { return CreateSchema("int") }
+func Float() Type { return CreateSchema("float") }
+func Bool() Type  { return CreateSchema("bool") }
+func Any() Type   { return CreateSchema("any") }
+func Null() Type  { return CreateSchema("null") }
 
 // IsAny returns true if this type is the "any" type (matches everything).
 func (t Type) IsAny() bool {
@@ -263,6 +263,12 @@ func IsCompatible(got, expected Type) bool {
 			return false
 		}
 		if got.BlockKind == token.BlockSchema {
+			// Empty SchemaName means "any schema" — it matches any specific
+			// schema. This is how `type = schema` in builtins.oc works:
+			// the field accepts any schema instance (named or inline).
+			if got.SchemaName == "" || expected.SchemaName == "" {
+				return true
+			}
 			return got.SchemaName == expected.SchemaName
 		}
 		return true
