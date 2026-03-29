@@ -652,6 +652,8 @@ func TestNoCrashMalformedExpressions(t *testing.T) {
 		{"empty block", "agent a {}"},
 		{"nested member then bracket", "agent a {\n  model = gpt4.provider[\n  persona = \"hi\"\n}"},
 		{"chained dots incomplete", "agent a {\n  model = a.b.c.\n  persona = \"hi\"\n}"},
+		{"string in workflow call arg", "workflow research {\n  researcher({\n    \"\"\n  })\n}"},
+		{"empty map in workflow call", "workflow research {\n  researcher({\n  })\n}"},
 	}
 
 	for _, tt := range inputs {

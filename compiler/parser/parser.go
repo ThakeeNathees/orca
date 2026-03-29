@@ -608,26 +608,26 @@ func (p *Parser) parseCallExpression(callee ast.Expression) *ast.CallExpression 
 
 	// Parse the first argument.
 	arg := p.parseExpression(token.PrecLowest)
-	if arg == nil {
-		return nil
+	if arg != nil {
+		call.Arguments = append(call.Arguments, arg)
 	}
-	call.Arguments = append(call.Arguments, arg)
 
 	// Parse remaining comma-separated arguments.
 	for p.curToken.Type == token.COMMA {
 		p.nextToken() // move past ,
 		arg := p.parseExpression(token.PrecLowest)
-		if arg == nil {
-			return nil
+		if arg != nil {
+			call.Arguments = append(call.Arguments, arg)
 		}
-		call.Arguments = append(call.Arguments, arg)
 	}
 
 	// Expect closing parenthesis.
 	if p.curToken.Type != token.RPAREN {
 		p.addError(fmt.Sprintf("expected ')' to close function call, got %s",
 			token.Describe(p.curToken.Type)))
-		return nil
+		// Return partial call so the AST is never a typed nil.
+		call.TokenEnd = callee.End()
+		return call
 	}
 	call.TokenEnd = p.curToken
 	p.nextToken() // consume )
