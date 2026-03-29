@@ -101,6 +101,7 @@ func textDocumentDidOpen(ctx *glsp.Context, params *protocol.DidOpenTextDocument
 	uri := params.TextDocument.URI
 	doc := updateDocument(uri, params.TextDocument.Text)
 	publishDiagnostics(ctx, uri, doc)
+	refreshSiblingDiagnostics(ctx, uri)
 	return nil
 }
 
@@ -114,6 +115,7 @@ func textDocumentDidChange(ctx *glsp.Context, params *protocol.DidChangeTextDocu
 		if changeEvent, ok := change.(protocol.TextDocumentContentChangeEventWhole); ok {
 			doc := updateDocument(uri, changeEvent.Text)
 			publishDiagnostics(ctx, uri, doc)
+			refreshSiblingDiagnostics(ctx, uri)
 		}
 	}
 	return nil
@@ -129,6 +131,9 @@ func textDocumentDidClose(ctx *glsp.Context, params *protocol.DidCloseTextDocume
 		URI:         uri,
 		Diagnostics: []protocol.Diagnostic{},
 	})
+	// Refresh siblings — removing this file's definitions may introduce
+	// or clear diagnostics in other open files.
+	refreshSiblingDiagnostics(ctx, uri)
 	return nil
 }
 
@@ -675,6 +680,31 @@ func uriToPath(uri string) string {
 		return ""
 	}
 	return u.Path
+}
+
+// refreshSiblingDiagnostics re-analyzes and republishes diagnostics for all
+// open documents that are siblings of changedURI. When one file changes, its
+// edits can affect diagnostics in other files (e.g. adding/removing a model
+// that siblings reference), so we must refresh them all.
+func refreshSiblingDiagnostics(ctx *glsp.Context, changedURI string) {
+	changedPath := uriToPath(changedURI)
+	if changedPath == "" {
+		return
+	}
+	dir := filepath.Dir(changedPath)
+
+	for uri, doc := range documents {
+		if uri == changedURI {
+			continue
+		}
+		sibPath := uriToPath(uri)
+		if sibPath == "" || filepath.Dir(sibPath) != dir {
+			continue
+		}
+		// Re-analyze sibling with its current buffer text.
+		updated := updateDocument(uri, doc.Text)
+		publishDiagnostics(ctx, uri, updated)
+	}
 }
 
 // publishDiagnostics sends cached diagnostics to the client.
