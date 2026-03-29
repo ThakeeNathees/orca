@@ -478,20 +478,19 @@ func (p *Parser) parsePrimary() ast.Expression {
 		p.nextToken()
 		return expr
 
-	case token.SCHEMA:
-		// If followed by '{', parse as inline schema expression.
-		// Otherwise treat as identifier (e.g., type = schema).
+	case token.SCHEMA, token.MODEL, token.AGENT, token.KNOWLEDGE,
+		token.WORKFLOW, token.TOOL, token.INPUT:
+		// If followed by '{', parse as inline block expression.
+		// Otherwise treat as identifier (e.g., model = gpt4 inside an agent block).
 		if p.peekToken.Type == token.LBRACE {
-			return p.parseSchemaExpression()
+			return p.parseBlockExpression()
 		}
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr
 
-	case token.MODEL, token.AGENT, token.TASK, token.KNOWLEDGE,
-		token.TRIGGER, token.WORKFLOW, token.TOOL, token.INPUT, token.LET:
-		// Block keywords are valid as identifiers in expression position
-		// (e.g., model = gpt4 inside an agent block).
+	case token.LET:
+		// Let keywords are valid as identifiers in expression position but cannot be inlined.
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr
@@ -683,24 +682,31 @@ func (p *Parser) parseList() ast.Expression {
 	return list
 }
 
-// parseSchemaExpression parses an inline schema definition: schema { key = type ... }.
-// The `schema` keyword must be the current token with `{` as the peek token.
-// The body uses the same key = value syntax as block bodies (newline-separated).
-func (p *Parser) parseSchemaExpression() *ast.SchemaExpression {
-	se := &ast.SchemaExpression{}
-	se.TokenStart = p.curToken // the `schema` keyword
-
-	p.nextToken() // move to {
-	se.Assignments = p.parseAssignments("schema", "inline")
-
-	if p.curToken.Type != token.RBRACE {
-		p.addError(fmt.Sprintf("expected '}' to close inline schema, got %s",
-			token.Describe(p.curToken.Type)))
+// parseBlockExpression parses an inline block definition: model { key = value ... }.
+// The block keyword must be the current token with `{` as the peek token.
+// Works for all block types except let.
+func (p *Parser) parseBlockExpression() *ast.BlockExpression {
+	kind, ok := token.TokenTypeToBlockKind(p.curToken.Type)
+	if !ok {
+		p.addError(fmt.Sprintf("unexpected token %s in block expression", token.Describe(p.curToken.Type)))
 		return nil
 	}
-	se.TokenEnd = p.curToken
+
+	be := &ast.BlockExpression{Kind: kind}
+	be.TokenStart = p.curToken // the block keyword
+
+	blockName := p.curToken.Literal
+	p.nextToken() // move to {
+	be.Assignments = p.parseAssignments(blockName, "inline")
+
+	if p.curToken.Type != token.RBRACE {
+		p.addError(fmt.Sprintf("expected '}' to close inline %s, got %s",
+			blockName, token.Describe(p.curToken.Type)))
+		return nil
+	}
+	be.TokenEnd = p.curToken
 	p.nextToken() // consume }
-	return se
+	return be
 }
 
 // parseMap parses a map literal: {key: value, key: value, ...}.

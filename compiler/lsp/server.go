@@ -442,8 +442,8 @@ func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol
 			return protocol.Location{Range: tokenToRange(t.NameToken)}, true
 		}
 
-	case *ast.SchemaExpression:
-		// Look for the field assignment in the inline schema.
+	case *ast.BlockExpression:
+		// Look for the field assignment in the inline block.
 		for _, assign := range t.Assignments {
 			if assign.Name == ma.Member {
 				return protocol.Location{Range: tokenToRange(assign.Start())}, true
@@ -456,7 +456,7 @@ func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol
 
 // resolveObjectTarget resolves an expression to the AST node that defines its
 // members. Returns a *ast.BlockStatement for block references (e.g. gpt4),
-// or a *ast.SchemaExpression for inline schemas (e.g. output = schema { ... }).
+// or a *ast.BlockExpression for inline blocks (e.g. output = schema { ... }).
 // For chained access (a.b), recursively resolves the parent then finds the
 // member's value within it.
 func resolveObjectTarget(doc *documentState, expr ast.Expression) ast.Node {
@@ -473,16 +473,16 @@ func resolveObjectTarget(doc *documentState, expr ast.Expression) ast.Node {
 }
 
 // findMemberValue finds the assignment named `member` within a target node
-// (BlockStatement or SchemaExpression) and returns what it resolves to.
-// For identifier values, follows the reference to the block. For schema
-// expression values, returns the schema itself. Returns nil if not found.
+// (BlockStatement or BlockExpression) and returns what it resolves to.
+// For identifier values, follows the reference to the block. For block
+// expression values, returns the expression itself. Returns nil if not found.
 func findMemberValue(target ast.Node, member string, doc *documentState) ast.Node {
 	var assignments []*ast.Assignment
 
 	switch t := target.(type) {
 	case *ast.BlockStatement:
 		assignments = t.Assignments
-	case *ast.SchemaExpression:
+	case *ast.BlockExpression:
 		assignments = t.Assignments
 	default:
 		return nil
@@ -495,7 +495,7 @@ func findMemberValue(target ast.Node, member string, doc *documentState) ast.Nod
 		switch v := assign.Value.(type) {
 		case *ast.Identifier:
 			return findBlock(doc.Program, v.Value)
-		case *ast.SchemaExpression:
+		case *ast.BlockExpression:
 			return v
 		}
 		return nil
@@ -510,8 +510,8 @@ func findMemberValue(target ast.Node, member string, doc *documentState) ast.Nod
 					if assign.Name != member {
 						continue
 					}
-					if se, ok := assign.Value.(*ast.SchemaExpression); ok {
-						return se
+					if be, ok := assign.Value.(*ast.BlockExpression); ok {
+						return be
 					}
 					return nil
 				}
@@ -522,14 +522,14 @@ func findMemberValue(target ast.Node, member string, doc *documentState) ast.Nod
 	return nil
 }
 
-// findTypeSchema returns the SchemaExpression from the "type" field of a block,
+// findTypeSchema returns the BlockExpression from the "type" field of a block,
 // or nil if not found. Used for input blocks where `type = schema { ... }` defines
 // the value schema that members are accessed through.
-func findTypeSchema(block *ast.BlockStatement) *ast.SchemaExpression {
+func findTypeSchema(block *ast.BlockStatement) *ast.BlockExpression {
 	for _, assign := range block.Assignments {
 		if assign.Name == "type" {
-			if se, ok := assign.Value.(*ast.SchemaExpression); ok {
-				return se
+			if be, ok := assign.Value.(*ast.BlockExpression); ok {
+				return be
 			}
 			return nil
 		}

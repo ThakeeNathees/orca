@@ -45,9 +45,7 @@ const (
 	// Keywords — each corresponds to a top-level block type in Orca syntax.
 	MODEL     TokenType = "MODEL"
 	AGENT     TokenType = "AGENT"
-	TASK      TokenType = "TASK"
 	KNOWLEDGE TokenType = "KNOWLEDGE"
-	TRIGGER   TokenType = "TRIGGER"
 	WORKFLOW  TokenType = "WORKFLOW"
 	TOOL      TokenType = "TOOL"
 	INPUT     TokenType = "INPUT"
@@ -74,10 +72,8 @@ const (
 	BlockModel     BlockKind = iota // model block
 	BlockAgent                      // agent block
 	BlockTool                       // tool block
-	BlockTask                       // task block
 	BlockKnowledge                  // knowledge block
 	BlockWorkflow                   // workflow block
-	BlockTrigger                    // trigger block
 	BlockInput                      // input block
 	BlockSchema                     // schema block / user-defined schema types
 	BlockLet                        // let block
@@ -87,9 +83,8 @@ const (
 // Indexed directly by BlockKind (contiguous iota values).
 var blockKindStrings = [...]string{
 	BlockModel: "model", BlockAgent: "agent", BlockTool: "tool",
-	BlockTask: "task", BlockKnowledge: "knowledge", BlockWorkflow: "workflow",
-	BlockTrigger: "trigger", BlockInput: "input", BlockSchema: "schema",
-	BlockLet: "let",
+	BlockKnowledge: "knowledge", BlockWorkflow: "workflow",
+	BlockInput: "input", BlockSchema: "schema", BlockLet: "let",
 }
 
 // String returns the string representation of a BlockKind.
@@ -102,8 +97,8 @@ func (k BlockKind) String() string {
 
 // BlockKinds lists all block kinds (not primitives).
 var BlockKinds = []BlockKind{
-	BlockModel, BlockAgent, BlockTool, BlockTask, BlockKnowledge,
-	BlockWorkflow, BlockTrigger, BlockInput, BlockSchema, BlockLet,
+	BlockModel, BlockAgent, BlockTool, BlockKnowledge,
+	BlockWorkflow, BlockInput, BlockSchema, BlockLet,
 }
 
 // Token represents a single lexical token with its type, literal text,
@@ -192,9 +187,7 @@ var keywords = map[string]TokenType{
 	"null":      NULL,
 	"model":     MODEL,
 	"agent":     AGENT,
-	"task":      TASK,
 	"knowledge": KNOWLEDGE,
-	"trigger":   TRIGGER,
 	"workflow":  WORKFLOW,
 	"tool":      TOOL,
 	"input":     INPUT,
@@ -212,10 +205,10 @@ func LookupIdent(ident string) TokenType {
 }
 
 // IsTokenBlockName returns true if the token type introduces a block
-// (model, agent, tool, task, knowledge, trigger, workflow, input, schema, let).
+// (model, agent, tool, knowledge, workflow, input, schema, let).
 func IsTokenBlockName(t TokenType) bool {
 	switch t {
-	case MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL, INPUT, SCHEMA, LET:
+	case MODEL, AGENT, KNOWLEDGE, WORKFLOW, TOOL, INPUT, SCHEMA, LET:
 		return true
 	}
 	return false
@@ -230,14 +223,10 @@ func TokenTypeToBlockKind(t TokenType) (BlockKind, bool) {
 		return BlockAgent, true
 	case TOOL:
 		return BlockTool, true
-	case TASK:
-		return BlockTask, true
 	case KNOWLEDGE:
 		return BlockKnowledge, true
 	case WORKFLOW:
 		return BlockWorkflow, true
-	case TRIGGER:
-		return BlockTrigger, true
 	case INPUT:
 		return BlockInput, true
 	case SCHEMA:

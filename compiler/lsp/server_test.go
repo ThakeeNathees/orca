@@ -455,11 +455,11 @@ func TestDefinitionMemberInvalidField(t *testing.T) {
 // member access (e.g. researcher.model resolves to the model block,
 // then researcher.model.provider goes to that model's provider field).
 func TestDefinitionMemberChained(t *testing.T) {
-	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}\ntask t1 {\n  agent = researcher.model\n  action = \"do stuff\"\n}"
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  model = researcher.model\n  persona = \"hi\"\n}"
 	doc := updateDocument("test://chain.oc", text)
 
-	// "researcher.model" — "model" starts at col 22 on line 10.
-	loc, found := resolveDefinition(doc, 10, 22)
+	// "researcher.model" — "model" starts at col 23 on line 11 (1-based).
+	loc, found := resolveDefinition(doc, 11, 23)
 	if !found {
 		t.Fatal("expected definition location for researcher.model")
 	}
@@ -474,13 +474,13 @@ func TestDefinitionMemberChained(t *testing.T) {
 // inline schema expression jumps to the field assignment inside the schema.
 // e.g. cursor on "draft" in "researcher.output.draft" → schema { draft = str }.
 func TestDefinitionSchemaField(t *testing.T) {
-	text := "agent researcher {\n  persona = \"hi\"\n  output = schema {\n    draft = str\n    score = int\n  }\n}\ntask t1 {\n  agent = researcher\n  prompt = researcher.output.draft\n}"
+	text := "agent researcher {\n  persona = \"hi\"\n  output_schema = schema {\n    draft = str\n    score = int\n  }\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  persona = researcher.output_schema.draft\n  model = \"x\"\n}"
 	doc := updateDocument("test://schema-def.oc", text)
 
-	// "draft" in "researcher.output.draft" on line 10, col 30.
-	loc, found := resolveDefinition(doc, 10, 30)
+	// "draft" in "researcher.output_schema.draft" on line 10, col 38 (1-based).
+	loc, found := resolveDefinition(doc, 10, 38)
 	if !found {
-		t.Fatal("expected definition for researcher.output.draft")
+		t.Fatal("expected definition for researcher.output_schema.draft")
 	}
 	// "draft = str" is at line 4, col 5 → LSP: line 3, char 4.
 	if loc.Range.Start.Line != 3 || loc.Range.Start.Character != 4 {
@@ -492,12 +492,13 @@ func TestDefinitionSchemaField(t *testing.T) {
 // TestDefinitionSchemaFieldScore verifies go-to-definition on a second field
 // in an inline schema to make sure it's not always matching the first field.
 func TestDefinitionSchemaFieldScore(t *testing.T) {
-	text := "agent researcher {\n  persona = \"hi\"\n  output = schema {\n    draft = str\n    score = int\n  }\n}\ntask t1 {\n  agent = researcher\n  prompt = researcher.output.score\n}"
+	text := "agent researcher {\n  persona = \"hi\"\n  output_schema = schema {\n    draft = str\n    score = int\n  }\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  persona = researcher.output_schema.score\n  model = \"x\"\n}"
 	doc := updateDocument("test://schema-def2.oc", text)
 
-	loc, found := resolveDefinition(doc, 10, 30)
+	// "score" in "researcher.output_schema.score" on line 10, col 38 (1-based).
+	loc, found := resolveDefinition(doc, 10, 38)
 	if !found {
-		t.Fatal("expected definition for researcher.output.score")
+		t.Fatal("expected definition for researcher.output_schema.score")
 	}
 	// "score = int" is at line 5, col 5 → LSP: line 4, char 4.
 	if loc.Range.Start.Line != 4 || loc.Range.Start.Character != 4 {

@@ -166,16 +166,19 @@ func resolveType(expr ast.Expression) (Type, error) {
 			return Type{}, fmt.Errorf("parameterized type not supported for %q", baseIdent.Value)
 		}
 
-	case *ast.SchemaExpression:
-		// Inline schema: register under a synthetic name so member access
-		// can resolve through it (supports nested inline schemas).
-		schema, err := SchemaFromAssignments(e.Assignments)
-		if err != nil {
-			return Type{}, fmt.Errorf("inline schema: %w", err)
+	case *ast.BlockExpression:
+		if e.Kind == token.BlockSchema {
+			// Inline schema: register under a synthetic name so member access
+			// can resolve through it (supports nested inline schemas).
+			schema, err := SchemaFromAssignments(e.Assignments)
+			if err != nil {
+				return Type{}, fmt.Errorf("inline schema: %w", err)
+			}
+			name := fmt.Sprintf("__anon_%d", inlineCounter.Add(1))
+			RegisterSchema(name, schema)
+			return SchemaTypeOf(name), nil
 		}
-		name := fmt.Sprintf("__anon_%d", inlineCounter.Add(1))
-		RegisterSchema(name, schema)
-		return SchemaTypeOf(name), nil
+		return TypeOf(e.Kind), nil
 
 	case *ast.BinaryExpression:
 		if e.Operator.Type != token.PIPE {

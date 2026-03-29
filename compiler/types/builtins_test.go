@@ -33,13 +33,11 @@ func TestLoadSchemas(t *testing.T) {
 		{"map", "map", 0},
 		{"any", "any", 0},
 		{"null", "null", 0},
-		{"model", "model", 3},
+		{"model", "model", 5},
 		{"agent", "agent", 4},
 		{"tool", "tool", 4},
-		{"task", "task", 2},
 		{"knowledge", "knowledge", 2},
 		{"workflow", "workflow", 2},
-		{"trigger", "trigger", 2},
 		{"input", "input", 4},
 	}
 
@@ -80,11 +78,8 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		{"agent.tools", "agent", "tools", List, nil, false},
 		{"tool.name", "tool", "name", BlockRef, typePtr(Str()), true},
 		{"tool.desc", "tool", "desc", BlockRef, typePtr(Str()), false},
-		{"task.agent", "task", "agent", BlockRef, typePtr(NewBlockRefType(token.BlockAgent)), true},
-		{"task.prompt", "task", "prompt", BlockRef, typePtr(Str()), true},
 		{"knowledge.name", "knowledge", "name", BlockRef, typePtr(Str()), true},
 		{"workflow.name", "workflow", "name", BlockRef, typePtr(Str()), false},
-		{"trigger.name", "trigger", "name", BlockRef, typePtr(Str()), false},
 		{"input.type", "input", "type", BlockRef, typePtr(TypeOf(token.BlockSchema)), true},
 		{"input.desc", "input", "desc", BlockRef, typePtr(Str()), false},
 		{"input.default", "input", "default", BlockRef, typePtr(Any()), false},
@@ -358,7 +353,8 @@ func TestResolveTypeExpr(t *testing.T) {
 // TestResolveTypeExprInlineSchema verifies that inline schema expressions
 // are resolved and registered with a synthetic name.
 func TestResolveTypeExprInlineSchema(t *testing.T) {
-	expr := &ast.SchemaExpression{
+	expr := &ast.BlockExpression{
+		Kind: token.BlockSchema,
 		Assignments: []*ast.Assignment{
 			{
 				Name:  "host",

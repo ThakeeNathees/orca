@@ -230,7 +230,7 @@ func TestExprToPython(t *testing.T) {
 		},
 		{
 			name:     "unknown expression type returns None",
-			expr:     &ast.SchemaExpression{},
+			expr:     &ast.BlockExpression{},
 			expected: "None",
 		},
 	}

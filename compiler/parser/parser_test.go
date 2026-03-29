@@ -1471,16 +1471,19 @@ func TestParseSchemaExpression(t *testing.T) {
 				return
 			}
 
-			se, ok := target.Value.(*ast.SchemaExpression)
+			be, ok := target.Value.(*ast.BlockExpression)
 			if !ok {
-				t.Fatalf("expected *ast.SchemaExpression, got %T", target.Value)
+				t.Fatalf("expected *ast.BlockExpression, got %T", target.Value)
 			}
-			if len(se.Assignments) != tt.fieldCount {
-				t.Fatalf("expected %d fields, got %d", tt.fieldCount, len(se.Assignments))
+			if be.Kind != token.BlockSchema {
+				t.Fatalf("expected block kind BlockSchema, got %v", be.Kind)
+			}
+			if len(be.Assignments) != tt.fieldCount {
+				t.Fatalf("expected %d fields, got %d", tt.fieldCount, len(be.Assignments))
 			}
 			for i, name := range tt.fieldNames {
-				if se.Assignments[i].Name != name {
-					t.Errorf("field[%d] name = %q, want %q", i, se.Assignments[i].Name, name)
+				if be.Assignments[i].Name != name {
+					t.Errorf("field[%d] name = %q, want %q", i, be.Assignments[i].Name, name)
 				}
 			}
 		})
@@ -1500,6 +1503,169 @@ func TestParseSchemaExpressionErrors(t *testing.T) {
 		{
 			"missing value after equals",
 			`input x { type = schema { key = } }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input)
+			p := New(l)
+			p.ParseProgram()
+			if len(p.Errors()) == 0 {
+				t.Error("expected parse errors, got none")
+			}
+		})
+	}
+}
+
+// TestParseBlockExpression verifies parsing of inline block expressions for all block types.
+func TestParseBlockExpression(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		blockKind  token.BlockKind
+		fieldCount int
+		fieldNames []string
+	}{
+		{
+			"inline model",
+			`agent a {
+				model = model { provider = "openai" version = "gpt-4o" }
+			}`,
+			token.BlockModel,
+			2,
+			[]string{"provider", "version"},
+		},
+		{
+			"inline tool in array",
+			`agent a {
+				tools = [tool { name = "gmail" }]
+			}`,
+			token.BlockTool,
+			1,
+			[]string{"name"},
+		},
+		{
+			"inline agent",
+			`workflow w {
+				agent = agent { model = gpt4 persona = "test" }
+			}`,
+			token.BlockAgent,
+			2,
+			[]string{"model", "persona"},
+		},
+		{
+			"inline knowledge",
+			`agent a {
+				knowledge = knowledge { source = "docs" }
+			}`,
+			token.BlockKnowledge,
+			1,
+			[]string{"source"},
+		},
+		{
+			"inline workflow",
+			`agent a {
+				workflow = workflow { entry = "start" }
+			}`,
+			token.BlockWorkflow,
+			1,
+			[]string{"entry"},
+		},
+		{
+			"inline input",
+			`agent a {
+				input = input { type = str }
+			}`,
+			token.BlockInput,
+			1,
+			[]string{"type"},
+		},
+		{
+			"empty inline block",
+			`agent a {
+				model = model {}
+			}`,
+			token.BlockModel,
+			0,
+			nil,
+		},
+		{
+			"model keyword without brace is identifier",
+			`agent a {
+				model = gpt4
+			}`,
+			0, // sentinel: expect identifier, not block expression
+			-1,
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := program.Statements[0].(*ast.BlockStatement)
+
+			// Find the target assignment (first non-trivial one, or in array).
+			var targetExpr ast.Expression
+			for _, a := range block.Assignments {
+				if a.Name == "tools" {
+					// Extract from array.
+					list := a.Value.(*ast.ListLiteral)
+					targetExpr = list.Elements[0]
+					break
+				}
+				if a.Name == "model" || a.Name == "agent" || a.Name == "task" ||
+					a.Name == "knowledge" || a.Name == "workflow" || a.Name == "trigger" ||
+					a.Name == "input" {
+					targetExpr = a.Value
+					break
+				}
+			}
+			if targetExpr == nil {
+				t.Fatal("target expression not found")
+			}
+
+			if tt.fieldCount == -1 {
+				// Expect an identifier, not a block expression.
+				if _, ok := targetExpr.(*ast.Identifier); !ok {
+					t.Fatalf("expected *ast.Identifier, got %T", targetExpr)
+				}
+				return
+			}
+
+			be, ok := targetExpr.(*ast.BlockExpression)
+			if !ok {
+				t.Fatalf("expected *ast.BlockExpression, got %T", targetExpr)
+			}
+			if be.Kind != tt.blockKind {
+				t.Fatalf("expected block kind %v, got %v", tt.blockKind, be.Kind)
+			}
+			if len(be.Assignments) != tt.fieldCount {
+				t.Fatalf("expected %d fields, got %d", tt.fieldCount, len(be.Assignments))
+			}
+			for i, name := range tt.fieldNames {
+				if be.Assignments[i].Name != name {
+					t.Errorf("field[%d] name = %q, want %q", i, be.Assignments[i].Name, name)
+				}
+			}
+		})
+	}
+}
+
+// TestParseBlockExpressionErrors verifies error cases for inline block parsing.
+func TestParseBlockExpressionErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			"missing closing brace",
+			`agent a { model = model { provider = "openai" }`,
+		},
+		{
+			"missing value after equals",
+			`agent a { model = model { provider = } }`,
 		},
 	}
 

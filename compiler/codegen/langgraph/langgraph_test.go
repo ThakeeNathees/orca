@@ -103,7 +103,6 @@ func TestCollectBlocks(t *testing.T) {
 		{"models", token.MODEL, 2},
 		{"agents", token.AGENT, 1},
 		{"lets", token.LET, 1},
-		{"tasks (none)", token.TASK, 0},
 	}
 
 	for _, tt := range tests {

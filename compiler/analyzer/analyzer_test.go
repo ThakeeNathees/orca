@@ -81,22 +81,6 @@ func TestAnalyzeMissingRequiredField(t *testing.T) {
 			false,
 			"",
 		},
-		{
-			"task missing agent",
-			`task research {
-				prompt = "Do research."
-			}`,
-			true,
-			"agent",
-		},
-		{
-			"task missing prompt",
-			`task research {
-				agent = researcher
-			}`,
-			true,
-			"prompt",
-		},
 	}
 
 	for _, tt := range tests {
@@ -1007,18 +991,6 @@ func TestUnifiedTypeSystem(t *testing.T) {
 			true,
 			`has no field "nonexistent"`,
 		},
-		{
-			"inline schema in agent output",
-			`agent writer {
-				model   = "gpt4"
-				persona = "test"
-				output  = schema {
-					draft = str
-				}
-			}`,
-			false,
-			"",
-		},
 	}
 
 	for _, tt := range tests {
@@ -1074,22 +1046,6 @@ func TestAnalyzeListSubscriptRequiresInt(t *testing.T) {
 			}`,
 			true,
 			"list subscript requires an integer index, got bool",
-		},
-		{
-			"string subscript on member access list is invalid",
-			`tool web_search { name = "web_search" }
-			agent a {
-				model   = "gpt4"
-				persona = "hello"
-				tools   = [web_search]
-			}
-			@suppress("type-mismatch")
-			task t {
-				agent  = a
-				prompt = a.tools["key"]
-			}`,
-			true,
-			"list subscript requires an integer index, got str",
 		},
 		{
 			"string subscript on nested list inside map value is invalid",

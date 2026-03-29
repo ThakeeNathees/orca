@@ -218,16 +218,17 @@ type Assignment struct {
 
 func (a *Assignment) statementNode() {}
 
-// SchemaExpression represents an inline schema definition: schema { key = type, ... }.
-// Used for anonymous type definitions in field values like `output = schema { draft = str }`.
-// Reuses Assignment nodes for the body so annotations (@desc) work on inline fields.
-// BaseNode covers from the `schema` keyword to the closing '}'.
-type SchemaExpression struct {
+// BlockExpression represents an inline block definition: model { provider = "openai" ... }.
+// Used for anonymous block instances in expressions like `model = model { provider = "openai" }`
+// and inline schemas like `output = schema { draft = str }`.
+// Works for all block types except let. BaseNode covers from the block keyword to the closing '}'.
+type BlockExpression struct {
 	BaseNode
+	Kind        token.BlockKind
 	Assignments []*Assignment
 }
 
-func (se *SchemaExpression) expressionNode() {}
+func (be *BlockExpression) expressionNode() {}
 
 // NullLiteral represents the null keyword.
 // Terminal node — start == end.

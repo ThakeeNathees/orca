@@ -430,7 +430,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 				return diags
 			}
 		}
-	case *ast.SchemaExpression:
+	case *ast.BlockExpression:
 		if e == nil {
 			return nil
 		}

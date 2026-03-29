@@ -2,7 +2,6 @@ package types
 
 import (
 	"github.com/thakee/orca/compiler/ast"
-	"github.com/thakee/orca/compiler/token"
 )
 
 // ExprType returns the type of an expression. Uses the symbol table to
@@ -28,8 +27,8 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 		return identType(e, symbols)
 	case *ast.MemberAccess:
 		return memberAccessType(e, symbols)
-	case *ast.SchemaExpression:
-		return TypeOf(token.BlockSchema)
+	case *ast.BlockExpression:
+		return TypeOf(e.Kind)
 	case *ast.BinaryExpression:
 		// TODO: infer result type from operator and operand types.
 		return Any()

@@ -51,10 +51,8 @@ func TestBlockKindString(t *testing.T) {
 		{BlockModel, "model"},
 		{BlockAgent, "agent"},
 		{BlockTool, "tool"},
-		{BlockTask, "task"},
 		{BlockKnowledge, "knowledge"},
 		{BlockWorkflow, "workflow"},
-		{BlockTrigger, "trigger"},
 		{BlockInput, "input"},
 		{BlockSchema, "schema"},
 		{BlockLet, "let"},
@@ -81,10 +79,8 @@ func TestTokenTypeToBlockKind(t *testing.T) {
 		{"MODEL", MODEL, BlockModel, true},
 		{"AGENT", AGENT, BlockAgent, true},
 		{"TOOL", TOOL, BlockTool, true},
-		{"TASK", TASK, BlockTask, true},
 		{"KNOWLEDGE", KNOWLEDGE, BlockKnowledge, true},
 		{"WORKFLOW", WORKFLOW, BlockWorkflow, true},
-		{"TRIGGER", TRIGGER, BlockTrigger, true},
 		{"INPUT", INPUT, BlockInput, true},
 		{"SCHEMA", SCHEMA, BlockSchema, true},
 		{"LET", LET, BlockLet, true},
@@ -109,8 +105,8 @@ func TestTokenTypeToBlockKind(t *testing.T) {
 // TestBlockKindsSlice verifies that BlockKinds contains all block kinds
 // and no primitives.
 func TestBlockKindsSlice(t *testing.T) {
-	if len(BlockKinds) != 10 {
-		t.Errorf("len(BlockKinds) = %d, want 10", len(BlockKinds))
+	if len(BlockKinds) != 8 {
+		t.Errorf("len(BlockKinds) = %d, want 8", len(BlockKinds))
 	}
 	// All entries should be block kinds (String() != "unknown").
 	for _, k := range BlockKinds {
@@ -157,9 +153,7 @@ func TestDescribe(t *testing.T) {
 		{"AT", AT, "'@'"},
 		{"MODEL keyword", MODEL, "'MODEL'"},
 		{"AGENT keyword", AGENT, "'AGENT'"},
-		{"TASK keyword", TASK, "'TASK'"},
 		{"KNOWLEDGE keyword", KNOWLEDGE, "'KNOWLEDGE'"},
-		{"TRIGGER keyword", TRIGGER, "'TRIGGER'"},
 		{"WORKFLOW keyword", WORKFLOW, "'WORKFLOW'"},
 		{"TOOL keyword", TOOL, "'TOOL'"},
 		{"INPUT keyword", INPUT, "'INPUT'"},
@@ -191,10 +185,8 @@ func TestIsIdentLike(t *testing.T) {
 		{"MODEL", MODEL, true},
 		{"AGENT", AGENT, true},
 		{"TOOL", TOOL, true},
-		{"TASK", TASK, true},
 		{"KNOWLEDGE", KNOWLEDGE, true},
 		{"WORKFLOW", WORKFLOW, true},
-		{"TRIGGER", TRIGGER, true},
 		{"INPUT", INPUT, true},
 		{"SCHEMA", SCHEMA, true},
 		{"LET", LET, true},
@@ -252,7 +244,7 @@ func TestPrecedence(t *testing.T) {
 
 // TestIsTokenBlockNameAllKeywords verifies all block keywords return true.
 func TestIsTokenBlockNameAllKeywords(t *testing.T) {
-	blockTokens := []TokenType{MODEL, AGENT, TASK, KNOWLEDGE, TRIGGER, WORKFLOW, TOOL, INPUT, SCHEMA, LET}
+	blockTokens := []TokenType{MODEL, AGENT, KNOWLEDGE, WORKFLOW, TOOL, INPUT, SCHEMA, LET}
 	for _, tok := range blockTokens {
 		if !IsTokenBlockName(tok) {
 			t.Errorf("IsTokenBlockName(%s) = false, want true", tok)

@@ -39,20 +39,3 @@ agent reviewer {
   prompt = "You review documents for accuracy and clarity."
 }
 
-task research {
-  description     = "Research the given topic"
-  assignee        = researcher
-  expected_output = "json"
-}
-
-task write_report {
-  description     = "Write a report from the research"
-  assignee        = writer
-  expected_output = "markdown"
-}
-
-trigger daily_report {
-  type     = "cron"
-  schedule = "0 9 * * 1-5"
-  starts   = report_pipeline
-}

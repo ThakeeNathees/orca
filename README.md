@@ -122,7 +122,6 @@ app = graph.compile()
 
 **Language/Framework independent.** Orca is not a wrapper around LangGraph. It's a language with its own compiler, type system, and semantic analysis. The current backend targets LangGraph, but the architecture is designed for multiple backends (CrewAI, AutoGen, and others).
 
-**Static safety.** The compiler catches misconfigurations - undefined references, type mismatches, missing required fields - at compile time, before any code runs. No more discovering a typo three layers deep in a runtime stack trace.
 
 ## Quick Start
 

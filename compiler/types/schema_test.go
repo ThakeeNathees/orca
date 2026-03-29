@@ -14,13 +14,11 @@ func TestGetBlockSchema(t *testing.T) {
 		ok        bool
 		numFields int
 	}{
-		{"model schema exists", token.BlockModel, true, 3},
+		{"model schema exists", token.BlockModel, true, 5},
 		{"agent schema exists", token.BlockAgent, true, 4},
 		{"tool schema exists", token.BlockTool, true, 4},
-		{"task schema exists", token.BlockTask, true, 2},
 		{"knowledge schema exists", token.BlockKnowledge, true, 2},
 		{"workflow schema exists", token.BlockWorkflow, true, 2},
-		{"trigger schema exists", token.BlockTrigger, true, 2},
 		{"input schema exists", token.BlockInput, true, 4},
 		{"schema kind has no builtin schema", token.BlockSchema, false, 0},
 	}
