@@ -221,6 +221,27 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 		diags = append(diags, fieldDiags...)
 	}
 
+	// Validate expressions: only workflow blocks allow bare expressions,
+	// and workflow expressions must only use the -> operator.
+	if kind == token.BlockWorkflow {
+		for _, expr := range block.Expressions {
+			diags = append(diags, validateWorkflowExpr(expr, symbols)...)
+		}
+	} else {
+		for _, expr := range block.Expressions {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeUnexpectedExpr,
+				Position: diagnostic.Position{
+					Line:   expr.Start().Line,
+					Column: expr.Start().Column,
+				},
+				Message: fmt.Sprintf("unexpected expression in %s block", kind.String()),
+				Source:  "analyzer",
+			})
+		}
+	}
+
 	// Check for missing required fields.
 	for fieldName, fieldSchema := range schema.Fields {
 		if fieldSchema.Required && !seen[fieldName] {
@@ -480,6 +501,46 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 		}
 	}
 	return filtered
+}
+
+// validateWorkflowExpr checks that a workflow expression only uses the -> operator.
+// Any other binary operator (e.g. +, -, *) is reported as an error.
+func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	if expr == nil {
+		return nil
+	}
+	var diags []diagnostic.Diagnostic
+	switch e := expr.(type) {
+	case *ast.BinaryExpression:
+		if e.Operator.Type != token.ARROW {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeUnexpectedExpr,
+				Position: diagnostic.Position{
+					Line:   e.Operator.Line,
+					Column: e.Operator.Column,
+				},
+				Message: fmt.Sprintf("unexpected operator %s in workflow block; only '->' is allowed", token.Describe(e.Operator.Type)),
+				Source:  "analyzer",
+			})
+		}
+		diags = append(diags, validateWorkflowExpr(e.Left, symbols)...)
+		diags = append(diags, validateWorkflowExpr(e.Right, symbols)...)
+	case *ast.Identifier:
+		diags = append(diags, checkReferences(e, symbols)...)
+	default:
+		diags = append(diags, diagnostic.Diagnostic{
+			Severity: diagnostic.Error,
+			Code:     diagnostic.CodeUnexpectedExpr,
+			Position: diagnostic.Position{
+				Line:   expr.Start().Line,
+				Column: expr.Start().Column,
+			},
+			Message: "workflow edges must be identifier references connected by '->'",
+			Source:  "analyzer",
+		})
+	}
+	return diags
 }
 
 // analyzeLetBlock validates references in let block values.

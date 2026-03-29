@@ -1206,3 +1206,87 @@ func TestAnalyzeLetBlock(t *testing.T) {
 		})
 	}
 }
+
+// TestAnalyzeWorkflowExpressions verifies that the analyzer validates
+// bare expressions in blocks: only workflow blocks allow them, and only
+// with the -> operator.
+func TestAnalyzeWorkflowExpressions(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errContains string
+	}{
+		{
+			"valid workflow edges",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> B }`,
+			false,
+			"",
+		},
+		{
+			"valid workflow chain",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> B -> C }`,
+			false,
+			"",
+		},
+		{
+			"expression in non-workflow block",
+			`agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" A }`,
+			true,
+			"unexpected expression in model block",
+		},
+		{
+			"non-arrow operator in workflow",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A + B }`,
+			true,
+			"only '->' is allowed",
+		},
+		{
+			"string literal in workflow edge",
+			`workflow run { "hello" -> "world" }`,
+			true,
+			"workflow edges must be identifier references",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			result := Analyze(program)
+
+			if tt.expectError {
+				if len(result.Diagnostics) == 0 {
+					t.Fatal("expected diagnostics, got none")
+				}
+				found := false
+				for _, d := range result.Diagnostics {
+					if strings.Contains(d.Message, tt.errContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected diagnostic containing %q, got %v", tt.errContains, result.Diagnostics)
+				}
+			} else {
+				// Filter to only unexpected-expr diagnostics.
+				for _, d := range result.Diagnostics {
+					if d.Code == diagnostic.CodeUnexpectedExpr {
+						t.Errorf("unexpected diagnostic: %s", d.Message)
+					}
+				}
+			}
+		})
+	}
+}

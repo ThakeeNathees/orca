@@ -169,6 +169,13 @@ func FindNodeAt(program *ast.Program, line, col int) NodeAt {
 				return node
 			}
 		}
+
+		// Check bare expressions (e.g. workflow edge chains A -> B -> C).
+		for _, expr := range block.Expressions {
+			if node := findInExpr(expr, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
 	}
 
 	return NodeAt{}

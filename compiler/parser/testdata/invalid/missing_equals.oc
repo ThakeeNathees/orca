@@ -1,4 +1,0 @@
-// Error: assignment without the = operator.
-model gpt4 {
-  provider "openai"
-}

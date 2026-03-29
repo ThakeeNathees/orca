@@ -168,8 +168,9 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	p.nextToken()
 	block.OpenBrace = p.curToken
 
-	// Parse the body: zero or more key = value assignments.
-	block.Assignments = p.parseAssignments(blockType, block.Name)
+	// Parse the body: assignments and/or edge expressions (A -> B -> C).
+	// The analyzer validates whether expressions are allowed for the block kind.
+	block.Assignments, block.Expressions = p.parseBlockBody(blockType, block.Name)
 
 	// Expect the closing brace.
 	if p.curToken.Type != token.RBRACE {
@@ -696,8 +697,9 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 	be.TokenStart = p.curToken // the block keyword
 
 	blockName := p.curToken.Literal
+
 	p.nextToken() // move to {
-	be.Assignments = p.parseAssignments(blockName, "inline")
+	be.Assignments, be.Expressions = p.parseBlockBody(blockName, "inline")
 
 	if p.curToken.Type != token.RBRACE {
 		p.addError(fmt.Sprintf("expected '}' to close inline %s, got %s",
@@ -707,6 +709,38 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 	be.TokenEnd = p.curToken
 	p.nextToken() // consume }
 	return be
+}
+
+// parseBlockBody parses a block body that can contain both key = value
+// assignments and bare expressions (e.g. edge chains A -> B -> C).
+// An identifier followed by '=' is parsed as an assignment; otherwise it's
+// parsed as an expression. The analyzer validates which block kinds allow expressions.
+func (p *Parser) parseBlockBody(blockType, blockName string) ([]*ast.Assignment, []ast.Expression) {
+	var assignments []*ast.Assignment
+	var expressions []ast.Expression
+	p.nextToken() // move past {
+
+	for p.curToken.Type != token.RBRACE && p.curToken.Type != token.EOF {
+		// Annotations or identifier followed by '=' indicate an assignment.
+		if p.curToken.Type == token.AT ||
+			(token.IsIdentLike(p.curToken.Type) && p.peekToken.Type == token.ASSIGN) {
+			a := p.parseAssignment(blockType, blockName)
+			if a != nil {
+				assignments = append(assignments, a)
+			}
+			continue
+		}
+
+		// Otherwise parse as a bare expression (e.g. edge chain A -> B -> C).
+		expr := p.parseExpression(token.PrecLowest)
+		if expr == nil {
+			p.syncToNextAssignment()
+			continue
+		}
+		expressions = append(expressions, expr)
+	}
+
+	return assignments, expressions
 }
 
 // parseMap parses a map literal: {key: value, key: value, ...}.

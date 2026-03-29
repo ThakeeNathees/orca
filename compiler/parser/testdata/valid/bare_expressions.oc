@@ -1,0 +1,5 @@
+// Bare expressions inside a block (no = operator).
+// The analyzer validates whether these are allowed per block kind.
+model gpt4 {
+  provider "openai"
+}

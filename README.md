@@ -54,7 +54,7 @@ agent writer {
 }
 
 workflow search_and_write {
-  flow = researcher -> writer
+  researcher -> writer
 }
 
 cron daily {

@@ -387,7 +387,8 @@ func TestParseErrors(t *testing.T) {
 		{"missing block name", `model { provider = "openai" }`},
 		{"missing opening brace", `model gpt4 provider = "openai" }`},
 		{"missing closing brace", `model gpt4 { provider = "openai"`},
-		{"missing equals in assignment", `model gpt4 { provider "openai" }`},
+		// Note: `provider "openai"` without '=' is now parsed as bare expressions.
+		// The analyzer validates whether bare expressions are allowed per block kind.
 		{"missing value after equals", `model gpt4 { provider = }`},
 	}
 
@@ -1678,6 +1679,114 @@ func TestParseBlockExpressionErrors(t *testing.T) {
 				t.Error("expected parse errors, got none")
 			}
 		})
+	}
+}
+
+// --- workflow edge expression tests ---
+
+// TestParseWorkflowEdges verifies parsing of edge expressions (A -> B -> C) in workflow blocks.
+func TestParseWorkflowEdges(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expEdges    int // number of edge expressions
+		expAssigns  int // number of assignments
+		edgeStrings []string
+	}{
+		{
+			name:        "single edge",
+			input:       `workflow run { A -> B }`,
+			expEdges:    1,
+			expAssigns:  0,
+			edgeStrings: []string{"(A -> B)"},
+		},
+		{
+			name:        "chain of edges",
+			input:       `workflow run { A -> B -> C -> D }`,
+			expEdges:    1,
+			expAssigns:  0,
+			edgeStrings: []string{"(((A -> B) -> C) -> D)"},
+		},
+		{
+			name:        "multiple edge expressions",
+			input:       "workflow run {\n  A -> B -> C -> D\n  C -> A\n}",
+			expEdges:    2,
+			expAssigns:  0,
+			edgeStrings: []string{"(((A -> B) -> C) -> D)", "(C -> A)"},
+		},
+		{
+			name:        "line continuation with trailing arrow",
+			input:       "workflow run {\n  A -> B ->\n  C -> D\n}",
+			expEdges:    1,
+			expAssigns:  0,
+			edgeStrings: nil, // just check count
+		},
+		{
+			name:        "leading arrow continues previous expression",
+			input:       "workflow run {\n  A -> B \n -> C -> D\n}",
+			expEdges:    1,
+			expAssigns:  0,
+			edgeStrings: []string{"(((A -> B) -> C) -> D)"},
+		},
+		{
+			name:        "edges with assignments",
+			input:       "workflow run {\n  entry = A\n  A -> B -> C\n}",
+			expEdges:    1,
+			expAssigns:  1,
+			edgeStrings: nil,
+		},
+		{
+			name:       "empty workflow",
+			input:      `workflow run {}`,
+			expEdges:   0,
+			expAssigns: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			assertBlockCount(t, program, 1)
+			block := assertBlock(t, program.Statements[0], token.WORKFLOW, "run")
+
+			if len(block.Expressions) != tt.expEdges {
+				t.Fatalf("expected %d edge expressions, got %d", tt.expEdges, len(block.Expressions))
+			}
+			if len(block.Assignments) != tt.expAssigns {
+				t.Fatalf("expected %d assignments, got %d", tt.expAssigns, len(block.Assignments))
+			}
+
+			if tt.edgeStrings != nil {
+				for i, expected := range tt.edgeStrings {
+					got := exprString(block.Expressions[i])
+					if got != expected {
+						t.Errorf("edge[%d] = %q, want %q", i, got, expected)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestParseWorkflowInlineEdges verifies edge expressions in inline workflow block expressions.
+func TestParseWorkflowInlineEdges(t *testing.T) {
+	input := `agent a { flow = workflow { A -> B -> C } }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+
+	if len(block.Assignments) != 1 {
+		t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
+	}
+
+	be, ok := block.Assignments[0].Value.(*ast.BlockExpression)
+	if !ok {
+		t.Fatalf("expected *ast.BlockExpression, got %T", block.Assignments[0].Value)
+	}
+	if be.Kind != token.BlockWorkflow {
+		t.Fatalf("expected BlockWorkflow, got %v", be.Kind)
+	}
+	if len(be.Expressions) != 1 {
+		t.Fatalf("expected 1 edge expression, got %d", len(be.Expressions))
 	}
 }
 

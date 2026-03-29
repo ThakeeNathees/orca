@@ -80,9 +80,10 @@ type BlockStatement struct {
 	Name        string        // the user-given name identifier after the keyword
 	NameToken   token.Token   // the name token, used for diagnostic ranges
 	OpenBrace   token.Token   // the '{' token, used for diagnostic ranges
-	Assignments []*Assignment // key = value pairs inside the block body
-	Annotations []*Annotation // decorators before the block keyword (@sensitive, etc.)
-	SourceFile  string        // the .oc file this block was parsed from (set by the build command)
+	Assignments []*Assignment  // key = value pairs inside the block body
+	Expressions []Expression   // workflow edge expressions (A -> B -> C)
+	Annotations []*Annotation  // decorators before the block keyword (@sensitive, etc.)
+	SourceFile  string         // the .oc file this block was parsed from (set by the build command)
 }
 
 func (b *BlockStatement) statementNode() {}
@@ -226,6 +227,7 @@ type BlockExpression struct {
 	BaseNode
 	Kind        token.BlockKind
 	Assignments []*Assignment
+	Expressions []Expression // workflow edge expressions (A -> B -> C)
 }
 
 func (be *BlockExpression) expressionNode() {}

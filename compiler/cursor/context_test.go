@@ -338,6 +338,76 @@ func TestFindNodeAtBinaryExpression(t *testing.T) {
 	}
 }
 
+// TestFindNodeAtWorkflowEdge verifies that identifiers inside bare workflow
+// edge expressions (A -> B -> C) are found via findInExpr.
+func TestFindNodeAtWorkflowEdge(t *testing.T) {
+	// Line layout:
+	// 1: agent A {
+	// 2:   model = "gpt-4o"
+	// 3:   persona = "hi"
+	// 4: }
+	// 5: agent B {
+	// 6:   model = "gpt-4o"
+	// 7:   persona = "hi"
+	// 8: }
+	// 9: agent C {
+	// 10:  model = "gpt-4o"
+	// 11:  persona = "hi"
+	// 12: }
+	// 13: workflow run {
+	// 14:   A -> B -> C
+	// 15:   C -> A
+	// 16: }
+	input := "agent A {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n}\nagent B {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n}\nagent C {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n}\nworkflow run {\n  A -> B -> C\n  C -> A\n}"
+	program := parseProgram(t, input)
+
+	tests := []struct {
+		name  string
+		line  int
+		col   int
+		kind  NodeKind
+		ident string
+	}{
+		// Line 14: "  A -> B -> C"
+		// A at col 3, B at col 8, C at col 13
+		{"first node in chain", 14, 3, IdentNode, "A"},
+		{"middle node in chain", 14, 8, IdentNode, "B"},
+		{"last node in chain", 14, 13, IdentNode, "C"},
+		// Line 15: "  C -> A"
+		// C at col 3, A at col 8
+		{"first node second edge", 15, 3, IdentNode, "C"},
+		{"last node second edge", 15, 8, IdentNode, "A"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := FindNodeAt(program, tt.line, tt.col)
+			if node.Kind != tt.kind {
+				t.Errorf("Kind = %v, want %v", node.Kind, tt.kind)
+			}
+			if node.Ident == nil || node.Ident.Value != tt.ident {
+				t.Errorf("expected ident %q, got %v", tt.ident, node.Ident)
+			}
+			if node.Block == nil || node.Block.Name != "run" {
+				t.Errorf("expected enclosing block 'run'")
+			}
+		})
+	}
+}
+
+// TestFindNodeAtWorkflowEdgeNone verifies that the arrow operator itself
+// returns NoneNode (not an identifier).
+func TestFindNodeAtWorkflowEdgeNone(t *testing.T) {
+	input := "agent A {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n}\nagent B {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n}\nworkflow run {\n  A -> B\n}"
+	program := parseProgram(t, input)
+
+	// "->" on line 10 at col 5
+	node := FindNodeAt(program, 10, 5)
+	if node.Kind != NoneNode {
+		t.Errorf("Kind = %v, want NoneNode for arrow operator", node.Kind)
+	}
+}
+
 // TestFindNodeAtSubscription verifies that identifiers inside subscription
 // expressions (e.g. items[0]) are found via findInExpr.
 func TestFindNodeAtSubscription(t *testing.T) {
