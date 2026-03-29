@@ -284,7 +284,7 @@ func TestWriteAgent(t *testing.T) {
 		contains []string
 	}{
 		{
-			name: "basic agent without tools",
+			name:  "basic agent without tools",
 			block: agentBlock("writer", "gpt4", "You are a helpful writer."),
 			contains: []string{
 				"writer = create_react_agent(",
@@ -293,7 +293,7 @@ func TestWriteAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "agent with tools",
+			name:  "agent with tools",
 			block: agentBlockWithTools("researcher", "gpt4", "You are a researcher.", []string{"search", "calculator"}),
 			contains: []string{
 				"researcher = create_react_agent(",
@@ -303,7 +303,7 @@ func TestWriteAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "agent with single tool",
+			name:  "agent with single tool",
 			block: agentBlockWithTools("bot", "claude", "You help.", []string{"gmail"}),
 			contains: []string{
 				"bot = create_react_agent(",
@@ -327,28 +327,28 @@ func TestWriteAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "closing paren on its own line",
+			name:  "closing paren on its own line",
 			block: agentBlock("a", "m", "p"),
 			contains: []string{
 				"\n)",
 			},
 		},
 		{
-			name: "persona with escaped quotes",
+			name:  "persona with escaped quotes",
 			block: agentBlock("bot", "gpt4", `You are a "helpful" assistant.`),
 			contains: []string{
 				`prompt="You are a \"helpful\" assistant."`,
 			},
 		},
 		{
-			name: "many tools preserves order",
+			name:  "many tools preserves order",
 			block: agentBlockWithTools("a", "m", "p", []string{"t1", "t2", "t3", "t4"}),
 			contains: []string{
 				"tools=[t1, t2, t3, t4],",
 			},
 		},
 		{
-			name: "empty tools list omitted",
+			name:  "empty tools list omitted",
 			block: agentBlockWithTools("a", "m", "p", nil),
 			contains: []string{
 				"    m,\n    prompt=",

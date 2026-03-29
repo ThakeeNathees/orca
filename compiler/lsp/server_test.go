@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -146,10 +148,10 @@ func TestCompleteFieldNames(t *testing.T) {
 	ctx := resolveAtDocPosition(doc, 1, 0) // 0-based: line 1, char 0
 	items := completionItems(ctx)
 
-	// model has 3 fields: provider (already assigned), model_name, temperature.
-	// Should suggest model_name and temperature but not provider.
-	if len(items) != 2 {
-		t.Fatalf("expected 2 completion items, got %d", len(items))
+	// model has 5 fields: provider (already assigned), model_name, temperature, api_key, base_url.
+	// Should suggest all except provider.
+	if len(items) != 4 {
+		t.Fatalf("expected 4 completion items, got %d", len(items))
 	}
 
 	labels := make(map[string]bool)
@@ -159,11 +161,10 @@ func TestCompleteFieldNames(t *testing.T) {
 	if labels["provider"] {
 		t.Error("should not suggest already-assigned field 'provider'")
 	}
-	if !labels["model_name"] {
-		t.Error("should suggest 'model_name'")
-	}
-	if !labels["temperature"] {
-		t.Error("should suggest 'temperature'")
+	for _, expected := range []string{"model_name", "temperature", "api_key", "base_url"} {
+		if !labels[expected] {
+			t.Errorf("should suggest %q", expected)
+		}
 	}
 }
 
@@ -718,6 +719,111 @@ func findNodeAtDoc(doc *documentState, line, char int) cursor.NodeAt {
 		return cursor.NodeAt{}
 	}
 	return cursor.FindNodeAt(doc.Program, line+1, char+1)
+}
+
+// TestCrossFileReferenceResolution verifies that symbols defined in sibling
+// .oc files are visible during analysis. An input block in inputs.oc should
+// resolve when referenced from main.oc.
+func TestCrossFileReferenceResolution(t *testing.T) {
+	tests := []struct {
+		name     string
+		mainText string
+		siblings map[string]string // filename → content (written to same temp dir)
+		wantErr  bool              // expect undefined-ref errors in main
+	}{
+		{
+			name:     "cross-file input reference resolves",
+			mainText: "model llm {\n  provider = provider\n  model_name = \"gpt-4o\"\n}",
+			siblings: map[string]string{
+				"inputs.oc": "input provider {\n  type = str\n  desc = \"LLM provider\"\n}",
+			},
+			wantErr: false,
+		},
+		{
+			name:     "undefined ref without sibling file",
+			mainText: "model llm {\n  provider = provider\n  model_name = \"gpt-4o\"\n}",
+			siblings: map[string]string{},
+			wantErr:  true,
+		},
+		{
+			name:     "multiple cross-file refs",
+			mainText: "model llm {\n  provider = prov\n  model_name = mname\n}",
+			siblings: map[string]string{
+				"inputs.oc": "input prov {\n  type = str\n  desc = \"p\"\n}\ninput mname {\n  type = str\n  desc = \"m\"\n}",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			// Write sibling files to disk.
+			for name, content := range tt.siblings {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+					t.Fatalf("failed to write %s: %v", name, err)
+				}
+			}
+
+			// Use a file:// URI pointing to main.oc in the temp dir so
+			// mergeSiblingFiles can discover the sibling .oc files.
+			mainPath := filepath.Join(dir, "main.oc")
+			uri := "file://" + mainPath
+
+			doc := updateDocument(uri, tt.mainText)
+
+			hasUndefinedRef := false
+			for _, d := range doc.Diagnostics {
+				if d.Code == diagnostic.CodeUndefinedRef {
+					hasUndefinedRef = true
+					break
+				}
+			}
+
+			if tt.wantErr && !hasUndefinedRef {
+				t.Error("expected undefined-ref diagnostic, got none")
+			}
+			if !tt.wantErr && hasUndefinedRef {
+				t.Error("unexpected undefined-ref diagnostic from cross-file reference")
+			}
+		})
+	}
+}
+
+// TestCrossFileGoToDefinition verifies that go-to-definition on a cross-file
+// reference returns a location with the sibling file's URI, not the current file.
+func TestCrossFileGoToDefinition(t *testing.T) {
+	dir := t.TempDir()
+
+	sibContent := "input provider {\n  type = str\n  desc = \"LLM provider\"\n}"
+	sibPath := filepath.Join(dir, "inputs.oc")
+	if err := os.WriteFile(sibPath, []byte(sibContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// "provider" reference is at line 2, col 15 (1-based).
+	mainText := "model llm {\n  provider = provider\n  model_name = \"gpt-4o\"\n}"
+	mainPath := filepath.Join(dir, "main.oc")
+	mainURI := "file://" + mainPath
+
+	doc := updateDocument(mainURI, mainText)
+
+	// Resolve definition for "provider" identifier at 0-based line 1, char 15.
+	loc, found := resolveDefinition(doc, 2, 15)
+	if !found {
+		t.Fatal("expected to find definition for cross-file reference")
+	}
+
+	expectedURI := "file://" + sibPath
+	if loc.URI != expectedURI {
+		t.Errorf("go-to-definition URI = %q, want %q", loc.URI, expectedURI)
+	}
+	// The "provider" name token is on line 1, col 7 (0-based: line 0, char 6).
+	if loc.Range.Start.Line != 0 || loc.Range.Start.Character != 6 {
+		t.Errorf("go-to-definition range start = (%d,%d), want (0,6)",
+			loc.Range.Start.Line, loc.Range.Start.Character)
+	}
 }
 
 // resolveAtDocPosition resolves cursor context from 0-based LSP positions.

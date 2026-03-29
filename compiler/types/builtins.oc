@@ -35,6 +35,12 @@ schema model {
   @desc("The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash).")
   model_name = str | model
 
+  @desc("The API key to use for this model.")
+  api_key = str | null
+
+  @desc("The base URL to use for this model.")
+  base_url = str | null
+
   @desc("Sampling temperature between 0 and 1.")
   temperature = float | null
 }
@@ -51,7 +57,7 @@ schema agent {
   tools = list[tool] | null
 
   @desc("The structured output schema for this agent.")
-  output = schema | null
+  output_schema = schema | null
 }
 
 @suppress("duplicate-block")
@@ -70,15 +76,6 @@ schema tool {
 }
 
 @suppress("duplicate-block")
-schema task {
-  @desc("The agent assigned to this task.")
-  agent = agent
-
-  @desc("The task prompt or instructions.")
-  prompt = str
-}
-
-@suppress("duplicate-block")
 schema knowledge {
   @desc("The name of the knowledge source.")
   name = str
@@ -93,15 +90,6 @@ schema workflow {
   name = str | null
 
   @desc("The description of the workflow.")
-  desc = str | null
-}
-
-@suppress("duplicate-block")
-schema trigger {
-  @desc("The name of the trigger.")
-  name = str | null
-
-  @desc("The description of the trigger.")
   desc = str | null
 }
 

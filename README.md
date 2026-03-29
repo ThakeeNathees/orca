@@ -38,7 +38,7 @@ Orca is a domain-specific language that lets you **declare** what your agent sys
 ```hcl
 model claude {
   provider    = "anthropic"
-  version     = "claude-sonnet-4-20250514"
+  model_name  = "claude-sonnet-4-20250514"
   temperature = 0.3
 }
 
@@ -137,7 +137,7 @@ Create a file called `main.oc`:
 ```hcl
 model gpt4 {
   provider    = "openai"
-  version     = "gpt-4o"
+  model_name  = "gpt-4o"
   temperature = 0.7
 }
 

@@ -48,6 +48,7 @@ type Diagnostic struct {
 	EndPosition Position // end of the diagnostic range (zero value means same as Position)
 	Message     string
 	Source      string // which stage produced this: "parser", "analyzer", etc.
+	File        string // source .oc file this diagnostic originates from (set by multi-file compilation)
 }
 
 // Error implements the error interface so a Diagnostic can be used as a Go error.

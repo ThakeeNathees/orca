@@ -5,6 +5,10 @@ package lsp
 
 import (
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/tliron/commonlog"
 	"github.com/tliron/glsp"
@@ -363,7 +367,11 @@ func textDocumentDefinition(ctx *glsp.Context, params *protocol.DefinitionParams
 	if !found {
 		return nil, nil
 	}
-	loc.URI = params.TextDocument.URI
+	// If the definition has a URI set (cross-file), use it; otherwise
+	// default to the current document.
+	if loc.URI == "" {
+		loc.URI = params.TextDocument.URI
+	}
 	return loc, nil
 }
 
@@ -381,7 +389,12 @@ func resolveDefinition(doc *documentState, line, col int) (protocol.Location, bo
 		if !found {
 			return protocol.Location{}, false
 		}
-		return protocol.Location{Range: tokenToRange(sym.DefToken)}, true
+		loc := protocol.Location{Range: tokenToRange(sym.DefToken)}
+		// Check if the definition lives in a sibling file.
+		if block := findBlock(doc.Program, node.Ident.Value); block != nil && block.SourceFile != "" {
+			loc.URI = "file://" + block.SourceFile
+		}
+		return loc, true
 
 	case cursor.MemberAccessNode:
 		return resolveMemberDefinition(doc, node.MemberAccess)
@@ -563,25 +576,105 @@ func tokenToRange(tok token.Token) protocol.Range {
 
 // updateDocument parses the text, runs analysis, and stores everything.
 // Called on every open/change — parses once and caches the results.
+//
+// To support cross-file references (e.g. an input block in inputs.oc
+// referenced from main.oc), we build a combined program from all .oc
+// files in the same directory. The current file's text comes from the
+// editor buffer (may have unsaved changes); sibling files are read from
+// disk. Analysis runs on the merged program, but only diagnostics that
+// originate from the current file are reported to the client.
 func updateDocument(uri, text string) *documentState {
 	l := lexer.New(text)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
 	diags := p.Diagnostics()
+	filePath := uriToPath(uri)
+
+	// Merge sibling .oc files so cross-file symbols are visible.
+	mergeSiblingFiles(uri, program)
+
 	// Always run the analyzer, even with parse errors. The parser produces
 	// partial ASTs via error recovery, so we can still resolve symbols for
 	// successfully parsed blocks. This enables completions and hover to work
 	// while the user is actively typing (which often produces transient errors).
 	result := analyzer.Analyze(program)
 	if !program.HasErrors {
-		diags = append(diags, result.Diagnostics...)
+		// Only keep diagnostics from the current file. Diagnostics with
+		// an empty File originate from the current file (no SourceFile
+		// set); diagnostics with a File set come from sibling files.
+		for _, d := range result.Diagnostics {
+			if d.File == "" || d.File == filePath {
+				diags = append(diags, d)
+			}
+		}
 	}
 	symbols := result.Symbols
 
 	doc := &documentState{Text: text, Program: program, Symbols: symbols, Diagnostics: diags}
 	documents[uri] = doc
 	return doc
+}
+
+// mergeSiblingFiles finds all .oc files in the same directory as uri,
+// parses them, and appends their statements to program. Skips the file
+// identified by uri itself (already parsed from the editor buffer).
+func mergeSiblingFiles(uri string, program *ast.Program) {
+	filePath := uriToPath(uri)
+	if filePath == "" {
+		return
+	}
+	dir := filepath.Dir(filePath)
+	base := filepath.Base(filePath)
+
+	siblings, err := filepath.Glob(filepath.Join(dir, "*.oc"))
+	if err != nil {
+		return
+	}
+
+	for _, sib := range siblings {
+		if filepath.Base(sib) == base {
+			continue
+		}
+
+		// Prefer the in-memory buffer if the file is already open in the
+		// editor — it may contain unsaved changes not yet written to disk.
+		sibURI := "file://" + sib
+		var source string
+		if doc, ok := documents[sibURI]; ok {
+			source = doc.Text
+		} else {
+			data, err := os.ReadFile(sib)
+			if err != nil {
+				continue
+			}
+			source = string(data)
+		}
+
+		sl := lexer.New(source)
+		sp := parser.New(sl)
+		sibProg := sp.ParseProgram()
+		// Tag each block with its source file so go-to-definition can
+		// jump to the correct file for cross-file references.
+		for _, stmt := range sibProg.Statements {
+			if block, ok := stmt.(*ast.BlockStatement); ok {
+				block.SourceFile = sib
+			}
+		}
+		program.Statements = append(program.Statements, sibProg.Statements...)
+	}
+}
+
+// uriToPath converts a file:// URI to a filesystem path.
+func uriToPath(uri string) string {
+	if !strings.HasPrefix(uri, "file://") {
+		return ""
+	}
+	u, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+	return u.Path
 }
 
 // publishDiagnostics sends cached diagnostics to the client.

@@ -37,15 +37,24 @@ func Analyze(program *ast.Program) AnalyzeResult {
 		if !ok {
 			continue
 		}
-		// Let blocks are validated separately — no schema, just reference checks.
+
+		var blockDiags []diagnostic.Diagnostic
+		// Let blocks are free-form variable bindings with no schema, so
+		// they can't go through analyzeBlock (which does schema-based
+		// validation). analyzeLetBlock handles duplicate key detection
+		// and reference validation for let values instead.
 		if block.TokenStart.Type == token.LET {
-			diags = append(diags, analyzeLetBlock(block, symbols)...)
-			continue
+			blockDiags = analyzeLetBlock(block, symbols)
+		} else {
+			blockDiags = analyzeBlock(block, symbols)
+			// Apply block-level @suppress annotations.
+			codes, all := suppressedCodes(block.Annotations)
+			blockDiags = filterSuppressed(blockDiags, codes, all)
 		}
-		blockDiags := analyzeBlock(block, symbols)
-		// Apply block-level @suppress annotations.
-		codes, all := suppressedCodes(block.Annotations)
-		blockDiags = filterSuppressed(blockDiags, codes, all)
+		// Tag diagnostics with the source file for multi-file compilation.
+		for i := range blockDiags {
+			blockDiags[i].File = block.SourceFile
+		}
 		diags = append(diags, blockDiags...)
 	}
 
@@ -91,6 +100,7 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 						},
 						Message: fmt.Sprintf("let variable %q conflicts with an existing name", assign.Name),
 						Source:  "analyzer",
+						File:    block.SourceFile,
 					})
 					continue
 				}
@@ -117,15 +127,18 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 					},
 					Message: fmt.Sprintf("duplicate block name %q", block.Name),
 					Source:  "analyzer",
+					File:    block.SourceFile,
 				})
 			}
 		}
 		// For input blocks, resolve the declared type so that member
-		// access works through the schema (e.g. vpc_data.region).
+		// access works through the schema (e.g. vpc_data.region) and
+		// type checking shows the actual type (e.g. list[str]) instead
+		// of just "input".
 		typ := types.NewBlockRefType(kind)
 		if kind == token.BlockInput {
-			if declared := inputDeclaredType(block); declared != "" {
-				typ = types.SchemaTypeOf(declared)
+			if declared, ok := inputDeclaredType(block); ok {
+				typ = declared
 			}
 		}
 		st.Define(block.Name, typ, block.NameToken)
@@ -150,27 +163,21 @@ func registerUserSchemas(program *ast.Program) {
 	}
 }
 
-// inputDeclaredType extracts the schema name from an input block's type field.
-// For `input x { type = vpc_data_t }`, returns "vpc_data_t".
-// For `input x { type = schema { ... } }`, registers the inline schema
-// under a synthetic name derived from the block name and returns it.
-// Returns empty string if the type field is missing or not resolvable.
-func inputDeclaredType(block *ast.BlockStatement) string {
+// inputDeclaredType resolves the type from an input block's type field.
+// Handles all type expressions: simple identifiers (str), parameterized
+// types (list[str], map[str]), inline schemas (schema { ... }), and
+// union types (str | null). Returns the resolved Type and true if found.
+func inputDeclaredType(block *ast.BlockStatement) (types.Type, bool) {
 	for _, assign := range block.Assignments {
 		if assign.Name == "type" {
-			if ident, ok := assign.Value.(*ast.Identifier); ok {
-				return ident.Value
+			typ, err := types.ResolveTypeExpr(assign.Value)
+			if err != nil {
+				return types.Type{}, false
 			}
-			if _, ok := assign.Value.(*ast.SchemaExpression); ok {
-				typ, err := types.ResolveTypeExpr(assign.Value)
-				if err != nil {
-					return ""
-				}
-				return typ.SchemaName
-			}
+			return typ, true
 		}
 	}
-	return ""
+	return types.Type{}, false
 }
 
 // analyzeBlock performs all validation checks on a single block statement.
