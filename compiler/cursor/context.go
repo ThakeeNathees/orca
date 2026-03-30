@@ -25,11 +25,12 @@ const (
 // Context holds the resolved semantic context at a cursor position.
 // Each LSP feature reads the fields it needs without duplicating lookup logic.
 type Context struct {
-	Position   CursorPosition      // where the cursor sits structurally
-	Block      *ast.BlockStatement // enclosing block, nil if TopLevel
-	BlockKind  token.BlockKind     // block kind enum
-	Schema     *types.BlockSchema  // schema for the block type, nil if unknown
-	Assignment *ast.Assignment     // enclosing assignment, nil if not on a value
+	Position    CursorPosition      // where the cursor sits structurally
+	Block       *ast.BlockStatement // enclosing top-level block, nil if TopLevel
+	InlineBlock *ast.BlockExpression // enclosing inline block, nil if not inside one
+	BlockKind   token.BlockKind     // block kind enum (of the innermost block)
+	Schema      *types.BlockSchema  // schema for the block type, nil if unknown
+	Assignment  *ast.Assignment     // enclosing assignment, nil if not on a value
 }
 
 // Resolve determines the semantic context at the given 1-based line and column
@@ -75,6 +76,12 @@ func Resolve(program *ast.Program, line, col int) Context {
 		// Uses token EndLine/EndCol for multi-line tokens (strings).
 		for _, assign := range block.Assignments {
 			if posInAssignment(assign, line, col) {
+				// Check if the value is an inline block and cursor is inside it.
+				if be, ok := assign.Value.(*ast.BlockExpression); ok {
+					if inlineCtx, found := resolveInlineBlock(be, block, line, col); found {
+						return inlineCtx
+					}
+				}
 				ctx.Position = FieldValue
 				ctx.Assignment = assign
 				break
@@ -85,6 +92,46 @@ func Resolve(program *ast.Program, line, col int) Context {
 	}
 
 	return Context{Position: TopLevel}
+}
+
+// resolveInlineBlock checks if the cursor is inside a BlockExpression's body
+// and returns the appropriate context. Returns (ctx, true) if inside, or
+// (Context{}, false) if the cursor is not within the inline block body.
+func resolveInlineBlock(be *ast.BlockExpression, parent *ast.BlockStatement, line, col int) (Context, bool) {
+	// Check if cursor is within the inline block's braces.
+	startLine := be.TokenStart.Line
+	startCol := be.TokenStart.Column
+	endLine := be.TokenEnd.Line
+	endCol := be.TokenEnd.Column
+	if !posAfterOrAt(line, col, startLine, startCol) || !posBeforeOrAt(line, col, endLine, endCol) {
+		return Context{}, false
+	}
+
+	ctx := Context{
+		Position:    BlockBody,
+		Block:       parent,
+		InlineBlock: be,
+		BlockKind:   be.Kind,
+	}
+
+	// Attach schema. For schema blocks, there's no named schema to look up
+	// (inline schemas are anonymous), so we skip schema lookup for them.
+	if be.Kind != token.BlockSchema {
+		if schema, ok := types.GetSchema(be.Kind.String()); ok {
+			ctx.Schema = &schema
+		}
+	}
+
+	// Check if cursor is within an assignment inside the inline block.
+	for _, assign := range be.Assignments {
+		if posInAssignment(assign, line, col) {
+			ctx.Position = FieldValue
+			ctx.Assignment = assign
+			break
+		}
+	}
+
+	return ctx, true
 }
 
 // posInAssignment returns true if (line, col) falls within an assignment's
@@ -190,6 +237,22 @@ func findInExpr(expr ast.Expression, block *ast.BlockStatement, line, col int) N
 	}
 
 	switch e := expr.(type) {
+	case *ast.BlockExpression:
+		// Recurse into inline block assignments and expressions.
+		for _, assign := range e.Assignments {
+			keyTok := assign.Start()
+			if posOnToken(keyTok, line, col) {
+				return NodeAt{Kind: FieldNameNode, Block: block, Assignment: assign}
+			}
+			if node := findInExpr(assign.Value, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
+		for _, expr := range e.Expressions {
+			if node := findInExpr(expr, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
 	case *ast.Identifier:
 		if posOnToken(e.Start(), line, col) {
 			return NodeAt{Kind: IdentNode, Block: block, Ident: e}

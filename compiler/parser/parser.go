@@ -394,9 +394,6 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 		if p.curToken.Type == token.LPAREN {
 			left = p.parseCallExpression(left)
-			if left == nil {
-				return nil
-			}
 			continue
 		}
 
@@ -748,7 +745,7 @@ func (p *Parser) parseBlockBody(blockType, blockName string) ([]*ast.Assignment,
 func (p *Parser) parseMap() ast.Expression {
 	m := &ast.MapLiteral{}
 	m.TokenStart = p.curToken // the { token
-	p.nextToken()              // move past {
+	p.nextToken()             // move past {
 
 	// Handle empty map {}.
 	if p.curToken.Type == token.RBRACE {

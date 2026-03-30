@@ -520,6 +520,66 @@ func TestResolveUserSchemaBlock(t *testing.T) {
 	}
 }
 
+// TestResolveInlineBlockBody verifies that positions inside an inline block
+// expression return BlockBody with the inline block's schema.
+func TestResolveInlineBlockBody(t *testing.T) {
+	input := "agent researcher {\n  model = model {\n    provider = \"openai\"\n\n  }\n\n  persona = \"hi\"\n}"
+	program := parseProgram(t, input)
+
+	tests := []struct {
+		name      string
+		line      int
+		col       int
+		expect    CursorPosition
+		blockKind token.BlockKind
+		isInline  bool
+	}{
+		// Line 4 is blank inside the inline model block.
+		{"inside inline block", 4, 3, BlockBody, token.BlockModel, true},
+		// Line 6 is blank after the inline block, still inside the agent block.
+		{"after inline block", 6, 3, BlockBody, token.BlockAgent, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := Resolve(program, tt.line, tt.col)
+			if ctx.Position != tt.expect {
+				t.Errorf("Position = %v, want %v", ctx.Position, tt.expect)
+			}
+			if ctx.BlockKind != tt.blockKind {
+				t.Errorf("BlockKind = %v, want %v", ctx.BlockKind, tt.blockKind)
+			}
+			if tt.isInline {
+				if ctx.InlineBlock == nil {
+					t.Fatal("InlineBlock should not be nil")
+				}
+			} else {
+				if ctx.InlineBlock != nil {
+					t.Error("InlineBlock should be nil")
+				}
+			}
+		})
+	}
+}
+
+// TestResolveInlineSchemaBody verifies completions inside inline schema blocks.
+func TestResolveInlineSchemaBody(t *testing.T) {
+	input := "agent researcher {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n  output = schema {\n    name = str\n\n  }\n}"
+	program := parseProgram(t, input)
+
+	// Line 6 is blank inside the inline schema block.
+	ctx := Resolve(program, 6, 3)
+	if ctx.Position != BlockBody {
+		t.Errorf("Position = %v, want BlockBody", ctx.Position)
+	}
+	if ctx.InlineBlock == nil {
+		t.Fatal("InlineBlock should not be nil")
+	}
+	if ctx.BlockKind != token.BlockSchema {
+		t.Errorf("BlockKind = %v, want BlockSchema", ctx.BlockKind)
+	}
+}
+
 // TestResolveEmptyBlock verifies that an empty block body returns BlockBody.
 func TestResolveEmptyBlock(t *testing.T) {
 	input := "model gpt4 {\n}"

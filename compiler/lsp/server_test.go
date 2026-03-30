@@ -695,6 +695,42 @@ func TestNoCrashCompletionOnPartialParse(t *testing.T) {
 	}
 }
 
+// TestCompletionInsideInlineBlock verifies that field completions work inside
+// inline block expressions (e.g. model = model { | }).
+func TestCompletionInsideInlineBlock(t *testing.T) {
+	input := "agent researcher {\n  model = model {\n    provider = \"openai\"\n\n  }\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://inline-comp.oc", input)
+
+	// Line 4 (0-based: 3) is the blank line inside the inline model block.
+	line := 4
+	col := 3
+	cursorCtx := cursor.Resolve(doc.Program, line, col)
+	items := completionItems(cursorCtx)
+
+	if len(items) == 0 {
+		t.Fatal("expected completions inside inline block, got none")
+	}
+
+	// "provider" is already assigned, so it should not appear.
+	for _, item := range items {
+		if item.Label == "provider" {
+			t.Error("provider should be filtered out (already assigned)")
+		}
+	}
+
+	// "model_name" should be suggested.
+	found := false
+	for _, item := range items {
+		if item.Label == "model_name" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected model_name in completions")
+	}
+}
+
 // TestNoCrashHoverOnPartialParse verifies that hover on broken source doesn't crash.
 func TestNoCrashHoverOnPartialParse(t *testing.T) {
 	inputs := []struct {

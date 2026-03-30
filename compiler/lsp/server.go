@@ -180,9 +180,13 @@ func completeFieldNames(ctx cursor.Context) []protocol.CompletionItem {
 		return nil
 	}
 
-	// Collect already-assigned field names.
+	// Collect already-assigned field names from the innermost block.
 	assigned := make(map[string]bool)
-	if ctx.Block != nil {
+	if ctx.InlineBlock != nil {
+		for _, a := range ctx.InlineBlock.Assignments {
+			assigned[a.Name] = true
+		}
+	} else if ctx.Block != nil {
 		for _, a := range ctx.Block.Assignments {
 			assigned[a.Name] = true
 		}
