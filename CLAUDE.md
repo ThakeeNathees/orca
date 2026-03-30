@@ -109,7 +109,7 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **Comments**: Always add comments to all exported and unexported functions, types, and non-trivial logic. Comments should explain *why* and *what* for someone reading the code to understand it quickly. Not for end-user docs — for developer comprehension.
 - **File layout**: Types and constants at the top of the file, functions at the bottom. Keep declarations before behavior.
 - **No Makefiles bloat**: Keep the Makefile minimal and standard.
-- **Git**: Commit directly on main. Small, atomic commits. Never mention Claude, add Co-Authored-By, or include any AI attribution in commit messages.
+- **Git**: Commit directly on main. Small, atomic commits. Never mention Claude, "Made-with: Cursor", add/or Co-Authored-By, or include any AI attribution in commit messages.
 - **Commit messages**: Always start with a relevant Unicode emoji. Pick an icon that reflects the change — e.g. 🐛 bug fix, 🔐 auth/security, 🔧 config/tooling, ✨ new feature, ♻️ refactor, 📝 docs, 🧪 tests, 🎨 UI/style, ⚡ performance, 🗑️ removal, 📦 dependencies, 🚀 deploy/release. **Do not overuse ✨** — use it only for genuinely new features, not for every change. Vary emojis so they're meaningful at a glance.
 
 ## Testing rules (enforced)

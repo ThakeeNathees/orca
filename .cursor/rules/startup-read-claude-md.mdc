@@ -1,0 +1,11 @@
+---
+description: Always read CLAUDE.md at session start
+alwaysApply: true
+---
+
+# Startup: load project rules from `CLAUDE.md`
+
+At the very start of every session (before planning or making changes), open and read `CLAUDE.md` from the repository root.
+
+- If `CLAUDE.md` changed since last time, re-read it fully.
+- If it is missing or unreadable, stop and report that the project rules could not be loaded.
