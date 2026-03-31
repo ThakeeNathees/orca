@@ -13,10 +13,11 @@ import (
 	"github.com/thakee/orca/compiler/types"
 )
 
-// AnalyzeResult holds the output of semantic analysis: the symbol table
+// AnalyzedProgram holds the output of semantic analysis: the symbol table
 // built from block definitions and any diagnostics produced.
-type AnalyzeResult struct {
-	Symbols     *types.SymbolTable
+type AnalyzedProgram struct {
+	Program     *ast.Program
+	SymbolTable *types.SymbolTable
 	Diagnostics []diagnostic.Diagnostic
 }
 
@@ -25,7 +26,7 @@ type AnalyzeResult struct {
 // each block's fields against its schema. Returns the symbol table
 // along with diagnostics so callers (like the LSP) can use it for
 // hover, go-to-definition, and other features.
-func Analyze(program *ast.Program) AnalyzeResult {
+func Analyze(program *ast.Program) AnalyzedProgram {
 	var diags []diagnostic.Diagnostic
 
 	symbols, dupDiags := buildSymbolTable(program)
@@ -58,7 +59,11 @@ func Analyze(program *ast.Program) AnalyzeResult {
 		diags = append(diags, blockDiags...)
 	}
 
-	return AnalyzeResult{Symbols: symbols, Diagnostics: diags}
+	return AnalyzedProgram{
+		Program:     program,
+		SymbolTable: symbols,
+		Diagnostics: diags,
+	}
 }
 
 // buildSymbolTable walks all block statements and registers each block

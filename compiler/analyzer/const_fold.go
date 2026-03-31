@@ -42,17 +42,17 @@ type ConstValue struct {
 }
 
 // ConstFold performs compile-time constant folding on an expression.
-// symbols may be nil when no table is available yet; resolution of identifiers
-// against definitions is not implemented here.
+// A zero AnalyzedProgram (nil Symbols and nil AST) folds literals and
+// structure only; identifier resolution and block refs need Symbols and AST.
 // Returns the folded constant value and any diagnostics.
-func ConstFold(expr ast.Expression, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
+func ConstFold(expr ast.Expression, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	if expr == nil {
 		return ConstValue{}, nil
 	}
 	var diags []diagnostic.Diagnostic
 	switch e := expr.(type) {
 	case *ast.Identifier:
-		return foldIdentifier(e, symbols, program)
+		return foldIdentifier(e, ap)
 	case *ast.StringLiteral:
 		return ConstValue{Kind: ConstString, Str: e.Value}, diags
 	case *ast.IntegerLiteral:
@@ -64,20 +64,20 @@ func ConstFold(expr ast.Expression, symbols *types.SymbolTable, program *ast.Pro
 	case *ast.NullLiteral:
 		return ConstValue{Kind: ConstNull}, diags
 	case *ast.BinaryExpression:
-		return foldBinary(e, symbols, program)
+		return foldBinary(e, ap)
 	case *ast.MemberAccess:
-		return foldMemberAccess(e, symbols, program)
+		return foldMemberAccess(e, ap)
 	case *ast.Subscription:
-		return foldSubscription(e, symbols, program)
+		return foldSubscription(e, ap)
 	case *ast.CallExpression:
 		// TODO: fold pure builtins / intrinsics with constant args; else ConstUnknown.
 		return ConstValue{Kind: ConstUnknown}, diags
 	case *ast.MapLiteral:
-		return foldMapLiteral(e, symbols, program)
+		return foldMapLiteral(e, ap)
 	case *ast.ListLiteral:
-		return foldListLiteral(e, symbols, program)
+		return foldListLiteral(e, ap)
 	case *ast.BlockExpression:
-		return foldBlockExpression(e, symbols, program)
+		return foldBlockExpression(e, ap)
 	default:
 		return ConstValue{Kind: ConstUnknown}, diags
 	}
@@ -85,13 +85,13 @@ func ConstFold(expr ast.Expression, symbols *types.SymbolTable, program *ast.Pro
 
 // foldMapLiteral builds ConstMap when every entry key is a foldable map key
 // (string, identifier, or integer literal) and every value folds to a constant.
-func foldMapLiteral(ml *ast.MapLiteral, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
+func foldMapLiteral(ml *ast.MapLiteral, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	var diags []diagnostic.Diagnostic
 	out := make(map[string]ConstValue, len(ml.Entries))
 	partial := false
 	for _, ent := range ml.Entries {
-		keyValue, dK := ConstFold(ent.Key, symbols, program)
-		valueValue, dV := ConstFold(ent.Value, symbols, program)
+		keyValue, dK := ConstFold(ent.Key, ap)
+		valueValue, dV := ConstFold(ent.Value, ap)
 		diags = append(diags, dK...)
 		diags = append(diags, dV...)
 		if keyValue.Kind == ConstUnknown || valueValue.Kind == ConstUnknown {
@@ -112,7 +112,7 @@ func foldMapLiteral(ml *ast.MapLiteral, symbols *types.SymbolTable, program *ast
 }
 
 // foldListLiteral builds ConstList when every element folds to a constant.
-func foldListLiteral(ll *ast.ListLiteral, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
+func foldListLiteral(ll *ast.ListLiteral, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	var diags []diagnostic.Diagnostic
 	if len(ll.Elements) == 0 {
 		return ConstValue{Kind: ConstList, List: []ConstValue{}}, diags
@@ -120,7 +120,7 @@ func foldListLiteral(ll *ast.ListLiteral, symbols *types.SymbolTable, program *a
 	out := make([]ConstValue, 0, len(ll.Elements))
 	partial := false
 	for _, el := range ll.Elements {
-		v, dV := ConstFold(el, symbols, program)
+		v, dV := ConstFold(el, ap)
 		diags = append(diags, dV...)
 		if v.Kind == ConstUnknown {
 			partial = true
@@ -132,7 +132,7 @@ func foldListLiteral(ll *ast.ListLiteral, symbols *types.SymbolTable, program *a
 
 // foldBlockExpression builds ConstBlock when the block has no workflow edge
 // expressions and every assignment value folds to a constant.
-func foldBlockExpression(be *ast.BlockExpression, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
+func foldBlockExpression(be *ast.BlockExpression, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	var diags []diagnostic.Diagnostic
 	if len(be.Expressions) > 0 {
 		return ConstValue{Kind: ConstBlock, Partial: true}, diags
@@ -143,7 +143,7 @@ func foldBlockExpression(be *ast.BlockExpression, symbols *types.SymbolTable, pr
 		if a == nil {
 			continue
 		}
-		v, d := ConstFold(a.Value, symbols, program)
+		v, d := ConstFold(a.Value, ap)
 		diags = append(diags, d...)
 		if v.Kind == ConstUnknown {
 			partial = true
@@ -155,7 +155,7 @@ func foldBlockExpression(be *ast.BlockExpression, symbols *types.SymbolTable, pr
 
 // foldBlockStatement builds ConstBlock when the block has no workflow edge
 // expressions and every assignment value folds to a constant.
-func foldBlockStatement(bs *ast.BlockStatement, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
+func foldBlockStatement(bs *ast.BlockStatement, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	var diags []diagnostic.Diagnostic
 	if len(bs.Expressions) > 0 {
 		return ConstValue{Kind: ConstBlock, Partial: true}, diags
@@ -166,7 +166,7 @@ func foldBlockStatement(bs *ast.BlockStatement, symbols *types.SymbolTable, prog
 		if a == nil {
 			continue
 		}
-		v, d := ConstFold(a.Value, symbols, program)
+		v, d := ConstFold(a.Value, ap)
 		diags = append(diags, d...)
 		if v.Kind == ConstUnknown {
 			partial = true
@@ -178,9 +178,9 @@ func foldBlockStatement(bs *ast.BlockStatement, symbols *types.SymbolTable, prog
 
 // foldBinary folds + - * / on numeric constants, string concatenation for +,
 // and leaves workflow operators (->, |) and other cases as unknown.
-func foldBinary(e *ast.BinaryExpression, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
-	left, d1 := ConstFold(e.Left, symbols, program)
-	right, d2 := ConstFold(e.Right, symbols, program)
+func foldBinary(e *ast.BinaryExpression, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
+	left, d1 := ConstFold(e.Left, ap)
+	right, d2 := ConstFold(e.Right, ap)
 	diags := append(d1, d2...)
 	if left.Kind == ConstUnknown || right.Kind == ConstUnknown {
 		return ConstValue{Kind: ConstUnknown}, diags
@@ -268,24 +268,24 @@ func constAsFloat(v ConstValue) (float64, bool) {
 
 // foldIdentifier folds let-bound names by re-folding their initializer.
 // Symbols without a let RHS (blocks, builtins) yield ConstUnknown.
-func foldIdentifier(e *ast.Identifier, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
-	if symbols == nil {
+func foldIdentifier(e *ast.Identifier, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
+	if ap.SymbolTable == nil {
 		return ConstValue{Kind: ConstUnknown}, nil
 	}
-	sym, ok := symbols.LookupSymbol(e.Value)
+	sym, ok := ap.SymbolTable.LookupSymbol(e.Value)
 	if !ok {
 		return ConstValue{Kind: ConstUnknown}, nil
 	}
 	switch sym.Type.Kind {
 	case types.BlockRef:
-		if program == nil {
+		if ap.Program == nil {
 			return ConstValue{Kind: ConstUnknown}, nil
 		}
-		block := program.FindBlockWithName(e.Value)
+		block := ap.Program.FindBlockWithName(e.Value)
 		if block == nil {
 			return ConstValue{Kind: ConstUnknown}, nil
 		}
-		return foldBlockStatement(block, symbols, program)
+		return foldBlockStatement(block, ap)
 	default:
 		return ConstValue{Kind: ConstUnknown}, nil
 	}
@@ -294,9 +294,9 @@ func foldIdentifier(e *ast.Identifier, symbols *types.SymbolTable, program *ast.
 // foldMemberAccess folds object.member when the object is a constant block-shaped
 // value (ConstBlock). Primitives, maps, null, lists, and unknown shapes return
 // ConstUnknown (no constant member projection for those yet).
-func foldMemberAccess(e *ast.MemberAccess, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
+func foldMemberAccess(e *ast.MemberAccess, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	var diags []diagnostic.Diagnostic
-	left, d1 := ConstFold(e.Object, symbols, program)
+	left, d1 := ConstFold(e.Object, ap)
 	diags = append(diags, d1...)
 
 	switch left.Kind {
@@ -336,9 +336,9 @@ func foldMemberAccess(e *ast.MemberAccess, symbols *types.SymbolTable, program *
 // foldSubscription returns map[key] for a constant map with string key, or list[i]
 // for a constant list with integer index in range. Other shapes or non-constant
 // object/index fold to ConstUnknown.
-func foldSubscription(e *ast.Subscription, symbols *types.SymbolTable, program *ast.Program) (ConstValue, []diagnostic.Diagnostic) {
-	left, d1 := ConstFold(e.Object, symbols, program)
-	index, d2 := ConstFold(e.Index, symbols, program)
+func foldSubscription(e *ast.Subscription, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
+	left, d1 := ConstFold(e.Object, ap)
+	index, d2 := ConstFold(e.Index, ap)
 	diags := append(d1, d2...)
 	if left.Kind == ConstUnknown || index.Kind == ConstUnknown {
 		return ConstValue{Kind: ConstUnknown}, diags

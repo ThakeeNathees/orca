@@ -618,7 +618,7 @@ func updateDocument(uri, text string) *documentState {
 			}
 		}
 	}
-	symbols := result.Symbols
+	symbols := result.SymbolTable
 
 	doc := &documentState{Text: text, Program: program, Symbols: symbols, Diagnostics: diags}
 	documents[uri] = doc

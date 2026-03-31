@@ -44,7 +44,7 @@ func TestConstFoldLiterals(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(tt.expr, nil, nil)
+			got, diags := ConstFold(tt.expr, AnalyzedProgram{})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -122,7 +122,7 @@ func TestConstFoldListAndMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := ConstFold(tt.expr, nil, nil)
+			got, _ := ConstFold(tt.expr, AnalyzedProgram{})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -142,7 +142,7 @@ func TestConstFoldMapNonStringKeyDiagnostic(t *testing.T) {
 	expr := &ast.MapLiteral{Entries: []ast.MapEntry{
 		{Key: boolKey, Value: str},
 	}}
-	got, diags := ConstFold(expr, nil, nil)
+	got, diags := ConstFold(expr, AnalyzedProgram{})
 	// Non-string keys still produce ConstMap; the key is stored under keyValue.Str (empty for bool).
 	if got.Kind != ConstMap || !reflect.DeepEqual(got.KeyValue, map[string]ConstValue{"": {Kind: ConstString, Str: "v"}}) {
 		t.Errorf("expected ConstMap with empty-string key, got %#v", got)
@@ -190,7 +190,7 @@ func TestConstFoldBlockExpression(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := ConstFold(tt.be, nil, nil)
+			got, _ := ConstFold(tt.be, AnalyzedProgram{})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -314,7 +314,7 @@ func TestConstFoldMemberAccess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(tt.expr, tt.symbols, tt.program)
+			got, diags := ConstFold(tt.expr, AnalyzedProgram{Program: tt.program, SymbolTable: tt.symbols})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -434,7 +434,7 @@ func TestConstFoldSubscription(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(tt.expr, tt.symbols, tt.program)
+			got, diags := ConstFold(tt.expr, AnalyzedProgram{Program: tt.program, SymbolTable: tt.symbols})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -497,7 +497,7 @@ func TestConstFoldBinary(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := ConstFold(tt.expr, nil, nil)
+			got, _ := ConstFold(tt.expr, AnalyzedProgram{})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -636,7 +636,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(idExpr(tt.id), tt.symbols, tt.program)
+			got, diags := ConstFold(idExpr(tt.id), AnalyzedProgram{Program: tt.program, SymbolTable: tt.symbols})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
