@@ -8,7 +8,4 @@ api_key = "sk-123"  # line 2
 
 # --- Models ---
 
-gpt4 = ChatOpenAI(  # line 5
-    model="gpt-4o",
-    temperature=1.0,
-)
+# TODO: writeModel

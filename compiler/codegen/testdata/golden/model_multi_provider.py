@@ -8,16 +8,8 @@ from langchain_openai import ChatOpenAI
 
 # --- Models ---
 
-gpt4 = ChatOpenAI(  # line 1
-    model="gpt-4o",
-    temperature=0.7,
-)
+# TODO: writeModel
 
-claude = ChatAnthropic(  # line 7
-    model="claude-sonnet-4-20250514",
-    temperature=0.0,
-)
+# TODO: writeModel
 
-gemini = ChatGoogleGenerativeAI(  # line 13
-    model="gemini-pro",
-)
+# TODO: writeModel

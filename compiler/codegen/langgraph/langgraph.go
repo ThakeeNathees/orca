@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/python"
@@ -18,8 +19,8 @@ type LangGraphBackend struct {
 }
 
 // New creates a new LangGraph codegen backend for the given analyzed AST.
-func New(program *ast.Program) codegen.CodegenBackend {
-	return &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: program}}
+func New(program *analyzer.AnalyzedProgram) codegen.CodegenBackend {
+	return &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: *program}}
 }
 
 // resolvedProviders holds the result of a single pass over model blocks,
@@ -61,27 +62,39 @@ func (b *LangGraphBackend) resolveProviders() resolvedProviders {
 		if !ok {
 			continue
 		}
-		sl, ok := expr.(*ast.StringLiteral)
-		if !ok {
-			continue
-		}
-		if _, known := providerRegistry[sl.Value]; !known {
-			pos := sl.Start()
+
+		// Const fold the expression.
+		v, d := analyzer.ConstFold(expr, b.Program)
+		diags = append(diags, d...)
+
+		// If v is not a string value, we set diagnostics that langgraph
+		// provider should be a compile-time constant.
+		if v.Kind != analyzer.ConstString {
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUnknownProvider,
-				Position: diagnostic.Position{
-					Line:   pos.Line,
-					Column: pos.Column,
-				},
-				Message: fmt.Sprintf("unknown provider %q", sl.Value),
-				Source:  "codegen",
+				Code:     diagnostic.CodeTypeMismatch,
+				Position: diagnostic.Position{Line: expr.Start().Line, Column: expr.Start().Column},
+				Message:  "provider should be a compile-time constant",
+				Source:   "codegen",
 			})
 			continue
 		}
-		if !seen[sl.Value] {
-			seen[sl.Value] = true
-			names = append(names, sl.Value)
+
+		// TODO: We need to handle this properly and to support registering more providers without hardcoding.
+		// If its an unknown provider, we set diagnostics that the provider is not supported.
+		if _, known := providerRegistry[v.Str]; !known {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeUnknownProvider,
+				Position: diagnostic.Position{Line: expr.Start().Line, Column: expr.Start().Column},
+				Message:  fmt.Sprintf("unknown provider %q", v.Str),
+				Source:   "codegen",
+			})
+		}
+
+		if !seen[v.Str] {
+			seen[v.Str] = true
+			names = append(names, v.Str)
 		}
 	}
 	sort.Strings(names)
@@ -122,7 +135,7 @@ func (b *LangGraphBackend) generateMain(providers []string) string {
 		s.WriteString("\n# --- Models ---\n")
 		for _, block := range models {
 			s.WriteString("\n")
-			writeModel(&s, block)
+			b.writeModel(&s, block)
 		}
 	}
 
@@ -132,7 +145,7 @@ func (b *LangGraphBackend) generateMain(providers []string) string {
 		s.WriteString("\n# --- Agents ---\n")
 		for _, block := range agents {
 			s.WriteString("\n")
-			writeAgent(&s, block)
+			b.writeAgent(&s, block)
 		}
 	}
 
@@ -150,84 +163,14 @@ func (b *LangGraphBackend) writeImports(s *strings.Builder, providers []string) 
 }
 
 // writeModel generates a Python model instantiation from a model block.
-func writeModel(s *strings.Builder, block *ast.BlockStatement) {
-	var provider, modelName string
-	var temperature float64
-	var hasTemp bool
-
-	for _, assign := range block.Assignments {
-		switch assign.Name {
-		case "provider":
-			if sl, ok := assign.Value.(*ast.StringLiteral); ok {
-				provider = sl.Value
-			}
-		case "model_name":
-			if sl, ok := assign.Value.(*ast.StringLiteral); ok {
-				modelName = sl.Value
-			}
-		case "temperature":
-			switch e := assign.Value.(type) {
-			case *ast.FloatLiteral:
-				temperature = e.Value
-				hasTemp = true
-			case *ast.IntegerLiteral:
-				temperature = float64(e.Value)
-				hasTemp = true
-			}
-		}
-	}
-
-	info, ok := providerRegistry[provider]
-	if !ok {
-		return
-	}
-
-	var params []string
-	params = append(params, fmt.Sprintf("model=%q", modelName))
-	if hasTemp {
-		params = append(params, fmt.Sprintf("temperature=%s", python.FormatFloat(temperature)))
-	}
-
-	fmt.Fprintf(s, "%s = %s(  # %s\n", block.Name, info.Class,
-		codegen.SourceComment(block.SourceFile, block.TokenStart.Line))
-	for _, p := range params {
-		fmt.Fprintf(s, "    %s,\n", p)
-	}
-	s.WriteString(")\n")
+func (b *LangGraphBackend) writeModel(s *strings.Builder, block *ast.BlockStatement) {
+	s.WriteString("# TODO: writeModel\n")
 }
 
 // writeAgent generates a Python create_react_agent call from an agent block.
 // Produces: name = create_react_agent(model, tools=[...], prompt="persona")
-func writeAgent(s *strings.Builder, block *ast.BlockStatement) {
-	var model, persona string
-	var tools string
-
-	for _, assign := range block.Assignments {
-		switch assign.Name {
-		case "model":
-			model = python.OrcaToPythonExpression(assign.Value)
-		case "persona":
-			persona = python.OrcaToPythonExpression(assign.Value)
-		case "tools":
-			if list, ok := assign.Value.(*ast.ListLiteral); ok && len(list.Elements) > 0 {
-				tools = python.OrcaToPythonExpression(assign.Value)
-			}
-		}
-	}
-
-	var params []string
-	params = append(params, model)
-	if tools != "" {
-		params = append(params, fmt.Sprintf("tools=%s", tools))
-	}
-	params = append(params, fmt.Sprintf("prompt=%s", persona))
-
-	fmt.Fprintf(s, "%s = create_react_agent(  # %s\n", block.Name,
-		codegen.SourceComment(block.SourceFile, block.TokenStart.Line))
-	for _, p := range params {
-		fmt.Fprintf(s, "    %s,\n", p)
-	}
-	s.WriteString(")\n")
+func (b *LangGraphBackend) writeAgent(s *strings.Builder, block *ast.BlockStatement) {
+	s.WriteString("# TODO: writeAgent\n")
 }
 
 // providerDeps returns sorted, deduplicated pip dependencies.

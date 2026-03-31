@@ -16,7 +16,7 @@ import (
 // AnalyzedProgram holds the output of semantic analysis: the symbol table
 // built from block definitions and any diagnostics produced.
 type AnalyzedProgram struct {
-	Program     *ast.Program
+	Ast         *ast.Program
 	SymbolTable *types.SymbolTable
 	Diagnostics []diagnostic.Diagnostic
 }
@@ -60,7 +60,7 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 	}
 
 	return AnalyzedProgram{
-		Program:     program,
+		Ast:         program,
 		SymbolTable: symbols,
 		Diagnostics: diags,
 	}

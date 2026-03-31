@@ -68,10 +68,10 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run semantic analysis.
-	result := analyzer.Analyze(&program)
-	if len(result.Diagnostics) > 0 {
+	analyzedProg := analyzer.Analyze(&program)
+	if len(analyzedProg.Diagnostics) > 0 {
 		hasError := false
-		for _, d := range result.Diagnostics {
+		for _, d := range analyzedProg.Diagnostics {
 			fmt.Fprintln(os.Stderr, d.Error())
 			if d.Severity == diagnostic.Error {
 				hasError = true
@@ -83,7 +83,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	// Generate code directly from the analyzed AST.
-	backend := langgraph.New(&program)
+	backend := langgraph.New(&analyzedProg)
 	output := backend.Generate()
 
 	// Check for codegen diagnostics.

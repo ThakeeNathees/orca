@@ -70,6 +70,21 @@ func (p *Program) FindBlockWithName(name string) *BlockStatement {
 	return nil
 }
 
+func (p *Program) FindLetVarWithName(name string) *Expression {
+	for _, stmt := range p.Statements {
+		block, ok := stmt.(*BlockStatement)
+		if !ok || block.TokenStart.Type != token.LET {
+			continue
+		}
+		for _, assign := range block.Assignments {
+			if assign != nil && assign.Name == name {
+				return &assign.Value
+			}
+		}
+	}
+	return nil
+}
+
 // Annotation represents a decorator on a field or block: @name or @name(args...).
 // For example, @desc("The LLM provider") or @sensitive.
 type Annotation struct {

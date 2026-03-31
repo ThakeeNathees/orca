@@ -29,7 +29,7 @@ func buildFromSource(t *testing.T, source string) codegen.CodegenOutput {
 	if len(result.Diagnostics) > 0 {
 		t.Fatalf("analyzer diagnostics: %v", result.Diagnostics)
 	}
-	backend := langgraph.New(program)
+	backend := langgraph.New(&result)
 	return backend.Generate()
 }
 

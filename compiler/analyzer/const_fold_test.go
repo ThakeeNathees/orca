@@ -314,7 +314,7 @@ func TestConstFoldMemberAccess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(tt.expr, AnalyzedProgram{Program: tt.program, SymbolTable: tt.symbols})
+			got, diags := ConstFold(tt.expr, AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -434,7 +434,7 @@ func TestConstFoldSubscription(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(tt.expr, AnalyzedProgram{Program: tt.program, SymbolTable: tt.symbols})
+			got, diags := ConstFold(tt.expr, AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -636,7 +636,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(idExpr(tt.id), AnalyzedProgram{Program: tt.program, SymbolTable: tt.symbols})
+			got, diags := ConstFold(idExpr(tt.id), AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
@@ -644,5 +644,42 @@ func TestConstFoldIdentifier(t *testing.T) {
 				t.Errorf("unexpected diagnostics: %#v", diags)
 			}
 		})
+	}
+}
+
+// TestConstFoldLetBoundProviderMember verifies let-bound names fold from their initializer
+// when no top-level block shadows the name, so member access (defaults.provider) resolves
+// for codegen const folding.
+func TestConstFoldLetBoundProviderMember(t *testing.T) {
+	input := `let {
+  defaults = model {
+    provider = "openai"
+    model_name = "template"
+  }
+}
+model gpt {
+  provider = defaults.provider
+  model_name = "gpt-4o"
+}`
+	prog := parseProgram(t, input)
+	ap := Analyze(prog)
+	if len(ap.Diagnostics) > 0 {
+		t.Fatalf("Analyze: %v", ap.Diagnostics)
+	}
+	gpt := prog.FindBlockWithName("gpt")
+	if gpt == nil {
+		t.Fatal("model gpt not found")
+	}
+	expr, ok := gpt.GetFieldExpression("provider")
+	if !ok {
+		t.Fatal("provider field missing")
+	}
+	v, diags := ConstFold(expr, ap)
+	if len(diags) != 0 {
+		t.Errorf("unexpected diags: %v", diags)
+	}
+	want := ConstValue{Kind: ConstString, Str: "openai"}
+	if !reflect.DeepEqual(v, want) {
+		t.Errorf("ConstFold(provider) = %#v, want %#v", v, want)
 	}
 }

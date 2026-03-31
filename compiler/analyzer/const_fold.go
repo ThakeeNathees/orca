@@ -46,6 +46,7 @@ type ConstValue struct {
 // structure only; identifier resolution and block refs need Symbols and AST.
 // Returns the folded constant value and any diagnostics.
 func ConstFold(expr ast.Expression, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
+
 	if expr == nil {
 		return ConstValue{}, nil
 	}
@@ -267,7 +268,9 @@ func constAsFloat(v ConstValue) (float64, bool) {
 }
 
 // foldIdentifier folds let-bound names by re-folding their initializer.
-// Symbols without a let RHS (blocks, builtins) yield ConstUnknown.
+// Top-level named blocks (BlockRef) fold first; if there is no such block,
+// let-bound initializers are folded (e.g. inline model { ... } or a string literal).
+// Symbols without a matching block or let RHS yield ConstUnknown.
 func foldIdentifier(e *ast.Identifier, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	if ap.SymbolTable == nil {
 		return ConstValue{Kind: ConstUnknown}, nil
@@ -278,14 +281,16 @@ func foldIdentifier(e *ast.Identifier, ap AnalyzedProgram) (ConstValue, []diagno
 	}
 	switch sym.Type.Kind {
 	case types.BlockRef:
-		if ap.Program == nil {
+		if ap.Ast == nil {
 			return ConstValue{Kind: ConstUnknown}, nil
 		}
-		block := ap.Program.FindBlockWithName(e.Value)
-		if block == nil {
-			return ConstValue{Kind: ConstUnknown}, nil
+		if block := ap.Ast.FindBlockWithName(e.Value); block != nil {
+			return foldBlockStatement(block, ap)
 		}
-		return foldBlockStatement(block, ap)
+		if letVarExpr := ap.Ast.FindLetVarWithName(e.Value); letVarExpr != nil {
+			return ConstFold(*letVarExpr, ap)
+		}
+		return ConstValue{Kind: ConstUnknown}, nil
 	default:
 		return ConstValue{Kind: ConstUnknown}, nil
 	}

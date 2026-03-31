@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/token"
@@ -47,13 +48,13 @@ type CodegenBackend interface {
 // BaseBackend provides common functionality shared across all codegen backends.
 // Embed this in concrete backend types to get access to block collection helpers.
 type BaseBackend struct {
-	Program *ast.Program
+	Program analyzer.AnalyzedProgram
 }
 
 // CollectBlocks returns all block statements of the given token type.
 func (b *BaseBackend) CollectBlocks(tokenType token.TokenType) []*ast.BlockStatement {
 	var blocks []*ast.BlockStatement
-	for _, stmt := range b.Program.Statements {
+	for _, stmt := range b.Program.Ast.Statements {
 		if block, ok := stmt.(*ast.BlockStatement); ok && block.TokenStart.Type == tokenType {
 			blocks = append(blocks, block)
 		}

@@ -38,7 +38,7 @@ Orca is a domain-specific language that lets you **declare** what your agent sys
 ```hcl
 model claude {
   provider    = "anthropic"
-  model_name  = "claude-sonnet-4-20250514"
+  model_name  = "claude-opus-4.6"
   temperature = 0.3
 }
 
@@ -202,6 +202,8 @@ Presents Orca as a domain-specific language for AI agent orchestration. Describe
 Argues that the path to robust multi-agent systems is not smarter prompting but smarter engineering. Applies classical compiler design principles — parsing, semantic analysis, optimization, and code generation — to the problem of transforming natural language intent into executable agent graphs. The agentic compiler, itself written in Orca, takes natural language descriptions and generates valid `.oc` source files, which are then compiled by the Orca compiler into Python/LangGraph code — creating a two-stage pipeline that isolates LLM non-determinism from deterministic compilation.
 
 ### References
+
+- Jason Mars et al. (2024) *Jaseci: Programming the Future of AI* [online] Available at https://github.com/jaseci-labs/jaseci
 
 - Harrison Chase et al. (2025) *LangGraph: Multi-Actor Programs with LLMs* [online] Available at https://github.com/langchain-ai/langgraph
 
