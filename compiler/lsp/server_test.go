@@ -668,10 +668,10 @@ func TestNoCrashMalformedExpressions(t *testing.T) {
 // broken source don't crash.
 func TestNoCrashCompletionOnPartialParse(t *testing.T) {
 	inputs := []struct {
-		name string
+		name  string
 		input string
-		line int
-		char int
+		line  int
+		char  int
 	}{
 		{"dot completion", "model m {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent a {\n  model = m.\n  persona = \"hi\"\n}", 5, 13},
 		{"bracket mid-type", "agent a {\n  model = i.key[\n  persona = \"hi\"\n}", 1, 16},

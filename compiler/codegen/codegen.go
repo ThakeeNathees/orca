@@ -13,9 +13,9 @@ import (
 
 // Dependency represents a package dependency required by the generated code.
 type Dependency struct {
-	Name           string
-	Version        string
-	DevDependency  bool
+	Name          string
+	Version       string
+	DevDependency bool
 }
 
 // CodegenOutput holds the complete output from a code generation backend.

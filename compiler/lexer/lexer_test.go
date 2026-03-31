@@ -595,7 +595,7 @@ func TestSingleBacktickIsIllegal(t *testing.T) {
 	}
 }
 
-// TestDoubleBacktickIsIllegal verifies that `` is two ILLEGAL tokens.
+// TestDoubleBacktickIsIllegal verifies that an empty pair of backticks yields two ILLEGAL tokens.
 func TestDoubleBacktickIsIllegal(t *testing.T) {
 	l := New("``")
 	tok := l.NextToken()

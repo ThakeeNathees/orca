@@ -1,24 +1,28 @@
-.PHONY: build test test-verbose test-cover coverage run clean fmt vet lint
+# Orca compiler — local build and quality targets.
+# Run from compiler/ (see CLAUDE.md). Produces bin/orca.
+
+.PHONY: build test test-v coverage run clean fmt vet lint
 
 APP_NAME := orca
 BUILD_DIR := bin
 
+# Compile the orca CLI into $(BUILD_DIR)/$(APP_NAME).
 build:
 	go build -o $(BUILD_DIR)/$(APP_NAME) .
 
+# Build, then run the binary.
 run: build
 	./$(BUILD_DIR)/$(APP_NAME)
 
+# Run all package tests.
 test:
 	go test ./...
 
-test-verbose:
+# Same as test but with verbose test output.
+test-v:
 	go test -v ./...
 
-test-cover:
-	go test -coverprofile=coverage.out ./...
-	go tool cover -func=coverage.out
-
+# Generate coverage.out and openable coverage.html in this directory.
 coverage:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
@@ -29,7 +33,9 @@ fmt:
 vet:
 	go vet ./...
 
+# Format and vet; use before committing.
 lint: fmt vet
 
+# Remove build artifact and coverage outputs.
 clean:
 	rm -rf $(BUILD_DIR) coverage.out coverage.html

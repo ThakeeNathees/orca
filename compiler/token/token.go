@@ -12,9 +12,9 @@ const (
 	EOF     TokenType = "EOF"     // end of input
 
 	// Identifiers + Literals
-	IDENT  TokenType = "IDENT"  // user-defined names (variable names, block references)
-	INT    TokenType = "INT"    // integer literal: 123
-	FLOAT  TokenType = "FLOAT"  // float literal: 0.2
+	IDENT     TokenType = "IDENT"     // user-defined names (variable names, block references)
+	INT       TokenType = "INT"       // integer literal: 123
+	FLOAT     TokenType = "FLOAT"     // float literal: 0.2
 	STRING    TokenType = "STRING"    // string literal: "hello"
 	RAWSTRING TokenType = "RAWSTRING" // raw multi-line string: ```md ... ```
 

@@ -379,7 +379,6 @@ func (l *Lexer) readNumber() token.Token {
 	return tok
 }
 
-
 // isLetter returns true for ASCII letters and underscore.
 // Underscores are allowed in identifiers (e.g., web_search).
 func isLetter(ch byte) bool {

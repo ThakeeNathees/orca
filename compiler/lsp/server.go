@@ -36,8 +36,8 @@ var handler protocol.Handler
 type documentState struct {
 	Text        string
 	Program     *ast.Program
-	Symbols     *types.SymbolTable         // symbol table from analysis (nil if parse errors)
-	Diagnostics []diagnostic.Diagnostic    // parse + analyzer diagnostics
+	Symbols     *types.SymbolTable      // symbol table from analysis (nil if parse errors)
+	Diagnostics []diagnostic.Diagnostic // parse + analyzer diagnostics
 }
 
 // documents tracks open file state by URI.

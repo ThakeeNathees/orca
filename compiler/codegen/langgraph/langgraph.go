@@ -57,31 +57,31 @@ func (b *LangGraphBackend) resolveProviders() resolvedProviders {
 	var diags []diagnostic.Diagnostic
 
 	for _, block := range b.CollectBlocks(token.MODEL) {
-		for _, assign := range block.Assignments {
-			if assign.Name != "provider" {
-				continue
-			}
-			sl, ok := assign.Value.(*ast.StringLiteral)
-			if !ok {
-				continue
-			}
-			if _, known := providerRegistry[sl.Value]; !known {
-				diags = append(diags, diagnostic.Diagnostic{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeUnknownProvider,
-					Position: diagnostic.Position{
-						Line:   assign.TokenStart.Line,
-						Column: assign.TokenStart.Column,
-					},
-					Message: fmt.Sprintf("unknown provider %q", sl.Value),
-					Source:  "codegen",
-				})
-				continue
-			}
-			if !seen[sl.Value] {
-				seen[sl.Value] = true
-				names = append(names, sl.Value)
-			}
+		expr, ok := block.GetFieldExpression("provider")
+		if !ok {
+			continue
+		}
+		sl, ok := expr.(*ast.StringLiteral)
+		if !ok {
+			continue
+		}
+		if _, known := providerRegistry[sl.Value]; !known {
+			pos := sl.Start()
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeUnknownProvider,
+				Position: diagnostic.Position{
+					Line:   pos.Line,
+					Column: pos.Column,
+				},
+				Message: fmt.Sprintf("unknown provider %q", sl.Value),
+				Source:  "codegen",
+			})
+			continue
+		}
+		if !seen[sl.Value] {
+			seen[sl.Value] = true
+			names = append(names, sl.Value)
 		}
 	}
 	sort.Strings(names)

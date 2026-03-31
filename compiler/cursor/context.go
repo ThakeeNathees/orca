@@ -25,12 +25,12 @@ const (
 // Context holds the resolved semantic context at a cursor position.
 // Each LSP feature reads the fields it needs without duplicating lookup logic.
 type Context struct {
-	Position    CursorPosition      // where the cursor sits structurally
-	Block       *ast.BlockStatement // enclosing top-level block, nil if TopLevel
+	Position    CursorPosition       // where the cursor sits structurally
+	Block       *ast.BlockStatement  // enclosing top-level block, nil if TopLevel
 	InlineBlock *ast.BlockExpression // enclosing inline block, nil if not inside one
-	BlockKind   token.BlockKind     // block kind enum (of the innermost block)
-	Schema      *types.BlockSchema  // schema for the block type, nil if unknown
-	Assignment  *ast.Assignment     // enclosing assignment, nil if not on a value
+	BlockKind   token.BlockKind      // block kind enum (of the innermost block)
+	Schema      *types.BlockSchema   // schema for the block type, nil if unknown
+	Assignment  *ast.Assignment      // enclosing assignment, nil if not on a value
 }
 
 // Resolve determines the semantic context at the given 1-based line and column

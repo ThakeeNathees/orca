@@ -1,5 +1,6 @@
 # Go binaries & build output
 bin/
+
 *.exe
 *.exe~
 *.dll
