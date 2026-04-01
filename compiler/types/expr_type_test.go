@@ -265,3 +265,71 @@ func TestExprTypeBinaryArrow(t *testing.T) {
 		t.Errorf("ExprType() = %v, want any", got)
 	}
 }
+
+// TestExprTypeBinaryArithmetic verifies result type inference for arithmetic
+// and string binary expressions covering all operator + type combinations.
+func TestExprTypeBinaryArithmetic(t *testing.T) {
+	intLit := func(v int64) ast.Expression { return &ast.IntegerLiteral{Value: v} }
+	floatLit := func(v float64) ast.Expression { return &ast.FloatLiteral{Value: v} }
+	strLit := func(v string) ast.Expression { return &ast.StringLiteral{Value: v} }
+	boolLit := func(v bool) ast.Expression { return &ast.BooleanLiteral{Value: v} }
+
+	tests := []struct {
+		name     string
+		op       token.TokenType
+		left     ast.Expression
+		right    ast.Expression
+		expected Type
+	}{
+		// String concatenation.
+		{"str + str → str", token.PLUS, strLit("a"), strLit("b"), Str()},
+
+		// int op int → int.
+		{"int + int → int", token.PLUS, intLit(1), intLit(2), Int()},
+		{"int - int → int", token.MINUS, intLit(3), intLit(1), Int()},
+		{"int * int → int", token.STAR, intLit(2), intLit(4), Int()},
+		{"int / int → int", token.SLASH, intLit(8), intLit(2), Int()},
+
+		// float op float → float.
+		{"float + float → float", token.PLUS, floatLit(1.1), floatLit(2.2), Float()},
+		{"float - float → float", token.MINUS, floatLit(3.0), floatLit(1.5), Float()},
+		{"float * float → float", token.STAR, floatLit(2.0), floatLit(4.0), Float()},
+		{"float / float → float", token.SLASH, floatLit(8.0), floatLit(2.0), Float()},
+
+		// int op float → float (numeric widening).
+		{"int + float → float", token.PLUS, intLit(1), floatLit(2.5), Float()},
+		{"int - float → float", token.MINUS, intLit(5), floatLit(1.5), Float()},
+		{"int * float → float", token.STAR, intLit(2), floatLit(3.0), Float()},
+		{"int / float → float", token.SLASH, intLit(9), floatLit(3.0), Float()},
+
+		// float op int → float (numeric widening).
+		{"float + int → float", token.PLUS, floatLit(2.5), intLit(1), Float()},
+		{"float - int → float", token.MINUS, floatLit(5.5), intLit(2), Float()},
+		{"float * int → float", token.STAR, floatLit(3.0), intLit(4), Float()},
+		{"float / int → float", token.SLASH, floatLit(9.0), intLit(3), Float()},
+
+		// Mixed / unknown operands → any.
+		{"str + int → any", token.PLUS, strLit("a"), intLit(1), Any()},
+		{"bool + int → any", token.PLUS, boolLit(true), intLit(1), Any()},
+		{"str - str → any", token.MINUS, strLit("a"), strLit("b"), Any()},
+		{"str * str → any", token.STAR, strLit("a"), strLit("b"), Any()},
+		{"str / str → any", token.SLASH, strLit("a"), strLit("b"), Any()},
+
+		// Non-arithmetic operators → any.
+		{"arrow → any", token.ARROW, intLit(1), intLit(2), Any()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr := &ast.BinaryExpression{
+				Left:     tt.left,
+				Operator: token.Token{Type: tt.op},
+				Right:    tt.right,
+			}
+			got := ExprType(expr, nil)
+			if !got.Equals(tt.expected) {
+				t.Errorf("ExprType() = %s, want %s", got.String(), tt.expected.String())
+			}
+		})
+	}
+}

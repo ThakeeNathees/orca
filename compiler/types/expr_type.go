@@ -86,17 +86,59 @@ func blockExprType(e *ast.BlockExpression) Type {
 }
 
 // binaryExprType resolves the type of a binary expression. Pipe operators
-// produce union types (e.g. str | null). Other operators return any.
+// produce union types (e.g. str | null). Arithmetic operators (+, -, *, /)
+// apply numeric promotion rules and string concatenation. Other operators
+// return any.
 func binaryExprType(e *ast.BinaryExpression, symbols *SymbolTable) Type {
-	if e.Operator.Type != token.PIPE {
-		// TODO: infer result type from operator and operand types.
+	switch e.Operator.Type {
+	case token.PIPE:
+		// When both operands are schema types, | constructs a union type (e.g. str | null).
+		// TODO: when both operands are numeric (int | int, int | float, etc.), | should be
+		// treated as bitwise OR — this is not yet implemented.
+		members := flattenUnionTypes(e, symbols)
+		if len(members) == 0 {
+			return Any()
+		}
+		return NewUnionType(members...)
+	case token.PLUS, token.MINUS, token.STAR, token.SLASH:
+		return arithmeticResultType(e, symbols)
+	default:
 		return Any()
 	}
-	members := flattenUnionTypes(e, symbols)
-	if len(members) == 0 {
+}
+
+// arithmeticResultType infers the result type of an arithmetic binary expression.
+// Rules:
+//   - str + str → str  (string concatenation, PLUS only)
+//   - int op int → int
+//   - float op float → float
+//   - int op float / float op int → float  (numeric widening)
+//   - otherwise → any
+func arithmeticResultType(e *ast.BinaryExpression, symbols *SymbolTable) Type {
+	left := ExprType(e.Left, symbols)
+	right := ExprType(e.Right, symbols)
+
+	// String concatenation: str + str → str.
+	if e.Operator.Type == token.PLUS && left.Equals(Str()) && right.Equals(Str()) {
+		return Str()
+	}
+
+	// Numeric promotions.
+	leftInt := left.Equals(Int())
+	leftFloat := left.Equals(Float())
+	rightInt := right.Equals(Int())
+	rightFloat := right.Equals(Float())
+
+	switch {
+	case leftInt && rightInt:
+		return Int()
+	case leftFloat && rightFloat:
+		return Float()
+	case (leftInt && rightFloat) || (leftFloat && rightInt):
+		return Float()
+	default:
 		return Any()
 	}
-	return NewUnionType(members...)
 }
 
 // flattenUnionTypes recursively collects all members of a pipe-separated
