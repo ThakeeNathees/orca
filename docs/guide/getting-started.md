@@ -81,8 +81,8 @@ dependencies = [
 
 ```bash
 cd build
-pip install -e .
-python main.py
+uv sync
+uv run main.py
 ```
 
 ## Next steps

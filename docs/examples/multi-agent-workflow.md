@@ -63,11 +63,6 @@ agent editor {
 workflow content_pipeline {
   flow = researcher -> writer -> editor
 }
-
-task create_article {
-  agent  = researcher
-  prompt = "Research the current state of AI agent orchestration frameworks."
-}
 ```
 
 ## Build
@@ -81,6 +76,5 @@ orca build
 1. Two models are configured — GPT-4o for research/editing, Claude for writing.
 2. Three agents form a pipeline: researcher finds information, writer drafts the article, editor polishes it.
 3. The `workflow` block connects them with arrow syntax: `researcher -> writer -> editor`.
-4. The `task` kicks off the pipeline with a specific research prompt.
 
 This pattern — splitting definitions across multiple `.oc` files — is idiomatic. The compiler reads all `.oc` files in the directory and resolves cross-file references automatically.
