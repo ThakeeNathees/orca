@@ -48,7 +48,7 @@ func resolvePythonExecutable() (string, error) {
 	if override := os.Getenv("ORCA_PYTHON"); override != "" {
 		path, err := exec.LookPath(override)
 		if err != nil {
-			return "", fmt.Errorf("python executable not found: %w", err)
+			return "", fmt.Errorf("python executable %q not found: %w", override, err)
 		}
 		return path, nil
 	}
