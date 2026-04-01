@@ -68,7 +68,7 @@ func TestRunRun(t *testing.T) {
 				}
 
 				pythonScript := `#!/bin/sh
-printf "%s\n%s\n" "$(pwd)" "$*" > "$ORCA_PYTHON_CALLED"
+printf "%s\n%s\n" "$(pwd)" "$*" > "${ORCA_PYTHON_CALLED}"
 `
 				pythonPath = filepath.Join(pythonDir, "python")
 				if err := os.WriteFile(pythonPath, []byte(pythonScript), 0o755); err != nil {
