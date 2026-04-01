@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 )
@@ -20,7 +22,17 @@ func init() {
 
 // runRun is the entry point for `orca run`.
 func runRun(cmd *cobra.Command, args []string) error {
-	// TODO: call build, then execute generated Python
-	fmt.Println("orca run: not yet implemented")
+	if err := runBuild(cmd, args); err != nil {
+		return err
+	}
+
+	runCmd := exec.Command("python", "main.py")
+	runCmd.Dir = "build"
+	runCmd.Stdin = os.Stdin
+	runCmd.Stdout = os.Stdout
+	runCmd.Stderr = os.Stderr
+	if err := runCmd.Run(); err != nil {
+		return fmt.Errorf("failed to run generated Python: %w", err)
+	}
 	return nil
 }

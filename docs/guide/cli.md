@@ -43,6 +43,4 @@ Builds and runs the generated Python code.
 orca run
 ```
 
-::: warning
-This command is not yet implemented.
-:::
+Runs the generated `build/main.py` using `python` from your PATH.
