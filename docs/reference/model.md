@@ -8,6 +8,8 @@ The `model` block configures an LLM provider and model.
 model <name> {
   provider    = <string>
   model_name  = <string>
+  api_key     = <string>  // optional
+  base_url    = <string>  // optional
   temperature = <float>   // optional
 }
 ```
@@ -18,6 +20,8 @@ model <name> {
 |-------|------|----------|-------------|
 | `provider` | `str` | Yes | LLM provider: `"openai"`, `"anthropic"`, or `"google"` |
 | `model_name` | `str \| model` | Yes | The model identifier (e.g., `"gpt-4o"`, `"claude-sonnet"`) |
+| `api_key` | `str \| null` | No | API key for the provider (overrides environment variable) |
+| `base_url` | `str \| null` | No | Custom base URL for the provider endpoint |
 | `temperature` | `float \| null` | No | Sampling temperature (0.0 – 1.0) |
 
 ## Supported providers

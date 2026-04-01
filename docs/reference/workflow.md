@@ -6,15 +6,26 @@ The `workflow` block orchestrates multiple agents into a directed graph.
 
 ```orca
 workflow <name> {
+  name = <string>  // optional
+  desc = <string>  // optional
   flow = <agent_ref> -> <agent_ref> -> <agent_ref>
 }
 ```
 
+## Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `str \| null` | No | Display name for the workflow |
+| `desc` | `str \| null` | No | A description of what the workflow does |
+
 ## Arrow syntax
 
-Use the `->` operator to define the flow between agents:
+The `flow` field uses the `->` arrow operator to chain agents. Because `flow` is not yet part of the
+formal workflow schema, the compiler emits an `unknown-field` warning — suppress it with `@suppress("unknown-field")`.
 
 ```orca
+@suppress("unknown-field")
 workflow pipeline {
   flow = researcher -> writer -> reviewer
 }
@@ -51,6 +62,7 @@ agent editor {
   persona = "You edit and polish written content."
 }
 
+@suppress("unknown-field")
 workflow content_pipeline {
   flow = researcher -> writer -> editor
 }
