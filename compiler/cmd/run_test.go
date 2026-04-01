@@ -45,7 +45,7 @@ func TestRunRun(t *testing.T) {
 				t.Fatalf("failed to create python dir: %v", err)
 			}
 
-			calledPath := filepath.Join(workingDir, "python.called")
+			pythonCalledMarkerPath := filepath.Join(workingDir, "python.called")
 			pythonScript := "#!/bin/sh\n" +
 				"printf \"%s\\n%s\\n\" \"$(pwd)\" \"$*\" > \"$ORCA_PYTHON_CALLED\"\n"
 			pythonPath := filepath.Join(pythonDir, "python")
@@ -63,7 +63,7 @@ func TestRunRun(t *testing.T) {
 			if err := os.Setenv("ORCA_PYTHON", pythonPath); err != nil {
 				t.Fatalf("failed to set ORCA_PYTHON: %v", err)
 			}
-			if err := os.Setenv("ORCA_PYTHON_CALLED", calledPath); err != nil {
+			if err := os.Setenv("ORCA_PYTHON_CALLED", pythonCalledMarkerPath); err != nil {
 				t.Fatalf("failed to set ORCA_PYTHON_CALLED: %v", err)
 			}
 			if err := os.Chdir(workingDir); err != nil {
@@ -90,7 +90,7 @@ func TestRunRun(t *testing.T) {
 				t.Fatalf("expected build/main.py to exist: %v", err)
 			}
 
-			calledBytes, err := os.ReadFile(calledPath)
+			calledBytes, err := os.ReadFile(pythonCalledMarkerPath)
 			if err != nil {
 				t.Fatalf("expected python stub to be called: %v", err)
 			}

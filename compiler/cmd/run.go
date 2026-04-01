@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -46,6 +47,12 @@ func runRun(cmd *cobra.Command, args []string) error {
 // falling back to python then python3 on PATH.
 func resolvePythonExecutable() (string, error) {
 	if override := os.Getenv("ORCA_PYTHON"); override != "" {
+		if filepath.IsAbs(override) {
+			if _, err := os.Stat(override); err != nil {
+				return "", fmt.Errorf("python executable %q not found: %w", override, err)
+			}
+			return override, nil
+		}
 		path, err := exec.LookPath(override)
 		if err != nil {
 			return "", fmt.Errorf("python executable %q not found: %w", override, err)
