@@ -92,6 +92,9 @@ func blockExprType(e *ast.BlockExpression) Type {
 func binaryExprType(e *ast.BinaryExpression, symbols *SymbolTable) Type {
 	switch e.Operator.Type {
 	case token.PIPE:
+		// When both operands are schema types, | constructs a union type (e.g. str | null).
+		// TODO: when both operands are numeric (int | int, int | float, etc.), | should be
+		// treated as bitwise OR — this is not yet implemented.
 		members := flattenUnionTypes(e, symbols)
 		if len(members) == 0 {
 			return Any()
