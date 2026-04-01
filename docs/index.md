@@ -23,5 +23,5 @@ features:
   - title: Compiled
     details: Orca compiles to Python/LangGraph code with full source mapping for easy debugging.
   - title: Composable
-    details: Build complex multi-agent workflows by connecting agents, tools, and tasks together.
+    details: Build complex multi-agent workflows by connecting agents and tools together.
 ---

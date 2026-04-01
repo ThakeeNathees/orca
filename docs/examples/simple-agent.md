@@ -27,11 +27,6 @@ agent researcher {
     "
   tools   = [search]
 }
-
-task research {
-  agent  = researcher
-  prompt = "What are the latest developments in AI agent frameworks?"
-}
 ```
 
 ## Build
@@ -72,4 +67,3 @@ dependencies = [
 1. The `model` block creates a `ChatOpenAI` instance with GPT-4o and temperature 0.7.
 2. The `tool` block defines a web search tool the agent can use.
 3. The `agent` block wires the model and tool together with a persona that describes the agent's behavior.
-4. The `task` block assigns a specific prompt to the agent.
