@@ -28,13 +28,22 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	pythonExe := os.Getenv("ORCA_PYTHON")
 	if pythonExe == "" {
-		pythonExe = "python"
-		if _, err := exec.LookPath(pythonExe); err != nil {
-			pythonExe = "python3"
+		for _, candidate := range []string{"python", "python3"} {
+			path, err := exec.LookPath(candidate)
+			if err == nil {
+				pythonExe = path
+				break
+			}
 		}
-	}
-	if _, err := exec.LookPath(pythonExe); err != nil {
-		return fmt.Errorf("python executable not found: %w", err)
+		if pythonExe == "" {
+			return fmt.Errorf("python executable not found in PATH")
+		}
+	} else {
+		path, err := exec.LookPath(pythonExe)
+		if err != nil {
+			return fmt.Errorf("python executable not found: %w", err)
+		}
+		pythonExe = path
 	}
 
 	runCmd := exec.Command(pythonExe, "main.py")

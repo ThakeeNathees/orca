@@ -47,7 +47,8 @@ func TestRunRun(t *testing.T) {
 
 			calledPath := filepath.Join(workingDir, "python.called")
 			pythonScript := "#!/bin/sh\n" +
-				"echo \"$@\" > \"$ORCA_PYTHON_CALLED\"\n"
+				"pwd > \"$ORCA_PYTHON_CALLED\"\n" +
+				"echo \"$@\" >> \"$ORCA_PYTHON_CALLED\"\n"
 			pythonPath := filepath.Join(pythonDir, "python")
 			if err := os.WriteFile(pythonPath, []byte(pythonScript), 0755); err != nil {
 				t.Fatalf("failed to write python stub: %v", err)
@@ -94,7 +95,14 @@ func TestRunRun(t *testing.T) {
 			if err != nil {
 				t.Fatalf("expected python stub to be called: %v", err)
 			}
-			if got := strings.TrimSpace(string(calledBytes)); got != "main.py" {
+			lines := strings.Split(strings.TrimSpace(string(calledBytes)), "\n")
+			if len(lines) < 2 {
+				t.Fatalf("expected python stub to log cwd and args, got %q", string(calledBytes))
+			}
+			if got := lines[0]; got != filepath.Join(workingDir, "build") {
+				t.Fatalf("expected python to run from build dir, got %q", got)
+			}
+			if got := lines[1]; got != "main.py" {
 				t.Fatalf("expected python to be invoked with main.py, got %q", got)
 			}
 		})
