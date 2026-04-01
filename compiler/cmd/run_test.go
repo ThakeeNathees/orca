@@ -10,15 +10,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// runRunTestCase defines inputs for run command tests.
-type runRunTestCase struct {
+// runTestCase defines inputs for run command tests.
+type runTestCase struct {
 	name string
 	oc   string
 }
 
 // TestRunRun verifies that the run command builds output and invokes Python.
 func TestRunRun(t *testing.T) {
-	tests := []runRunTestCase{
+	tests := []runTestCase{
 		{
 			name: "builds and runs generated code",
 			oc: `let {

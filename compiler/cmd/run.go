@@ -26,24 +26,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	pythonExe := os.Getenv("ORCA_PYTHON")
-	if pythonExe == "" {
-		for _, candidate := range []string{"python", "python3"} {
-			path, err := exec.LookPath(candidate)
-			if err == nil {
-				pythonExe = path
-				break
-			}
-		}
-		if pythonExe == "" {
-			return fmt.Errorf("python executable not found in PATH")
-		}
-	} else {
-		path, err := exec.LookPath(pythonExe)
-		if err != nil {
-			return fmt.Errorf("python executable not found: %w", err)
-		}
-		pythonExe = path
+	pythonExe, err := resolvePythonExecutable()
+	if err != nil {
+		return err
 	}
 
 	runCmd := exec.Command(pythonExe, "main.py")
@@ -55,4 +40,24 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to run generated Python: %w", err)
 	}
 	return nil
+}
+
+// resolvePythonExecutable selects a Python interpreter, honoring ORCA_PYTHON.
+func resolvePythonExecutable() (string, error) {
+	if override := os.Getenv("ORCA_PYTHON"); override != "" {
+		path, err := exec.LookPath(override)
+		if err != nil {
+			return "", fmt.Errorf("python executable not found: %w", err)
+		}
+		return path, nil
+	}
+
+	for _, candidate := range []string{"python", "python3"} {
+		path, err := exec.LookPath(candidate)
+		if err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("python executable not found in PATH")
 }
