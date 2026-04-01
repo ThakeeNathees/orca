@@ -42,7 +42,8 @@ func runRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// resolvePythonExecutable selects a Python interpreter, honoring ORCA_PYTHON.
+// resolvePythonExecutable selects a Python interpreter, honoring ORCA_PYTHON and
+// falling back to python then python3 on PATH.
 func resolvePythonExecutable() (string, error) {
 	if override := os.Getenv("ORCA_PYTHON"); override != "" {
 		path, err := exec.LookPath(override)

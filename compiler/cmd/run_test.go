@@ -47,8 +47,7 @@ func TestRunRun(t *testing.T) {
 
 			calledPath := filepath.Join(workingDir, "python.called")
 			pythonScript := "#!/bin/sh\n" +
-				"pwd > \"$ORCA_PYTHON_CALLED\"\n" +
-				"echo \"$@\" >> \"$ORCA_PYTHON_CALLED\"\n"
+				"printf \"%s\\n%s\\n\" \"$(pwd)\" \"$*\" > \"$ORCA_PYTHON_CALLED\"\n"
 			pythonPath := filepath.Join(pythonDir, "python")
 			if err := os.WriteFile(pythonPath, []byte(pythonScript), 0755); err != nil {
 				t.Fatalf("failed to write python stub: %v", err)
