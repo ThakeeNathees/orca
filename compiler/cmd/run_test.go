@@ -67,16 +67,17 @@ func TestRunRun(t *testing.T) {
 					t.Fatalf("failed to create python dir: %v", err)
 				}
 
-				pythonScript := "#!/bin/sh\n" +
-					"printf \"%s\\n%s\\n\" \"$(pwd)\" \"$*\" > \"$ORCA_PYTHON_CALLED\"\n"
+				pythonScript := `#!/bin/sh
+printf "%s\n%s\n" "$(pwd)" "$*" > "$ORCA_PYTHON_CALLED"
+`
 				pythonPath = filepath.Join(pythonDir, "python")
 				if err := os.WriteFile(pythonPath, []byte(pythonScript), 0o755); err != nil {
 					t.Fatalf("failed to write python stub: %v", err)
 				}
 			}
 
-			originalPython := os.Getenv("ORCA_PYTHON")
-			originalCalled := os.Getenv("ORCA_PYTHON_CALLED")
+			originalPython, hadOriginalPython := os.LookupEnv("ORCA_PYTHON")
+			originalCalled, hadOriginalCalled := os.LookupEnv("ORCA_PYTHON_CALLED")
 			originalWd, err := os.Getwd()
 			if err != nil {
 				t.Fatalf("failed to get working directory: %v", err)
@@ -100,11 +101,19 @@ func TestRunRun(t *testing.T) {
 			}
 
 			t.Cleanup(func() {
-				if err := os.Setenv("ORCA_PYTHON", originalPython); err != nil {
-					t.Errorf("failed to restore ORCA_PYTHON: %v", err)
+				if hadOriginalPython {
+					if err := os.Setenv("ORCA_PYTHON", originalPython); err != nil {
+						t.Errorf("failed to restore ORCA_PYTHON: %v", err)
+					}
+				} else if err := os.Unsetenv("ORCA_PYTHON"); err != nil {
+					t.Errorf("failed to unset ORCA_PYTHON: %v", err)
 				}
-				if err := os.Setenv("ORCA_PYTHON_CALLED", originalCalled); err != nil {
-					t.Errorf("failed to restore ORCA_PYTHON_CALLED: %v", err)
+				if hadOriginalCalled {
+					if err := os.Setenv("ORCA_PYTHON_CALLED", originalCalled); err != nil {
+						t.Errorf("failed to restore ORCA_PYTHON_CALLED: %v", err)
+					}
+				} else if err := os.Unsetenv("ORCA_PYTHON_CALLED"); err != nil {
+					t.Errorf("failed to unset ORCA_PYTHON_CALLED: %v", err)
 				}
 				if err := os.Chdir(originalWd); err != nil {
 					t.Errorf("failed to restore working directory: %v", err)
