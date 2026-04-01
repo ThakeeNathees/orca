@@ -35,12 +35,12 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	runCmd := exec.Command(pythonExe, "main.py")
-	runCmd.Dir = buildOutputDir
-	runCmd.Stdin = os.Stdin
-	runCmd.Stdout = os.Stdout
-	runCmd.Stderr = os.Stderr
-	if err := runCmd.Run(); err != nil {
+	pythonCmd := exec.Command(pythonExe, "main.py")
+	pythonCmd.Dir = buildOutputDir
+	pythonCmd.Stdin = os.Stdin
+	pythonCmd.Stdout = os.Stdout
+	pythonCmd.Stderr = os.Stderr
+	if err := pythonCmd.Run(); err != nil {
 		return fmt.Errorf("failed to run generated Python: %w", err)
 	}
 	return nil

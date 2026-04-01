@@ -55,7 +55,7 @@ func TestRunRun(t *testing.T) {
 
 			workingDir := t.TempDir()
 			ocPath := filepath.Join(workingDir, "sample.oc")
-			if err := os.WriteFile(ocPath, []byte(tc.oc), 0644); err != nil {
+			if err := os.WriteFile(ocPath, []byte(tc.oc), 0o644); err != nil {
 				t.Fatalf("failed to write .oc file: %v", err)
 			}
 
@@ -63,14 +63,14 @@ func TestRunRun(t *testing.T) {
 			pythonPath := ""
 			if tc.pythonOverride == "stub" {
 				pythonDir := filepath.Join(workingDir, "bin")
-				if err := os.MkdirAll(pythonDir, 0755); err != nil {
+				if err := os.MkdirAll(pythonDir, 0o755); err != nil {
 					t.Fatalf("failed to create python dir: %v", err)
 				}
 
 				pythonScript := "#!/bin/sh\n" +
 					"printf \"%s\\n%s\\n\" \"$(pwd)\" \"$*\" > \"$ORCA_PYTHON_CALLED\"\n"
 				pythonPath = filepath.Join(pythonDir, "python")
-				if err := os.WriteFile(pythonPath, []byte(pythonScript), 0755); err != nil {
+				if err := os.WriteFile(pythonPath, []byte(pythonScript), 0o755); err != nil {
 					t.Fatalf("failed to write python stub: %v", err)
 				}
 			}
