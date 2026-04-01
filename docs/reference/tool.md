@@ -6,8 +6,10 @@ The `tool` block defines an external tool or integration that agents can use.
 
 ```orca
 tool <name> {
-  name = <string>
-  desc = <string>  // optional
+  name         = <string>
+  desc         = <string>  // optional
+  input_schema = <schema>  // optional
+  invoke       = <string>  // optional
 }
 ```
 
@@ -17,8 +19,12 @@ tool <name> {
 |-------|------|----------|-------------|
 | `name` | `str` | Yes | The tool's identifier |
 | `desc` | `str \| null` | No | A description of what the tool does |
+| `input_schema` | `schema \| null` | No | Schema describing the tool's input parameters |
+| `invoke` | `str \| null` | No | Fully-qualified Python function to call when the tool is invoked |
 
 ## Examples
+
+### Simple tool
 
 ```orca
 tool search {
@@ -34,6 +40,22 @@ tool gmail {
 tool slack {
   name = "slack"
   desc = "Send messages to Slack channels"
+}
+```
+
+### Tool with input schema and invoke
+
+```orca
+schema search_input {
+  query   = str
+  max_results = int | null
+}
+
+tool search {
+  name         = "web_search"
+  desc         = "Search the web for current information"
+  input_schema = search_input
+  invoke       = "myapp.tools.web_search"
 }
 ```
 

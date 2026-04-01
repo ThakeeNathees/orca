@@ -6,17 +6,26 @@ The `workflow` block orchestrates multiple agents into a directed graph.
 
 ```orca
 workflow <name> {
-  flow = <agent_ref> -> <agent_ref> -> <agent_ref>
+  name = <string>  // optional
+  desc = <string>  // optional
+  <agent_ref> -> <agent_ref> -> <agent_ref>
 }
 ```
 
+## Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `str \| null` | No | Display name for the workflow |
+| `desc` | `str \| null` | No | A description of what the workflow does |
+
 ## Arrow syntax
 
-Use the `->` operator to define the flow between agents:
+The `->` arrow operator chains agents as a bare expression at block level:
 
 ```orca
 workflow pipeline {
-  flow = researcher -> writer -> reviewer
+  researcher -> writer -> reviewer
 }
 ```
 
@@ -52,7 +61,7 @@ agent editor {
 }
 
 workflow content_pipeline {
-  flow = researcher -> writer -> editor
+  researcher -> writer -> editor
 }
 ```
 

@@ -6,10 +6,10 @@ The `agent` block defines an AI agent with a model, persona, and optional tools.
 
 ```orca
 agent <name> {
-  model   = <model_ref>
-  persona = <string>
-  tools   = [<tool_ref>, ...]  // optional
-  output  = <schema_ref>       // optional
+  model         = <model_ref>
+  persona       = <string>
+  tools         = [<tool_ref>, ...]  // optional
+  output_schema = <schema_ref>       // optional
 }
 ```
 
@@ -20,7 +20,7 @@ agent <name> {
 | `model` | `str \| model` | Yes | Reference to a model block or a model string |
 | `persona` | `str` | Yes | The agent's system prompt / behavior description |
 | `tools` | `list[tool] \| null` | No | List of tool references the agent can use |
-| `output` | `schema \| null` | No | Structured output schema for the agent's response |
+| `output_schema` | `schema \| null` | No | Structured output schema for the agent's response |
 
 ## Examples
 
@@ -69,9 +69,9 @@ schema report {
 }
 
 agent analyst {
-  model   = gpt4
-  persona = "You analyze data and produce structured reports."
-  output  = report
+  model         = gpt4
+  persona       = "You analyze data and produce structured reports."
+  output_schema = report
 }
 ```
 

@@ -2,6 +2,10 @@
 
 The `cron` block defines a scheduled trigger for workflows using cron expressions.
 
+::: warning
+The `cron` block is not yet implemented. The syntax and fields documented here describe the planned design.
+:::
+
 ## Syntax
 
 ```orca
