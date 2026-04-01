@@ -26,7 +26,18 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	runCmd := exec.Command("python", "main.py")
+	pythonExe := os.Getenv("ORCA_PYTHON")
+	if pythonExe == "" {
+		pythonExe = "python"
+		if _, err := exec.LookPath(pythonExe); err != nil {
+			pythonExe = "python3"
+		}
+	}
+	if _, err := exec.LookPath(pythonExe); err != nil {
+		return fmt.Errorf("python executable not found: %w", err)
+	}
+
+	runCmd := exec.Command(pythonExe, "main.py")
 	runCmd.Dir = "build"
 	runCmd.Stdin = os.Stdin
 	runCmd.Stdout = os.Stdout

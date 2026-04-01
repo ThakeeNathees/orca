@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -29,6 +30,10 @@ func TestRunRun(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" {
+				t.Skip("python stub uses POSIX shell")
+			}
+
 			workingDir := t.TempDir()
 			ocPath := filepath.Join(workingDir, "sample.oc")
 			if err := os.WriteFile(ocPath, []byte(tc.oc), 0644); err != nil {
@@ -48,15 +53,15 @@ func TestRunRun(t *testing.T) {
 				t.Fatalf("failed to write python stub: %v", err)
 			}
 
-			originalPath := os.Getenv("PATH")
+			originalPython := os.Getenv("ORCA_PYTHON")
 			originalCalled := os.Getenv("ORCA_PYTHON_CALLED")
 			originalWd, err := os.Getwd()
 			if err != nil {
 				t.Fatalf("failed to get working directory: %v", err)
 			}
 
-			if err := os.Setenv("PATH", pythonDir+string(os.PathListSeparator)+originalPath); err != nil {
-				t.Fatalf("failed to set PATH: %v", err)
+			if err := os.Setenv("ORCA_PYTHON", pythonPath); err != nil {
+				t.Fatalf("failed to set ORCA_PYTHON: %v", err)
 			}
 			if err := os.Setenv("ORCA_PYTHON_CALLED", calledPath); err != nil {
 				t.Fatalf("failed to set ORCA_PYTHON_CALLED: %v", err)
@@ -66,8 +71,8 @@ func TestRunRun(t *testing.T) {
 			}
 
 			t.Cleanup(func() {
-				if err := os.Setenv("PATH", originalPath); err != nil {
-					t.Errorf("failed to restore PATH: %v", err)
+				if err := os.Setenv("ORCA_PYTHON", originalPython); err != nil {
+					t.Errorf("failed to restore ORCA_PYTHON: %v", err)
 				}
 				if err := os.Setenv("ORCA_PYTHON_CALLED", originalCalled); err != nil {
 					t.Errorf("failed to restore ORCA_PYTHON_CALLED: %v", err)
