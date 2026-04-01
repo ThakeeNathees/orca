@@ -9,6 +9,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// buildOutputDir is the default directory for generated Python output.
+const buildOutputDir = "build"
+
 // runCmd builds and then runs the compiled output.
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -33,7 +36,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 
 	runCmd := exec.Command(pythonExe, "main.py")
-	runCmd.Dir = "build"
+	runCmd.Dir = buildOutputDir
 	runCmd.Stdin = os.Stdin
 	runCmd.Stdout = os.Stdout
 	runCmd.Stderr = os.Stderr
