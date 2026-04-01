@@ -17,6 +17,50 @@ jobs:
           go-version-file: compiler/go.mod
           cache-dependency-path: compiler/go.sum
 
-      - name: Run tests
-        run: go test ./...
+      - name: Run tests with coverage
+        run: go test -coverprofile=coverage.out ./...
         working-directory: compiler
+
+      - name: Get PR coverage
+        id: pr_cov
+        run: |
+          pct=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $NF}' | tr -d '%')
+          echo "pct=$pct" >> $GITHUB_OUTPUT
+        working-directory: compiler
+
+      - name: Checkout main for base coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-branch
+
+      - name: Get base coverage (main)
+        if: github.event_name == 'pull_request'
+        id: base_cov
+        run: |
+          go test -coverprofile=base_coverage.out ./... 2>/dev/null || true
+          if [ -f base_coverage.out ]; then
+            pct=$(go tool cover -func=base_coverage.out | grep '^total:' | awk '{print $NF}' | tr -d '%')
+          else
+            pct=0
+          fi
+          echo "pct=$pct" >> $GITHUB_OUTPUT
+        working-directory: main-branch/compiler
+
+      - name: Check coverage does not drop by more than 10%
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 - <<'EOF'
+          import sys
+          pr   = float("${{ steps.pr_cov.outputs.pct }}")
+          base = float("${{ steps.base_cov.outputs.pct }}")
+          drop = base - pr
+          print(f"Base coverage (main): {base:.2f}%")
+          print(f"PR coverage:          {pr:.2f}%")
+          print(f"Change:               {drop:+.2f}%")
+          if drop > 10:
+              print(f"FAIL: Coverage dropped by {drop:.2f}%, exceeding the 10% threshold.")
+              sys.exit(1)
+          print("PASS: Coverage is within the acceptable range.")
+          EOF
