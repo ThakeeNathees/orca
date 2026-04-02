@@ -193,10 +193,13 @@ func (b *LangGraphBackend) writeAgent(s *strings.Builder, block *ast.BlockStatem
 	source := codegen.SourceComment(block.SourceFile, block.TokenStart.Line)
 
 	// Extract the model reference (an identifier pointing to a model block).
-	modelStr := "None"
-	if modelExpr, ok := block.GetFieldExpression("model"); ok {
-		modelStr = python.OrcaToPythonExpression(modelExpr)
+	// A missing model field is a schema violation that the analyzer should already
+	// have reported; reaching here without one is a compiler bug.
+	modelExpr, ok := block.GetFieldExpression("model")
+	if !ok {
+		panic("BUG: writeAgent called with block missing model")
 	}
+	modelStr := python.OrcaToPythonExpression(modelExpr)
 
 	// Build the create_react_agent call arguments.
 	call := fmt.Sprintf("%s = create_react_agent(%s", block.Name, modelStr)

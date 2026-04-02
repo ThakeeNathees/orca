@@ -428,9 +428,9 @@ func TestWriteAgent(t *testing.T) {
 					t.Errorf("expected output to contain %q, got:\n%s", want, result)
 				}
 			}
-			for _, notWant := range tt.notContains {
-				if strings.Contains(result, notWant) {
-					t.Errorf("expected output to not contain %q, got:\n%s", notWant, result)
+			for _, unwanted := range tt.notContains {
+				if strings.Contains(result, unwanted) {
+					t.Errorf("expected output to not contain %q, got:\n%s", unwanted, result)
 				}
 			}
 		})
