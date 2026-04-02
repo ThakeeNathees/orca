@@ -156,10 +156,11 @@ func TestCollectBlocks(t *testing.T) {
 
 // TestWriteImports verifies that provider imports are written correctly.
 func TestWriteImports(t *testing.T) {
+	const typedDictImport = "from typing import TypedDict"
 	tests := []struct {
 		name      string
 		providers []string
-		expected  []string
+		expected  []string // substrings after the always-present TypedDict import
 	}{
 		{
 			name:      "no providers",
@@ -202,13 +203,16 @@ func TestWriteImports(t *testing.T) {
 			var s strings.Builder
 			b.writeImports(&s, tt.providers)
 			result := s.String()
+			if !strings.Contains(result, typedDictImport) {
+				t.Errorf("expected %q in output:\n%s", typedDictImport, result)
+			}
 			for _, exp := range tt.expected {
 				if !strings.Contains(result, exp) {
 					t.Errorf("expected import %q in output:\n%s", exp, result)
 				}
 			}
-			if len(tt.expected) == 0 && result != "" {
-				t.Errorf("expected empty output, got:\n%s", result)
+			if len(tt.expected) == 0 && strings.Contains(result, "langchain") {
+				t.Errorf("expected no langchain imports, got:\n%s", result)
 			}
 		})
 	}
@@ -217,44 +221,78 @@ func TestWriteImports(t *testing.T) {
 // TestWriteModel verifies Python model instantiation generation.
 func TestWriteModel(t *testing.T) {
 	tests := []struct {
-		name  string
-		block *ast.BlockStatement
+		name        string
+		block       *ast.BlockStatement
+		contains    []string
+		notContains []string
 	}{
 		{
 			name:  "basic openai model",
 			block: modelBlockWithTemp("gpt4", "openai", "gpt-4o", 0.7),
+			contains: []string{
+				"gpt4 = ChatOpenAI(  # line 0",
+				`model="gpt-4o"`,
+				"temperature=0.7",
+				")\n",
+			},
 		},
 		{
 			name:  "anthropic model",
 			block: modelBlockWithTemp("claude", "anthropic", "claude-sonnet-4-20250514", 0.5),
+			contains: []string{
+				"claude = ChatAnthropic(  # line 0",
+				`model="claude-sonnet-4-20250514"`,
+				"temperature=0.5",
+			},
 		},
 		{
 			name:  "model without temperature",
 			block: modelBlock("gemini", "google", "gemini-pro"),
+			contains: []string{
+				"gemini = ChatGoogleGenerativeAI(  # line 0",
+				`model="gemini-pro"`,
+			},
+			notContains: []string{
+				"temperature=",
+			},
 		},
 		{
 			name:  "integer temperature",
 			block: modelBlockWithIntTemp("m1", "openai", "gpt-4o", 1),
-		},
-		{
-			name:  "unknown provider produces nothing",
-			block: modelBlock("m1", "unknown_provider", "some-model"),
+			contains: []string{
+				"m1 = ChatOpenAI(  # line 0",
+				"temperature=1",
+			},
 		},
 		{
 			name:  "source comment included",
 			block: modelBlockAtLine("gpt4", "openai", "gpt-4o", 42),
+			contains: []string{
+				"gpt4 = ChatOpenAI(  # line 42",
+			},
 		},
 		{
 			name:  "closing paren on its own line",
 			block: modelBlock("m", "openai", "gpt-4o"),
+			contains: []string{
+				"m = ChatOpenAI(  # line 0",
+				")\n",
+			},
 		},
 		{
 			name:  "google provider class",
 			block: modelBlock("gem", "google", "gemini-2.0-flash"),
+			contains: []string{
+				"gem = ChatGoogleGenerativeAI(  # line 0",
+				`model="gemini-2.0-flash"`,
+			},
 		},
 		{
 			name:  "zero temperature",
 			block: modelBlockWithIntTemp("m", "openai", "gpt-4o", 0),
+			contains: []string{
+				"temperature=0",
+			},
 		},
 	}
 
@@ -262,33 +300,79 @@ func TestWriteModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var s strings.Builder
 			b := &LangGraphBackend{}
+
 			b.writeModel(&s, tt.block)
 			result := s.String()
 
-			if !strings.Contains(result, "TODO: writeModel") {
-				t.Errorf("expected TODO stub in output, got:\n%s", result)
+			for _, exp := range tt.contains {
+				if !strings.Contains(result, exp) {
+					t.Errorf("expected output to contain %q, got:\n%s", exp, result)
+				}
+			}
+			for _, exp := range tt.notContains {
+				if strings.Contains(result, exp) {
+					t.Errorf("expected output to not contain %q, got:\n%s", exp, result)
+				}
 			}
 		})
 	}
 }
 
-// TestWriteAgent verifies Python agent generation from agent blocks.
+// TestWriteModelUnknownProvider verifies unknown providers produce a diagnostic and no Python output.
+func TestWriteModelUnknownProvider(t *testing.T) {
+	ap := analyzedProgram(programWithModels(modelBlock("m1", "unknown_provider", "some-model")))
+	b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: ap}}
+
+	var s strings.Builder
+	b.writeModel(&s, modelBlock("m1", "unknown_provider", "some-model"))
+	if s.String() != "" {
+		t.Fatalf("expected empty output, got:\n%s", s.String())
+	}
+
+	var codegenDiags int
+	for _, d := range b.Program.Diagnostics {
+		if d.Source == "codegen" && d.Code == diagnostic.CodeUnknownProvider {
+			codegenDiags++
+		}
+	}
+	if codegenDiags != 1 {
+		t.Fatalf("expected 1 codegen unknown-provider diagnostic, got %d (diagnostics=%v)", codegenDiags, b.Program.Diagnostics)
+	}
+}
+
+// TestWriteAgent verifies Python agent stub generation from agent blocks (function + GraphState placeholder).
 func TestWriteAgent(t *testing.T) {
 	tests := []struct {
-		name  string
-		block *ast.BlockStatement
+		name     string
+		block    *ast.BlockStatement
+		contains []string
 	}{
 		{
 			name:  "basic agent without tools",
 			block: agentBlock("writer", "gpt4", "You are a helpful writer."),
+			contains: []string{
+				"def writer(state: GraphState) -> GraphState:\n",
+				"    # TODO: writeAgent\n",
+				"    return state\n",
+			},
 		},
 		{
 			name:  "agent with tools",
 			block: agentBlockWithTools("researcher", "gpt4", "You are a researcher.", []string{"search", "calculator"}),
+			contains: []string{
+				"def researcher(state: GraphState) -> GraphState:\n",
+				"    # TODO: writeAgent\n",
+				"    return state\n",
+			},
 		},
 		{
 			name:  "agent with single tool",
 			block: agentBlockWithTools("bot", "claude", "You help.", []string{"gmail"}),
+			contains: []string{
+				"def bot(state: GraphState) -> GraphState:\n",
+				"    # TODO: writeAgent\n",
+				"    return state\n",
+			},
 		},
 		{
 			name: "source comment included",
@@ -300,22 +384,47 @@ func TestWriteAgent(t *testing.T) {
 					{Name: "persona", Value: &ast.StringLiteral{Value: "test"}},
 				},
 			},
+			contains: []string{
+				"def a1(state: GraphState) -> GraphState:\n",
+				"    # TODO: writeAgent\n",
+				"    return state\n",
+			},
 		},
 		{
-			name:  "closing paren on its own line",
+			name:  "short agent name",
 			block: agentBlock("a", "m", "p"),
+			contains: []string{
+				"def a(state: GraphState) -> GraphState:\n",
+				"    # TODO: writeAgent\n",
+				"    return state\n",
+			},
 		},
 		{
 			name:  "persona with escaped quotes",
 			block: agentBlock("bot", "gpt4", `You are a "helpful" assistant.`),
+			contains: []string{
+				"def bot(state: GraphState) -> GraphState:\n",
+				"    # TODO: writeAgent\n",
+				"    return state\n",
+			},
 		},
 		{
 			name:  "many tools preserves order",
 			block: agentBlockWithTools("a", "m", "p", []string{"t1", "t2", "t3", "t4"}),
+			contains: []string{
+				"def a(state: GraphState) -> GraphState:\n",
+				"    # TODO: writeAgent\n",
+				"    return state\n",
+			},
 		},
 		{
 			name:  "empty tools list omitted",
 			block: agentBlockWithTools("a", "m", "p", nil),
+			contains: []string{
+				"def a(state: GraphState) -> GraphState:\n",
+				"    # TODO: writeAgent\n",
+				"    return state\n",
+			},
 		},
 	}
 
@@ -326,56 +435,80 @@ func TestWriteAgent(t *testing.T) {
 			b.writeAgent(&s, tt.block)
 			result := s.String()
 
-			if !strings.Contains(result, "TODO: writeAgent") {
-				t.Errorf("expected TODO stub in output, got:\n%s", result)
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected output to contain %q, got:\n%s", want, result)
+				}
 			}
 		})
 	}
 }
 
-// TestProviderDeps verifies pip dependency resolution for providers.
+// TestProviderDeps verifies pip dependency resolution for providers (via resolveProviders).
 func TestProviderDeps(t *testing.T) {
 	tests := []struct {
-		name      string
-		providers []string
-		expected  []string
+		name             string
+		program          *ast.Program
+		wantPipAfterCore []string // pip package names after langchain-core
 	}{
 		{
-			name:      "no providers",
-			providers: nil,
-			expected:  nil,
+			name:             "no providers",
+			program:          &ast.Program{},
+			wantPipAfterCore: nil,
 		},
 		{
-			name:      "openai",
-			providers: []string{"openai"},
-			expected:  []string{"langchain-openai"},
+			name: "openai",
+			program: programWithModels(
+				modelBlock("m1", "openai", "gpt-4o"),
+			),
+			wantPipAfterCore: []string{"langchain-openai"},
 		},
 		{
-			name:      "all providers sorted",
-			providers: []string{"google", "openai", "anthropic"},
-			expected:  []string{"langchain-anthropic", "langchain-google-genai", "langchain-openai"},
+			name: "all providers sorted",
+			program: programWithModels(
+				modelBlock("m1", "google", "gemini-pro"),
+				modelBlock("m2", "openai", "gpt-4o"),
+				modelBlock("m3", "anthropic", "claude-sonnet-4-20250514"),
+			),
+			wantPipAfterCore: []string{"langchain-anthropic", "langchain-google-genai", "langchain-openai"},
 		},
 		{
-			name:      "unknown provider ignored",
-			providers: []string{"unknown"},
-			expected:  nil,
+			name: "unknown provider ignored",
+			program: programWithModels(
+				modelBlock("m1", "unknown", "x"),
+			),
+			wantPipAfterCore: nil,
 		},
 		{
-			name:      "duplicates deduplicated",
-			providers: []string{"openai", "openai"},
-			expected:  []string{"langchain-openai"},
+			name: "duplicates deduplicated",
+			program: programWithModels(
+				modelBlock("m1", "openai", "gpt-4o"),
+				modelBlock("m2", "openai", "gpt-4-turbo"),
+			),
+			wantPipAfterCore: []string{"langchain-openai"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := providerDeps(tt.providers)
-			if len(got) != len(tt.expected) {
-				t.Fatalf("expected %d deps, got %d: %v", len(tt.expected), len(got), got)
+			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(tt.program)}}
+			rp := b.resolveProviders()
+			var got []string
+			for i, d := range rp.dependencies {
+				if i == 0 {
+					if d.Name != "langchain-core" {
+						t.Fatalf("expected first dependency %q, got %q", "langchain-core", d.Name)
+					}
+					continue
+				}
+				got = append(got, d.Name)
 			}
-			for i, d := range got {
-				if d != tt.expected[i] {
-					t.Errorf("dep[%d]: expected %q, got %q", i, tt.expected[i], d)
+			if len(got) != len(tt.wantPipAfterCore) {
+				t.Fatalf("expected %d provider pip deps, got %d: %v", len(tt.wantPipAfterCore), len(got), got)
+			}
+			for i, name := range got {
+				if name != tt.wantPipAfterCore[i] {
+					t.Errorf("pip dep[%d]: expected %q, got %q", i, tt.wantPipAfterCore[i], name)
 				}
 			}
 		})
@@ -499,7 +632,7 @@ func TestGenerateProviderConstFold(t *testing.T) {
 			wantDeps:       []string{"langchain-core"},
 			wantDiagCount:  1,
 			wantDiagCode:   diagnostic.CodeTypeMismatch,
-			wantDiagSubstr: "provider should be a compile-time constant",
+			wantDiagSubstr: `field "provider" expects type str, got int`,
 		},
 	}
 
