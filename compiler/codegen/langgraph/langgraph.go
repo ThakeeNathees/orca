@@ -60,6 +60,10 @@ func (b *LangGraphBackend) writeImports(s *strings.Builder, providers []string) 
 	// TODO: Implement Import nodes in python.go and resolve dependency properly.
 	s.WriteString("from typing import TypedDict\n")
 
+	if len(b.CollectBlocks(token.AGENT)) > 0 {
+		s.WriteString("from langgraph.prebuilt import create_react_agent\n")
+	}
+
 	for _, p := range providers {
 		if info, ok := providerRegistry[p]; ok {
 			s.WriteString("\n")
@@ -180,14 +184,35 @@ func (b *LangGraphBackend) writeAgents(s *strings.Builder) {
 }
 
 // writeAgent generates a Python create_react_agent call from an agent block.
-// Produces: name = create_react_agent(model, tools=[...], prompt="persona")
+// Produces: name = create_react_agent(model, tools=[...], prompt="persona")  # source:line
 func (b *LangGraphBackend) writeAgent(s *strings.Builder, block *ast.BlockStatement) {
-	agentFuncName := block.Name
-	stateObjName := "state"
-	// TODO: This needs to be defined above.
-	stateObjType := "GraphState"
+	if block == nil {
+		panic("BUG: writeAgent called with nil block")
+	}
 
-	s.WriteString(fmt.Sprintf("def %s(%s: %s) -> %s:\n", agentFuncName, stateObjName, stateObjType, stateObjType))
-	s.WriteString("    # TODO: writeAgent\n")
-	s.WriteString("    return state\n")
+	source := codegen.SourceComment(block.SourceFile, block.TokenStart.Line)
+
+	// Extract the model reference (an identifier pointing to a model block).
+	modelStr := "None"
+	if modelExpr, ok := block.GetFieldExpression("model"); ok {
+		modelStr = python.OrcaToPythonExpression(modelExpr)
+	}
+
+	// Build the create_react_agent call arguments.
+	call := fmt.Sprintf("%s = create_react_agent(%s", block.Name, modelStr)
+
+	// Include tools only when the list is non-empty.
+	if toolsExpr, ok := block.GetFieldExpression("tools"); ok {
+		if list, ok := toolsExpr.(*ast.ListLiteral); ok && len(list.Elements) > 0 {
+			call += ", tools=" + python.OrcaToPythonExpression(toolsExpr)
+		}
+	}
+
+	// Include the persona as the prompt argument.
+	if personaExpr, ok := block.GetFieldExpression("persona"); ok {
+		call += ", prompt=" + python.OrcaToPythonExpression(personaExpr)
+	}
+
+	call += ")"
+	fmt.Fprintf(s, "%s  # %s\n", call, source)
 }

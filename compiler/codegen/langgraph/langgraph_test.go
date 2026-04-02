@@ -340,38 +340,34 @@ func TestWriteModelUnknownProvider(t *testing.T) {
 	}
 }
 
-// TestWriteAgent verifies Python agent stub generation from agent blocks (function + GraphState placeholder).
+// TestWriteAgent verifies Python create_react_agent call generation from agent blocks.
 func TestWriteAgent(t *testing.T) {
 	tests := []struct {
-		name     string
-		block    *ast.BlockStatement
-		contains []string
+		name        string
+		block       *ast.BlockStatement
+		contains    []string
+		notContains []string
 	}{
 		{
 			name:  "basic agent without tools",
 			block: agentBlock("writer", "gpt4", "You are a helpful writer."),
 			contains: []string{
-				"def writer(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"writer = create_react_agent(gpt4, prompt=\"You are a helpful writer.\")",
 			},
+			notContains: []string{"def writer", "tools="},
 		},
 		{
 			name:  "agent with tools",
 			block: agentBlockWithTools("researcher", "gpt4", "You are a researcher.", []string{"search", "calculator"}),
 			contains: []string{
-				"def researcher(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"researcher = create_react_agent(gpt4, tools=[search, calculator], prompt=\"You are a researcher.\")",
 			},
 		},
 		{
 			name:  "agent with single tool",
 			block: agentBlockWithTools("bot", "claude", "You help.", []string{"gmail"}),
 			contains: []string{
-				"def bot(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"bot = create_react_agent(claude, tools=[gmail], prompt=\"You help.\")",
 			},
 		},
 		{
@@ -385,46 +381,38 @@ func TestWriteAgent(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"def a1(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"a1 = create_react_agent(gpt4, prompt=\"test\")",
+				"# line 15",
 			},
 		},
 		{
 			name:  "short agent name",
 			block: agentBlock("a", "m", "p"),
 			contains: []string{
-				"def a(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"a = create_react_agent(m, prompt=\"p\")",
 			},
 		},
 		{
 			name:  "persona with escaped quotes",
 			block: agentBlock("bot", "gpt4", `You are a "helpful" assistant.`),
 			contains: []string{
-				"def bot(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				`bot = create_react_agent(gpt4, prompt="You are a \"helpful\" assistant.")`,
 			},
 		},
 		{
 			name:  "many tools preserves order",
 			block: agentBlockWithTools("a", "m", "p", []string{"t1", "t2", "t3", "t4"}),
 			contains: []string{
-				"def a(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"a = create_react_agent(m, tools=[t1, t2, t3, t4], prompt=\"p\")",
 			},
 		},
 		{
 			name:  "empty tools list omitted",
 			block: agentBlockWithTools("a", "m", "p", nil),
 			contains: []string{
-				"def a(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"a = create_react_agent(m, prompt=\"p\")",
 			},
+			notContains: []string{"tools="},
 		},
 	}
 
@@ -438,6 +426,11 @@ func TestWriteAgent(t *testing.T) {
 			for _, want := range tt.contains {
 				if !strings.Contains(result, want) {
 					t.Errorf("expected output to contain %q, got:\n%s", want, result)
+				}
+			}
+			for _, notWant := range tt.notContains {
+				if strings.Contains(result, notWant) {
+					t.Errorf("expected output to not contain %q, got:\n%s", notWant, result)
 				}
 			}
 		})
