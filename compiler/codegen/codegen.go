@@ -12,18 +12,32 @@ import (
 	"github.com/thakee/orca/compiler/token"
 )
 
+// CodegenOutput holds the complete output from a code generation backend.
+type CodegenOutput struct {
+	BackendType  BackendType
+	Dependencies []Dependency
+	RootDir      OutputDirectory
+	Diagnostics  []diagnostic.Diagnostic
+}
+
+// BackendType identifies which code generation backend produced a given output.
+//
+// This is used by higher-level orchestration (e.g. `orca run`) to pick the
+// appropriate runner without hardcoding backend-specific behavior into the CLI.
+type BackendType string
+
+const (
+	BackendLangGraph BackendType = "langgraph"
+	// These backends are not yet implemented (nor will be in the near future).
+	BackendCrewAI  BackendType = "crewai"
+	BackendAutogen BackendType = "autogen"
+)
+
 // Dependency represents a package dependency required by the generated code.
 type Dependency struct {
 	Name          string
-	Version       string
+	MinVersion    string
 	DevDependency bool
-}
-
-// CodegenOutput holds the complete output from a code generation backend.
-type CodegenOutput struct {
-	RootDir      OutputDirectory
-	Dependencies []Dependency
-	Diagnostics  []diagnostic.Diagnostic
 }
 
 // OutputDirectory represents a directory in the generated output tree.
