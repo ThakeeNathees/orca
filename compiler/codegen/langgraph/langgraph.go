@@ -192,14 +192,14 @@ func (b *LangGraphBackend) writeAgent(s *strings.Builder, block *ast.BlockStatem
 
 	source := codegen.SourceComment(block.SourceFile, block.TokenStart.Line)
 
-	// Extract the model reference (an identifier pointing to a model block).
-	// A missing model field is a schema violation that the analyzer should already
-	// have reported; reaching here without one is a compiler bug.
+	// Extract the model expression. A missing model field is a schema violation that
+	// the analyzer should already have reported; reaching here without one is a bug.
 	modelExpr, ok := block.GetFieldExpression("model")
 	if !ok {
 		panic("BUG: writeAgent called with block missing model")
 	}
-	modelStr := python.OrcaToPythonExpression(modelExpr)
+	// Convert to Python: named reference (identifier) or inline block expression.
+	modelStr := b.modelExprToPython(modelExpr)
 
 	// Build the create_react_agent call arguments.
 	call := fmt.Sprintf("%s = create_react_agent(%s", block.Name, modelStr)
@@ -218,4 +218,68 @@ func (b *LangGraphBackend) writeAgent(s *strings.Builder, block *ast.BlockStatem
 
 	call += ")"
 	fmt.Fprintf(s, "%s  # %s\n", call, source)
+}
+
+// modelExprToPython converts a model expression to its Python string representation.
+// Named references (e.g. `model = gpt4`) become a Python variable name.
+// Inline model block expressions (e.g. `model = model { provider = "openai", ... }`)
+// are instantiated inline as the appropriate LangChain class constructor call.
+func (b *LangGraphBackend) modelExprToPython(expr ast.Expression) string {
+	be, ok := expr.(*ast.BlockExpression)
+	if !ok || be.Kind != token.BlockModel {
+		// Named reference or any non-inline-model expression — use standard conversion.
+		return python.OrcaToPythonExpression(expr)
+	}
+	return b.inlineModelToPython(be)
+}
+
+// inlineModelToPython generates a Python constructor call from an inline model
+// block expression, e.g. ChatOpenAI(model="gpt-4o", temperature=0.7).
+// Emits a diagnostic and returns "None" for unknown or non-constant providers.
+func (b *LangGraphBackend) inlineModelToPython(be *ast.BlockExpression) string {
+	providerExpr := blockExprField(be, "provider")
+	if providerExpr == nil {
+		return "None"
+	}
+
+	providerValue, d := analyzer.ConstFold(providerExpr, b.Program)
+	b.Program.Diagnostics = append(b.Program.Diagnostics, d...)
+	if providerValue.Kind != analyzer.ConstString {
+		return "None"
+	}
+
+	info, known := providerRegistry[providerValue.Str]
+	if !known {
+		b.Program.Diagnostics = append(b.Program.Diagnostics, diagnostic.Diagnostic{
+			Severity: diagnostic.Error,
+			Code:     diagnostic.CodeUnknownProvider,
+			Position: diagnostic.Position{Line: providerExpr.Start().Line, Column: providerExpr.Start().Column},
+			Message:  fmt.Sprintf("unknown provider %q", providerValue.Str),
+			Source:   "codegen",
+		})
+		return "None"
+	}
+
+	fieldNames := []struct{ orca, py string }{
+		{"model_name", "model"},
+		{"temperature", "temperature"},
+	}
+	var args []string
+	for _, fn := range fieldNames {
+		if e := blockExprField(be, fn.orca); e != nil {
+			args = append(args, fmt.Sprintf("%s=%s", fn.py, python.OrcaToPythonExpression(e)))
+		}
+	}
+	return fmt.Sprintf("%s(%s)", info.Class, strings.Join(args, ", "))
+}
+
+// blockExprField returns the expression for the named field in a BlockExpression,
+// or nil if no such field is present.
+func blockExprField(be *ast.BlockExpression, field string) ast.Expression {
+	for _, a := range be.Assignments {
+		if a != nil && a.Name == field {
+			return a.Value
+		}
+	}
+	return nil
 }

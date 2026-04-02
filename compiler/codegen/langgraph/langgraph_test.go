@@ -414,6 +414,83 @@ func TestWriteAgent(t *testing.T) {
 			},
 			notContains: []string{"tools="},
 		},
+		{
+			name: "inline model block expression",
+			block: &ast.BlockStatement{
+				BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Literal: "agent"}},
+				Name:     "writer",
+				Assignments: []*ast.Assignment{
+					{
+						Name: "model",
+						Value: &ast.BlockExpression{
+							Kind: token.BlockModel,
+							Assignments: []*ast.Assignment{
+								{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}},
+								{Name: "model_name", Value: &ast.StringLiteral{Value: "gpt-4o"}},
+								{Name: "temperature", Value: &ast.FloatLiteral{Value: 0.7}},
+							},
+						},
+					},
+					{Name: "persona", Value: &ast.StringLiteral{Value: "You are a writer."}},
+				},
+			},
+			contains: []string{
+				`writer = create_react_agent(ChatOpenAI(model="gpt-4o", temperature=0.7), prompt="You are a writer.")`,
+			},
+		},
+		{
+			name: "inline model block without temperature",
+			block: &ast.BlockStatement{
+				BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Literal: "agent"}},
+				Name:     "bot",
+				Assignments: []*ast.Assignment{
+					{
+						Name: "model",
+						Value: &ast.BlockExpression{
+							Kind: token.BlockModel,
+							Assignments: []*ast.Assignment{
+								{Name: "provider", Value: &ast.StringLiteral{Value: "anthropic"}},
+								{Name: "model_name", Value: &ast.StringLiteral{Value: "claude-3-5-sonnet-20241022"}},
+							},
+						},
+					},
+					{Name: "persona", Value: &ast.StringLiteral{Value: "You are helpful."}},
+				},
+			},
+			contains: []string{
+				`bot = create_react_agent(ChatAnthropic(model="claude-3-5-sonnet-20241022"), prompt="You are helpful.")`,
+			},
+			notContains: []string{"temperature"},
+		},
+		{
+			name: "inline model block with tools",
+			block: &ast.BlockStatement{
+				BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Literal: "agent"}},
+				Name:     "researcher",
+				Assignments: []*ast.Assignment{
+					{
+						Name: "model",
+						Value: &ast.BlockExpression{
+							Kind: token.BlockModel,
+							Assignments: []*ast.Assignment{
+								{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}},
+								{Name: "model_name", Value: &ast.StringLiteral{Value: "gpt-4o"}},
+							},
+						},
+					},
+					{
+						Name: "tools",
+						Value: &ast.ListLiteral{Elements: []ast.Expression{
+							&ast.Identifier{Value: "web_search"},
+						}},
+					},
+					{Name: "persona", Value: &ast.StringLiteral{Value: "You research."}},
+				},
+			},
+			contains: []string{
+				`researcher = create_react_agent(ChatOpenAI(model="gpt-4o"), tools=[web_search], prompt="You research.")`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
