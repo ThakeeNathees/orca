@@ -304,6 +304,21 @@ func validateField(assign *ast.Assignment, kind token.BlockKind, schema types.Bl
 
 	expected := fieldSchema.Type
 	if types.IsCompatible(exprType, expected) {
+		// Warn if the invoke field uses a raw string with a non-Python language tag.
+		if assign.Name == "invoke" {
+			if str, ok := assign.Value.(*ast.StringLiteral); ok && str.Lang != "" && str.Lang != "py" {
+				return []diagnostic.Diagnostic{{
+					Severity: diagnostic.Warning,
+					Code:     diagnostic.CodeUnsupportedLang,
+					Position: diagnostic.Position{
+						Line:   str.Start().Line,
+						Column: str.Start().Column,
+					},
+					Message: fmt.Sprintf("unsupported language %q in invoke field; only \"py\" is supported", str.Lang),
+					Source:  "analyzer",
+				}}
+			}
+		}
 		return nil
 	}
 

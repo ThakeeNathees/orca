@@ -62,24 +62,21 @@ schema agent {
 
 @suppress("duplicate-block")
 schema tool {
-  @desc("The name of the tool.")
-  name = str
-
   @desc("The description of the tool.")
   desc = str | null
 
   @desc("The input schema for the tool.")
   input_schema = schema | null
 
-  @desc("The function to call for the tool.")
-  invoke = str | null
+  @desc("The output schema for the tool.")
+  output_schema = schema | null
+
+  @desc("The function to invoke for the tool. Either a dotted import path or an inline raw string.")
+  invoke = str
 }
 
 @suppress("duplicate-block")
 schema knowledge {
-  @desc("The name of the knowledge source.")
-  name = str
-
   @desc("The description of the knowledge source.")
   desc = str | null
 }

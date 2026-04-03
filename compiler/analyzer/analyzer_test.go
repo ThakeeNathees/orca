@@ -648,7 +648,7 @@ func TestCheckReferencesRecursive(t *testing.T) {
 		{
 			"valid ref in list element",
 			`tool web_search {
-				name = "web_search"
+				invoke = "tools.web_search.search"
 			}
 			agent a {
 				model = "gpt-4o"

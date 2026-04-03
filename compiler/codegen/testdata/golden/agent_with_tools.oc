@@ -5,11 +5,11 @@ model gpt4 {
 }
 
 tool web_search {
-  name = "web_search"
+  invoke = "langchain_community.tools.web_search.WebSearchTool"
 }
 
 tool calculator {
-  name = "calculator"
+  invoke = "langchain_community.tools.calculator.CalculatorTool"
 }
 
 agent researcher {

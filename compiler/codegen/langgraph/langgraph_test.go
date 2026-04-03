@@ -153,13 +153,12 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 		},
 		{
 			name:         "knowledge block",
-			program:      &ast.Program{Statements: []ast.Statement{knowledgeBlock("docs", "internal_docs", "Company wiki")}},
+			program:      &ast.Program{Statements: []ast.Statement{knowledgeBlock("docs", "Company wiki")}},
 			sectionTitle: "Knowledge",
 			kind:         token.BlockKnowledge,
 			wantSubstrings: []string{
 				"\n# --- Knowledge ---\n",
 				"docs = orca.knowledge(\n",
-				`    name="internal_docs",`,
 				`    desc="Company wiki",`,
 			},
 		},
@@ -543,22 +542,19 @@ func TestWriteKnowledge(t *testing.T) {
 		notContains []string
 	}{
 		{
-			name:  "name and desc",
-			block: knowledgeBlock("docs", "internal_docs", "Company knowledge base"),
+			name:  "with desc",
+			block: knowledgeBlock("docs", "Company knowledge base"),
 			contains: []string{
 				"docs = orca.knowledge(\n",
-				`    name="internal_docs",`,
 				`    desc="Company knowledge base",`,
 				")\n",
 			},
 		},
 		{
-			name:  "name only omits desc",
-			block: knowledgeBlock("refs", "my_refs", ""),
+			name:  "no desc",
+			block: knowledgeBlock("refs", ""),
 			contains: []string{
-				"refs = orca.knowledge(\n",
-				`    name="my_refs",`,
-				")\n",
+				"refs = orca.knowledge()\n",
 			},
 			notContains: []string{"desc="},
 		},
@@ -978,11 +974,9 @@ func schemaBlock(name string, fields ...schemaField) *ast.BlockStatement {
 	}
 }
 
-// knowledgeBlock creates a knowledge block with name and optional desc string fields.
-func knowledgeBlock(blockName, nameValue, descValue string) *ast.BlockStatement {
-	assigns := []*ast.Assignment{
-		{Name: "name", Value: &ast.StringLiteral{Value: nameValue}},
-	}
+// knowledgeBlock creates a knowledge block with an optional desc string field.
+func knowledgeBlock(blockName, descValue string) *ast.BlockStatement {
+	var assigns []*ast.Assignment
 	if descValue != "" {
 		assigns = append(assigns, &ast.Assignment{
 			Name:  "desc",

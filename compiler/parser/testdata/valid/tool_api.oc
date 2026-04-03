@@ -1,7 +1,7 @@
-// An API-based tool with OAuth scopes.
+// A tool with desc, input/output schemas, and a dotted path invoke.
 tool slack {
-  type     = "api"
-  base_url = "https://slack.com/api"
-  auth     = "oauth"
-  scopes   = ["chat:write", "channels:read"]
+  desc = "Send messages to Slack"
+  input_schema = schema { channel = str message = str }
+  output_schema = schema { ok = bool }
+  invoke = "integrations.slack.send_message"
 }

@@ -1,6 +1,8 @@
-// A custom function tool pointing to user-provided Python.
+// A custom function tool with inline Python invoke.
 tool calculate_risk {
-  type        = "function"
-  source      = "./tools/risk.py"
-  description = "Calculate risk score for a given portfolio"
+  desc = "Calculate risk score for a given portfolio"
+  invoke = ```py
+    def calculate_risk(portfolio: dict) -> float:
+        return sum(portfolio.values()) * 0.1
+    ```
 }

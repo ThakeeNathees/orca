@@ -4,12 +4,26 @@ from typing import TypedDict
 
 from langchain_openai import ChatOpenAI
 
+from langchain_community.tools.web_search import WebSearchTool
+
+from langchain_community.tools.calculator import CalculatorTool
+
 # --- Models ---
 
 gpt4 = orca.model(
     provider="openai",
     model_name="gpt-4o",
     temperature=0.5,
+)
+
+# --- Tools ---
+
+web_search = orca.tool(
+    invoke=WebSearchTool,
+)
+
+calculator = orca.tool(
+    invoke=CalculatorTool,
 )
 
 # --- Graph State ---

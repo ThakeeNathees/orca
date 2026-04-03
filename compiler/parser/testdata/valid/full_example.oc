@@ -13,12 +13,12 @@ model claude {
 }
 
 tool web_search {
-  type = "builtin"
+  invoke = "langchain_community.tools.web_search.WebSearchTool"
 }
 
 tool slack {
-  type   = "api"
-  scopes = ["chat:write"]
+  desc   = "Send messages to Slack"
+  invoke = "integrations.slack.send_message"
 }
 
 // The researcher uses web search to gather information.
