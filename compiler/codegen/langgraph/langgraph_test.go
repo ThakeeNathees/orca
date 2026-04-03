@@ -9,6 +9,7 @@ import (
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen"
+	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
@@ -158,38 +159,36 @@ func TestCollectBlocks(t *testing.T) {
 func TestWriteImports(t *testing.T) {
 	const typedDictImport = "from typing import TypedDict"
 	tests := []struct {
-		name      string
-		providers []string
-		expected  []string // substrings after the always-present TypedDict import
+		name     string
+		imports  []python.PythonImport
+		expected []string // substrings after the always-present TypedDict import
 	}{
 		{
-			name:      "no providers",
-			providers: nil,
-			expected:  nil,
+			name:     "no providers",
+			imports:  nil,
+			expected: nil,
 		},
 		{
-			name:      "openai",
-			providers: []string{"openai"},
-			expected:  []string{"from langchain_openai import ChatOpenAI"},
+			name:     "openai",
+			imports:  []python.PythonImport{providerRegistry["openai"].PyImport},
+			expected: []string{"from langchain_openai import ChatOpenAI"},
 		},
 		{
-			name:      "anthropic",
-			providers: []string{"anthropic"},
-			expected:  []string{"from langchain_anthropic import ChatAnthropic"},
+			name:     "anthropic",
+			imports:  []python.PythonImport{providerRegistry["anthropic"].PyImport},
+			expected: []string{"from langchain_anthropic import ChatAnthropic"},
 		},
 		{
-			name:      "google",
-			providers: []string{"google"},
-			expected:  []string{"from langchain_google_genai import ChatGoogleGenerativeAI"},
+			name:     "google",
+			imports:  []python.PythonImport{providerRegistry["google"].PyImport},
+			expected: []string{"from langchain_google_genai import ChatGoogleGenerativeAI"},
 		},
 		{
-			name:      "unknown provider skipped",
-			providers: []string{"unknown"},
-			expected:  nil,
-		},
-		{
-			name:      "multiple providers",
-			providers: []string{"anthropic", "openai"},
+			name: "multiple providers",
+			imports: []python.PythonImport{
+				providerRegistry["anthropic"].PyImport,
+				providerRegistry["openai"].PyImport,
+			},
 			expected: []string{
 				"from langchain_anthropic import ChatAnthropic",
 				"from langchain_openai import ChatOpenAI",
@@ -201,7 +200,7 @@ func TestWriteImports(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(&ast.Program{})}}
 			var s strings.Builder
-			b.writeImports(&s, tt.providers)
+			b.writeImports(&s, tt.imports)
 			result := s.String()
 			if !strings.Contains(result, typedDictImport) {
 				t.Errorf("expected %q in output:\n%s", typedDictImport, result)
@@ -492,9 +491,10 @@ func TestProviderDeps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(tt.program)}}
-			rp := b.resolveProviders()
+			b.resolveProviders()
+			deps := dependenciesFromProviders(b.resolvedProviders)
 			var got []string
-			for i, d := range rp.dependencies {
+			for i, d := range deps {
 				if i == 0 {
 					if d.Name != "langchain-core" {
 						t.Fatalf("expected first dependency %q, got %q", "langchain-core", d.Name)

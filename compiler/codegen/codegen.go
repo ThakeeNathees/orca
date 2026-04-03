@@ -62,7 +62,8 @@ type CodegenBackend interface {
 // BaseBackend provides common functionality shared across all codegen backends.
 // Embed this in concrete backend types to get access to block collection helpers.
 type BaseBackend struct {
-	Program analyzer.AnalyzedProgram
+	Program      analyzer.AnalyzedProgram
+	dependencies []Dependency
 }
 
 // CollectBlocks returns all block statements of the given token type.
