@@ -82,7 +82,7 @@ func (b *LangGraphBackend) writeImports(s *strings.Builder, providerImports []py
 	}
 }
 
-// writeVars emits top-level let bindings as Python assignments under "# --- Variables ---".
+// writeVars emits named let blocks as orca.let(...) calls under "# --- Variables ---".
 func (b *LangGraphBackend) writeVars(s *strings.Builder) {
 	lets := b.CollectLets()
 	if len(lets) == 0 {
@@ -90,12 +90,8 @@ func (b *LangGraphBackend) writeVars(s *strings.Builder) {
 	}
 	s.WriteString("\n# --- Variables ---\n")
 	for _, block := range lets {
-		for _, assign := range block.Assignments {
-			s.WriteString("\n")
-			fmt.Fprintf(s, "%s = %s\n",
-				assign.Name,
-				exprToSource(assign.Value))
-		}
+		s.WriteString("\n")
+		writeBlock(s, block)
 	}
 }
 

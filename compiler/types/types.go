@@ -117,6 +117,13 @@ func NewBlockRefType(kind token.BlockKind) Type {
 	return Type{Kind: BlockRef, BlockKind: kind}
 }
 
+// NewLetType creates a type for a named let block. Uses BlockKind=BlockLet
+// with a SchemaName so that member access can resolve fields through the
+// per-instance schema registered for this let block.
+func NewLetType(name string) Type {
+	return Type{Kind: BlockRef, BlockKind: token.BlockLet, SchemaName: name}
+}
+
 // NewUnionType creates a union type that accepts any of the given member types.
 func NewUnionType(members ...Type) Type {
 	return Type{Kind: Union, Members: members}

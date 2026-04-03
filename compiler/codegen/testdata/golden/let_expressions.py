@@ -4,19 +4,15 @@ from typing import TypedDict
 
 # --- Variables ---
 
-name = "orca"
-
-count = 42
-
-rate = 3.14
-
-enabled = False
-
-nothing = None
-
-items = ["a", "b", "c"]
-
-config = {"key": "value", "num": 1}
+vars = orca.let(
+    name="orca",
+    count=42,
+    rate=3.14,
+    enabled=False,
+    nothing=None,
+    items=["a", "b", "c"],
+    config={"key": "value", "num": 1},
+)
 
 # --- Graph State ---
 class GraphState(TypedDict):

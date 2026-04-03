@@ -91,27 +91,30 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 			continue
 		}
 
-		// Let blocks register each key as a global symbol.
-		// Multiple let blocks are merged; duplicate keys are an error.
+		// Named let blocks register the block name as a symbol and build
+		// a per-instance schema from the assignments so that member access
+		// (e.g. vars.name) can resolve field types.
 		if block.Kind == token.BlockLet {
-			for _, assign := range block.Assignments {
-				if _, exists := st.Lookup(assign.Name); exists {
-					diags = append(diags, diagnostic.Diagnostic{
-						Severity: diagnostic.Error,
-						Code:     diagnostic.CodeDuplicateBlock,
-						Position: diagnostic.Position{
-							Line:   assign.TokenStart.Line,
-							Column: assign.TokenStart.Column,
-						},
-						Message: fmt.Sprintf("let variable %q conflicts with an existing name", assign.Name),
-						Source:  "analyzer",
-						File:    block.SourceFile,
-					})
-					continue
-				}
-				typ := types.ExprType(assign.Value, st)
-				st.Define(assign.Name, typ, assign.TokenStart)
+			if _, exists := st.Lookup(block.Name); exists {
+				diags = append(diags, diagnostic.Diagnostic{
+					Severity: diagnostic.Error,
+					Code:     diagnostic.CodeDuplicateBlock,
+					Position: diagnostic.Position{
+						Line:   block.NameToken.Line,
+						Column: block.NameToken.Column,
+					},
+					Message: fmt.Sprintf("duplicate block name %q", block.Name),
+					Source:  "analyzer",
+					File:    block.SourceFile,
+				})
 			}
+			schema := types.BlockSchema{Fields: make(map[string]types.FieldSchema)}
+			for _, assign := range block.Assignments {
+				typ := types.ExprType(assign.Value, st)
+				schema.Fields[assign.Name] = types.FieldSchema{Type: typ}
+			}
+			types.RegisterSchema(block.Name, schema)
+			st.Define(block.Name, types.NewLetType(block.Name), block.NameToken)
 			continue
 		}
 
@@ -558,7 +561,7 @@ func analyzeLetBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []di
 					Line:   assign.Start().Line,
 					Column: assign.Start().Column,
 				},
-				Message: fmt.Sprintf("duplicate variable %q in let block", assign.Name),
+				Message: fmt.Sprintf("duplicate variable %q in let block %q", assign.Name, block.Name),
 				Source:  "analyzer",
 			})
 		}

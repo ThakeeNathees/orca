@@ -67,7 +67,7 @@ func TestCollectBlocksByKind(t *testing.T) {
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, BlockBody: ast.BlockBody{Kind: token.BlockModel}, Name: "m1"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT}}, BlockBody: ast.BlockBody{Kind: token.BlockAgent}, Name: "a1"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, BlockBody: ast.BlockBody{Kind: token.BlockModel}, Name: "m2"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.LET}}, BlockBody: ast.BlockBody{Kind: token.BlockLet}},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.LET}}, BlockBody: ast.BlockBody{Kind: token.BlockLet}, Name: "vars"},
 		},
 	}
 

@@ -113,9 +113,9 @@ nothing  = null          // null
 ### Arithmetic
 
 ```orca
-let {
+let vars {
   total = base_price * quantity
-  with_tax = total + tax
+  with_tax = vars.total + tax
 }
 ```
 

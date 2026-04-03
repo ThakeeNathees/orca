@@ -1,4 +1,4 @@
-let {
+let vars {
   defaults = model {
     provider   = "openai"
     model_name = "template"
@@ -6,6 +6,6 @@ let {
 }
 
 model gpt {
-  provider   = defaults.provider
+  provider   = vars.defaults.provider
   model_name = "gpt-4o"
 }

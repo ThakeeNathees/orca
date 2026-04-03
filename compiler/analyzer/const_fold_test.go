@@ -667,18 +667,18 @@ func TestConstFoldIdentifier(t *testing.T) {
 	}
 }
 
-// TestConstFoldLetBoundProviderMember verifies let-bound names fold from their initializer
-// when no top-level block shadows the name, so member access (defaults.provider) resolves
-// for codegen const folding.
+// TestConstFoldLetBoundProviderMember verifies named let block member access
+// folds correctly: config.defaults.provider resolves through the let block body
+// then through the inline model block to the string "openai".
 func TestConstFoldLetBoundProviderMember(t *testing.T) {
-	input := `let {
+	input := `let vars {
   defaults = model {
     provider = "openai"
     model_name = "template"
   }
 }
 model gpt {
-  provider = defaults.provider
+  provider = vars.defaults.provider
   model_name = "gpt-4o"
 }`
 	prog := parseProgram(t, input)
