@@ -6,45 +6,76 @@ import (
 
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/codegen"
+	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/token"
 )
 
 // providerInfo holds LangChain metadata for a model provider.
 type providerInfo struct {
-	Import string // e.g. "from langchain_openai import ChatOpenAI"
-	Class  string // e.g. "ChatOpenAI"
-	Dep    string // pip package name, e.g. "langchain-openai"
+	PyImport python.PythonImport // import line + pip package for dependency resolution
+	Class    string              // e.g. "ChatOpenAI"
 }
 
 // providers maps provider names to their LangChain metadata.
 var providerRegistry = map[string]providerInfo{
 	"openai": {
-		Import: "from langchain_openai import ChatOpenAI",
-		Class:  "ChatOpenAI",
-		Dep:    "langchain-openai",
+		PyImport: python.PythonImport{
+			Module:     "langchain_openai",
+			Package:    "langchain-openai",
+			FromImport: true,
+			Symbols:    []python.ImportSymbol{{Name: "ChatOpenAI"}},
+		},
+		Class: "ChatOpenAI",
 	},
 	"anthropic": {
-		Import: "from langchain_anthropic import ChatAnthropic",
-		Class:  "ChatAnthropic",
-		Dep:    "langchain-anthropic",
+		PyImport: python.PythonImport{
+			Module:     "langchain_anthropic",
+			Package:    "langchain-anthropic",
+			FromImport: true,
+			Symbols:    []python.ImportSymbol{{Name: "ChatAnthropic"}},
+		},
+		Class: "ChatAnthropic",
 	},
 	"google": {
-		Import: "from langchain_google_genai import ChatGoogleGenerativeAI",
-		Class:  "ChatGoogleGenerativeAI",
-		Dep:    "langchain-google-genai",
+		PyImport: python.PythonImport{
+			Module:     "langchain_google_genai",
+			Package:    "langchain-google-genai",
+			FromImport: true,
+			Symbols:    []python.ImportSymbol{{Name: "ChatGoogleGenerativeAI"}},
+		},
+		Class: "ChatGoogleGenerativeAI",
 	},
 }
 
-// resolvedProviders holds the result of a single pass over model blocks,
-// extracting known providers and building pip dependencies.
+// resolvedProviders holds the result of a single pass over model blocks:
+// sorted, deduplicated provider Python imports. Pip dependencies are derived
+// from these via dependenciesFromPythonImports.
 type resolvedProviders struct {
-	providers    []string             // sorted, deduplicated known provider names
-	dependencies []codegen.Dependency // langchain-core + provider-specific deps
+	providerImports []python.PythonImport
 }
 
-// resolveProviders walks model blocks once to collect known providers,
-// build the dependency list, and emit diagnostics for unknown providers.
-func (b *LangGraphBackend) resolveProviders() resolvedProviders {
+// dependenciesFromProviders builds codegen.Dependency values for the lockfile:
+// always langchain-core, then unique non-empty PyImport.Package names sorted.
+func dependenciesFromProviders(resolvedProviders resolvedProviders) []codegen.Dependency {
+	deps := []codegen.Dependency{{Name: "langchain-core"}}
+	seen := make(map[string]bool)
+	var pipPkgs []string
+	for _, imp := range resolvedProviders.providerImports {
+		if imp.Package != "" && !seen[imp.Package] {
+			seen[imp.Package] = true
+			pipPkgs = append(pipPkgs, imp.Package)
+		}
+	}
+	sort.Strings(pipPkgs)
+	for _, pkg := range pipPkgs {
+		deps = append(deps, codegen.Dependency{Name: pkg})
+	}
+	return deps
+}
+
+// resolveProviders walks model blocks once to collect known providers and
+// emit diagnostics for unknown providers (during writeModel).
+func (b *LangGraphBackend) resolveProviders() {
 	seen := make(map[string]bool)
 	var names []string
 
@@ -77,19 +108,12 @@ func (b *LangGraphBackend) resolveProviders() resolvedProviders {
 	}
 	sort.Strings(names)
 
-	deps := []codegen.Dependency{{Name: "langchain-core"}}
-	seenDeps := make(map[string]bool)
-	var pipPkgs []string
+	var imports []python.PythonImport
 	for _, p := range names {
-		if info, ok := providerRegistry[p]; ok && !seenDeps[info.Dep] {
-			pipPkgs = append(pipPkgs, info.Dep)
-			seenDeps[info.Dep] = true
+		if info, ok := providerRegistry[p]; ok {
+			imports = append(imports, info.PyImport)
 		}
 	}
-	sort.Strings(pipPkgs)
-	for _, pkg := range pipPkgs {
-		deps = append(deps, codegen.Dependency{Name: pkg})
-	}
 
-	return resolvedProviders{providers: names, dependencies: deps}
+	b.resolvedProviders = resolvedProviders{providerImports: imports}
 }
