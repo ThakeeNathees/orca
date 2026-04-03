@@ -268,6 +268,7 @@ type BlockExpression struct {
 	Kind        token.BlockKind
 	Assignments []*Assignment
 	Expressions []Expression // workflow edge expressions (A -> B -> C)
+	SourceFile  string       // the .oc file this block was parsed from (set by the build command)
 }
 
 func (be *BlockExpression) expressionNode() {}

@@ -13,7 +13,7 @@ import (
 // parseProgram is a test helper that parses input and fails on parse errors.
 func parseProgram(t *testing.T, input string) *ast.Program {
 	t.Helper()
-	l := lexer.New(input)
+	l := lexer.New(input, "")
 	p := parser.New(l)
 	program := p.ParseProgram()
 	if errs := p.Errors(); len(errs) > 0 {

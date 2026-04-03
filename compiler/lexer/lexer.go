@@ -15,18 +15,21 @@ import (
 // for accurate token positioning.
 type Lexer struct {
 	input        string
-	position     int  // current position in input (points to current char)
-	readPosition int  // next position to read (one ahead of position)
-	ch           byte // current character under examination
-	line         int  // current line number (1-based)
-	column       int  // current column number (1-based)
+	position     int    // current position in input (points to current char)
+	readPosition int    // next position to read (one ahead of position)
+	ch           byte   // current character under examination
+	line         int    // current line number (1-based)
+	column       int    // current column number (1-based)
+	SourceFile   string // the .oc file being lexed; empty for in-memory/test inputs
 }
 
 // New creates a Lexer for the given input string and primes it
 // by reading the first character. Line starts at 1, column at 0
 // because readChar increments column before the first real read.
-func New(input string) *Lexer {
-	l := &Lexer{input: input, line: 1, column: 0}
+// sourceFile is the path of the .oc file being lexed; pass "" for
+// in-memory or test inputs.
+func New(input string, sourceFile string) *Lexer {
+	l := &Lexer{input: input, line: 1, column: 0, SourceFile: sourceFile}
 	l.readChar()
 	return l
 }

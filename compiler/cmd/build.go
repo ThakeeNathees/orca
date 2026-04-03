@@ -46,7 +46,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to read %s: %w", file, err)
 		}
 
-		l := lexer.New(string(data))
+		l := lexer.New(string(data), file)
 		p := parser.New(l)
 		fileProg := p.ParseProgram()
 
@@ -55,13 +55,6 @@ func runBuild(cmd *cobra.Command, args []string) error {
 				fmt.Fprintf(os.Stderr, "%s:%s\n", file, d.Error())
 			}
 			return fmt.Errorf("compilation failed with parse errors")
-		}
-
-		// Tag each block with its source file for source mapping.
-		for _, stmt := range fileProg.Statements {
-			if block, ok := stmt.(*ast.BlockStatement); ok {
-				block.SourceFile = file
-			}
 		}
 
 		program.Statements = append(program.Statements, fileProg.Statements...)

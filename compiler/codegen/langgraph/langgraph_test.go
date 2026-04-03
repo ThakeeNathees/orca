@@ -26,7 +26,7 @@ func analyzedProgram(p *ast.Program) analyzer.AnalyzedProgram {
 // as tests that load .oc fixtures).
 func analyzedProgramFromSource(t *testing.T, source string) analyzer.AnalyzedProgram {
 	t.Helper()
-	l := lexer.New(source)
+	l := lexer.New(source, "")
 	p := parser.New(l)
 	program := p.ParseProgram()
 	if errs := p.Errors(); len(errs) > 0 {

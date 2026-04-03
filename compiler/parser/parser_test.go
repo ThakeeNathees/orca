@@ -12,7 +12,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	l := lexer.New("")
+	l := lexer.New("", "")
 	p := New(l)
 
 	if p == nil {
@@ -21,7 +21,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestParseProgramReturnsProgram(t *testing.T) {
-	l := lexer.New("")
+	l := lexer.New("", "")
 	p := New(l)
 	program := p.ParseProgram()
 
@@ -34,7 +34,7 @@ func TestParseProgramReturnsProgram(t *testing.T) {
 }
 
 func TestErrorsEmpty(t *testing.T) {
-	l := lexer.New("")
+	l := lexer.New("", "")
 	p := New(l)
 
 	if len(p.Errors()) != 0 {
@@ -46,7 +46,7 @@ func TestErrorsEmpty(t *testing.T) {
 
 func parseOrFail(t *testing.T, input string) *ast.Program {
 	t.Helper()
-	l := lexer.New(input)
+	l := lexer.New(input, "")
 	p := New(l)
 	program := p.ParseProgram()
 	if program == nil {
@@ -394,7 +394,7 @@ func TestParseErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := New(l)
 			p.ParseProgram()
 			if len(p.Errors()) == 0 {
@@ -435,7 +435,7 @@ func TestErrorRecoveryPartialAST(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := New(l)
 			program := p.ParseProgram()
 
@@ -802,7 +802,7 @@ func TestParseMemberAccessPrecedence(t *testing.T) {
 }
 
 func TestParseMemberAccessErrorMissingMember(t *testing.T) {
-	l := lexer.New(`model m { val = a. }`)
+	l := lexer.New(`model m { val = a. }`, "")
 	p := New(l)
 	p.ParseProgram()
 	if len(p.Errors()) == 0 {
@@ -905,7 +905,7 @@ func TestParseSubscriptionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := New(l)
 			p.ParseProgram()
 			if len(p.Errors()) == 0 {
@@ -1055,7 +1055,7 @@ func TestParseMapLiteralErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := New(l)
 			p.ParseProgram()
 			if len(p.Errors()) == 0 {
@@ -1189,7 +1189,7 @@ func TestParseCallExpressionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := New(l)
 			p.ParseProgram()
 			if len(p.Errors()) == 0 {
@@ -1226,7 +1226,7 @@ func TestValidFiles(t *testing.T) {
 		name := filepath.Base(file)
 		t.Run(name, func(t *testing.T) {
 			input := readTestFile(t, file)
-			l := lexer.New(input)
+			l := lexer.New(input, "")
 			p := New(l)
 			program := p.ParseProgram()
 
@@ -1258,7 +1258,7 @@ func TestInvalidFiles(t *testing.T) {
 		name := filepath.Base(file)
 		t.Run(name, func(t *testing.T) {
 			input := readTestFile(t, file)
-			l := lexer.New(input)
+			l := lexer.New(input, "")
 			p := New(l)
 			p.ParseProgram()
 
@@ -1509,7 +1509,7 @@ func TestParseSchemaExpressionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := New(l)
 			p.ParseProgram()
 			if len(p.Errors()) == 0 {
@@ -1672,7 +1672,7 @@ func TestParseBlockExpressionErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := New(l)
 			p.ParseProgram()
 			if len(p.Errors()) == 0 {
@@ -1891,12 +1891,126 @@ func TestParseLetBlockErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := New(l)
 			p.ParseProgram()
 			if len(p.Errors()) == 0 {
 				t.Error("expected parse errors, got none")
 			}
 		})
+	}
+}
+
+// TestSourceFileOnBlocks verifies that passing a sourceFile to parser.New
+// sets SourceFile on all BlockStatement and BlockExpression nodes.
+func TestSourceFileOnBlocks(t *testing.T) {
+	tests := []struct {
+		name               string
+		input              string
+		sourceFile         string
+		wantBlockStmtFile  string
+		wantBlockExprFiles []string // SourceFile of nested BlockExpression nodes
+	}{
+		{
+			name:               "top-level block gets source file",
+			input:              `model gpt4 { provider = "openai" }`,
+			sourceFile:         "models.oc",
+			wantBlockStmtFile:  "models.oc",
+			wantBlockExprFiles: nil,
+		},
+		{
+			name: "inline block expression gets source file",
+			input: `agent a {
+				model = model { provider = "openai" }
+			}`,
+			sourceFile:         "agents.oc",
+			wantBlockStmtFile:  "agents.oc",
+			wantBlockExprFiles: []string{"agents.oc"},
+		},
+		{
+			name: "nested inline blocks get source file",
+			input: `agent a {
+				model = model { provider = "openai" }
+				input = input { type = str }
+			}`,
+			sourceFile:         "deep.oc",
+			wantBlockStmtFile:  "deep.oc",
+			wantBlockExprFiles: []string{"deep.oc", "deep.oc"},
+		},
+		{
+			name: "inline block inside list",
+			input: `agent a {
+				tools = [tool { name = "gmail" }, tool { name = "slack" }]
+			}`,
+			sourceFile:         "tools.oc",
+			wantBlockStmtFile:  "tools.oc",
+			wantBlockExprFiles: []string{"tools.oc", "tools.oc"},
+		},
+		{
+			name:               "let block gets source file",
+			input:              `let { api_key = "sk-123" }`,
+			sourceFile:         "vars.oc",
+			wantBlockStmtFile:  "vars.oc",
+			wantBlockExprFiles: nil,
+		},
+		{
+			name:               "no source file when omitted",
+			input:              `model gpt4 { provider = "openai" }`,
+			sourceFile:         "",
+			wantBlockStmtFile:  "",
+			wantBlockExprFiles: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input, tt.sourceFile)
+			p := New(l)
+			program := p.ParseProgram()
+			if len(p.Errors()) > 0 {
+				t.Fatalf("parse errors: %v", p.Errors())
+			}
+
+			block := program.Statements[0].(*ast.BlockStatement)
+			if block.SourceFile != tt.wantBlockStmtFile {
+				t.Fatalf("BlockStatement.SourceFile = %q, want %q", block.SourceFile, tt.wantBlockStmtFile)
+			}
+
+			var gotFiles []string
+			collectBlockExprFiles(block.Assignments, &gotFiles)
+
+			if len(gotFiles) != len(tt.wantBlockExprFiles) {
+				t.Fatalf("found %d BlockExpression SourceFiles %v, want %d %v",
+					len(gotFiles), gotFiles, len(tt.wantBlockExprFiles), tt.wantBlockExprFiles)
+			}
+			for i, want := range tt.wantBlockExprFiles {
+				if gotFiles[i] != want {
+					t.Errorf("BlockExpression[%d].SourceFile = %q, want %q", i, gotFiles[i], want)
+				}
+			}
+		})
+	}
+}
+
+// collectBlockExprFiles walks assignments and collects SourceFile from
+// every BlockExpression found in encounter order.
+func collectBlockExprFiles(assignments []*ast.Assignment, out *[]string) {
+	for _, a := range assignments {
+		if a == nil {
+			continue
+		}
+		collectExprFiles(a.Value, out)
+	}
+}
+
+func collectExprFiles(expr ast.Expression, out *[]string) {
+	switch e := expr.(type) {
+	case *ast.BlockExpression:
+		*out = append(*out, e.SourceFile)
+		collectBlockExprFiles(e.Assignments, out)
+	case *ast.ListLiteral:
+		for _, el := range e.Elements {
+			collectExprFiles(el, out)
+		}
 	}
 }
