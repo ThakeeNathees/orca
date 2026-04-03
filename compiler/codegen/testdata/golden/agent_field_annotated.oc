@@ -1,0 +1,10 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+agent writer {
+  @desc("Chat model ref")
+  model   = gpt4
+  persona = "You are a helpful writer."
+}

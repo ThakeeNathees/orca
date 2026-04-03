@@ -1,0 +1,8 @@
+schema vpc_data_t {
+  region = str
+}
+
+input vpc_data {
+  type = vpc_data_t
+  desc = "VPC configuration"
+}

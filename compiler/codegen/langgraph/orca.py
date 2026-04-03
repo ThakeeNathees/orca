@@ -20,6 +20,16 @@ def _fields(params: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in params.items() if v is not None}
 
 
+def meta(name: str, *args: Any) -> SimpleNamespace:
+    """Single Orca decorator as data (@name or @name(args...))."""
+    return SimpleNamespace(_kind="meta", name=name, args=args)
+
+
+def with_meta(value: Any, metas: list[Any]) -> SimpleNamespace:
+    """Attach a non-empty list of meta() values to a block or field value."""
+    return SimpleNamespace(_kind="with_meta", value=value, metas=metas)
+
+
 def model(
     provider: str,
     model_name: str | SimpleNamespace,
