@@ -36,12 +36,22 @@ function nextEdgeId(): string {
   return `edge-${++edgeIdCounter}`;
 }
 
-/** Initial layout: agent centered on top; model + tools in a row below (matches studio default canvas). */
+/** Nodes are 240px wide. Layout: lone agent centered above a row of model → memory → tools. */
+const NODE_W = 240;
+const GAP_X = 60;
+const ROW_LEFT = 80;
+const BOTTOM_Y = 300;
+const TOP_Y = 48;
+
+const bottomXs = [0, 1, 2, 3].map((i) => ROW_LEFT + i * (NODE_W + GAP_X));
+const rowMidX = ROW_LEFT + (4 * NODE_W + 3 * GAP_X) / 2;
+const AGENT_X = rowMidX - NODE_W / 2;
+
 const SAMPLE_NODES: BlockNode[] = [
   {
     id: "sample-agent",
     type: "agent",
-    position: { x: 320, y: 50 },
+    position: { x: AGENT_X, y: TOP_Y },
     data: {
       kind: "agent",
       label: "researcher",
@@ -51,7 +61,7 @@ const SAMPLE_NODES: BlockNode[] = [
   {
     id: "sample-model",
     type: "model",
-    position: { x: 40, y: 300 },
+    position: { x: bottomXs[0], y: BOTTOM_Y },
     data: {
       kind: "model",
       label: "gpt4",
@@ -59,9 +69,22 @@ const SAMPLE_NODES: BlockNode[] = [
     },
   },
   {
+    id: "sample-memory",
+    type: "memory",
+    position: { x: bottomXs[1], y: BOTTOM_Y },
+    data: {
+      kind: "memory",
+      label: "Session memory",
+      fields: {
+        name: "session_store",
+        desc: "Conversation and tool-call history",
+      },
+    },
+  },
+  {
     id: "sample-tool-1",
     type: "web_search",
-    position: { x: 320, y: 300 },
+    position: { x: bottomXs[2], y: BOTTOM_Y },
     data: {
       kind: "web_search",
       label: "Web Search",
@@ -71,7 +94,7 @@ const SAMPLE_NODES: BlockNode[] = [
   {
     id: "sample-tool-2",
     type: "code_exec",
-    position: { x: 600, y: 300 },
+    position: { x: bottomXs[3], y: BOTTOM_Y },
     data: {
       kind: "code_exec",
       label: "Code Interpreter",
@@ -120,6 +143,13 @@ const SAMPLE_EDGES: BlockEdge[] = [
     "sample-agent",
     "tool-out",
     "tools-in"
+  ),
+  sampleEdge(
+    "sample-edge-4",
+    "sample-memory",
+    "sample-agent",
+    "memory-out",
+    "memory-in"
   ),
 ];
 

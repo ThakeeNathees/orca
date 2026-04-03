@@ -19,6 +19,7 @@ import {
   Terminal,
   Send,
   Database,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,6 +37,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Terminal,
   Send,
   Database,
+  Brain,
 };
 
 /**
@@ -132,7 +134,7 @@ function TopHandlesRow({ handles }: { handles: HandleDef[] }) {
 }
 
 /**
- * Bottom = targets (model / tools on agent). Same as top: inline `left` for
+ * Bottom = targets (model / memory / tools on agent). Same as top: inline `left` for
  * distribution, inline `transform` for centering on the bottom border.
  */
 function BottomHandlesRow({ handles }: { handles: HandleDef[] }) {

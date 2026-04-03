@@ -8,6 +8,7 @@ export type BlockKind =
   | "api_request"
   | "sql_query"
   | "knowledge"
+  | "memory"
   | "workflow"
   | "input"
   | "schema"
@@ -15,15 +16,23 @@ export type BlockKind =
   | "webhook"
   | "chat";
 
-export type HandleType = "model" | "agent" | "tool" | "knowledge" | "schema" | "trigger" | "any";
+export type HandleType =
+  | "model"
+  | "agent"
+  | "tool"
+  | "knowledge"
+  | "memory"
+  | "schema"
+  | "trigger"
+  | "any";
 
 export interface HandleDef {
   id: string;
   label: string;
   type: HandleType;
   /**
-   * Edge of the node: left/right = graph in/out; bottom = agent model/tools inputs;
-   * top = model/tool node outputs (n8n-style).
+   * Edge of the node: left/right = graph in/out; bottom = agent model/memory/tools inputs;
+   * top = model/tool/memory node outputs (n8n-style).
    */
   position: "left" | "right" | "top" | "bottom";
   multiple?: boolean;

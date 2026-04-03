@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { BLOCK_DEFS, PALETTE_GROUPS } from "@/lib/block-defs";
 import type { BlockKind } from "@/lib/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
   Cpu,
   Bot,
@@ -17,10 +24,13 @@ import {
   MessageCircle,
   Zap,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Terminal,
   Send,
   Database,
+  Brain,
   Wrench,
   GripVertical,
   type LucideIcon,
@@ -40,6 +50,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Terminal,
   Send,
   Database,
+  Brain,
 };
 
 const GROUP_ICONS: Record<string, LucideIcon> = {
@@ -77,12 +88,15 @@ function PaletteGroup({
   label,
   kinds,
   searchQuery,
+  open,
+  onOpenChange,
 }: {
   label: string;
   kinds: BlockKind[];
   searchQuery: string;
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const GroupIcon = GROUP_ICONS[label] || Braces;
 
   const filtered = searchQuery
@@ -98,13 +112,14 @@ function PaletteGroup({
 
   if (filtered.length === 0) return null;
 
-  const isOpen = open || !!searchQuery;
+  const isOpen = open || !!searchQuery.trim();
 
   return (
     <div>
       <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors hover:bg-accent"
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        className="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors hover:bg-accent"
       >
         <GroupIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span className="flex-1 text-left font-medium text-foreground/90">
@@ -127,40 +142,160 @@ function PaletteGroup({
   );
 }
 
-export function Palette() {
-  const [search, setSearch] = useState("");
+function filterKinds(kinds: BlockKind[], searchQuery: string): BlockKind[] {
+  const q = searchQuery.trim().toLowerCase();
+  if (!q) return kinds;
+  return kinds.filter((kind) => {
+    const def = BLOCK_DEFS[kind];
+    return (
+      def.label.toLowerCase().includes(q) ||
+      def.description.toLowerCase().includes(q)
+    );
+  });
+}
+
+function CollapsedGroupRow({
+  label,
+  kinds,
+  searchQuery,
+  onExpand,
+}: {
+  label: string;
+  kinds: BlockKind[];
+  searchQuery: string;
+  onExpand: (groupLabel: string) => void;
+}) {
+  const filtered = filterKinds(kinds, searchQuery);
+  if (filtered.length === 0) return null;
+
+  const GroupIcon = GROUP_ICONS[label] || Braces;
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground">
-      <div className="px-3 pt-3 pb-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search blocks..."
-            className="h-8 pl-8 text-[13px] bg-muted/50 border-transparent focus-visible:border-border"
-          />
-        </div>
+    <div className="flex justify-center">
+      <Tooltip>
+        <TooltipTrigger
+          render={(props) => {
+            const p = { ...props } as Record<string, unknown>;
+            delete p.type;
+            const divProps = p as React.ButtonHTMLAttributes<HTMLButtonElement>;
+            return (
+              <button
+                type="button"
+                {...divProps}
+                aria-label={`Expand palette — ${label}`}
+                onClick={(e) => {
+                  divProps.onClick?.(e as React.MouseEvent<HTMLButtonElement>);
+                  onExpand(label);
+                }}
+                className={cn(
+                  "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                  divProps.className
+                )}
+              >
+                <GroupIcon className="h-4 w-4" />
+              </button>
+            );
+          }}
+        />
+        <TooltipContent side="right" sideOffset={8}>
+          {label}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+export function Palette() {
+  const [search, setSearch] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
+  /** Accordion open state per group label (expanded sidebar only). */
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({});
+
+  const setGroupExpanded = useCallback((label: string, expanded: boolean) => {
+    setGroupOpen((prev) => ({ ...prev, [label]: expanded }));
+  }, []);
+
+  const expandFromCollapsedGroup = (label: string) => {
+    setGroupOpen((prev) => ({ ...prev, [label]: true }));
+    setCollapsed(false);
+  };
+
+  return (
+    <aside
+      className={cn(
+        "flex shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out",
+        collapsed ? "w-[3.25rem]" : "w-64"
+      )}
+    >
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-2 pb-2 pt-3",
+          collapsed ? "flex-col px-1.5" : "px-3"
+        )}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
+          aria-label={collapsed ? "Expand block palette" : "Collapse block palette"}
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed((c) => !c)}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </Button>
+        {!collapsed && (
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search blocks..."
+              className="h-8 border-transparent bg-muted/50 pl-8 text-[13px] focus-visible:border-border"
+            />
+          </div>
+        )}
       </div>
 
-      <div className="px-3 pb-1">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
-          Components
-        </span>
-      </div>
+      {!collapsed && (
+        <div className="px-3 pb-1">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+            Components
+          </span>
+        </div>
+      )}
 
       <ScrollArea className="flex-1">
-        <div className="space-y-0.5 px-1.5 pb-3">
-          {PALETTE_GROUPS.map((group) => (
-            <PaletteGroup
-              key={group.label}
-              label={group.label}
-              kinds={group.kinds}
-              searchQuery={search}
-            />
-          ))}
-        </div>
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-0.5 px-1 pb-3 pt-0.5">
+            {PALETTE_GROUPS.map((group) => (
+              <CollapsedGroupRow
+                key={group.label}
+                label={group.label}
+                kinds={group.kinds}
+                searchQuery={search}
+                onExpand={expandFromCollapsedGroup}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-0.5 px-1.5 pb-3">
+            {PALETTE_GROUPS.map((group) => (
+              <PaletteGroup
+                key={group.label}
+                label={group.label}
+                kinds={group.kinds}
+                searchQuery={search}
+                open={groupOpen[group.label] ?? false}
+                onOpenChange={(next) => setGroupExpanded(group.label, next)}
+              />
+            ))}
+          </div>
+        )}
       </ScrollArea>
     </aside>
   );

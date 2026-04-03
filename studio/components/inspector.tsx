@@ -135,7 +135,7 @@ export function Inspector() {
   const def = BLOCK_DEFS[selectedNode.data.kind];
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-background">
+    <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground">
       {/* Header */}
       <div className="flex items-start justify-between px-4 pt-4 pb-3">
         <div className="min-w-0 flex-1">

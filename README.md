@@ -176,7 +176,13 @@ Orca ships with a VS Code extension that provides syntax highlighting, autocompl
 
 ## Orca Studio
 
-Orca Studio is a visual workflow editor (Next.js) for building and inspecting agent graphs on a canvas.
+Orca Studio is a visual workflow editor (Next.js) for building and inspecting agent graphs on a canvas. To start the studio run the command:
+
+```
+cd studio
+pnpm install
+pnpm run dev
+```
 
 <img src="docs/public/studio-preview.png" alt="Orca Studio visual workflow editor">
 

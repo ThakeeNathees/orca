@@ -11,6 +11,7 @@ export const HANDLE_COLORS: Record<string, string> = {
   trigger: AGENT_HANDLE_COLOR,
   tool: "#67e8b4",
   knowledge: "#fbbf24",
+  memory: "#fbbf24",
   schema: "#94a3b8",
   any: "#a1a1aa",
 };
