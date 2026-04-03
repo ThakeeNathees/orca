@@ -4,18 +4,20 @@ from typing import TypedDict
 
 from langchain_openai import ChatOpenAI
 
-# --- Variables ---
-
-api_key = "sk-123"
-
 # --- Models ---
 
 gpt4 = orca.model(
     provider="openai",
     model_name="gpt-4o",
-    temperature=1,
 )
 
 # --- Graph State ---
 class GraphState(TypedDict):
     pass # TODO: writeGraphState
+
+# --- Agents ---
+
+writer = orca.agent(
+    model=gpt4,
+    persona="You are a helpful writer.",
+)

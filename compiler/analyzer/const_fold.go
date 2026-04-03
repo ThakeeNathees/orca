@@ -78,7 +78,7 @@ func ConstFold(expr ast.Expression, ap AnalyzedProgram) (ConstValue, []diagnosti
 	case *ast.ListLiteral:
 		return foldListLiteral(e, ap)
 	case *ast.BlockExpression:
-		return foldBlockExpression(e, ap)
+		return foldBlockBody(&e.BlockBody, ap)
 	default:
 		return ConstValue{Kind: ConstUnknown}, diags
 	}
@@ -131,39 +131,16 @@ func foldListLiteral(ll *ast.ListLiteral, ap AnalyzedProgram) (ConstValue, []dia
 	return ConstValue{Kind: ConstList, List: out, Partial: partial}, diags
 }
 
-// foldBlockExpression builds ConstBlock when the block has no workflow edge
+// foldBlockBody builds ConstBlock when the block body has no workflow edge
 // expressions and every assignment value folds to a constant.
-func foldBlockExpression(be *ast.BlockExpression, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
+func foldBlockBody(body *ast.BlockBody, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	var diags []diagnostic.Diagnostic
-	if len(be.Expressions) > 0 {
+	if len(body.Expressions) > 0 {
 		return ConstValue{Kind: ConstBlock, Partial: true}, diags
 	}
-	out := make(map[string]ConstValue, len(be.Assignments))
+	out := make(map[string]ConstValue, len(body.Assignments))
 	partial := false
-	for _, a := range be.Assignments {
-		if a == nil {
-			continue
-		}
-		v, d := ConstFold(a.Value, ap)
-		diags = append(diags, d...)
-		if v.Kind == ConstUnknown {
-			partial = true
-		}
-		out[a.Name] = v
-	}
-	return ConstValue{Kind: ConstBlock, KeyValue: out, Partial: partial}, diags
-}
-
-// foldBlockStatement builds ConstBlock when the block has no workflow edge
-// expressions and every assignment value folds to a constant.
-func foldBlockStatement(bs *ast.BlockStatement, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
-	var diags []diagnostic.Diagnostic
-	if len(bs.Expressions) > 0 {
-		return ConstValue{Kind: ConstBlock, Partial: true}, diags
-	}
-	out := make(map[string]ConstValue, len(bs.Assignments))
-	partial := false
-	for _, a := range bs.Assignments {
+	for _, a := range body.Assignments {
 		if a == nil {
 			continue
 		}
@@ -285,7 +262,7 @@ func foldIdentifier(e *ast.Identifier, ap AnalyzedProgram) (ConstValue, []diagno
 			return ConstValue{Kind: ConstUnknown}, nil
 		}
 		if block := ap.Ast.FindBlockWithName(e.Value); block != nil {
-			return foldBlockStatement(block, ap)
+			return foldBlockBody(&block.BlockBody, ap)
 		}
 		if letVarExpr := ap.Ast.FindLetVarWithName(e.Value); letVarExpr != nil {
 			return ConstFold(*letVarExpr, ap)

@@ -1,6 +1,7 @@
 package langgraph
 
 import (
+	_ "embed"
 	"fmt"
 	"strings"
 
@@ -8,9 +9,11 @@ import (
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/python"
-	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/token"
 )
+
+//go:embed orca.py
+var orcaRuntime string
 
 // LangGraphBackend generates Python/LangGraph code directly from the analyzed AST.
 type LangGraphBackend struct {
@@ -33,6 +36,7 @@ func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
 		RootDir: codegen.OutputDirectory{
 			Name: "build",
 			Files: []codegen.OutputFile{
+				{Name: "orca.py", Content: orcaRuntime},
 				{Name: "main.py", Content: b.generateMain()},
 			},
 		},
@@ -60,6 +64,9 @@ func (b *LangGraphBackend) writeImports(s *strings.Builder, providerImports []py
 
 	// TODO: we need to build the dependency list of python while analyzing the ast
 	// And dump all here instead of hardcoding it here.
+	s.WriteString(python.PythonImport{Module: "orca"}.Source())
+	s.WriteString("\n")
+
 	s.WriteString(python.PythonImport{
 		Module:     "typing",
 		Package:    "",
@@ -85,17 +92,16 @@ func (b *LangGraphBackend) writeVars(s *strings.Builder) {
 	for _, block := range lets {
 		for _, assign := range block.Assignments {
 			s.WriteString("\n")
-			fmt.Fprintf(s, "%s = %s  # %s\n",
+			fmt.Fprintf(s, "%s = %s\n",
 				assign.Name,
-				python.OrcaToPythonExpression(assign.Value),
-				codegen.SourceComment(block.SourceFile, assign.TokenStart.Line))
+				exprToSource(assign.Value))
 		}
 	}
 }
 
 // writeModels emits model block instantiations under "# --- Models ---".
 func (b *LangGraphBackend) writeModels(s *strings.Builder) {
-	models := b.CollectBlocks(token.MODEL)
+	models := b.CollectBlocksByKind(token.BlockModel)
 	if len(models) == 0 {
 		return
 	}
@@ -108,62 +114,7 @@ func (b *LangGraphBackend) writeModels(s *strings.Builder) {
 
 // writeModel generates a Python model instantiation from a model block.
 func (b *LangGraphBackend) writeModel(s *strings.Builder, block *ast.BlockStatement) {
-	if block == nil {
-		panic("BUG: writeModel called with nil block")
-	}
-
-	providerExpr, ok := block.GetFieldExpression("provider")
-	if !ok {
-		panic("BUG: writeModel called with block missing provider")
-	}
-
-	// Provider may be a folded expression (e.g. "open" + "ai"), not necessarily a string literal.
-	providerValue, d := analyzer.ConstFold(providerExpr, b.Program)
-	b.Program.Diagnostics = append(b.Program.Diagnostics, d...)
-	if providerValue.Kind != analyzer.ConstString {
-		// If this isn't a compile-time string, the analyzer should already have
-		// reported a model-schema diagnostic; avoid duplicating errors here.
-		return
-	}
-
-	info, known := providerRegistry[providerValue.Str]
-	if !known {
-		b.Program.Diagnostics = append(b.Program.Diagnostics, diagnostic.Diagnostic{
-			Severity: diagnostic.Error,
-			Code:     diagnostic.CodeUnknownProvider,
-			Position: diagnostic.Position{Line: providerExpr.Start().Line, Column: providerExpr.Start().Column},
-			Message:  fmt.Sprintf("unknown provider %q", providerValue.Str),
-			Source:   "codegen",
-		})
-		return
-	}
-
-	// claude = ChatAnthropic(  # models.oc:12
-	source := codegen.SourceComment(block.SourceFile, block.TokenStart.Line)
-	fmt.Fprintf(s, "%s = %s(  # %s\n", block.Name, info.Class, source)
-
-	field_names := []struct {
-		orca_name      string
-		langgraph_name string
-	}{
-		{
-			orca_name:      "model_name",
-			langgraph_name: "model",
-		},
-		{
-			orca_name:      "temperature",
-			langgraph_name: "temperature",
-		},
-	}
-
-	for _, field_name := range field_names {
-		expr, ok := block.GetFieldExpression(field_name.orca_name)
-		if ok {
-			fmt.Fprintf(s, "    %s=%s,\n", field_name.langgraph_name, python.OrcaToPythonExpression(expr))
-		}
-	}
-
-	s.WriteString(")\n")
+	writeBlock(s, block)
 }
 
 func (b *LangGraphBackend) writeGraphState(s *strings.Builder) {
@@ -174,7 +125,7 @@ func (b *LangGraphBackend) writeGraphState(s *strings.Builder) {
 
 // writeAgents emits agent block stubs under "# --- Agents ---".
 func (b *LangGraphBackend) writeAgents(s *strings.Builder) {
-	agents := b.CollectBlocks(token.AGENT)
+	agents := b.CollectBlocksByKind(token.BlockAgent)
 	if len(agents) == 0 {
 		return
 	}
@@ -185,15 +136,15 @@ func (b *LangGraphBackend) writeAgents(s *strings.Builder) {
 	}
 }
 
-// writeAgent generates a Python create_react_agent call from an agent block.
-// Produces: name = create_react_agent(model, tools=[...], prompt="persona")
+// writeAgent generates a Python agent instantiation from an agent block.
 func (b *LangGraphBackend) writeAgent(s *strings.Builder, block *ast.BlockStatement) {
-	agentFuncName := block.Name
-	stateObjName := "state"
-	// TODO: This needs to be defined above.
-	stateObjType := "GraphState"
+	writeBlock(s, block)
+}
 
-	s.WriteString(fmt.Sprintf("def %s(%s: %s) -> %s:\n", agentFuncName, stateObjName, stateObjType, stateObjType))
-	s.WriteString("    # TODO: writeAgent\n")
-	s.WriteString("    return state\n")
+// writeBlock emits a top-level block as a multi-line orca.<kind>(...) call.
+func writeBlock(s *strings.Builder, block *ast.BlockStatement) {
+	if block == nil {
+		panic("BUG: writeBlock called with nil block")
+	}
+	fmt.Fprintf(s, "%s = %s\n", block.Name, blockCallSource(&block.BlockBody, "    "))
 }

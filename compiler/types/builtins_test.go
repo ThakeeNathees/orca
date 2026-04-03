@@ -261,11 +261,13 @@ func TestExprTypeBootstrap(t *testing.T) {
 // are resolved and registered with a synthetic name.
 func TestExprTypeInlineSchema(t *testing.T) {
 	expr := &ast.BlockExpression{
-		Kind: token.BlockSchema,
-		Assignments: []*ast.Assignment{
-			{
-				Name:  "host",
-				Value: &ast.Identifier{Value: "str"},
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockSchema,
+			Assignments: []*ast.Assignment{
+				{
+					Name:  "host",
+					Value: &ast.Identifier{Value: "str"},
+				},
 			},
 		},
 	}
