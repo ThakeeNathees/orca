@@ -1,6 +1,7 @@
 package langgraph
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/thakee/orca/compiler/ast"
@@ -244,6 +245,50 @@ func TestExprToSource(t *testing.T) {
 			expr:     &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: token.BlockAgent}},
 			expected: "orca.agent()",
 		},
+		{
+			name: "block expression field with one annotation",
+			expr: &ast.BlockExpression{BlockBody: ast.BlockBody{
+				Kind: token.BlockSchema,
+				Assignments: []*ast.Assignment{
+					{
+						Name: "region",
+						Annotations: []*ast.Annotation{
+							{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "AWS region"}}},
+						},
+						Value: &ast.Identifier{Value: "str"},
+					},
+				},
+			}},
+			expected: "orca.schema(region=orca.with_meta(\n" +
+				"    str,\n" +
+				"    [\n" +
+				"        orca.meta(\"desc\", \"AWS region\"),\n" +
+				"    ],\n" +
+				"), )",
+		},
+		{
+			name: "block expression field with multiple annotations",
+			expr: &ast.BlockExpression{BlockBody: ast.BlockBody{
+				Kind: token.BlockSchema,
+				Assignments: []*ast.Assignment{
+					{
+						Name: "region",
+						Annotations: []*ast.Annotation{
+							{Name: "required"},
+							{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "r"}}},
+						},
+						Value: &ast.Identifier{Value: "str"},
+					},
+				},
+			}},
+			expected: "orca.schema(region=orca.with_meta(\n" +
+				"    str,\n" +
+				"    [\n" +
+				"        orca.meta(\"required\"),\n" +
+				"        orca.meta(\"desc\", \"r\"),\n" +
+				"    ],\n" +
+				"), )",
+		},
 	}
 
 	for _, tt := range tests {
@@ -253,6 +298,209 @@ func TestExprToSource(t *testing.T) {
 				t.Errorf("expected %q, got %q", tt.expected, got)
 			}
 		})
+	}
+}
+
+// TestExprToSourceNilExpression verifies a nil Expression maps to Python None.
+func TestExprToSourceNilExpression(t *testing.T) {
+	if got := exprToSource(nil); got != "None" {
+		t.Fatalf("exprToSource(nil) = %q, want None", got)
+	}
+}
+
+// TestExprToSourceExhaustiveKinds runs exprToSource once per known Expression
+// concrete type from ast.go so adding a new type without a codegen case tends
+// to fail CI (this table must be updated alongside ast.Expression implementers).
+func TestExprToSourceExhaustiveKinds(t *testing.T) {
+	cases := []struct {
+		name string
+		expr ast.Expression
+	}{
+		{"StringLiteral", &ast.StringLiteral{Value: "x"}},
+		{"IntegerLiteral", &ast.IntegerLiteral{Value: 1}},
+		{"FloatLiteral", &ast.FloatLiteral{Value: 1.0}},
+		{"BooleanLiteral", &ast.BooleanLiteral{Value: true}},
+		{"NullLiteral", &ast.NullLiteral{}},
+		{"Identifier", &ast.Identifier{Value: "id"}},
+		{"MemberAccess", &ast.MemberAccess{Object: &ast.Identifier{Value: "a"}, Member: "b"}},
+		{"Subscription", &ast.Subscription{Object: &ast.Identifier{Value: "a"}, Index: &ast.IntegerLiteral{Value: 0}}},
+		{"ListLiteral", &ast.ListLiteral{Elements: []ast.Expression{&ast.IntegerLiteral{Value: 1}}}},
+		{"MapLiteral", &ast.MapLiteral{Entries: []ast.MapEntry{{Key: &ast.StringLiteral{Value: "k"}, Value: &ast.IntegerLiteral{Value: 1}}}}},
+		{"BinaryExpression", &ast.BinaryExpression{Left: &ast.Identifier{Value: "a"}, Operator: token.Token{Literal: "->"}, Right: &ast.Identifier{Value: "b"}}},
+		{"CallExpression", &ast.CallExpression{Callee: &ast.Identifier{Value: "f"}, Arguments: []ast.Expression{}}},
+		{"BlockExpression", &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: token.BlockModel, Assignments: []*ast.Assignment{{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}}}}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("panic: %v", r)
+				}
+			}()
+			if exprToSource(tc.expr) == "" {
+				t.Fatal("empty result")
+			}
+		})
+	}
+}
+
+// TestAnnotationToSource verifies codegen for a single @annotation.
+func TestAnnotationToSource(t *testing.T) {
+	tests := []struct {
+		name string
+		ann  *ast.Annotation
+		want string
+	}{
+		{
+			name: "no arguments",
+			ann:  &ast.Annotation{Name: "sensitive"},
+			want: `orca.meta("sensitive")`,
+		},
+		{
+			name: "one string argument",
+			ann: &ast.Annotation{
+				Name:      "desc",
+				Arguments: []ast.Expression{&ast.StringLiteral{Value: "hello"}},
+			},
+			want: `orca.meta("desc", "hello")`,
+		},
+		{
+			name: "expression argument",
+			ann: &ast.Annotation{
+				Name: "ann1",
+				Arguments: []ast.Expression{
+					&ast.MemberAccess{Object: &ast.Identifier{Value: "some"}, Member: "expr1"},
+				},
+			},
+			want: `orca.meta("ann1", some.expr1)`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := annotationToSource(tt.ann)
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWrapWithMetaIfNeeded verifies with_meta is omitted when there are no annotations.
+func TestWrapWithMetaIfNeeded(t *testing.T) {
+	tests := []struct {
+		name        string
+		inner       string
+		anns        []*ast.Annotation
+		argIndent   string
+		closeIndent string
+		want        string
+	}{
+		{
+			name:        "nil annotations",
+			inner:       `orca.foo()`,
+			anns:        nil,
+			argIndent:   "    ",
+			closeIndent: "",
+			want:        `orca.foo()`,
+		},
+		{
+			name:        "empty slice",
+			inner:       `orca.foo()`,
+			anns:        []*ast.Annotation{},
+			argIndent:   "    ",
+			closeIndent: "",
+			want:        `orca.foo()`,
+		},
+		{
+			name:        "single block-level style annotation",
+			inner:       `orca.input(type=str,)`,
+			anns:        []*ast.Annotation{{Name: "sensitive"}},
+			argIndent:   "    ",
+			closeIndent: "",
+			want: "orca.with_meta(\n" +
+				"    orca.input(type=str,),\n" +
+				"    [\n" +
+				"        orca.meta(\"sensitive\"),\n" +
+				"    ],\n" +
+				")",
+		},
+		{
+			name:  "multiple annotations list",
+			inner: `orca.bar()`,
+			anns: []*ast.Annotation{
+				{Name: "a", Arguments: []ast.Expression{&ast.IntegerLiteral{Value: 1}}},
+				{Name: "b"},
+			},
+			argIndent:   "    ",
+			closeIndent: "",
+			want: "orca.with_meta(\n" +
+				"    orca.bar(),\n" +
+				"    [\n" +
+				"        orca.meta(\"a\", 1),\n" +
+				"        orca.meta(\"b\"),\n" +
+				"    ],\n" +
+				")",
+		},
+		{
+			name:        "deeper arg indent for nested context",
+			inner:       `str`,
+			anns:        []*ast.Annotation{{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "x"}}}},
+			argIndent:   "        ",
+			closeIndent: "    ",
+			want: "orca.with_meta(\n" +
+				"        str,\n" +
+				"        [\n" +
+				"            orca.meta(\"desc\", \"x\"),\n" +
+				"        ],\n" +
+				"    )",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := wrapWithMetaIfNeeded(tt.inner, tt.anns, tt.argIndent, tt.closeIndent)
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTopLevelBlockSource verifies block-level annotations wrap the whole orca.* call.
+func TestTopLevelBlockSource(t *testing.T) {
+	block := &ast.BlockStatement{
+		Name: "apikey",
+		Annotations: []*ast.Annotation{
+			{Name: "sensitive"},
+		},
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockInput,
+			Assignments: []*ast.Assignment{
+				{Name: "type", Value: &ast.Identifier{Value: "str"}},
+			},
+		},
+	}
+	got := topLevelBlockSource(block)
+	if !strings.Contains(got, `orca.with_meta(`) || !strings.Contains(got, `orca.meta("sensitive")`) {
+		t.Fatalf("expected with_meta and sensitive meta, got:\n%s", got)
+	}
+	if !strings.Contains(got, `orca.input(`) {
+		t.Fatalf("expected inner orca.input call, got:\n%s", got)
+	}
+
+	plain := &ast.BlockStatement{
+		Name: "x",
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockInput,
+			Assignments: []*ast.Assignment{
+				{Name: "type", Value: &ast.Identifier{Value: "str"}},
+			},
+		},
+	}
+	plainGot := topLevelBlockSource(plain)
+	if strings.Contains(plainGot, "with_meta") {
+		t.Fatalf("expected no with_meta without block annotations, got %q", plainGot)
 	}
 }
 

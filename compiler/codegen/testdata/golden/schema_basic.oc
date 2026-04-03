@@ -1,0 +1,4 @@
+schema vpc_data_t {
+  region         = str
+  instance_count = int
+}

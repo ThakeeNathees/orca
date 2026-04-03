@@ -1,0 +1,4 @@
+knowledge docs {
+  name = "internal_docs"
+  desc = "Company knowledge base"
+}

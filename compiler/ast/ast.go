@@ -26,6 +26,10 @@ type Statement interface {
 // Expression nodes implement this interface. Expressions produce values
 // (strings, numbers, references, lists) and appear on the right-hand side
 // of assignments.
+//
+// When adding a new concrete Expression type, update codegen (e.g.
+// langgraph.exprToSource) with a case for it; otherwise Python generation
+// will panic at compile/codegen time.
 type Expression interface {
 	Node
 	expressionNode()

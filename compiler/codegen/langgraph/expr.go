@@ -8,8 +8,15 @@ import (
 )
 
 // exprToSource converts an AST expression to its Python source representation.
+//
+// It must handle every concrete type that implements ast.Expression (see ast.go).
+// Unknown or nil interfaces are handled explicitly: nil becomes Python None;
+// any other type panics so mistakes surface immediately instead of emitting
+// invalid Python.
 func exprToSource(expr ast.Expression) string {
 	switch e := expr.(type) {
+	case nil:
+		return "None"
 	case *ast.StringLiteral:
 		return fmt.Sprintf("%q", e.Value)
 	case *ast.IntegerLiteral:
@@ -52,8 +59,101 @@ func exprToSource(expr ast.Expression) string {
 	case *ast.BlockExpression:
 		return blockCallSource(&e.BlockBody, "")
 	default:
+		panic(fmt.Sprintf("langgraph.exprToSource: unsupported ast.Expression type %T", e))
+	}
+}
+
+// annotationToSource emits one `orca.meta("name", ...args)` from an AST annotation.
+func annotationToSource(ann *ast.Annotation) string {
+	var sb strings.Builder
+	sb.WriteString("orca.meta(")
+	sb.WriteString(fmt.Sprintf("%q", ann.Name))
+	for _, arg := range ann.Arguments {
+		sb.WriteString(", ")
+		sb.WriteString(exprToSource(arg))
+	}
+	sb.WriteString(")")
+	return sb.String()
+}
+
+// indentNonEmptyLines prefixes each non-empty line of s with prefix (for nesting
+// already-indented Python fragments inside a larger multi-line construct).
+func indentNonEmptyLines(s, prefix string) string {
+	if s == "" {
+		return prefix + s
+	}
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		if lines[i] != "" {
+			lines[i] = prefix + lines[i]
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// annotationsListSourceMultiline builds a multi-line Python list of orca.meta(...)
+// calls. argIndent is the indentation of the opening "[" and closing "]" lines;
+// list elements are indented one level deeper.
+func annotationsListSourceMultiline(anns []*ast.Annotation, argIndent string) string {
+	if len(anns) == 0 {
+		return "[]"
+	}
+	metaIndent := argIndent + "    "
+	var b strings.Builder
+	b.WriteString(argIndent)
+	b.WriteString("[\n")
+	for _, a := range anns {
+		b.WriteString(metaIndent)
+		b.WriteString(annotationToSource(a))
+		b.WriteString(",\n")
+	}
+	b.WriteString(argIndent)
+	b.WriteString("]")
+	return b.String()
+}
+
+// wrapWithMetaIfNeeded returns inner unchanged when there are no annotations.
+// Otherwise emits a multi-line orca.with_meta(...) so nested blocks and long
+// meta lists stay readable. argIndent prefixes each line of the inner value and
+// the meta list contents; closeIndent prefixes the closing ")" ("" at top level,
+// fieldIndent when the with_meta is a field RHS so ")" aligns with "key=").
+func wrapWithMetaIfNeeded(inner string, anns []*ast.Annotation, argIndent, closeIndent string) string {
+	if len(anns) == 0 {
+		return inner
+	}
+	listSrc := annotationsListSourceMultiline(anns, argIndent)
+	innerIndented := indentNonEmptyLines(inner, argIndent)
+	var sb strings.Builder
+	sb.WriteString("orca.with_meta(\n")
+	sb.WriteString(innerIndented)
+	sb.WriteString(",\n")
+	sb.WriteString(listSrc)
+	sb.WriteString(",\n")
+	sb.WriteString(closeIndent)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+// assignmentValueSource emits the RHS for a block field, wrapping with with_meta
+// only when the assignment carries annotations. fieldIndent is the block body's
+// line prefix for assignments ("    " in multi-line blocks, "" when inline).
+func assignmentValueSource(assign *ast.Assignment, fieldIndent string) string {
+	if assign == nil {
 		return "None"
 	}
+	val := exprToSource(assign.Value)
+	argIndent := fieldIndent + "    "
+	return wrapWithMetaIfNeeded(val, assign.Annotations, argIndent, fieldIndent)
+}
+
+// topLevelBlockSource emits the full Python RHS for a top-level block statement,
+// including optional block-level annotations around the orca.<kind>(...) call.
+func topLevelBlockSource(block *ast.BlockStatement) string {
+	if block == nil {
+		panic("BUG: topLevelBlockSource called with nil block")
+	}
+	inner := blockCallSource(&block.BlockBody, "    ")
+	return wrapWithMetaIfNeeded(inner, block.Annotations, "    ", "")
 }
 
 // blockCallSource generates a Python expression calling the orca runtime for
@@ -78,7 +178,7 @@ func blockCallSource(body *ast.BlockBody, indent string) string {
 		for _, assign := range body.Assignments {
 			sb.WriteString(assign.Name)
 			sb.WriteString("=")
-			sb.WriteString(exprToSource(assign.Value))
+			sb.WriteString(assignmentValueSource(assign, indent))
 			sb.WriteString(", ")
 		}
 	} else {
@@ -87,7 +187,7 @@ func blockCallSource(body *ast.BlockBody, indent string) string {
 			sb.WriteString(indent)
 			sb.WriteString(assign.Name)
 			sb.WriteString("=")
-			sb.WriteString(exprToSource(assign.Value))
+			sb.WriteString(assignmentValueSource(assign, indent))
 			sb.WriteString(",")
 		}
 		if len(body.Assignments) > 0 {

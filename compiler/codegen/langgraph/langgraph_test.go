@@ -1,6 +1,7 @@
 package langgraph
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,6 +69,9 @@ func TestCollectBlocksByKind(t *testing.T) {
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT}}, BlockBody: ast.BlockBody{Kind: token.BlockAgent}, Name: "a1"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, BlockBody: ast.BlockBody{Kind: token.BlockModel}, Name: "m2"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.LET}}, BlockBody: ast.BlockBody{Kind: token.BlockLet}, Name: "vars"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.INPUT}}, BlockBody: ast.BlockBody{Kind: token.BlockInput}, Name: "user_query"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.SCHEMA}}, BlockBody: ast.BlockBody{Kind: token.BlockSchema}, Name: "cfg"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.KNOWLEDGE}}, BlockBody: ast.BlockBody{Kind: token.BlockKnowledge}, Name: "kb"},
 		},
 	}
 
@@ -79,6 +83,9 @@ func TestCollectBlocksByKind(t *testing.T) {
 		{"models", token.BlockModel, 2},
 		{"agents", token.BlockAgent, 1},
 		{"lets", token.BlockLet, 1},
+		{"inputs", token.BlockInput, 1},
+		{"schemas", token.BlockSchema, 1},
+		{"knowledge", token.BlockKnowledge, 1},
 	}
 
 	for _, tt := range tests {
@@ -87,6 +94,93 @@ func TestCollectBlocksByKind(t *testing.T) {
 			got := b.CollectBlocksByKind(tt.kind)
 			if len(got) != tt.expected {
 				t.Errorf("expected %d blocks, got %d", tt.expected, len(got))
+			}
+		})
+	}
+}
+
+// TestWriteOrcaBlockSection verifies section headers and per-block emission for a given block kind.
+func TestWriteOrcaBlockSection(t *testing.T) {
+	tests := []struct {
+		name           string
+		program        *ast.Program
+		sectionTitle   string
+		kind           token.BlockKind
+		wantEmpty      bool
+		wantSubstrings []string
+	}{
+		{
+			name:           "empty program emits nothing",
+			program:        &ast.Program{},
+			sectionTitle:   "Models",
+			kind:           token.BlockModel,
+			wantEmpty:      true,
+			wantSubstrings: nil,
+		},
+		{
+			name:         "one model block",
+			program:      programWithModels(modelBlock("gpt4", "openai", "gpt-4o")),
+			sectionTitle: "Models",
+			kind:         token.BlockModel,
+			wantSubstrings: []string{
+				"\n# --- Models ---\n",
+				"\n\ngpt4 = orca.model(\n",
+				`    provider="openai",`,
+			},
+		},
+		{
+			name:         "two agent blocks preserve order",
+			program:      &ast.Program{Statements: []ast.Statement{agentBlock("a1", "m", "p1"), agentBlock("a2", "m", "p2")}},
+			sectionTitle: "Agents",
+			kind:         token.BlockAgent,
+			wantSubstrings: []string{
+				"\n# --- Agents ---\n",
+				"a1 = orca.agent(",
+				"a2 = orca.agent(",
+			},
+		},
+		{
+			name:         "schema block",
+			program:      &ast.Program{Statements: []ast.Statement{schemaBlock("vpc_data_t", schemaField{"region", "str"}, schemaField{"count", "int"})}},
+			sectionTitle: "Schemas",
+			kind:         token.BlockSchema,
+			wantSubstrings: []string{
+				"\n# --- Schemas ---\n",
+				"vpc_data_t = orca.schema(\n",
+				"    region=str,\n",
+				"    count=int,\n",
+			},
+		},
+		{
+			name:         "knowledge block",
+			program:      &ast.Program{Statements: []ast.Statement{knowledgeBlock("docs", "internal_docs", "Company wiki")}},
+			sectionTitle: "Knowledge",
+			kind:         token.BlockKnowledge,
+			wantSubstrings: []string{
+				"\n# --- Knowledge ---\n",
+				"docs = orca.knowledge(\n",
+				`    name="internal_docs",`,
+				`    desc="Company wiki",`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(tt.program)}}
+			var s strings.Builder
+			b.writeOrcaBlockSection(&s, tt.sectionTitle, tt.kind)
+			got := s.String()
+			if tt.wantEmpty {
+				if got != "" {
+					t.Fatalf("expected empty output, got %q", got)
+				}
+				return
+			}
+			for _, sub := range tt.wantSubstrings {
+				if !strings.Contains(got, sub) {
+					t.Errorf("expected output to contain %q, got:\n%s", sub, got)
+				}
 			}
 		})
 	}
@@ -229,9 +323,7 @@ func TestWriteModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var s strings.Builder
-			b := &LangGraphBackend{}
-
-			b.writeModel(&s, tt.block)
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
 			result := s.String()
 
 			for _, exp := range tt.contains {
@@ -253,8 +345,7 @@ func TestWriteModel(t *testing.T) {
 func TestWriteModelUnknownProvider(t *testing.T) {
 	block := modelBlock("m1", "unknown_provider", "some-model")
 	var s strings.Builder
-	b := &LangGraphBackend{}
-	b.writeModel(&s, block)
+	fmt.Fprintf(&s, "%s = %s\n", block.Name, topLevelBlockSource(block))
 	if !strings.Contains(s.String(), `provider="unknown_provider"`) {
 		t.Fatalf("expected orca.model output, got:\n%s", s.String())
 	}
@@ -338,13 +429,154 @@ func TestWriteAgent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var s strings.Builder
-			b := &LangGraphBackend{}
-			b.writeAgent(&s, tt.block)
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
 			result := s.String()
 
 			for _, want := range tt.contains {
 				if !strings.Contains(result, want) {
 					t.Errorf("expected output to contain %q, got:\n%s", want, result)
+				}
+			}
+		})
+	}
+}
+
+// TestWriteInput verifies Python input declaration generation via orca.input().
+func TestWriteInput(t *testing.T) {
+	tests := []struct {
+		name     string
+		block    *ast.BlockStatement
+		contains []string
+	}{
+		{
+			name:  "primitive type only",
+			block: inputBlock("apikey", "str"),
+			contains: []string{
+				"apikey = orca.input(\n",
+				"    type=str,\n",
+				")\n",
+			},
+		},
+		{
+			name:  "all common fields",
+			block: inputBlockFull("apikey", "str", "the api key", "sk-xxx", true),
+			contains: []string{
+				"apikey = orca.input(\n",
+				"    type=str,\n",
+				`    desc="the api key",`,
+				`    default="sk-xxx",`,
+				"    sensitive=True,\n",
+				")\n",
+			},
+		},
+		{
+			name:  "schema reference type",
+			block: inputBlock("vpc_data", "vpc_data_t"),
+			contains: []string{
+				"vpc_data = orca.input(\n",
+				"    type=vpc_data_t,\n",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var s strings.Builder
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
+			result := s.String()
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected output to contain %q, got:\n%s", want, result)
+				}
+			}
+		})
+	}
+}
+
+// TestWriteSchema verifies Python schema type generation via orca.schema().
+func TestWriteSchema(t *testing.T) {
+	tests := []struct {
+		name     string
+		block    *ast.BlockStatement
+		contains []string
+	}{
+		{
+			name: "primitive field types",
+			block: schemaBlock("vpc_data_t",
+				schemaField{"region", "str"},
+				schemaField{"instance_count", "int"},
+			),
+			contains: []string{
+				"vpc_data_t = orca.schema(\n",
+				"    region=str,\n",
+				"    instance_count=int,\n",
+				")\n",
+			},
+		},
+		{
+			name:     "empty body",
+			block:    schemaBlock("empty_t"),
+			contains: []string{"empty_t = orca.schema()\n"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var s strings.Builder
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
+			result := s.String()
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected output to contain %q, got:\n%s", want, result)
+				}
+			}
+		})
+	}
+}
+
+// TestWriteKnowledge verifies Python knowledge block generation via orca.knowledge().
+func TestWriteKnowledge(t *testing.T) {
+	tests := []struct {
+		name        string
+		block       *ast.BlockStatement
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:  "name and desc",
+			block: knowledgeBlock("docs", "internal_docs", "Company knowledge base"),
+			contains: []string{
+				"docs = orca.knowledge(\n",
+				`    name="internal_docs",`,
+				`    desc="Company knowledge base",`,
+				")\n",
+			},
+		},
+		{
+			name:  "name only omits desc",
+			block: knowledgeBlock("refs", "my_refs", ""),
+			contains: []string{
+				"refs = orca.knowledge(\n",
+				`    name="my_refs",`,
+				")\n",
+			},
+			notContains: []string{"desc="},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var s strings.Builder
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
+			result := s.String()
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected output to contain %q, got:\n%s", want, result)
+				}
+			}
+			for _, sub := range tt.notContains {
+				if strings.Contains(result, sub) {
+					t.Errorf("expected output to not contain %q, got:\n%s", sub, result)
 				}
 			}
 		})
@@ -719,6 +951,77 @@ func agentBlock(name, model, persona string) *ast.BlockStatement {
 		},
 		Name: name,
 	}
+}
+
+// schemaField names one field in a user schema block (field name → type identifier).
+type schemaField struct {
+	field string
+	typ   string
+}
+
+// schemaBlock builds a schema block with optional field:type pairs.
+func schemaBlock(name string, fields ...schemaField) *ast.BlockStatement {
+	var assigns []*ast.Assignment
+	for _, f := range fields {
+		assigns = append(assigns, &ast.Assignment{
+			Name:  f.field,
+			Value: &ast.Identifier{Value: f.typ},
+		})
+	}
+	return &ast.BlockStatement{
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.SCHEMA, Literal: "schema"}},
+		BlockBody: ast.BlockBody{
+			Kind:        token.BlockSchema,
+			Assignments: assigns,
+		},
+		Name: name,
+	}
+}
+
+// knowledgeBlock creates a knowledge block with name and optional desc string fields.
+func knowledgeBlock(blockName, nameValue, descValue string) *ast.BlockStatement {
+	assigns := []*ast.Assignment{
+		{Name: "name", Value: &ast.StringLiteral{Value: nameValue}},
+	}
+	if descValue != "" {
+		assigns = append(assigns, &ast.Assignment{
+			Name:  "desc",
+			Value: &ast.StringLiteral{Value: descValue},
+		})
+	}
+	return &ast.BlockStatement{
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.KNOWLEDGE, Literal: "knowledge"}},
+		BlockBody: ast.BlockBody{
+			Kind:        token.BlockKnowledge,
+			Assignments: assigns,
+		},
+		Name: blockName,
+	}
+}
+
+// inputBlock creates an input block with a type reference (identifier or schema name).
+func inputBlock(name, typeName string) *ast.BlockStatement {
+	return &ast.BlockStatement{
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.INPUT, Literal: "input"}},
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockInput,
+			Assignments: []*ast.Assignment{
+				{Name: "type", Value: &ast.Identifier{Value: typeName}},
+			},
+		},
+		Name: name,
+	}
+}
+
+// inputBlockFull creates an input block with type, description, default, and sensitive flag.
+func inputBlockFull(name, typeName, desc, defaultVal string, sensitive bool) *ast.BlockStatement {
+	block := inputBlock(name, typeName)
+	block.Assignments = append(block.Assignments,
+		&ast.Assignment{Name: "desc", Value: &ast.StringLiteral{Value: desc}},
+		&ast.Assignment{Name: "default", Value: &ast.StringLiteral{Value: defaultVal}},
+		&ast.Assignment{Name: "sensitive", Value: &ast.BooleanLiteral{Value: sensitive}},
+	)
+	return block
 }
 
 // agentBlockWithTools creates an agent block with model, persona, and tools.
