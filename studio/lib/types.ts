@@ -14,7 +14,8 @@ export type BlockKind =
   | "schema"
   | "cron"
   | "webhook"
-  | "chat";
+  | "chat"
+  | "custom_tool";
 
 export type HandleType =
   | "model"
@@ -41,7 +42,7 @@ export interface HandleDef {
 export interface FieldDef {
   key: string;
   label: string;
-  type: "text" | "textarea" | "select" | "slider" | "password" | "number";
+  type: "text" | "textarea" | "select" | "slider" | "password" | "number" | "code";
   placeholder?: string;
   options?: { value: string; label: string }[];
   min?: number;
