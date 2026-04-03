@@ -192,6 +192,8 @@ After creating the symlink for your editor of choice, restart the editor to acti
 
 **Orca Studio** is an in-browser companion to the text-based language: a [Next.js](https://nextjs.org/) app that lays out Orca concepts — models, agents, tools, tasks, workflows, and the edges between them — on an interactive canvas.
 
+Try it online: [Orca Studio (GitHub Pages)](https://thakeenathees.github.io/orca/studio/).
+
 To run Studio locally:
 
 ```
