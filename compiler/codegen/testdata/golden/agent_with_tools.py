@@ -4,20 +4,22 @@ from typing import TypedDict
 
 from langchain_openai import ChatOpenAI
 
-# --- Variables ---
-
-vars = orca.let(
-    api_key="sk-123",
-)
-
 # --- Models ---
 
 gpt4 = orca.model(
     provider="openai",
     model_name="gpt-4o",
-    temperature=1,
+    temperature=0.5,
 )
 
 # --- Graph State ---
 class GraphState(TypedDict):
     pass # TODO: writeGraphState
+
+# --- Agents ---
+
+researcher = orca.agent(
+    model=gpt4,
+    persona="You are a research assistant.",
+    tools=[web_search, calculator],
+)

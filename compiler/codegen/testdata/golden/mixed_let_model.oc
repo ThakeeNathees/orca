@@ -1,4 +1,4 @@
-let {
+let vars {
   api_key = "sk-123"
 }
 

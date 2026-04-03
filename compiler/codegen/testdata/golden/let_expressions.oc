@@ -1,4 +1,4 @@
-let {
+let vars {
   name = "orca"
   count = 42
   rate = 3.14

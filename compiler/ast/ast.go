@@ -70,21 +70,6 @@ func (p *Program) FindBlockWithName(name string) *BlockStatement {
 	return nil
 }
 
-func (p *Program) FindLetVarWithName(name string) *Expression {
-	for _, stmt := range p.Statements {
-		block, ok := stmt.(*BlockStatement)
-		if !ok || block.TokenStart.Type != token.LET {
-			continue
-		}
-		for _, assign := range block.Assignments {
-			if assign != nil && assign.Name == name {
-				return &assign.Value
-			}
-		}
-	}
-	return nil
-}
-
 // Annotation represents a decorator on a field or block: @name or @name(args...).
 // For example, @desc("The LLM provider") or @sensitive.
 type Annotation struct {
@@ -93,30 +78,20 @@ type Annotation struct {
 	Arguments []Expression // e.g. @desc("text") has one StringLiteral arg
 }
 
-// BlockStatement represents any top-level block in Orca syntax:
-//
-//	keyword name {
-//	  key = value
-//	}
-//
-// The block kind ("model", "agent", etc.) is derived from TokenStart.Type.
-// The span covers from the keyword token through the closing brace.
-type BlockStatement struct {
-	BaseNode
-	Name        string        // the user-given name identifier after the keyword
-	NameToken   token.Token   // the name token, used for diagnostic ranges
-	OpenBrace   token.Token   // the '{' token, used for diagnostic ranges
-	Assignments []*Assignment // key = value pairs inside the block body
-	Expressions []Expression  // workflow edge expressions (A -> B -> C)
-	Annotations []*Annotation // decorators before the block keyword (@sensitive, etc.)
-	SourceFile  string        // the .oc file this block was parsed from (set by the build command)
+// BlockBody holds the shared content of any block — its kind, field
+// assignments, and bare expressions. Both BlockStatement (top-level named
+// blocks) and BlockExpression (inline anonymous blocks) embed this so
+// that analyzer, codegen, and tooling can operate on a single type.
+type BlockBody struct {
+	Kind        token.BlockKind // the block type (model, agent, tool, …)
+	Assignments []*Assignment   // key = value pairs inside the block body
+	Expressions []Expression    // workflow edge expressions (A -> B -> C)
+	SourceFile  string          // the .oc file this block was parsed from
 }
 
-func (b *BlockStatement) statementNode() {}
-
-// GetFieldExpression returns the right-hand expression for the first assignment whose
-// key matches field. If there is no such assignment, ok is false.
-func (b *BlockStatement) GetFieldExpression(field string) (expr Expression, ok bool) {
+// GetFieldExpression returns the right-hand expression for the first assignment
+// whose key matches field. If there is no such assignment, ok is false.
+func (b *BlockBody) GetFieldExpression(field string) (expr Expression, ok bool) {
 	if b == nil {
 		return nil, false
 	}
@@ -126,6 +101,33 @@ func (b *BlockStatement) GetFieldExpression(field string) (expr Expression, ok b
 		}
 	}
 	return nil, false
+}
+
+// BlockStatement represents any top-level block in Orca syntax:
+//
+//	keyword name {
+//	  key = value
+//	}
+//
+// The span covers from the keyword token through the closing brace.
+type BlockStatement struct {
+	BaseNode
+	BlockBody
+	Name        string        // the user-given name identifier after the keyword
+	NameToken   token.Token   // the name token, used for diagnostic ranges
+	OpenBrace   token.Token   // the '{' token, used for diagnostic ranges
+	Annotations []*Annotation // decorators before the block keyword (@sensitive, etc.)
+}
+
+func (b *BlockStatement) statementNode() {}
+
+// GetFieldExpression forwards to BlockBody.GetFieldExpression with a nil-safe
+// guard, since Go cannot promote methods through a nil outer struct.
+func (b *BlockStatement) GetFieldExpression(field string) (Expression, bool) {
+	if b == nil {
+		return nil, false
+	}
+	return b.BlockBody.GetFieldExpression(field)
 }
 
 // Identifier represents an unquoted name that references another block.
@@ -265,9 +267,7 @@ func (a *Assignment) statementNode() {}
 // Works for all block types except let. BaseNode covers from the block keyword to the closing '}'.
 type BlockExpression struct {
 	BaseNode
-	Kind        token.BlockKind
-	Assignments []*Assignment
-	Expressions []Expression // workflow edge expressions (A -> B -> C)
+	BlockBody
 }
 
 func (be *BlockExpression) expressionNode() {}

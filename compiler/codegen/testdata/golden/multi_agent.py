@@ -4,8 +4,6 @@ from typing import TypedDict
 
 from langchain_anthropic import ChatAnthropic
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-
 from langchain_openai import ChatOpenAI
 
 # --- Models ---
@@ -13,20 +11,26 @@ from langchain_openai import ChatOpenAI
 gpt4 = orca.model(
     provider="openai",
     model_name="gpt-4o",
-    temperature=0.7,
 )
 
 claude = orca.model(
     provider="anthropic",
     model_name="claude-sonnet-4-20250514",
-    temperature=0,
-)
-
-gemini = orca.model(
-    provider="google",
-    model_name="gemini-pro",
+    temperature=0.3,
 )
 
 # --- Graph State ---
 class GraphState(TypedDict):
     pass # TODO: writeGraphState
+
+# --- Agents ---
+
+researcher = orca.agent(
+    model=gpt4,
+    persona="You find and summarize information.",
+)
+
+writer = orca.agent(
+    model=claude,
+    persona="You write polished articles from research notes.",
+)

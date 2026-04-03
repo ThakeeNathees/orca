@@ -25,12 +25,12 @@ const (
 // Context holds the resolved semantic context at a cursor position.
 // Each LSP feature reads the fields it needs without duplicating lookup logic.
 type Context struct {
-	Position    CursorPosition       // where the cursor sits structurally
-	Block       *ast.BlockStatement  // enclosing top-level block, nil if TopLevel
-	InlineBlock *ast.BlockExpression // enclosing inline block, nil if not inside one
-	BlockKind   token.BlockKind      // block kind enum (of the innermost block)
-	Schema      *types.BlockSchema   // schema for the block type, nil if unknown
-	Assignment  *ast.Assignment      // enclosing assignment, nil if not on a value
+	Position    CursorPosition      // where the cursor sits structurally
+	Block       *ast.BlockStatement // enclosing top-level block, nil if TopLevel
+	InlineBlock *ast.BlockBody      // innermost block body (inline), nil if not inside one
+	BlockKind   token.BlockKind     // block kind enum (of the innermost block)
+	Schema      *types.BlockSchema  // schema for the block type, nil if unknown
+	Assignment  *ast.Assignment     // enclosing assignment, nil if not on a value
 }
 
 // Resolve determines the semantic context at the given 1-based line and column
@@ -50,27 +50,12 @@ func Resolve(program *ast.Program, line, col int) Context {
 			continue
 		}
 
-		kind, ok := token.TokenTypeToBlockKind(block.TokenStart.Type)
-		if !ok {
-			continue
-		}
 		ctx := Context{
 			Position:  BlockBody,
 			Block:     block,
-			BlockKind: kind,
+			BlockKind: block.Kind,
 		}
-
-		// Attach schema if available. For user-defined schema blocks,
-		// look up by block name (e.g. "vpc_data_t") instead of "schema".
-		var schemaName string
-		if kind == token.BlockSchema {
-			schemaName = block.Name
-		} else {
-			schemaName = kind.String()
-		}
-		if schema, ok := types.GetSchema(schemaName); ok {
-			ctx.Schema = &schema
-		}
+		ctx.Schema = resolveBlockSchema(block.Kind, block.Name)
 
 		// Check if the cursor is within an existing assignment's range.
 		// Uses token EndLine/EndCol for multi-line tokens (strings).
@@ -110,17 +95,12 @@ func resolveInlineBlock(be *ast.BlockExpression, parent *ast.BlockStatement, lin
 	ctx := Context{
 		Position:    BlockBody,
 		Block:       parent,
-		InlineBlock: be,
+		InlineBlock: &be.BlockBody,
 		BlockKind:   be.Kind,
 	}
-
-	// Attach schema. For schema blocks, there's no named schema to look up
-	// (inline schemas are anonymous), so we skip schema lookup for them.
-	if be.Kind != token.BlockSchema {
-		if schema, ok := types.GetSchema(be.Kind.String()); ok {
-			ctx.Schema = &schema
-		}
-	}
+	// Inline schemas are anonymous — pass empty name so resolveBlockSchema
+	// skips the named-schema lookup and returns nil.
+	ctx.Schema = resolveBlockSchema(be.Kind, "")
 
 	// Check if cursor is within an assignment inside the inline block.
 	for _, assign := range be.Assignments {
@@ -132,6 +112,23 @@ func resolveInlineBlock(be *ast.BlockExpression, parent *ast.BlockStatement, lin
 	}
 
 	return ctx, true
+}
+
+// resolveBlockSchema returns the schema for a block kind. For user-defined
+// schema blocks, uses the block name as the lookup key (e.g. "vpc_data_t");
+// for all other kinds, uses the kind string (e.g. "model"). Returns nil when
+// no schema is registered (e.g. anonymous inline schemas with empty name).
+func resolveBlockSchema(kind token.BlockKind, name string) *types.BlockSchema {
+	var schemaName string
+	if kind == token.BlockSchema && name != "" {
+		schemaName = name
+	} else {
+		schemaName = kind.String()
+	}
+	if schema, ok := types.GetSchema(schemaName); ok {
+		return &schema
+	}
+	return nil
 }
 
 // posInAssignment returns true if (line, col) falls within an assignment's

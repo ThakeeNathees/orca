@@ -9,6 +9,7 @@ import (
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen"
+	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
@@ -25,7 +26,7 @@ func analyzedProgram(p *ast.Program) analyzer.AnalyzedProgram {
 // as tests that load .oc fixtures).
 func analyzedProgramFromSource(t *testing.T, source string) analyzer.AnalyzedProgram {
 	t.Helper()
-	l := lexer.New(source)
+	l := lexer.New(source, "")
 	p := parser.New(l)
 	program := p.ParseProgram()
 	if errs := p.Errors(); len(errs) > 0 {
@@ -59,94 +60,31 @@ func findFile(b *LangGraphBackend, name string) string {
 	return ""
 }
 
-// TestCollectProviders verifies that collectProviders extracts and deduplicates
-// provider names from model blocks.
-func TestCollectProviders(t *testing.T) {
-	tests := []struct {
-		name     string
-		program  *ast.Program
-		expected []string
-	}{
-		{
-			name:     "no models",
-			program:  &ast.Program{},
-			expected: nil,
-		},
-		{
-			name: "single provider",
-			program: programWithModels(
-				modelBlock("m1", "openai", "gpt-4o"),
-			),
-			expected: []string{"openai"},
-		},
-		{
-			name: "multiple unique providers",
-			program: programWithModels(
-				modelBlock("m1", "openai", "gpt-4o"),
-				modelBlock("m2", "anthropic", "claude-sonnet-4-20250514"),
-			),
-			expected: []string{"anthropic", "openai"},
-		},
-		{
-			name: "duplicate providers deduplicated",
-			program: programWithModels(
-				modelBlock("m1", "openai", "gpt-4o"),
-				modelBlock("m2", "openai", "gpt-4-turbo"),
-			),
-			expected: []string{"openai"},
-		},
-		{
-			name: "all three providers sorted",
-			program: programWithModels(
-				modelBlock("m1", "google", "gemini-pro"),
-				modelBlock("m2", "openai", "gpt-4o"),
-				modelBlock("m3", "anthropic", "claude-sonnet-4-20250514"),
-			),
-			expected: []string{"anthropic", "google", "openai"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(tt.program)}}
-			got := b.CollectProviders()
-			if len(got) != len(tt.expected) {
-				t.Fatalf("expected %d providers, got %d: %v", len(tt.expected), len(got), got)
-			}
-			for i, p := range got {
-				if p != tt.expected[i] {
-					t.Errorf("provider[%d]: expected %q, got %q", i, tt.expected[i], p)
-				}
-			}
-		})
-	}
-}
-
-// TestCollectBlocks verifies filtering of block statements by token type.
-func TestCollectBlocks(t *testing.T) {
+// TestCollectBlocksByKind verifies filtering of block statements by kind.
+func TestCollectBlocksByKind(t *testing.T) {
 	program := &ast.Program{
 		Statements: []ast.Statement{
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, Name: "m1"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT}}, Name: "a1"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, Name: "m2"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.LET}}},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, BlockBody: ast.BlockBody{Kind: token.BlockModel}, Name: "m1"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT}}, BlockBody: ast.BlockBody{Kind: token.BlockAgent}, Name: "a1"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, BlockBody: ast.BlockBody{Kind: token.BlockModel}, Name: "m2"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.LET}}, BlockBody: ast.BlockBody{Kind: token.BlockLet}, Name: "vars"},
 		},
 	}
 
 	tests := []struct {
-		name      string
-		tokenType token.TokenType
-		expected  int
+		name     string
+		kind     token.BlockKind
+		expected int
 	}{
-		{"models", token.MODEL, 2},
-		{"agents", token.AGENT, 1},
-		{"lets", token.LET, 1},
+		{"models", token.BlockModel, 2},
+		{"agents", token.BlockAgent, 1},
+		{"lets", token.BlockLet, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(program)}}
-			got := b.CollectBlocks(tt.tokenType)
+			got := b.CollectBlocksByKind(tt.kind)
 			if len(got) != tt.expected {
 				t.Errorf("expected %d blocks, got %d", tt.expected, len(got))
 			}
@@ -158,38 +96,36 @@ func TestCollectBlocks(t *testing.T) {
 func TestWriteImports(t *testing.T) {
 	const typedDictImport = "from typing import TypedDict"
 	tests := []struct {
-		name      string
-		providers []string
-		expected  []string // substrings after the always-present TypedDict import
+		name     string
+		imports  []python.PythonImport
+		expected []string // substrings after the always-present TypedDict import
 	}{
 		{
-			name:      "no providers",
-			providers: nil,
-			expected:  nil,
+			name:     "no providers",
+			imports:  nil,
+			expected: nil,
 		},
 		{
-			name:      "openai",
-			providers: []string{"openai"},
-			expected:  []string{"from langchain_openai import ChatOpenAI"},
+			name:     "openai",
+			imports:  []python.PythonImport{providerRegistry["openai"].PyImport},
+			expected: []string{"from langchain_openai import ChatOpenAI"},
 		},
 		{
-			name:      "anthropic",
-			providers: []string{"anthropic"},
-			expected:  []string{"from langchain_anthropic import ChatAnthropic"},
+			name:     "anthropic",
+			imports:  []python.PythonImport{providerRegistry["anthropic"].PyImport},
+			expected: []string{"from langchain_anthropic import ChatAnthropic"},
 		},
 		{
-			name:      "google",
-			providers: []string{"google"},
-			expected:  []string{"from langchain_google_genai import ChatGoogleGenerativeAI"},
+			name:     "google",
+			imports:  []python.PythonImport{providerRegistry["google"].PyImport},
+			expected: []string{"from langchain_google_genai import ChatGoogleGenerativeAI"},
 		},
 		{
-			name:      "unknown provider skipped",
-			providers: []string{"unknown"},
-			expected:  nil,
-		},
-		{
-			name:      "multiple providers",
-			providers: []string{"anthropic", "openai"},
+			name: "multiple providers",
+			imports: []python.PythonImport{
+				providerRegistry["anthropic"].PyImport,
+				providerRegistry["openai"].PyImport,
+			},
 			expected: []string{
 				"from langchain_anthropic import ChatAnthropic",
 				"from langchain_openai import ChatOpenAI",
@@ -201,7 +137,7 @@ func TestWriteImports(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(&ast.Program{})}}
 			var s strings.Builder
-			b.writeImports(&s, tt.providers)
+			b.writeImports(&s, tt.imports)
 			result := s.String()
 			if !strings.Contains(result, typedDictImport) {
 				t.Errorf("expected %q in output:\n%s", typedDictImport, result)
@@ -230,9 +166,10 @@ func TestWriteModel(t *testing.T) {
 			name:  "basic openai model",
 			block: modelBlockWithTemp("gpt4", "openai", "gpt-4o", 0.7),
 			contains: []string{
-				"gpt4 = ChatOpenAI(  # line 0",
-				`model="gpt-4o"`,
-				"temperature=0.7",
+				"gpt4 = orca.model(\n",
+				`    provider="openai",`,
+				`    model_name="gpt-4o",`,
+				"    temperature=0.7,",
 				")\n",
 			},
 		},
@@ -240,17 +177,19 @@ func TestWriteModel(t *testing.T) {
 			name:  "anthropic model",
 			block: modelBlockWithTemp("claude", "anthropic", "claude-sonnet-4-20250514", 0.5),
 			contains: []string{
-				"claude = ChatAnthropic(  # line 0",
-				`model="claude-sonnet-4-20250514"`,
-				"temperature=0.5",
+				"claude = orca.model(\n",
+				`    provider="anthropic",`,
+				`    model_name="claude-sonnet-4-20250514",`,
+				"    temperature=0.5,",
 			},
 		},
 		{
 			name:  "model without temperature",
 			block: modelBlock("gemini", "google", "gemini-pro"),
 			contains: []string{
-				"gemini = ChatGoogleGenerativeAI(  # line 0",
-				`model="gemini-pro"`,
+				"gemini = orca.model(\n",
+				`    provider="google",`,
+				`    model_name="gemini-pro",`,
 			},
 			notContains: []string{
 				"temperature=",
@@ -260,38 +199,29 @@ func TestWriteModel(t *testing.T) {
 			name:  "integer temperature",
 			block: modelBlockWithIntTemp("m1", "openai", "gpt-4o", 1),
 			contains: []string{
-				"m1 = ChatOpenAI(  # line 0",
-				"temperature=1",
+				"    temperature=1,\n",
 			},
 		},
 		{
 			name:  "source comment included",
 			block: modelBlockAtLine("gpt4", "openai", "gpt-4o", 42),
 			contains: []string{
-				"gpt4 = ChatOpenAI(  # line 42",
-			},
-		},
-		{
-			name:  "closing paren on its own line",
-			block: modelBlock("m", "openai", "gpt-4o"),
-			contains: []string{
-				"m = ChatOpenAI(  # line 0",
 				")\n",
 			},
 		},
 		{
-			name:  "google provider class",
+			name:  "google provider",
 			block: modelBlock("gem", "google", "gemini-2.0-flash"),
 			contains: []string{
-				"gem = ChatGoogleGenerativeAI(  # line 0",
-				`model="gemini-2.0-flash"`,
+				"gem = orca.model(\n",
+				`    model_name="gemini-2.0-flash",`,
 			},
 		},
 		{
 			name:  "zero temperature",
 			block: modelBlockWithIntTemp("m", "openai", "gpt-4o", 0),
 			contains: []string{
-				"temperature=0",
+				"    temperature=0,\n",
 			},
 		},
 	}
@@ -318,29 +248,19 @@ func TestWriteModel(t *testing.T) {
 	}
 }
 
-// TestWriteModelUnknownProvider verifies unknown providers produce a diagnostic and no Python output.
+// TestWriteModelUnknownProvider verifies writeModel produces output even for
+// unknown providers — provider validation is handled by resolveProviders.
 func TestWriteModelUnknownProvider(t *testing.T) {
-	ap := analyzedProgram(programWithModels(modelBlock("m1", "unknown_provider", "some-model")))
-	b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: ap}}
-
+	block := modelBlock("m1", "unknown_provider", "some-model")
 	var s strings.Builder
-	b.writeModel(&s, modelBlock("m1", "unknown_provider", "some-model"))
-	if s.String() != "" {
-		t.Fatalf("expected empty output, got:\n%s", s.String())
-	}
-
-	var codegenDiags int
-	for _, d := range b.Program.Diagnostics {
-		if d.Source == "codegen" && d.Code == diagnostic.CodeUnknownProvider {
-			codegenDiags++
-		}
-	}
-	if codegenDiags != 1 {
-		t.Fatalf("expected 1 codegen unknown-provider diagnostic, got %d (diagnostics=%v)", codegenDiags, b.Program.Diagnostics)
+	b := &LangGraphBackend{}
+	b.writeModel(&s, block)
+	if !strings.Contains(s.String(), `provider="unknown_provider"`) {
+		t.Fatalf("expected orca.model output, got:\n%s", s.String())
 	}
 }
 
-// TestWriteAgent verifies Python agent stub generation from agent blocks (function + GraphState placeholder).
+// TestWriteAgent verifies Python agent instantiation generation via orca.agent().
 func TestWriteAgent(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -351,79 +271,66 @@ func TestWriteAgent(t *testing.T) {
 			name:  "basic agent without tools",
 			block: agentBlock("writer", "gpt4", "You are a helpful writer."),
 			contains: []string{
-				"def writer(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"writer = orca.agent(\n",
+				"    model=gpt4,\n",
+				`    persona="You are a helpful writer.",`,
+				")\n",
 			},
 		},
 		{
 			name:  "agent with tools",
 			block: agentBlockWithTools("researcher", "gpt4", "You are a researcher.", []string{"search", "calculator"}),
 			contains: []string{
-				"def researcher(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"researcher = orca.agent(\n",
+				"    model=gpt4,\n",
+				`    persona="You are a researcher.",`,
+				"    tools=[search, calculator],\n",
 			},
 		},
 		{
 			name:  "agent with single tool",
 			block: agentBlockWithTools("bot", "claude", "You help.", []string{"gmail"}),
 			contains: []string{
-				"def bot(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"bot = orca.agent(\n",
+				"    tools=[gmail],\n",
 			},
 		},
 		{
 			name: "source comment included",
 			block: &ast.BlockStatement{
 				BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Line: 15}},
-				Name:     "a1",
-				Assignments: []*ast.Assignment{
-					{Name: "model", Value: &ast.Identifier{Value: "gpt4"}},
-					{Name: "persona", Value: &ast.StringLiteral{Value: "test"}},
+				BlockBody: ast.BlockBody{
+					Kind: token.BlockAgent,
+					Assignments: []*ast.Assignment{
+						{Name: "model", Value: &ast.Identifier{Value: "gpt4"}},
+						{Name: "persona", Value: &ast.StringLiteral{Value: "test"}},
+					},
 				},
+				Name: "a1",
 			},
 			contains: []string{
-				"def a1(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
-			},
-		},
-		{
-			name:  "short agent name",
-			block: agentBlock("a", "m", "p"),
-			contains: []string{
-				"def a(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				")\n",
 			},
 		},
 		{
 			name:  "persona with escaped quotes",
 			block: agentBlock("bot", "gpt4", `You are a "helpful" assistant.`),
 			contains: []string{
-				"def bot(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				`    persona="You are a \"helpful\" assistant.",`,
 			},
 		},
 		{
 			name:  "many tools preserves order",
 			block: agentBlockWithTools("a", "m", "p", []string{"t1", "t2", "t3", "t4"}),
 			contains: []string{
-				"def a(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"    tools=[t1, t2, t3, t4],\n",
 			},
 		},
 		{
-			name:  "empty tools list omitted",
+			name:  "empty tools list",
 			block: agentBlockWithTools("a", "m", "p", nil),
 			contains: []string{
-				"def a(state: GraphState) -> GraphState:\n",
-				"    # TODO: writeAgent\n",
-				"    return state\n",
+				"    tools=[],\n",
 			},
 		},
 	}
@@ -492,9 +399,10 @@ func TestProviderDeps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(tt.program)}}
-			rp := b.resolveProviders()
+			b.resolveProviders()
+			deps := dependenciesFromProviders(b.resolvedProviders)
 			var got []string
-			for i, d := range rp.dependencies {
+			for i, d := range deps {
 				if i == 0 {
 					if d.Name != "langchain-core" {
 						t.Fatalf("expected first dependency %q, got %q", "langchain-core", d.Name)
@@ -532,11 +440,14 @@ func TestGenerateOutputStructure(t *testing.T) {
 	if output.RootDir.Name != "build" {
 		t.Errorf("expected root dir name %q, got %q", "build", output.RootDir.Name)
 	}
-	if len(output.RootDir.Files) != 1 {
-		t.Fatalf("expected 1 file, got %d", len(output.RootDir.Files))
+	if len(output.RootDir.Files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(output.RootDir.Files))
 	}
-	if output.RootDir.Files[0].Name != "main.py" {
-		t.Errorf("expected first file %q, got %q", "main.py", output.RootDir.Files[0].Name)
+	if output.RootDir.Files[0].Name != "orca.py" {
+		t.Errorf("expected first file %q, got %q", "orca.py", output.RootDir.Files[0].Name)
+	}
+	if output.RootDir.Files[1].Name != "main.py" {
+		t.Errorf("expected second file %q, got %q", "main.py", output.RootDir.Files[1].Name)
 	}
 }
 
@@ -757,11 +668,14 @@ func TestValidateProviders(t *testing.T) {
 func modelBlock(name, provider, modelName string) *ast.BlockStatement {
 	return &ast.BlockStatement{
 		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL, Literal: "model"}},
-		Name:     name,
-		Assignments: []*ast.Assignment{
-			{Name: "provider", Value: &ast.StringLiteral{Value: provider}},
-			{Name: "model_name", Value: &ast.StringLiteral{Value: modelName}},
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockModel,
+			Assignments: []*ast.Assignment{
+				{Name: "provider", Value: &ast.StringLiteral{Value: provider}},
+				{Name: "model_name", Value: &ast.StringLiteral{Value: modelName}},
+			},
 		},
+		Name: name,
 	}
 }
 
@@ -796,11 +710,14 @@ func modelBlockAtLine(name, provider, modelName string, line int) *ast.BlockStat
 func agentBlock(name, model, persona string) *ast.BlockStatement {
 	return &ast.BlockStatement{
 		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Literal: "agent"}},
-		Name:     name,
-		Assignments: []*ast.Assignment{
-			{Name: "model", Value: &ast.Identifier{Value: model}},
-			{Name: "persona", Value: &ast.StringLiteral{Value: persona}},
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockAgent,
+			Assignments: []*ast.Assignment{
+				{Name: "model", Value: &ast.Identifier{Value: model}},
+				{Name: "persona", Value: &ast.StringLiteral{Value: persona}},
+			},
 		},
+		Name: name,
 	}
 }
 

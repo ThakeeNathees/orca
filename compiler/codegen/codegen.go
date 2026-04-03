@@ -3,9 +3,6 @@
 package codegen
 
 import (
-	"fmt"
-	"sort"
-
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
@@ -62,14 +59,15 @@ type CodegenBackend interface {
 // BaseBackend provides common functionality shared across all codegen backends.
 // Embed this in concrete backend types to get access to block collection helpers.
 type BaseBackend struct {
-	Program analyzer.AnalyzedProgram
+	Program      analyzer.AnalyzedProgram
+	dependencies []Dependency
 }
 
-// CollectBlocks returns all block statements of the given token type.
-func (b *BaseBackend) CollectBlocks(tokenType token.TokenType) []*ast.BlockStatement {
+// CollectBlocksByKind returns all block statements of the given block kind.
+func (b *BaseBackend) CollectBlocksByKind(kind token.BlockKind) []*ast.BlockStatement {
 	var blocks []*ast.BlockStatement
 	for _, stmt := range b.Program.Ast.Statements {
-		if block, ok := stmt.(*ast.BlockStatement); ok && block.TokenStart.Type == tokenType {
+		if block, ok := stmt.(*ast.BlockStatement); ok && block.Kind == kind {
 			blocks = append(blocks, block)
 		}
 	}
@@ -78,33 +76,5 @@ func (b *BaseBackend) CollectBlocks(tokenType token.TokenType) []*ast.BlockState
 
 // CollectLets returns all let block statements.
 func (b *BaseBackend) CollectLets() []*ast.BlockStatement {
-	return b.CollectBlocks(token.LET)
-}
-
-// CollectProviders returns sorted, unique provider names from model blocks.
-func (b *BaseBackend) CollectProviders() []string {
-	seen := make(map[string]bool)
-	for _, block := range b.CollectBlocks(token.MODEL) {
-		for _, assign := range block.Assignments {
-			if assign.Name == "provider" {
-				if s, ok := assign.Value.(*ast.StringLiteral); ok {
-					seen[s.Value] = true
-				}
-			}
-		}
-	}
-	var providers []string
-	for p := range seen {
-		providers = append(providers, p)
-	}
-	sort.Strings(providers)
-	return providers
-}
-
-// SourceComment formats a source mapping comment like "agents.oc:42" or "line 42".
-func SourceComment(file string, line int) string {
-	if file != "" {
-		return fmt.Sprintf("%s:%d", file, line)
-	}
-	return fmt.Sprintf("line %d", line)
+	return b.CollectBlocksByKind(token.BlockLet)
 }

@@ -167,10 +167,12 @@ func TestConstFoldBlockExpression(t *testing.T) {
 		{
 			name: "assignments only",
 			be: &ast.BlockExpression{
-				Kind:        token.BlockModel,
-				Expressions: nil,
-				Assignments: []*ast.Assignment{
-					{Name: "provider", Value: str("openai")},
+				BlockBody: ast.BlockBody{
+					Kind:        token.BlockModel,
+					Expressions: nil,
+					Assignments: []*ast.Assignment{
+						{Name: "provider", Value: str("openai")},
+					},
 				},
 			},
 			want: ConstValue{Kind: ConstBlock, KeyValue: map[string]ConstValue{
@@ -180,9 +182,11 @@ func TestConstFoldBlockExpression(t *testing.T) {
 		{
 			name: "workflow edges not constant",
 			be: &ast.BlockExpression{
-				Kind:        token.BlockWorkflow,
-				Expressions: []ast.Expression{idExpr("a")},
-				Assignments: []*ast.Assignment{{Name: "x", Value: str("y")}},
+				BlockBody: ast.BlockBody{
+					Kind:        token.BlockWorkflow,
+					Expressions: []ast.Expression{idExpr("a")},
+					Assignments: []*ast.Assignment{{Name: "x", Value: str("y")}},
+				},
 			},
 			// Any non-empty Expressions marks the block as non-constant shape; result is ConstBlock with Partial.
 			want: ConstValue{Kind: ConstBlock, Partial: true},
@@ -238,10 +242,12 @@ func TestConstFoldMemberAccess(t *testing.T) {
 		{
 			name: "block_expression_known_field",
 			expr: memberAccess(&ast.BlockExpression{
-				Kind:        token.BlockModel,
-				Expressions: nil,
-				Assignments: []*ast.Assignment{
-					{Name: "provider", Value: str("acme")},
+				BlockBody: ast.BlockBody{
+					Kind:        token.BlockModel,
+					Expressions: nil,
+					Assignments: []*ast.Assignment{
+						{Name: "provider", Value: str("acme")},
+					},
 				},
 			}, "provider"),
 			want: ConstValue{Kind: ConstString, Str: "acme"},
@@ -249,8 +255,10 @@ func TestConstFoldMemberAccess(t *testing.T) {
 		{
 			name: "block_expression_unknown_field",
 			expr: memberAccess(&ast.BlockExpression{
-				Kind:        token.BlockModel,
-				Assignments: []*ast.Assignment{{Name: "x", Value: i(1)}},
+				BlockBody: ast.BlockBody{
+					Kind:        token.BlockModel,
+					Assignments: []*ast.Assignment{{Name: "x", Value: i(1)}},
+				},
 			}, "nope"),
 			want:         ConstValue{Kind: ConstUnknown},
 			expDiagCodes: []string{diagnostic.CodeUnknownMember},
@@ -258,12 +266,16 @@ func TestConstFoldMemberAccess(t *testing.T) {
 		{
 			name: "nested_block_member_access",
 			expr: memberAccess(memberAccess(&ast.BlockExpression{
-				Kind: token.BlockModel,
-				Assignments: []*ast.Assignment{
-					{Name: "inner", Value: &ast.BlockExpression{
-						Kind:        token.BlockModel,
-						Assignments: []*ast.Assignment{{Name: "temperature", Value: i(2)}},
-					}},
+				BlockBody: ast.BlockBody{
+					Kind: token.BlockModel,
+					Assignments: []*ast.Assignment{
+						{Name: "inner", Value: &ast.BlockExpression{
+							BlockBody: ast.BlockBody{
+								Kind:        token.BlockModel,
+								Assignments: []*ast.Assignment{{Name: "temperature", Value: i(2)}},
+							},
+						}},
+					},
 				},
 			}, "inner"), "temperature"),
 			want: ConstValue{Kind: ConstInt, Int: 2},
@@ -301,10 +313,12 @@ func TestConstFoldMemberAccess(t *testing.T) {
 			program: &ast.Program{
 				Statements: []ast.Statement{
 					&ast.BlockStatement{
-						Name: "gpt",
-						Assignments: []*ast.Assignment{
-							{Name: "provider", Value: str("openai")},
+						BlockBody: ast.BlockBody{
+							Assignments: []*ast.Assignment{
+								{Name: "provider", Value: str("openai")},
+							},
 						},
+						Name: "gpt",
 					},
 				},
 			},
@@ -421,8 +435,10 @@ func TestConstFoldSubscription(t *testing.T) {
 		{
 			name: "block_base_not_subscriptable",
 			expr: subExpr(&ast.BlockExpression{
-				Kind:        token.BlockModel,
-				Assignments: []*ast.Assignment{{Name: "x", Value: i(1)}},
+				BlockBody: ast.BlockBody{
+					Kind:        token.BlockModel,
+					Assignments: []*ast.Assignment{{Name: "x", Value: i(1)}},
+				},
 			}, i(0)),
 			want: ConstValue{Kind: ConstUnknown},
 		},
@@ -577,7 +593,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 			}(),
 			program: &ast.Program{
 				Statements: []ast.Statement{
-					&ast.BlockStatement{Name: "other", Assignments: []*ast.Assignment{{Name: "x", Value: str("y")}}},
+					&ast.BlockStatement{BlockBody: ast.BlockBody{Assignments: []*ast.Assignment{{Name: "x", Value: str("y")}}}, Name: "other"},
 				},
 			},
 			want: ConstValue{Kind: ConstUnknown},
@@ -593,14 +609,16 @@ func TestConstFoldIdentifier(t *testing.T) {
 			program: &ast.Program{
 				Statements: []ast.Statement{
 					&ast.BlockStatement{
-						Name: "gpt",
-						Assignments: []*ast.Assignment{
-							{Name: "provider", Value: str("openai")},
-							{Name: "temperature", Value: &ast.FloatLiteral{
-								BaseNode: ast.NewTerminal(token.Token{Type: token.FLOAT, Literal: "0.5"}),
-								Value:    0.5,
-							}},
+						BlockBody: ast.BlockBody{
+							Assignments: []*ast.Assignment{
+								{Name: "provider", Value: str("openai")},
+								{Name: "temperature", Value: &ast.FloatLiteral{
+									BaseNode: ast.NewTerminal(token.Token{Type: token.FLOAT, Literal: "0.5"}),
+									Value:    0.5,
+								}},
+							},
 						},
+						Name: "gpt",
 					},
 				},
 			},
@@ -623,11 +641,13 @@ func TestConstFoldIdentifier(t *testing.T) {
 			program: &ast.Program{
 				Statements: []ast.Statement{
 					&ast.BlockStatement{
-						Name:        "wf",
-						Expressions: []ast.Expression{idExpr("a")},
-						Assignments: []*ast.Assignment{
-							{Name: "x", Value: str("y")},
+						BlockBody: ast.BlockBody{
+							Expressions: []ast.Expression{idExpr("a")},
+							Assignments: []*ast.Assignment{
+								{Name: "x", Value: str("y")},
+							},
 						},
+						Name: "wf",
 					},
 				},
 			},
@@ -647,18 +667,18 @@ func TestConstFoldIdentifier(t *testing.T) {
 	}
 }
 
-// TestConstFoldLetBoundProviderMember verifies let-bound names fold from their initializer
-// when no top-level block shadows the name, so member access (defaults.provider) resolves
-// for codegen const folding.
+// TestConstFoldLetBoundProviderMember verifies named let block member access
+// folds correctly: config.defaults.provider resolves through the let block body
+// then through the inline model block to the string "openai".
 func TestConstFoldLetBoundProviderMember(t *testing.T) {
-	input := `let {
+	input := `let vars {
   defaults = model {
     provider = "openai"
     model_name = "template"
   }
 }
 model gpt {
-  provider = defaults.provider
+  provider = vars.defaults.provider
   model_name = "gpt-4o"
 }`
 	prog := parseProgram(t, input)

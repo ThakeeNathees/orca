@@ -261,11 +261,13 @@ func TestExprTypeBootstrap(t *testing.T) {
 // are resolved and registered with a synthetic name.
 func TestExprTypeInlineSchema(t *testing.T) {
 	expr := &ast.BlockExpression{
-		Kind: token.BlockSchema,
-		Assignments: []*ast.Assignment{
-			{
-				Name:  "host",
-				Value: &ast.Identifier{Value: "str"},
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockSchema,
+			Assignments: []*ast.Assignment{
+				{
+					Name:  "host",
+					Value: &ast.Identifier{Value: "str"},
+				},
 			},
 		},
 	}
@@ -321,7 +323,7 @@ func TestNullStrippingInUnion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := parser.New(l)
 			program := p.ParseProgram()
 			if len(p.Errors()) > 0 {

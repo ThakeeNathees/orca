@@ -8,7 +8,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	l := New("abc")
+	l := New("abc", "")
 
 	if l.input != "abc" {
 		t.Errorf("expected input 'abc', got %q", l.input)
@@ -25,7 +25,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewEmpty(t *testing.T) {
-	l := New("")
+	l := New("", "")
 
 	if l.ch != 0 {
 		t.Errorf("expected null byte, got %q", l.ch)
@@ -33,7 +33,7 @@ func TestNewEmpty(t *testing.T) {
 }
 
 func TestReadChar(t *testing.T) {
-	l := New("ab")
+	l := New("ab", "")
 
 	if l.ch != 'a' {
 		t.Fatalf("expected 'a', got %q", l.ch)
@@ -51,7 +51,7 @@ func TestReadChar(t *testing.T) {
 }
 
 func TestNextTokenEOF(t *testing.T) {
-	l := New("")
+	l := New("", "")
 	tok := l.NextToken()
 	if tok.Type != token.EOF {
 		t.Fatalf("expected EOF, got %s", tok.Type)
@@ -78,7 +78,7 @@ func TestNextTokenSingleChars(t *testing.T) {
 		{token.EOF, ""},
 	}
 
-	l := New(input)
+	l := New(input, "")
 	for i, tt := range tests {
 		tok := l.NextToken()
 		if tok.Type != tt.expectedType {
@@ -92,7 +92,7 @@ func TestNextTokenSingleChars(t *testing.T) {
 
 func TestNextTokenSkipsWhitespace(t *testing.T) {
 	input := "  =  "
-	l := New(input)
+	l := New(input, "")
 	tok := l.NextToken()
 	if tok.Type != token.ASSIGN {
 		t.Fatalf("expected ASSIGN, got %s", tok.Type)
@@ -117,7 +117,7 @@ func TestNextTokenIdentAndKeyword(t *testing.T) {
 		{token.EOF, ""},
 	}
 
-	l := New(input)
+	l := New(input, "")
 	for i, tt := range tests {
 		tok := l.NextToken()
 		if tok.Type != tt.expectedType {
@@ -131,7 +131,7 @@ func TestNextTokenIdentAndKeyword(t *testing.T) {
 
 func TestNextTokenString(t *testing.T) {
 	input := `"hello world"`
-	l := New(input)
+	l := New(input, "")
 	tok := l.NextToken()
 	if tok.Type != token.STRING {
 		t.Fatalf("expected STRING, got %s", tok.Type)
@@ -154,7 +154,7 @@ func TestNextTokenNumbers(t *testing.T) {
 		{token.EOF, ""},
 	}
 
-	l := New(input)
+	l := New(input, "")
 	for i, tt := range tests {
 		tok := l.NextToken()
 		if tok.Type != tt.expectedType {
@@ -169,7 +169,7 @@ func TestNextTokenNumbers(t *testing.T) {
 func TestNextTokenComment(t *testing.T) {
 	input := `// this is a comment
 model`
-	l := New(input)
+	l := New(input, "")
 	tok := l.NextToken()
 	// Comments are skipped, so we should get MODEL
 	if tok.Type != token.MODEL {
@@ -192,7 +192,7 @@ func TestNextTokenBooleans(t *testing.T) {
 		{token.EOF, ""},
 	}
 
-	l := New(input)
+	l := New(input, "")
 	for i, tt := range tests {
 		tok := l.NextToken()
 		if tok.Type != tt.expectedType {
@@ -226,7 +226,7 @@ func TestNextTokenOperators(t *testing.T) {
 		{token.EOF, ""},
 	}
 
-	l := New(input)
+	l := New(input, "")
 	for i, tt := range tests {
 		tok := l.NextToken()
 		if tok.Type != tt.expectedType {
@@ -252,7 +252,7 @@ func TestNextTokenSlashVsComment(t *testing.T) {
 		{token.EOF, ""},
 	}
 
-	l := New(input)
+	l := New(input, "")
 	for i, tt := range tests {
 		tok := l.NextToken()
 		if tok.Type != tt.expectedType {
@@ -266,7 +266,7 @@ func TestNextTokenSlashVsComment(t *testing.T) {
 
 func TestNextTokenNewlineTracking(t *testing.T) {
 	input := "a\nb"
-	l := New(input)
+	l := New(input, "")
 	l.NextToken() // 'a'
 	tok := l.NextToken()
 	if tok.Line != 2 {
@@ -297,7 +297,7 @@ func TestNextTokenFullBlock(t *testing.T) {
 		{token.EOF, ""},
 	}
 
-	l := New(input)
+	l := New(input, "")
 	for i, tt := range tests {
 		tok := l.NextToken()
 		if tok.Type != tt.expectedType {
@@ -327,7 +327,7 @@ func TestStringEscapeSequences(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := New(tt.input)
+			l := New(tt.input, "")
 			tok := l.NextToken()
 			if tok.Type != token.STRING {
 				t.Fatalf("expected STRING, got %s", tok.Type)
@@ -388,7 +388,7 @@ func TestRawString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := New(tt.input)
+			l := New(tt.input, "")
 			tok := l.NextToken()
 			if tok.Type != token.RAWSTRING {
 				t.Fatalf("expected RAWSTRING, got %s", tok.Type)
@@ -404,7 +404,7 @@ func TestRawString(t *testing.T) {
 // tracks line numbers through raw strings.
 func TestRawStringLineTracking(t *testing.T) {
 	input := "```\n  hello\n  world\n```\nident"
-	l := New(input)
+	l := New(input, "")
 
 	strTok := l.NextToken()
 	if strTok.Type != token.RAWSTRING {
@@ -435,7 +435,7 @@ func TestRawStringInBlock(t *testing.T) {
 		"}",
 	}, "\n")
 
-	l := New(input)
+	l := New(input, "")
 	// agent
 	tok := l.NextToken()
 	if tok.Type != token.AGENT {
@@ -528,7 +528,7 @@ func TestNextTokenAnnotation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := New(tt.input)
+			l := New(tt.input, "")
 			for i, exp := range tt.expect {
 				tok := l.NextToken()
 				if tok.Type != exp.typ {
@@ -546,7 +546,7 @@ func TestNextTokenAnnotation(t *testing.T) {
 func TestStringIsSingleLineOnly(t *testing.T) {
 	// A newline inside a double-quoted string terminates the string.
 	input := "\"hello\nworld\""
-	l := New(input)
+	l := New(input, "")
 	tok := l.NextToken()
 	if tok.Type != token.STRING {
 		t.Fatalf("expected STRING, got %s", tok.Type)
@@ -560,7 +560,7 @@ func TestStringIsSingleLineOnly(t *testing.T) {
 // reads until EOF without crashing.
 func TestRawStringUnterminatedEOF(t *testing.T) {
 	input := "```\nhello\nworld"
-	l := New(input)
+	l := New(input, "")
 	tok := l.NextToken()
 	if tok.Type != token.RAWSTRING {
 		t.Fatalf("expected RAWSTRING, got %s", tok.Type)
@@ -570,7 +570,7 @@ func TestRawStringUnterminatedEOF(t *testing.T) {
 // TestRawStringPositionTracking verifies start/end positions on raw strings.
 func TestRawStringPositionTracking(t *testing.T) {
 	input := "  ```md\n    content\n  ```"
-	l := New(input)
+	l := New(input, "")
 	tok := l.NextToken()
 	if tok.Type != token.RAWSTRING {
 		t.Fatalf("expected RAWSTRING, got %s", tok.Type)
@@ -588,7 +588,7 @@ func TestRawStringPositionTracking(t *testing.T) {
 
 // TestSingleBacktickIsIllegal verifies that a lone ` is an ILLEGAL token.
 func TestSingleBacktickIsIllegal(t *testing.T) {
-	l := New("`")
+	l := New("`", "")
 	tok := l.NextToken()
 	if tok.Type != token.ILLEGAL {
 		t.Fatalf("expected ILLEGAL, got %s", tok.Type)
@@ -597,7 +597,7 @@ func TestSingleBacktickIsIllegal(t *testing.T) {
 
 // TestDoubleBacktickIsIllegal verifies that an empty pair of backticks yields two ILLEGAL tokens.
 func TestDoubleBacktickIsIllegal(t *testing.T) {
-	l := New("``")
+	l := New("``", "")
 	tok := l.NextToken()
 	if tok.Type != token.ILLEGAL {
 		t.Fatalf("expected ILLEGAL, got %s", tok.Type)
@@ -607,7 +607,7 @@ func TestDoubleBacktickIsIllegal(t *testing.T) {
 // TestRawStringFollowedByTokens verifies tokens after a raw string are correct.
 func TestRawStringFollowedByTokens(t *testing.T) {
 	input := "```\nfoo\n``` = 42"
-	l := New(input)
+	l := New(input, "")
 
 	tok := l.NextToken()
 	if tok.Type != token.RAWSTRING {
@@ -633,7 +633,7 @@ func TestRawStringFollowedByTokens(t *testing.T) {
 
 // TestNextTokenAtPosition verifies that the AT token has correct position.
 func TestNextTokenAtPosition(t *testing.T) {
-	l := New("  @desc")
+	l := New("  @desc", "")
 	tok := l.NextToken()
 	if tok.Type != token.AT {
 		t.Fatalf("expected AT, got %s", tok.Type)

@@ -21,7 +21,7 @@ var schemaSource string
 // a map of block type names to their field schemas. This is the
 // single source of truth for block field definitions.
 func loadSchemas() (map[string]BlockSchema, error) {
-	l := lexer.New(schemaSource)
+	l := lexer.New(schemaSource, "")
 	p := parser.New(l)
 	program := p.ParseProgram()
 
@@ -37,7 +37,7 @@ func loadSchemas() (map[string]BlockSchema, error) {
 			continue
 		}
 		// Only process schema blocks.
-		if block.TokenStart.Type != token.SCHEMA {
+		if block.Kind != token.BlockSchema {
 			continue
 		}
 

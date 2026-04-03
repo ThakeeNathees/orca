@@ -1,0 +1,79 @@
+"""Orca runtime support for inline block expressions.
+
+Generated code calls these functions when a BlockExpression is used
+as a value, e.g. model { provider = "openai" } becomes orca.model(provider="openai").
+"""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from typing import Any
+
+
+def _block(kind: str, **kwargs: Any) -> SimpleNamespace:
+    """Create a block instance with the given kind and keyword fields."""
+    return SimpleNamespace(_kind=kind, **kwargs)
+
+
+def _fields(params: dict[str, Any]) -> dict[str, Any]:
+    """Filter out None values from a parameter dict to omit unset optional fields."""
+    return {k: v for k, v in params.items() if v is not None}
+
+
+def model(
+    provider: str,
+    model_name: str | SimpleNamespace,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    temperature: float | None = None,
+) -> SimpleNamespace:
+    return _block("model", **_fields(locals()))
+
+
+def agent(
+    model: str | SimpleNamespace,
+    persona: str,
+    tools: list[SimpleNamespace] | None = None,
+    output_schema: SimpleNamespace | None = None,
+) -> SimpleNamespace:
+    return _block("agent", **_fields(locals()))
+
+
+def tool(
+    name: str,
+    desc: str | None = None,
+    input_schema: SimpleNamespace | None = None,
+    invoke: str | None = None,
+) -> SimpleNamespace:
+    return _block("tool", **_fields(locals()))
+
+
+def knowledge(
+    name: str,
+    desc: str | None = None,
+) -> SimpleNamespace:
+    return _block("knowledge", **_fields(locals()))
+
+
+def workflow(
+    name: str | None = None,
+    desc: str | None = None,
+) -> SimpleNamespace:
+    return _block("workflow", **_fields(locals()))
+
+
+def input(
+    type: SimpleNamespace,
+    desc: str | None = None,
+    default: Any | None = None,
+    sensitive: bool | None = None,
+) -> SimpleNamespace:
+    return _block("input", **_fields(locals()))
+
+
+def schema(**kwargs: Any) -> SimpleNamespace:
+    return _block("schema", **kwargs)
+
+
+def let(**kwargs: Any) -> SimpleNamespace:
+    return _block("let", **kwargs)

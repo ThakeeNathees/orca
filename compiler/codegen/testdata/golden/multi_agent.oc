@@ -1,0 +1,20 @@
+model gpt4 {
+  provider    = "openai"
+  model_name  = "gpt-4o"
+}
+
+model claude {
+  provider    = "anthropic"
+  model_name  = "claude-sonnet-4-20250514"
+  temperature = 0.3
+}
+
+agent researcher {
+  model   = gpt4
+  persona = "You find and summarize information."
+}
+
+agent writer {
+  model   = claude
+  persona = "You write polished articles from research notes."
+}

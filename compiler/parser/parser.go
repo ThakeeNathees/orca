@@ -29,6 +29,7 @@ type Parser struct {
 
 // New creates a parser for the given lexer and primes it by reading
 // two tokens so both curToken and peekToken are set before parsing begins.
+// The lexer's SourceFile is propagated to all parsed block nodes.
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{l: l}
 	p.nextToken()
@@ -112,15 +113,6 @@ func (p *Parser) ParseProgram() *ast.Program {
 func (p *Parser) parseStatement() ast.Statement {
 	annotations := p.collectAnnotations()
 
-	if p.curToken.Type == token.LET {
-		block := p.parseLetBlock()
-		if block == nil {
-			return nil
-		}
-		block.Annotations = annotations
-		return block
-	}
-
 	if token.IsTokenBlockName(p.curToken.Type) {
 		block := p.parseBlock()
 		if block == nil {
@@ -144,8 +136,12 @@ func (p *Parser) parseStatement() ast.Statement {
 // on incomplete input.
 func (p *Parser) parseBlock() *ast.BlockStatement {
 	block := &ast.BlockStatement{}
+	block.SourceFile = p.l.SourceFile
 	block.TokenStart = p.curToken
 	blockType := p.curToken.Literal // e.g., "model", "agent"
+
+	kind, _ := token.TokenTypeToBlockKind(p.curToken.Type)
+	block.Kind = kind
 
 	// Expect the block's name identifier (e.g., "gpt4" in "model gpt4 {").
 	if !token.IsIdentLike(p.peekToken.Type) {
@@ -182,39 +178,6 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	}
 	block.TokenEnd = p.curToken // the } token
 	p.nextToken()               // consume }
-
-	return block
-}
-
-// parseLetBlock parses an unnamed let block: `let { key = value ... }`.
-// Unlike named blocks, there is no name identifier after the keyword.
-// The block Name is left empty to signal it's a singleton.
-func (p *Parser) parseLetBlock() *ast.BlockStatement {
-	block := &ast.BlockStatement{}
-	block.TokenStart = p.curToken
-
-	// Expect the opening brace directly after `let`.
-	if p.peekToken.Type != token.LBRACE {
-		p.addErrorAt(p.peekToken, fmt.Sprintf("expected '{' after 'let', got %s",
-			token.Describe(p.peekToken.Type)))
-		p.syncToBlockEnd()
-		return nil
-	}
-	p.nextToken()
-	block.OpenBrace = p.curToken
-
-	// Parse the body: zero or more key = value assignments.
-	block.Assignments = p.parseAssignments("let", "")
-
-	// Expect the closing brace.
-	if p.curToken.Type != token.RBRACE {
-		p.addError(fmt.Sprintf("expected '}' to close 'let' block, got %s",
-			token.Describe(p.curToken.Type)))
-		block.TokenEnd = p.prevToken
-		return block
-	}
-	block.TokenEnd = p.curToken
-	p.nextToken()
 
 	return block
 }
@@ -690,7 +653,9 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 		return nil
 	}
 
-	be := &ast.BlockExpression{Kind: kind}
+	be := &ast.BlockExpression{}
+	be.Kind = kind
+	be.SourceFile = p.l.SourceFile
 	be.TokenStart = p.curToken // the block keyword
 
 	blockName := p.curToken.Literal

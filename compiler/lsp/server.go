@@ -299,11 +299,7 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 
 	switch node.Kind {
 	case cursor.BlockNameNode:
-		kind, ok := token.TokenTypeToBlockKind(node.Block.TokenStart.Type)
-		if !ok {
-			return nil, nil
-		}
-		content := fmt.Sprintf("```orca\n%s %s\n```", kind.String(), node.Block.Name)
+		content := fmt.Sprintf("```orca\n%s %s\n```", node.Block.Kind.String(), node.Block.Name)
 		return &protocol.Hover{
 			Contents: protocol.MarkupContent{Kind: protocol.MarkupKindMarkdown, Value: content},
 		}, nil
@@ -336,11 +332,7 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 		return fieldHover(node.MemberAccess.Member, field), nil
 
 	case cursor.FieldNameNode:
-		kind, ok := token.TokenTypeToBlockKind(node.Block.TokenStart.Type)
-		if !ok {
-			return nil, nil
-		}
-		field, found := types.GetFieldSchema(kind, node.Assignment.Name)
+		field, found := types.GetFieldSchema(node.Block.Kind, node.Assignment.Name)
 		if !found {
 			return nil, nil
 		}
@@ -413,49 +405,57 @@ func resolveDefinition(doc *documentState, line, col int) (protocol.Location, bo
 }
 
 // resolveMemberDefinition resolves go-to-definition for a member access expression.
-// It resolves the object to either a BlockStatement or SchemaExpression, then
+// It resolves the object to either a BlockStatement or BlockExpression, then
 // locates the member's assignment within it. Supports chained access (e.g. a.b.c)
 // by recursively resolving intermediate targets.
 func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol.Location, bool) {
 	target := resolveObjectTarget(doc, ma.Object)
 
-	switch t := target.(type) {
-	case *ast.BlockStatement:
-		// Look for the field assignment in the block.
-		for _, assign := range t.Assignments {
-			if assign.Name == ma.Member {
-				return protocol.Location{Range: tokenToRange(assign.Start())}, true
-			}
-		}
-		// For input blocks, members access the value schema (the "type" field),
-		// not the input block's own fields. e.g. some_input.model_name resolves
-		// through input's type = schema { model_name = str }.
-		kind, ok := token.TokenTypeToBlockKind(t.TokenStart.Type)
-		if ok && kind == token.BlockInput {
-			if schema := findTypeSchema(t); schema != nil {
-				for _, assign := range schema.Assignments {
-					if assign.Name == ma.Member {
-						return protocol.Location{Range: tokenToRange(assign.Start())}, true
-					}
+	if loc, ok := findAssignmentLocation(target, ma.Member); ok {
+		return loc, true
+	}
+
+	// For input blocks, members access the value schema (the "type" field),
+	// not the input block's own fields.
+	if block, ok := target.(*ast.BlockStatement); ok {
+		if block.Kind == token.BlockInput {
+			if schema := findTypeSchema(block); schema != nil {
+				if loc, ok := findAssignmentLocation(schema, ma.Member); ok {
+					return loc, true
 				}
 			}
 		}
 		// Field not assigned — fall back to the block name token so the user
 		// still navigates to the block that owns the schema field.
-		if _, ok := types.GetFieldSchema(kind, ma.Member); ok {
-			return protocol.Location{Range: tokenToRange(t.NameToken)}, true
-		}
-
-	case *ast.BlockExpression:
-		// Look for the field assignment in the inline block.
-		for _, assign := range t.Assignments {
-			if assign.Name == ma.Member {
-				return protocol.Location{Range: tokenToRange(assign.Start())}, true
-			}
+		if _, ok := types.GetFieldSchema(block.Kind, ma.Member); ok {
+			return protocol.Location{Range: tokenToRange(block.NameToken)}, true
 		}
 	}
 
 	return protocol.Location{}, false
+}
+
+// findAssignmentLocation searches a node's assignments for the given field
+// name and returns the location of the matching assignment token.
+func findAssignmentLocation(node ast.Node, field string) (protocol.Location, bool) {
+	for _, assign := range assignmentsOf(node) {
+		if assign.Name == field {
+			return protocol.Location{Range: tokenToRange(assign.Start())}, true
+		}
+	}
+	return protocol.Location{}, false
+}
+
+// assignmentsOf extracts the Assignments slice from any node that embeds
+// BlockBody (BlockStatement or BlockExpression).
+func assignmentsOf(node ast.Node) []*ast.Assignment {
+	switch t := node.(type) {
+	case *ast.BlockStatement:
+		return t.Assignments
+	case *ast.BlockExpression:
+		return t.Assignments
+	}
+	return nil
 }
 
 // resolveObjectTarget resolves an expression to the AST node that defines its
@@ -481,17 +481,26 @@ func resolveObjectTarget(doc *documentState, expr ast.Expression) ast.Node {
 // For identifier values, follows the reference to the block. For block
 // expression values, returns the expression itself. Returns nil if not found.
 func findMemberValue(target ast.Node, member string, doc *documentState) ast.Node {
-	var assignments []*ast.Assignment
-
-	switch t := target.(type) {
-	case *ast.BlockStatement:
-		assignments = t.Assignments
-	case *ast.BlockExpression:
-		assignments = t.Assignments
-	default:
-		return nil
+	if result := resolveAssignmentValue(assignmentsOf(target), member, doc); result != nil {
+		return result
 	}
 
+	// For input blocks, members access the value schema (the "type" field).
+	if block, ok := target.(*ast.BlockStatement); ok && block.Kind == token.BlockInput {
+		if schema := findTypeSchema(block); schema != nil {
+			if result := resolveAssignmentValue(schema.Assignments, member, doc); result != nil {
+				return result
+			}
+		}
+	}
+
+	return nil
+}
+
+// resolveAssignmentValue finds the assignment named `member` in the given
+// assignments and resolves its value: identifiers follow to blocks, inline
+// blocks return the expression itself.
+func resolveAssignmentValue(assignments []*ast.Assignment, member string, doc *documentState) ast.Node {
 	for _, assign := range assignments {
 		if assign.Name != member {
 			continue
@@ -504,25 +513,6 @@ func findMemberValue(target ast.Node, member string, doc *documentState) ast.Nod
 		}
 		return nil
 	}
-
-	// For input blocks, members access the value schema (the "type" field).
-	if block, ok := target.(*ast.BlockStatement); ok {
-		kind, ok := token.TokenTypeToBlockKind(block.TokenStart.Type)
-		if ok && kind == token.BlockInput {
-			if schema := findTypeSchema(block); schema != nil {
-				for _, assign := range schema.Assignments {
-					if assign.Name != member {
-						continue
-					}
-					if be, ok := assign.Value.(*ast.BlockExpression); ok {
-						return be
-					}
-					return nil
-				}
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -530,15 +520,12 @@ func findMemberValue(target ast.Node, member string, doc *documentState) ast.Nod
 // or nil if not found. Used for input blocks where `type = schema { ... }` defines
 // the value schema that members are accessed through.
 func findTypeSchema(block *ast.BlockStatement) *ast.BlockExpression {
-	for _, assign := range block.Assignments {
-		if assign.Name == "type" {
-			if be, ok := assign.Value.(*ast.BlockExpression); ok {
-				return be
-			}
-			return nil
-		}
+	expr, ok := block.GetFieldExpression("type")
+	if !ok {
+		return nil
 	}
-	return nil
+	be, _ := expr.(*ast.BlockExpression)
+	return be
 }
 
 // findBlock returns the BlockStatement with the given name, or nil.
@@ -593,7 +580,7 @@ func tokenToRange(tok token.Token) protocol.Range {
 // disk. Analysis runs on the merged program, but only diagnostics that
 // originate from the current file are reported to the client.
 func updateDocument(uri, text string) *documentState {
-	l := lexer.New(text)
+	l := lexer.New(text, "")
 	p := parser.New(l)
 	program := p.ParseProgram()
 
@@ -660,16 +647,9 @@ func mergeSiblingFiles(uri string, program *ast.Program) {
 			source = string(data)
 		}
 
-		sl := lexer.New(source)
+		sl := lexer.New(source, sib)
 		sp := parser.New(sl)
 		sibProg := sp.ParseProgram()
-		// Tag each block with its source file so go-to-definition can
-		// jump to the correct file for cross-file references.
-		for _, stmt := range sibProg.Statements {
-			if block, ok := stmt.(*ast.BlockStatement); ok {
-				block.SourceFile = sib
-			}
-		}
 		program.Statements = append(program.Statements, sibProg.Statements...)
 	}
 }
