@@ -51,6 +51,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Send,
   Database,
   Brain,
+  Wrench,
 };
 
 const GROUP_ICONS: Record<string, LucideIcon> = {

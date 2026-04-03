@@ -18,4 +18,5 @@ export const nodeTypes: NodeTypes = {
   cron: BaseNode,
   webhook: BaseNode,
   chat: BaseNode,
+  custom_tool: BaseNode,
 };

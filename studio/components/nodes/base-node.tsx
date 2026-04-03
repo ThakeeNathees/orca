@@ -20,6 +20,7 @@ import {
   Send,
   Database,
   Brain,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,6 +39,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Send,
   Database,
   Brain,
+  Wrench,
 };
 
 /**

@@ -439,6 +439,33 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     ],
   },
 
+  custom_tool: {
+    kind: "custom_tool",
+    label: "Custom Tool",
+    description: "User-defined tool with inline Python",
+    color: "#22c55e",
+    colorMuted: "#22c55e20",
+    icon: "Wrench",
+    handles: [
+      { id: "tool-out", label: "Tool", type: "tool", position: "top" },
+    ],
+    fields: [
+      {
+        key: "desc",
+        label: "Description",
+        type: "text",
+        placeholder: "What this tool does...",
+      },
+      {
+        key: "invoke",
+        label: "Invoke",
+        type: "code",
+        placeholder:
+          'def my_tool(input: str) -> str:\n    """Tool implementation."""\n    return input',
+      },
+    ],
+  },
+
   schema: {
     kind: "schema",
     label: "Schema",
@@ -469,7 +496,7 @@ export const BLOCK_KINDS = Object.keys(BLOCK_DEFS) as BlockKind[];
 
 export const PALETTE_GROUPS: { label: string; kinds: BlockKind[] }[] = [
   { label: "Models & Agents", kinds: ["model", "agent"] },
-  { label: "Tools", kinds: ["web_search", "code_exec", "api_request", "sql_query"] },
+  { label: "Tools", kinds: ["web_search", "code_exec", "api_request", "sql_query", "custom_tool"] },
   { label: "Data", kinds: ["knowledge", "memory"] },
   { label: "Triggers", kinds: ["cron", "webhook", "chat"] },
 ];

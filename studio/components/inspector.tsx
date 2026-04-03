@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useStudioStore } from "@/lib/store";
 import { BLOCK_DEFS } from "@/lib/block-defs";
 import type { FieldDef } from "@/lib/types";
@@ -17,6 +18,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { X, Trash2 } from "lucide-react";
+
+const CodeFieldEditor = dynamic(
+  () =>
+    import("@/components/code-field-editor").then((m) => m.CodeFieldEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[120px] items-center justify-center rounded-md bg-muted/40 text-xs text-muted-foreground">
+        Loading editor...
+      </div>
+    ),
+  }
+);
 
 function FieldRenderer({
   field,
@@ -91,6 +105,16 @@ function FieldRenderer({
             ))}
           </SelectContent>
         </Select>
+      );
+
+    case "code":
+      return (
+        <CodeFieldEditor
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          placeholder={field.placeholder}
+          label={field.label}
+        />
       );
 
     case "slider":
