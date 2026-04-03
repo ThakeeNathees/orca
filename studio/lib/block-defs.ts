@@ -62,7 +62,7 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
   agent: {
     kind: "agent",
     label: "Agent",
-    description: "AI agent with model and tools",
+    description: "AI agent with model, memory, and tools",
     color: "#8b5cf6",
     colorMuted: "#8b5cf620",
     icon: "Bot",
@@ -75,6 +75,7 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
         multiple: true,
       },
       { id: "model-in", label: "Model", type: "model", position: "bottom" },
+      { id: "memory-in", label: "Memory", type: "memory", position: "bottom" },
       {
         id: "tools-in",
         label: "Tools",
@@ -266,6 +267,32 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     ],
   },
 
+  memory: {
+    kind: "memory",
+    label: "Memory",
+    description: "Long-term or session memory store",
+    color: "#f59e0b",
+    colorMuted: "#f59e0b20",
+    icon: "Brain",
+    handles: [
+      { id: "memory-out", label: "Memory", type: "memory", position: "top" },
+    ],
+    fields: [
+      {
+        key: "name",
+        label: "Name",
+        type: "text",
+        placeholder: "session_store",
+      },
+      {
+        key: "desc",
+        label: "Description",
+        type: "textarea",
+        placeholder: "Conversation and tool-call history",
+      },
+    ],
+  },
+
   workflow: {
     kind: "workflow",
     label: "Workflow",
@@ -443,7 +470,7 @@ export const BLOCK_KINDS = Object.keys(BLOCK_DEFS) as BlockKind[];
 export const PALETTE_GROUPS: { label: string; kinds: BlockKind[] }[] = [
   { label: "Models & Agents", kinds: ["model", "agent"] },
   { label: "Tools", kinds: ["web_search", "code_exec", "api_request", "sql_query"] },
-  { label: "Data", kinds: ["knowledge"] },
+  { label: "Data", kinds: ["knowledge", "memory"] },
   { label: "Triggers", kinds: ["cron", "webhook", "chat"] },
 ];
 

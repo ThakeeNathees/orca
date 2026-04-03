@@ -108,7 +108,7 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   /* Left palette panel (Orca Studio sidebar). */
-  --sidebar: #18181b;
+  --sidebar: #18181B;
   --sidebar-foreground: oklch(0.93 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.93 0 0);

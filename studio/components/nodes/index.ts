@@ -14,6 +14,7 @@ export const nodeTypes: NodeTypes = {
   api_request: BaseNode,
   sql_query: BaseNode,
   knowledge: BaseNode,
+  memory: BaseNode,
   cron: BaseNode,
   webhook: BaseNode,
   chat: BaseNode,
