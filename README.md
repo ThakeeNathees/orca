@@ -172,17 +172,34 @@ Every block type in the language — `model`, `agent`, `tool`, `task`, `workflow
 
 Orca ships with a VS Code extension that provides syntax highlighting, autocomplete, and go-to-definition for `.oc` files.
 
-<img src="docs/public/vscode-extension.png" alt="VS Code extension showing syntax highlighting and autocomplete" width="700">
+To install the Orca language extension locally for your editor, simply run the commands below. This will link the extension directory directly, enabling you to get the latest features without needing a marketplace install. For VS Code, use:
+
+```bash
+ln -s $(pwd)/editor/vscode ~/.vscode/extensions/orca-lang
+```
+
+If you're using Cursor, the process is just as straightforward. Run:
+
+```bash
+ln -s $(pwd)/editor/vscode ~/.cursor/extensions/orca-lang
+```
+
+After creating the symlink for your editor of choice, restart the editor to activate the extension.
+
+<img src="docs/public/vscode-extension.png" alt="VS Code extension showing syntax highlighting and autocomplete" width="500">
 
 ## Orca Studio
 
-Orca Studio is a visual workflow editor (Next.js) for building and inspecting agent graphs on a canvas. To start the studio run the command:
+**Orca Studio** is an in-browser companion to the text-based language: a [Next.js](https://nextjs.org/) app that lays out Orca concepts — models, agents, tools, tasks, workflows, and the edges between them — on an interactive canvas.
+
+To run Studio locally:
 
 ```
 cd studio
 pnpm install
 pnpm run dev
 ```
+
 
 <img src="docs/public/studio-preview.png" alt="Orca Studio visual workflow editor">
 
