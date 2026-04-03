@@ -20,6 +20,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/introduction' },
       { text: 'Reference', link: '/reference/syntax-overview' },
       { text: 'Examples', link: '/examples/simple-agent' },
+      { text: 'Playground', link: '/studio/', target: '_self' },
     ],
 
     sidebar: {

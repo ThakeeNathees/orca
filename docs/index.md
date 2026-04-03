@@ -14,8 +14,9 @@ hero:
       text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: Language Reference
-      link: /reference/syntax-overview
+      text: Playground
+      link: /studio/
+      target: _self
 
 features:
   - title: Declarative
