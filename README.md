@@ -174,6 +174,12 @@ Orca ships with a VS Code extension that provides syntax highlighting, autocompl
 
 <img src="docs/public/vscode-extension.png" alt="VS Code extension showing syntax highlighting and autocomplete" width="700">
 
+## Orca Studio
+
+Orca Studio is a visual workflow editor (Next.js) for building and inspecting agent graphs on a canvas.
+
+<img src="docs/public/studio-preview.png" alt="Orca Studio visual workflow editor">
+
 ## Contributing
 
 Test Driven Development is enforced throughout the project: every new feature or change starts with a failing test case. See [CLAUDE.md](CLAUDE.md) for development conventions and detailed project structure.
