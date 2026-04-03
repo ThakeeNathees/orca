@@ -6,7 +6,9 @@ from langchain_openai import ChatOpenAI
 
 # --- Variables ---
 
-api_key = "sk-123"
+vars = orca.let(
+    api_key="sk-123",
+)
 
 # --- Models ---
 

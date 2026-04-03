@@ -5,20 +5,20 @@ The `let` block defines variables and constants that can be referenced throughou
 ## Syntax
 
 ```orca
-let {
-  name1 = <value>
-  name2 = <value>
+let <name> {
+  key1 = <value>
+  key2 = <value>
 }
 ```
 
-Unlike other blocks, `let` has no name — it's a single block that holds multiple variable definitions.
+Like all other blocks, `let` requires a name. Multiple named let blocks are allowed.
 
 ## Examples
 
 ### Basic variables
 
 ```orca
-let {
+let vars {
   api_url     = "https://api.example.com"
   max_retries = 3
   temperature = 0.7
@@ -26,26 +26,40 @@ let {
 }
 ```
 
-### Using variables
-
-Variables defined in `let` can be referenced by name anywhere:
+### Multiple let blocks
 
 ```orca
-let {
+let vars {
+  api_key     = "sk-123"
+  max_retries = 3
+  timeout     = 30
+}
+
+let vars2 {
+  backup_key = "sk-456"
+}
+```
+
+### Using variables
+
+Variables defined in `let` are accessed via `block_name.field_name`:
+
+```orca
+let vars {
   default_temp = 0.7
 }
 
 model gpt4 {
   provider    = "openai"
   model_name  = "gpt-4o"
-  temperature = default_temp
+  temperature = vars.default_temp
 }
 ```
 
 ## Generated output
 
 ```orca
-let {
+let vars {
   api_url     = "https://api.example.com"
   max_retries = 3
   temperature = 0.7
@@ -56,8 +70,10 @@ let {
 Compiles to:
 
 ```python
-api_url = "https://api.example.com"  # main.oc:2
-max_retries = 3  # main.oc:3
-temperature = 0.7  # main.oc:4
-debug = True  # main.oc:5
+vars = orca.let(
+    api_url="https://api.example.com",
+    max_retries=3,
+    temperature=0.7,
+    debug=True,
+)
 ```

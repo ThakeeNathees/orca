@@ -4,13 +4,12 @@ from typing import TypedDict
 
 # --- Variables ---
 
-api_url = "https://api.example.com"
-
-max_retries = 3
-
-temperature = 0.7
-
-debug = True
+vars = orca.let(
+    api_url="https://api.example.com",
+    max_retries=3,
+    temperature=0.7,
+    debug=True,
+)
 
 # --- Graph State ---
 class GraphState(TypedDict):

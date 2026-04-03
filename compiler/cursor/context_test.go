@@ -411,12 +411,12 @@ func TestFindNodeAtWorkflowEdgeNone(t *testing.T) {
 // TestFindNodeAtSubscription verifies that identifiers inside subscription
 // expressions (e.g. items[0]) are found via findInExpr.
 func TestFindNodeAtSubscription(t *testing.T) {
-	// tools[0] produces Subscription with ident "tools" as object.
+	// web_search[0] produces Subscription with ident "web_search" as object.
 	// Line layout:
-	// 1: let {
-	// 2:   items = tools[0]
-	// 3: }
-	input := "tool web_search {\n  provider = \"tavily\"\n}\nlet {\n  items = web_search[0]\n}"
+	// 4: let vars {
+	// 5:   items = web_search[0]
+	// 6: }
+	input := "tool web_search {\n  provider = \"tavily\"\n}\nlet vars {\n  items = web_search[0]\n}"
 	program := parseProgram(t, input)
 
 	// "web_search" starts at col 11 on line 5
@@ -433,7 +433,7 @@ func TestFindNodeAtSubscription(t *testing.T) {
 // values are found via findInExpr.
 func TestFindNodeAtMapLiteral(t *testing.T) {
 	// config = {"key": gpt4} produces MapLiteral with ident "gpt4" as a value.
-	input := "model gpt4 {\n  provider = \"openai\"\n}\nlet {\n  config = {\"key\": gpt4}\n}"
+	input := "model gpt4 {\n  provider = \"openai\"\n}\nlet vars {\n  config = {\"key\": gpt4}\n}"
 	program := parseProgram(t, input)
 
 	// "gpt4" in the map value on line 5.
@@ -451,8 +451,8 @@ func TestFindNodeAtMapLiteral(t *testing.T) {
 // TestFindNodeAtCallExpression verifies that identifiers inside call
 // expressions (callee and args) are found via findInExpr.
 func TestFindNodeAtCallExpression(t *testing.T) {
-	// tools = foo(bar) produces CallExpression.
-	input := "model gpt4 {\n  provider = \"openai\"\n}\nlet {\n  result = gpt4(gpt4)\n}"
+	// result = gpt4(gpt4) produces CallExpression.
+	input := "model gpt4 {\n  provider = \"openai\"\n}\nlet vars {\n  result = gpt4(gpt4)\n}"
 	program := parseProgram(t, input)
 
 	tests := []struct {

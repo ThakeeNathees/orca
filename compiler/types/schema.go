@@ -71,9 +71,10 @@ func GetFieldSchema(kind token.BlockKind, fieldName string) (FieldSchema, bool) 
 }
 
 // LookupBlockSchema returns the schema for a Type, dispatching between
-// built-in block schemas (by BlockKind) and user-defined schemas (by SchemaName).
+// built-in block schemas (by BlockKind), user-defined schemas (by SchemaName),
+// and named let blocks (by SchemaName).
 func LookupBlockSchema(t Type) (BlockSchema, bool) {
-	if t.BlockKind == token.BlockSchema && t.SchemaName != "" {
+	if t.SchemaName != "" && (t.BlockKind == token.BlockSchema || t.BlockKind == token.BlockLet) {
 		s, ok := blockSchemas[t.SchemaName]
 		return s, ok
 	}

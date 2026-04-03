@@ -244,10 +244,8 @@ func constAsFloat(v ConstValue) (float64, bool) {
 	}
 }
 
-// foldIdentifier folds let-bound names by re-folding their initializer.
-// Top-level named blocks (BlockRef) fold first; if there is no such block,
-// let-bound initializers are folded (e.g. inline model { ... } or a string literal).
-// Symbols without a matching block or let RHS yield ConstUnknown.
+// foldIdentifier folds named blocks (including let blocks) by re-folding
+// their body. Symbols without a matching block yield ConstUnknown.
 func foldIdentifier(e *ast.Identifier, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	if ap.SymbolTable == nil {
 		return ConstValue{Kind: ConstUnknown}, nil
@@ -263,9 +261,6 @@ func foldIdentifier(e *ast.Identifier, ap AnalyzedProgram) (ConstValue, []diagno
 		}
 		if block := ap.Ast.FindBlockWithName(e.Value); block != nil {
 			return foldBlockBody(&block.BlockBody, ap)
-		}
-		if letVarExpr := ap.Ast.FindLetVarWithName(e.Value); letVarExpr != nil {
-			return ConstFold(*letVarExpr, ap)
 		}
 		return ConstValue{Kind: ConstUnknown}, nil
 	default:

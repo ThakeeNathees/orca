@@ -1121,57 +1121,57 @@ func TestAnalyzeLetBlock(t *testing.T) {
 		errContains string
 	}{
 		{
-			"let variables are valid globals",
-			`let {
+			"named let block fields accessible via member access",
+			`let vars {
 				api_url = "https://example.com"
 				max_retries = 3
 			}
 			model gpt4 {
 				provider   = "openai"
-				model_name = api_url
+				model_name = vars.api_url
 			}`,
 			false,
 			"",
 		},
 		{
-			"let variable referenced in agent",
-			`let { persona_text = "You are helpful." }
+			"let variable referenced in agent via member access",
+			`let vars { persona_text = "You are helpful." }
 			model gpt4 { provider = "openai" model_name = "gpt-4o" }
 			agent helper {
 				model   = gpt4
-				persona = persona_text
+				persona = vars.persona_text
 			}`,
 			false,
 			"",
 		},
 		{
-			"duplicate let variable name",
-			`let { x = "a" }
-			let { x = "b" }`,
+			"duplicate let block name",
+			`let vars { x = "a" }
+			let vars { y = "b" }`,
 			true,
-			"conflicts with an existing name",
+			"duplicate block name",
 		},
 		{
-			"let variable conflicts with block name",
+			"let block name conflicts with other block name",
 			`model gpt4 { provider = "openai" model_name = "gpt-4o" }
-			let { gpt4 = "conflict" }`,
+			let gpt4 { x = "conflict" }`,
 			true,
-			"conflicts with an existing name",
+			"duplicate block name",
 		},
 		{
-			"multiple let blocks merge",
-			`let { a = "one" }
-			let { b = "two" }
+			"multiple named let blocks",
+			`let vars { a = "one" }
+			let vars2 { b = "two" }
 			model gpt4 {
 				provider   = "openai"
-				model_name = a
+				model_name = vars.a
 			}`,
 			false,
 			"",
 		},
 		{
 			"duplicate field within same let block",
-			`let {
+			`let vars {
 				x = "first"
 				x = "second"
 			}`,

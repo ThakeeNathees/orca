@@ -1796,30 +1796,35 @@ func TestParseLetBlock(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
+		expName  string
 		expCount int // number of assignments
 		expKeys  []string
 	}{
 		{
 			name:     "let with string values",
-			input:    `let { name = "hello" greeting = "world" }`,
+			input:    `let vars { name = "hello" greeting = "world" }`,
+			expName:  "vars",
 			expCount: 2,
 			expKeys:  []string{"name", "greeting"},
 		},
 		{
 			name:     "let with mixed types",
-			input:    `let { api_url = "https://example.com" max_retries = 3 temp = 0.7 debug = true }`,
+			input:    `let vars { api_url = "https://example.com" max_retries = 3 temp = 0.7 debug = true }`,
+			expName:  "vars",
 			expCount: 4,
 			expKeys:  []string{"api_url", "max_retries", "temp", "debug"},
 		},
 		{
 			name:     "empty let block",
-			input:    `let {}`,
+			input:    `let vars {}`,
+			expName:  "vars",
 			expCount: 0,
 			expKeys:  nil,
 		},
 		{
-			name:     "multiple let blocks",
-			input:    `let { a = "1" } let { b = "2" }`,
+			name:     "multiple named let blocks",
+			input:    `let vars { a = "1" } let vars2 { b = "2" }`,
+			expName:  "vars",
 			expCount: 1, // per block
 			expKeys:  []string{"a"},
 		},
@@ -1831,7 +1836,7 @@ func TestParseLetBlock(t *testing.T) {
 			if len(program.Statements) == 0 {
 				t.Fatal("expected at least one statement")
 			}
-			block := assertBlock(t, program.Statements[0], token.LET, "")
+			block := assertBlock(t, program.Statements[0], token.LET, tt.expName)
 			if len(block.Assignments) != tt.expCount {
 				t.Fatalf("expected %d assignments, got %d", tt.expCount, len(block.Assignments))
 			}
@@ -1851,26 +1856,26 @@ func TestParseLetBlockComplexValues(t *testing.T) {
 	}{
 		{
 			"member access",
-			`let { val = foo.bar }`,
+			`let vars { val = foo.bar }`,
 		},
 		{
 			"subscription",
-			`let { val = foo["bar"] }`,
+			`let vars { val = foo["bar"] }`,
 		},
 		{
 			"chained access",
-			`let { val = foo["bar"].baz }`,
+			`let vars { val = foo["bar"].baz }`,
 		},
 		{
 			"list value",
-			`let { items = [1, 2, 3] }`,
+			`let vars { items = [1, 2, 3] }`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.LET, "")
+			block := assertBlock(t, program.Statements[0], token.LET, "vars")
 			if len(block.Assignments) != 1 {
 				t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
 			}
@@ -1884,8 +1889,8 @@ func TestParseLetBlockErrors(t *testing.T) {
 		input string
 	}{
 		{
-			"let with name",
-			`let myname { a = 1 }`,
+			"let without name",
+			`let { a = 1 }`,
 		},
 	}
 
@@ -1948,7 +1953,7 @@ func TestSourceFileOnBlocks(t *testing.T) {
 		},
 		{
 			name:               "let block gets source file",
-			input:              `let { api_key = "sk-123" }`,
+			input:              `let vars { api_key = "sk-123" }`,
 			sourceFile:         "vars.oc",
 			wantBlockStmtFile:  "vars.oc",
 			wantBlockExprFiles: nil,
