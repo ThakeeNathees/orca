@@ -1,0 +1,13 @@
+---
+description: Use GitHub CLI (gh) for all GitHub API workflows from the agent
+alwaysApply: true
+---
+
+# GitHub: use `gh` CLI
+
+When creating or managing pull requests, issues, releases, or other GitHub resources from this repo, **use the GitHub CLI** (`gh`), not editor MCP integrations (e.g. GitLens/GitKraken) for those tasks.
+
+- **PRs**: `gh pr create`, `gh pr view`, `gh pr merge`, `gh pr list`, etc.
+- **Issues**: `gh issue create`, `gh issue view`, etc.
+
+If `gh` is missing or unauthenticated, report that and suggest `gh auth login` rather than switching to another integration unless the user asks otherwise.

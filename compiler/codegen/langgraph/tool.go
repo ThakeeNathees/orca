@@ -7,7 +7,6 @@ import (
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen/python"
-	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/token"
 )
 
@@ -59,28 +58,13 @@ func (b *LangGraphBackend) resolveToolInvokes() {
 func (b *LangGraphBackend) resolveInlineInvoke(tool *ast.BlockStatement, str *ast.StringLiteral) {
 	renamed := tool.Name + "__invoke_verbatim"
 
+	// Validation (missing def, name mismatch) is handled by the analyzer.
 	matches := defNameRe.FindStringSubmatch(str.Value)
 	if len(matches) < 2 {
-		b.Program.Diagnostics = append(b.Program.Diagnostics, diagnostic.Diagnostic{
-			Severity: diagnostic.Error,
-			Code:     diagnostic.CodeInvalidValue,
-			Position: diagnostic.Position{Line: str.Start().Line, Column: str.Start().Column},
-			Message:  fmt.Sprintf("invoke raw string must contain a function definition (def %s(...))", tool.Name),
-			Source:   "codegen",
-		})
 		return
 	}
 
 	funcName := matches[1]
-	if funcName != tool.Name {
-		b.Program.Diagnostics = append(b.Program.Diagnostics, diagnostic.Diagnostic{
-			Severity: diagnostic.Warning,
-			Code:     diagnostic.CodeInvalidValue,
-			Position: diagnostic.Position{Line: str.Start().Line, Column: str.Start().Column},
-			Message:  fmt.Sprintf("invoke function name %q does not match tool block name %q", funcName, tool.Name),
-			Source:   "codegen",
-		})
-	}
 
 	// Rename the function in the source to avoid collision with the tool variable.
 	source := strings.Replace(str.Value, "def "+funcName+"(", "def "+renamed+"(", 1)

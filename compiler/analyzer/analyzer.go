@@ -6,12 +6,17 @@ package analyzer
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
 )
+
+// defNameRe matches `def <name>` at the start of a Python function definition
+// to extract the function name from an inline invoke raw string.
+var defNameRe = regexp.MustCompile(`(?m)^\s*def\s+(\w+)`)
 
 // AnalyzedProgram holds the output of semantic analysis: the symbol table
 // built from block definitions and any diagnostics produced.
@@ -220,7 +225,7 @@ func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, e
 			})
 		}
 		seen[assign.Name] = true
-		fieldDiags := validateField(assign, kind, schema, symbols)
+		fieldDiags := validateField(assign, name, kind, schema, symbols)
 		fieldCodes, fieldAll := suppressedCodes(assign.Annotations)
 		fieldDiags = filterSuppressed(fieldDiags, fieldCodes, fieldAll)
 		diags = append(diags, fieldDiags...)
@@ -271,7 +276,7 @@ func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, e
 
 // validateField checks a single field assignment against the block's schema.
 // Reports unknown fields, undefined identifier references, and type mismatches.
-func validateField(assign *ast.Assignment, kind token.BlockKind, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+func validateField(assign *ast.Assignment, blockName string, kind token.BlockKind, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	fieldSchema, ok := schema.Fields[assign.Name]
 	if !ok {
 		return []diagnostic.Diagnostic{{
@@ -304,19 +309,24 @@ func validateField(assign *ast.Assignment, kind token.BlockKind, schema types.Bl
 
 	expected := fieldSchema.Type
 	if types.IsCompatible(exprType, expected) {
-		// Warn if the invoke field uses a raw string with a non-Python language tag.
+		// Validate invoke field specifics for tool blocks.
 		if assign.Name == "invoke" {
-			if str, ok := assign.Value.(*ast.StringLiteral); ok && str.Lang != "" && str.Lang != "py" {
-				return []diagnostic.Diagnostic{{
-					Severity: diagnostic.Warning,
-					Code:     diagnostic.CodeUnsupportedLang,
-					Position: diagnostic.Position{
-						Line:   str.Start().Line,
-						Column: str.Start().Column,
-					},
-					Message: fmt.Sprintf("unsupported language %q in invoke field; only \"py\" is supported", str.Lang),
-					Source:  "analyzer",
-				}}
+			if str, ok := assign.Value.(*ast.StringLiteral); ok {
+				if str.Lang != "" && str.Lang != "py" {
+					return []diagnostic.Diagnostic{{
+						Severity: diagnostic.Warning,
+						Code:     diagnostic.CodeUnsupportedLang,
+						Position: diagnostic.Position{
+							Line:   str.Start().Line,
+							Column: str.Start().Column,
+						},
+						Message: fmt.Sprintf("unsupported language %q in invoke field; only \"py\" is supported", str.Lang),
+						Source:  "analyzer",
+					}}
+				}
+				if str.Lang == "py" && kind == token.BlockTool {
+					return validateInlineInvoke(str, blockName)
+				}
 			}
 		}
 		return nil
@@ -338,6 +348,41 @@ func validateField(assign *ast.Assignment, kind token.BlockKind, schema types.Bl
 			assign.Name, expected.String(), exprType.String()),
 		Source: "analyzer",
 	}}
+}
+
+// validateInlineInvoke checks that an inline Python invoke raw string contains
+// a function definition and that the function name matches the tool block name.
+// Diagnostics span the entire raw string for visibility.
+func validateInlineInvoke(str *ast.StringLiteral, blockName string) []diagnostic.Diagnostic {
+	end := str.End()
+	rng := diagnostic.Position{Line: str.Start().Line, Column: str.Start().Column}
+	endRng := diagnostic.Position{Line: end.EndLine, Column: end.EndCol + 1}
+
+	matches := defNameRe.FindStringSubmatch(str.Value)
+	if len(matches) < 2 {
+		return []diagnostic.Diagnostic{{
+			Severity:    diagnostic.Error,
+			Code:        diagnostic.CodeInvalidValue,
+			Position:    rng,
+			EndPosition: endRng,
+			Message:     fmt.Sprintf("invoke raw string must contain a function definition (def %s(...))", blockName),
+			Source:      "analyzer",
+		}}
+	}
+
+	funcName := matches[1]
+	if funcName != blockName {
+		return []diagnostic.Diagnostic{{
+			Severity:    diagnostic.Warning,
+			Code:        diagnostic.CodeInvalidValue,
+			Position:    rng,
+			EndPosition: endRng,
+			Message:     fmt.Sprintf("invoke function name %q does not match tool block name %q", funcName, blockName),
+			Source:      "analyzer",
+		}}
+	}
+
+	return nil
 }
 
 // checkReferences recursively validates all identifier and member access
