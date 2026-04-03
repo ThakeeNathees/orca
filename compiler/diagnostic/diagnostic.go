@@ -36,6 +36,7 @@ const (
 	CodeInvalidSubscript = "invalid-subscript" // non-integer subscript on a list
 	CodeInvalidValue     = "invalid-value"     // field value not in allowed set
 	CodeUnknownProvider  = "unknown-provider"  // model provider not supported by backend
+	CodeUnsupportedLang  = "unsupported-lang"  // raw string language not supported by backend
 	CodeUnexpectedExpr   = "unexpected-expr"   // expression not allowed in this context
 )
 

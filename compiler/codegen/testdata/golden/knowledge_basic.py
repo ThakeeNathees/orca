@@ -5,7 +5,6 @@ from typing import TypedDict
 # --- Knowledge ---
 
 docs = orca.knowledge(
-    name="internal_docs",
     desc="Company knowledge base",
 )
 

@@ -1,4 +1,4 @@
-// A built-in tool provided by the Orca runtime.
+// A tool with a dotted import path invoke.
 tool web_search {
-  type = "builtin"
+  invoke = "langchain_community.tools.web_search.WebSearchTool"
 }

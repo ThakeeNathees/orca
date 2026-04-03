@@ -50,16 +50,15 @@ def agent(
 
 
 def tool(
-    name: str,
+    invoke: str | callable,
     desc: str | None = None,
     input_schema: SimpleNamespace | None = None,
-    invoke: str | None = None,
+    output_schema: SimpleNamespace | None = None,
 ) -> SimpleNamespace:
     return _block("tool", **_fields(locals()))
 
 
 def knowledge(
-    name: str,
     desc: str | None = None,
 ) -> SimpleNamespace:
     return _block("knowledge", **_fields(locals()))

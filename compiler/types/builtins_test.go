@@ -36,7 +36,7 @@ func TestLoadSchemas(t *testing.T) {
 		{"model", "model", 5},
 		{"agent", "agent", 4},
 		{"tool", "tool", 4},
-		{"knowledge", "knowledge", 2},
+		{"knowledge", "knowledge", 1},
 		{"workflow", "workflow", 2},
 		{"input", "input", 4},
 	}
@@ -76,9 +76,8 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		{"agent.model", "agent", "model", Union, nil, true},
 		{"agent.persona", "agent", "persona", BlockRef, typePtr(Str()), true},
 		{"agent.tools", "agent", "tools", List, nil, false},
-		{"tool.name", "tool", "name", BlockRef, typePtr(Str()), true},
 		{"tool.desc", "tool", "desc", BlockRef, typePtr(Str()), false},
-		{"knowledge.name", "knowledge", "name", BlockRef, typePtr(Str()), true},
+		{"tool.invoke", "tool", "invoke", BlockRef, typePtr(Str()), true},
 		{"workflow.name", "workflow", "name", BlockRef, typePtr(Str()), false},
 		{"input.type", "input", "type", BlockRef, typePtr(TypeOf(token.BlockSchema)), true},
 		{"input.desc", "input", "desc", BlockRef, typePtr(Str()), false},
@@ -121,7 +120,7 @@ func TestLoadSchemasDescriptions(t *testing.T) {
 	}{
 		{"model.provider has desc", "model", "provider", true},
 		{"agent.model has desc", "agent", "model", true},
-		{"tool.name has desc", "tool", "name", true},
+		{"tool.invoke has desc", "tool", "invoke", true},
 	}
 
 	for _, tt := range tests {
