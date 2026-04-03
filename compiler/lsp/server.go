@@ -593,7 +593,7 @@ func tokenToRange(tok token.Token) protocol.Range {
 // disk. Analysis runs on the merged program, but only diagnostics that
 // originate from the current file are reported to the client.
 func updateDocument(uri, text string) *documentState {
-	l := lexer.New(text)
+	l := lexer.New(text, "")
 	p := parser.New(l)
 	program := p.ParseProgram()
 
@@ -660,16 +660,9 @@ func mergeSiblingFiles(uri string, program *ast.Program) {
 			source = string(data)
 		}
 
-		sl := lexer.New(source)
+		sl := lexer.New(source, sib)
 		sp := parser.New(sl)
 		sibProg := sp.ParseProgram()
-		// Tag each block with its source file so go-to-definition can
-		// jump to the correct file for cross-file references.
-		for _, stmt := range sibProg.Statements {
-			if block, ok := stmt.(*ast.BlockStatement); ok {
-				block.SourceFile = sib
-			}
-		}
 		program.Statements = append(program.Statements, sibProg.Statements...)
 	}
 }

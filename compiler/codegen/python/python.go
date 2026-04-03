@@ -111,6 +111,8 @@ func OrcaToPythonExpression(expr ast.Expression) string {
 			args = append(args, OrcaToPythonExpression(arg))
 		}
 		return OrcaToPythonExpression(e.Callee) + "(" + strings.Join(args, ", ") + ")"
+	case *ast.BlockExpression:
+		return "None"
 	default:
 		return "None"
 	}

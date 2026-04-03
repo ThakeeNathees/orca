@@ -19,7 +19,7 @@ var updateGolden = flag.Bool("update-golden", false, "update golden files")
 // buildFromSource parses, analyzes, and generates output directly from the AST.
 func buildFromSource(t *testing.T, source string) codegen.CodegenOutput {
 	t.Helper()
-	l := lexer.New(source)
+	l := lexer.New(source, "")
 	p := parser.New(l)
 	program := p.ParseProgram()
 	if errs := p.Errors(); len(errs) > 0 {

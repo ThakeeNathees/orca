@@ -321,7 +321,7 @@ func TestNullStrippingInUnion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := lexer.New(tt.input)
+			l := lexer.New(tt.input, "")
 			p := parser.New(l)
 			program := p.ParseProgram()
 			if len(p.Errors()) > 0 {
