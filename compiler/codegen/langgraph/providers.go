@@ -2,21 +2,23 @@
 package langgraph
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/thakee/orca/compiler/analyzer"
+	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/python"
+	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/token"
 )
 
 // providerInfo holds LangChain metadata for a model provider.
 type providerInfo struct {
 	PyImport python.PythonImport // import line + pip package for dependency resolution
-	Class    string              // e.g. "ChatOpenAI"
 }
 
-// providers maps provider names to their LangChain metadata.
+// providerRegistry maps provider names to their LangChain metadata.
 var providerRegistry = map[string]providerInfo{
 	"openai": {
 		PyImport: python.PythonImport{
@@ -25,7 +27,6 @@ var providerRegistry = map[string]providerInfo{
 			FromImport: true,
 			Symbols:    []python.ImportSymbol{{Name: "ChatOpenAI"}},
 		},
-		Class: "ChatOpenAI",
 	},
 	"anthropic": {
 		PyImport: python.PythonImport{
@@ -34,7 +35,6 @@ var providerRegistry = map[string]providerInfo{
 			FromImport: true,
 			Symbols:    []python.ImportSymbol{{Name: "ChatAnthropic"}},
 		},
-		Class: "ChatAnthropic",
 	},
 	"google": {
 		PyImport: python.PythonImport{
@@ -43,7 +43,6 @@ var providerRegistry = map[string]providerInfo{
 			FromImport: true,
 			Symbols:    []python.ImportSymbol{{Name: "ChatGoogleGenerativeAI"}},
 		},
-		Class: "ChatGoogleGenerativeAI",
 	},
 }
 
@@ -73,31 +72,33 @@ func dependenciesFromProviders(resolvedProviders resolvedProviders) []codegen.De
 	return deps
 }
 
-// resolveProviders walks model blocks once to collect known providers and
-// emit diagnostics for unknown providers (during writeModel).
+// resolveProviders walks all model block bodies (top-level and inline) to
+// collect known providers and emit diagnostics for unknown ones.
 func (b *LangGraphBackend) resolveProviders() {
 	seen := make(map[string]bool)
 	var names []string
 
-	for _, block := range b.CollectBlocks(token.MODEL) {
-		expr, ok := block.GetFieldExpression("provider")
+	for _, body := range b.collectBodiesByKind(token.BlockModel) {
+		expr, ok := body.GetFieldExpression("provider")
 		if !ok {
 			continue
 		}
 
-		// Const fold the expression.
 		v, d := analyzer.ConstFold(expr, b.Program)
 		b.Program.Diagnostics = append(b.Program.Diagnostics, d...)
 
-		// If v is not a string value, we set diagnostics that langgraph
-		// provider should be a compile-time constant.
 		if v.Kind != analyzer.ConstString {
 			continue
 		}
 
-		// Only known providers contribute to imports/deps; unknown providers are
-		// diagnosed during model codegen (writeModel) to avoid duplicate errors.
 		if _, known := providerRegistry[v.Str]; !known {
+			b.Program.Diagnostics = append(b.Program.Diagnostics, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeUnknownProvider,
+				Position: diagnostic.Position{Line: expr.Start().Line, Column: expr.Start().Column},
+				Message:  fmt.Sprintf("unknown provider %q", v.Str),
+				Source:   "codegen",
+			})
 			continue
 		}
 
@@ -116,4 +117,38 @@ func (b *LangGraphBackend) resolveProviders() {
 	}
 
 	b.resolvedProviders = resolvedProviders{providerImports: imports}
+}
+
+// collectBodiesByKind returns all BlockBody nodes matching the given kind,
+// including both top-level block statements and inline block expressions
+// nested within other blocks' assignments.
+func (b *LangGraphBackend) collectBodiesByKind(kind token.BlockKind) []*ast.BlockBody {
+	var bodies []*ast.BlockBody
+	for _, stmt := range b.Program.Ast.Statements {
+		block, ok := stmt.(*ast.BlockStatement)
+		if !ok {
+			continue
+		}
+		if block.Kind == kind {
+			bodies = append(bodies, &block.BlockBody)
+		}
+		collectInlineBodies(block.Assignments, kind, &bodies)
+	}
+	return bodies
+}
+
+// collectInlineBodies recursively collects BlockBody nodes of the given kind
+// from inline BlockExpression nodes nested within assignment values.
+func collectInlineBodies(assignments []*ast.Assignment, kind token.BlockKind, bodies *[]*ast.BlockBody) {
+	for _, assign := range assignments {
+		if assign == nil {
+			continue
+		}
+		if be, ok := assign.Value.(*ast.BlockExpression); ok {
+			if be.Kind == kind {
+				*bodies = append(*bodies, &be.BlockBody)
+			}
+			collectInlineBodies(be.Assignments, kind, bodies)
+		}
+	}
 }

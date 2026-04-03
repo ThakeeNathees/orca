@@ -44,7 +44,7 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 		// they can't go through analyzeBlock (which does schema-based
 		// validation). analyzeLetBlock handles duplicate key detection
 		// and reference validation for let values instead.
-		if block.TokenStart.Type == token.LET {
+		if block.Kind == token.BlockLet {
 			blockDiags = analyzeLetBlock(block, symbols)
 		} else {
 			blockDiags = analyzeBlock(block, symbols)
@@ -93,7 +93,7 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 
 		// Let blocks register each key as a global symbol.
 		// Multiple let blocks are merged; duplicate keys are an error.
-		if block.TokenStart.Type == token.LET {
+		if block.Kind == token.BlockLet {
 			for _, assign := range block.Assignments {
 				if _, exists := st.Lookup(assign.Name); exists {
 					diags = append(diags, diagnostic.Diagnostic{
@@ -115,10 +115,7 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 			continue
 		}
 
-		kind, ok := token.TokenTypeToBlockKind(block.TokenStart.Type)
-		if !ok {
-			continue
-		}
+		kind := block.Kind
 
 		if _, exists := st.Lookup(block.Name); exists {
 			codes, all := suppressedCodes(block.Annotations)
@@ -157,7 +154,7 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 func registerUserSchemas(program *ast.Program) {
 	for _, stmt := range program.Statements {
 		block, ok := stmt.(*ast.BlockStatement)
-		if !ok || block.TokenStart.Type != token.SCHEMA {
+		if !ok || block.Kind != token.BlockSchema {
 			continue
 		}
 		schema, err := types.SchemaFromBlock(block)
@@ -182,19 +179,21 @@ func inputDeclaredType(block *ast.BlockStatement) (types.Type, bool) {
 	return types.Type{}, false
 }
 
-// analyzeBlock performs all validation checks on a single block statement.
-// Checks for duplicate fields, unknown fields, missing required fields,
-// undefined references, and type mismatches.
+// analyzeBlock validates a top-level block statement by delegating to
+// analyzeBlockBody for the core body validation.
 func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
-	kind, ok := token.TokenTypeToBlockKind(block.TokenStart.Type)
-	if !ok {
-		return nil
-	}
+	return analyzeBlockBody(&block.BlockBody, block.Name, block.OpenBrace, block.TokenEnd, symbols)
+}
+
+// analyzeBlockBody performs all validation checks on a block body: duplicate
+// fields, unknown fields, missing required fields, undefined references, and
+// type mismatches. Shared by both top-level BlockStatement and inline
+// BlockExpression so that both get identical validation.
+func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, endToken token.Token, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	kind := body.Kind
 	// Use the generic "schema" schema here, not the block's own definition.
 	// Schema blocks are type declarations (e.g. `region = str` means "region
-	// is of type str"), not regular blocks with typed values. Validating
-	// against the block's own schema would incorrectly type-check declaration
-	// values as field assignments.
+	// is of type str"), not regular blocks with typed values.
 	schema, ok := types.GetBlockSchema(kind)
 	if !ok {
 		return nil
@@ -203,9 +202,8 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 	var diags []diagnostic.Diagnostic
 
 	// Validate each field present in the block.
-	seen := make(map[string]bool, len(block.Assignments))
-	for _, assign := range block.Assignments {
-		// Check for duplicate field names.
+	seen := make(map[string]bool, len(body.Assignments))
+	for _, assign := range body.Assignments {
 		if seen[assign.Name] {
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity: diagnostic.Error,
@@ -214,26 +212,24 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 					Line:   assign.Start().Line,
 					Column: assign.Start().Column,
 				},
-				Message: fmt.Sprintf("duplicate field %q in %s %q", assign.Name, kind.String(), block.Name),
+				Message: fmt.Sprintf("duplicate field %q in %s %q", assign.Name, kind.String(), name),
 				Source:  "analyzer",
 			})
 		}
 		seen[assign.Name] = true
 		fieldDiags := validateField(assign, kind, schema, symbols)
-		// Apply field-level @suppress annotations.
 		fieldCodes, fieldAll := suppressedCodes(assign.Annotations)
 		fieldDiags = filterSuppressed(fieldDiags, fieldCodes, fieldAll)
 		diags = append(diags, fieldDiags...)
 	}
 
-	// Validate expressions: only workflow blocks allow bare expressions,
-	// and workflow expressions must only use the -> operator.
+	// Validate expressions: only workflow blocks allow bare expressions.
 	if kind == token.BlockWorkflow {
-		for _, expr := range block.Expressions {
+		for _, expr := range body.Expressions {
 			diags = append(diags, validateWorkflowExpr(expr, symbols)...)
 		}
 	} else {
-		for _, expr := range block.Expressions {
+		for _, expr := range body.Expressions {
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity: diagnostic.Error,
 				Code:     diagnostic.CodeUnexpectedExpr,
@@ -254,14 +250,14 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 				Severity: diagnostic.Error,
 				Code:     diagnostic.CodeMissingField,
 				Position: diagnostic.Position{
-					Line:   block.OpenBrace.Line,
-					Column: block.OpenBrace.Column,
+					Line:   openBrace.Line,
+					Column: openBrace.Column,
 				},
 				EndPosition: diagnostic.Position{
-					Line:   block.TokenEnd.Line,
-					Column: block.TokenEnd.Column + 1,
+					Line:   endToken.Line,
+					Column: endToken.Column + 1,
 				},
-				Message: fmt.Sprintf("block %q is missing required field %q", block.Name, fieldName),
+				Message: fmt.Sprintf("block %q is missing required field %q", name, fieldName),
 				Source:  "analyzer",
 			})
 		}
@@ -457,10 +453,9 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if e == nil {
 			return nil
 		}
-		for _, assign := range e.Assignments {
-			if diags := checkReferences(assign.Value, symbols); len(diags) > 0 {
-				return diags
-			}
+		diags := analyzeBlockBody(&e.BlockBody, "(inline)", e.TokenStart, e.TokenEnd, symbols)
+		if len(diags) > 0 {
+			return diags
 		}
 	}
 	return nil

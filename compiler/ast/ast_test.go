@@ -59,10 +59,10 @@ func TestBlockStatementFieldExpression(t *testing.T) {
 		{
 			name: "returns value for existing field",
 			block: &BlockStatement{
-				Assignments: []*Assignment{
+				BlockBody: BlockBody{Assignments: []*Assignment{
 					{Name: "provider", Value: prov},
 					{Name: "model", Value: idGPT},
-				},
+				}},
 			},
 			field:  "provider",
 			want:   prov,
@@ -71,10 +71,10 @@ func TestBlockStatementFieldExpression(t *testing.T) {
 		{
 			name: "second field",
 			block: &BlockStatement{
-				Assignments: []*Assignment{
+				BlockBody: BlockBody{Assignments: []*Assignment{
 					{Name: "provider", Value: prov},
 					{Name: "model", Value: idGPT},
-				},
+				}},
 			},
 			field:  "model",
 			want:   idGPT,
@@ -83,7 +83,7 @@ func TestBlockStatementFieldExpression(t *testing.T) {
 		{
 			name: "missing field",
 			block: &BlockStatement{
-				Assignments: []*Assignment{{Name: "provider", Value: prov}},
+				BlockBody: BlockBody{Assignments: []*Assignment{{Name: "provider", Value: prov}}},
 			},
 			field:  "temperature",
 			want:   nil,
@@ -98,7 +98,7 @@ func TestBlockStatementFieldExpression(t *testing.T) {
 		},
 		{
 			name:   "empty assignments",
-			block:  &BlockStatement{Assignments: nil},
+			block:  &BlockStatement{BlockBody: BlockBody{Assignments: nil}},
 			field:  "x",
 			want:   nil,
 			wantOK: false,
@@ -106,10 +106,10 @@ func TestBlockStatementFieldExpression(t *testing.T) {
 		{
 			name: "first match when duplicate keys",
 			block: &BlockStatement{
-				Assignments: []*Assignment{
+				BlockBody: BlockBody{Assignments: []*Assignment{
 					{Name: "x", Value: prov},
 					{Name: "x", Value: idGPT},
-				},
+				}},
 			},
 			field:  "x",
 			want:   prov,
@@ -118,10 +118,10 @@ func TestBlockStatementFieldExpression(t *testing.T) {
 		{
 			name: "skips nil assignment entry",
 			block: &BlockStatement{
-				Assignments: []*Assignment{
+				BlockBody: BlockBody{Assignments: []*Assignment{
 					nil,
 					{Name: "ok", Value: prov},
-				},
+				}},
 			},
 			field:  "ok",
 			want:   prov,

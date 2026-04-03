@@ -144,9 +144,13 @@ func (p *Parser) parseStatement() ast.Statement {
 // has syntax errors, so LSP features (completion, hover) still work
 // on incomplete input.
 func (p *Parser) parseBlock() *ast.BlockStatement {
-	block := &ast.BlockStatement{SourceFile: p.l.SourceFile}
+	block := &ast.BlockStatement{}
+	block.SourceFile = p.l.SourceFile
 	block.TokenStart = p.curToken
 	blockType := p.curToken.Literal // e.g., "model", "agent"
+
+	kind, _ := token.TokenTypeToBlockKind(p.curToken.Type)
+	block.Kind = kind
 
 	// Expect the block's name identifier (e.g., "gpt4" in "model gpt4 {").
 	if !token.IsIdentLike(p.peekToken.Type) {
@@ -191,7 +195,9 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 // Unlike named blocks, there is no name identifier after the keyword.
 // The block Name is left empty to signal it's a singleton.
 func (p *Parser) parseLetBlock() *ast.BlockStatement {
-	block := &ast.BlockStatement{SourceFile: p.l.SourceFile}
+	block := &ast.BlockStatement{}
+	block.SourceFile = p.l.SourceFile
+	block.Kind = token.BlockLet
 	block.TokenStart = p.curToken
 
 	// Expect the opening brace directly after `let`.
@@ -691,7 +697,9 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 		return nil
 	}
 
-	be := &ast.BlockExpression{Kind: kind, SourceFile: p.l.SourceFile}
+	be := &ast.BlockExpression{}
+	be.Kind = kind
+	be.SourceFile = p.l.SourceFile
 	be.TokenStart = p.curToken // the block keyword
 
 	blockName := p.curToken.Literal

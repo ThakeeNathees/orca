@@ -37,7 +37,7 @@ func loadSchemas() (map[string]BlockSchema, error) {
 			continue
 		}
 		// Only process schema blocks.
-		if block.TokenStart.Type != token.SCHEMA {
+		if block.Kind != token.BlockSchema {
 			continue
 		}
 
