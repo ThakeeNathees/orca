@@ -124,7 +124,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			kind:         token.BlockModel,
 			wantSubstrings: []string{
 				"\n# --- Models ---\n",
-				"\n\ngpt4 = orca.model(\n",
+				"\n\ngpt4 = __orca_model(\n",
 				`    provider="openai",`,
 			},
 		},
@@ -135,8 +135,8 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			kind:         token.BlockAgent,
 			wantSubstrings: []string{
 				"\n# --- Agents ---\n",
-				"a1 = orca.agent(",
-				"a2 = orca.agent(",
+				"a1 = __orca_agent(",
+				"a2 = __orca_agent(",
 			},
 		},
 		{
@@ -146,7 +146,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			kind:         token.BlockSchema,
 			wantSubstrings: []string{
 				"\n# --- Schemas ---\n",
-				"vpc_data_t = orca.schema(\n",
+				"vpc_data_t = __orca_schema(\n",
 				"    region=str,\n",
 				"    count=int,\n",
 			},
@@ -158,7 +158,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			kind:         token.BlockKnowledge,
 			wantSubstrings: []string{
 				"\n# --- Knowledge ---\n",
-				"docs = orca.knowledge(\n",
+				"docs = __orca_knowledge(\n",
 				`    desc="Company wiki",`,
 			},
 		},
@@ -259,7 +259,7 @@ func TestWriteModel(t *testing.T) {
 			name:  "basic openai model",
 			block: modelBlockWithTemp("gpt4", "openai", "gpt-4o", 0.7),
 			contains: []string{
-				"gpt4 = orca.model(\n",
+				"gpt4 = __orca_model(\n",
 				`    provider="openai",`,
 				`    model_name="gpt-4o",`,
 				"    temperature=0.7,",
@@ -270,7 +270,7 @@ func TestWriteModel(t *testing.T) {
 			name:  "anthropic model",
 			block: modelBlockWithTemp("claude", "anthropic", "claude-sonnet-4-20250514", 0.5),
 			contains: []string{
-				"claude = orca.model(\n",
+				"claude = __orca_model(\n",
 				`    provider="anthropic",`,
 				`    model_name="claude-sonnet-4-20250514",`,
 				"    temperature=0.5,",
@@ -280,7 +280,7 @@ func TestWriteModel(t *testing.T) {
 			name:  "model without temperature",
 			block: modelBlock("gemini", "google", "gemini-pro"),
 			contains: []string{
-				"gemini = orca.model(\n",
+				"gemini = __orca_model(\n",
 				`    provider="google",`,
 				`    model_name="gemini-pro",`,
 			},
@@ -306,7 +306,7 @@ func TestWriteModel(t *testing.T) {
 			name:  "google provider",
 			block: modelBlock("gem", "google", "gemini-2.0-flash"),
 			contains: []string{
-				"gem = orca.model(\n",
+				"gem = __orca_model(\n",
 				`    model_name="gemini-2.0-flash",`,
 			},
 		},
@@ -346,11 +346,11 @@ func TestWriteModelUnknownProvider(t *testing.T) {
 	var s strings.Builder
 	fmt.Fprintf(&s, "%s = %s\n", block.Name, topLevelBlockSource(block))
 	if !strings.Contains(s.String(), `provider="unknown_provider"`) {
-		t.Fatalf("expected orca.model output, got:\n%s", s.String())
+		t.Fatalf("expected __orca_model output, got:\n%s", s.String())
 	}
 }
 
-// TestWriteAgent verifies Python agent instantiation generation via orca.agent().
+// TestWriteAgent verifies Python agent instantiation generation via __orca_agent().
 func TestWriteAgent(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -361,7 +361,7 @@ func TestWriteAgent(t *testing.T) {
 			name:  "basic agent without tools",
 			block: agentBlock("writer", "gpt4", "You are a helpful writer."),
 			contains: []string{
-				"writer = orca.agent(\n",
+				"writer = __orca_agent(\n",
 				"    model=gpt4,\n",
 				`    persona="You are a helpful writer.",`,
 				")\n",
@@ -371,7 +371,7 @@ func TestWriteAgent(t *testing.T) {
 			name:  "agent with tools",
 			block: agentBlockWithTools("researcher", "gpt4", "You are a researcher.", []string{"search", "calculator"}),
 			contains: []string{
-				"researcher = orca.agent(\n",
+				"researcher = __orca_agent(\n",
 				"    model=gpt4,\n",
 				`    persona="You are a researcher.",`,
 				"    tools=[search, calculator],\n",
@@ -381,7 +381,7 @@ func TestWriteAgent(t *testing.T) {
 			name:  "agent with single tool",
 			block: agentBlockWithTools("bot", "claude", "You help.", []string{"gmail"}),
 			contains: []string{
-				"bot = orca.agent(\n",
+				"bot = __orca_agent(\n",
 				"    tools=[gmail],\n",
 			},
 		},
@@ -440,7 +440,7 @@ func TestWriteAgent(t *testing.T) {
 	}
 }
 
-// TestWriteInput verifies Python input declaration generation via orca.input().
+// TestWriteInput verifies Python input declaration generation via __orca_input().
 func TestWriteInput(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -451,7 +451,7 @@ func TestWriteInput(t *testing.T) {
 			name:  "primitive type only",
 			block: inputBlock("apikey", "str"),
 			contains: []string{
-				"apikey = orca.input(\n",
+				"apikey = __orca_input(\n",
 				"    type=str,\n",
 				")\n",
 			},
@@ -460,7 +460,7 @@ func TestWriteInput(t *testing.T) {
 			name:  "all common fields",
 			block: inputBlockFull("apikey", "str", "the api key", "sk-xxx", true),
 			contains: []string{
-				"apikey = orca.input(\n",
+				"apikey = __orca_input(\n",
 				"    type=str,\n",
 				`    desc="the api key",`,
 				`    default="sk-xxx",`,
@@ -472,7 +472,7 @@ func TestWriteInput(t *testing.T) {
 			name:  "schema reference type",
 			block: inputBlock("vpc_data", "vpc_data_t"),
 			contains: []string{
-				"vpc_data = orca.input(\n",
+				"vpc_data = __orca_input(\n",
 				"    type=vpc_data_t,\n",
 			},
 		},
@@ -492,7 +492,7 @@ func TestWriteInput(t *testing.T) {
 	}
 }
 
-// TestWriteSchema verifies Python schema type generation via orca.schema().
+// TestWriteSchema verifies Python schema type generation via __orca_schema().
 func TestWriteSchema(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -506,7 +506,7 @@ func TestWriteSchema(t *testing.T) {
 				schemaField{"instance_count", "int"},
 			),
 			contains: []string{
-				"vpc_data_t = orca.schema(\n",
+				"vpc_data_t = __orca_schema(\n",
 				"    region=str,\n",
 				"    instance_count=int,\n",
 				")\n",
@@ -515,7 +515,7 @@ func TestWriteSchema(t *testing.T) {
 		{
 			name:     "empty body",
 			block:    schemaBlock("empty_t"),
-			contains: []string{"empty_t = orca.schema()\n"},
+			contains: []string{"empty_t = __orca_schema()\n"},
 		},
 	}
 
@@ -533,7 +533,7 @@ func TestWriteSchema(t *testing.T) {
 	}
 }
 
-// TestWriteKnowledge verifies Python knowledge block generation via orca.knowledge().
+// TestWriteKnowledge verifies Python knowledge block generation via __orca_knowledge().
 func TestWriteKnowledge(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -545,7 +545,7 @@ func TestWriteKnowledge(t *testing.T) {
 			name:  "with desc",
 			block: knowledgeBlock("docs", "Company knowledge base"),
 			contains: []string{
-				"docs = orca.knowledge(\n",
+				"docs = __orca_knowledge(\n",
 				`    desc="Company knowledge base",`,
 				")\n",
 			},
@@ -554,7 +554,7 @@ func TestWriteKnowledge(t *testing.T) {
 			name:  "no desc",
 			block: knowledgeBlock("refs", ""),
 			contains: []string{
-				"refs = orca.knowledge()\n",
+				"refs = __orca_knowledge()\n",
 			},
 			notContains: []string{"desc="},
 		},
@@ -668,14 +668,11 @@ func TestGenerateOutputStructure(t *testing.T) {
 	if output.RootDir.Name != "build" {
 		t.Errorf("expected root dir name %q, got %q", "build", output.RootDir.Name)
 	}
-	if len(output.RootDir.Files) != 2 {
-		t.Fatalf("expected 2 files, got %d", len(output.RootDir.Files))
+	if len(output.RootDir.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(output.RootDir.Files))
 	}
-	if output.RootDir.Files[0].Name != "orca.py" {
-		t.Errorf("expected first file %q, got %q", "orca.py", output.RootDir.Files[0].Name)
-	}
-	if output.RootDir.Files[1].Name != "main.py" {
-		t.Errorf("expected second file %q, got %q", "main.py", output.RootDir.Files[1].Name)
+	if output.RootDir.Files[0].Name != "main.py" {
+		t.Errorf("expected file %q, got %q", "main.py", output.RootDir.Files[0].Name)
 	}
 }
 

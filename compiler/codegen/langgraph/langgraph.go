@@ -14,6 +14,11 @@ import (
 //go:embed orca.py
 var orcaRuntime string
 
+// orcaPrefix is the namespace prefix for all Orca runtime symbols in generated
+// Python code. Block constructors become __orca_model(), __orca_agent(), etc.
+// GraphState trigger fields become __orca_trigger, __orca_payload.
+const orcaPrefix = "__orca_"
+
 // LangGraphBackend generates Python/LangGraph code directly from the analyzed AST.
 type LangGraphBackend struct {
 	codegen.BaseBackend
@@ -37,7 +42,6 @@ func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
 		RootDir: codegen.OutputDirectory{
 			Name: "build",
 			Files: []codegen.OutputFile{
-				{Name: "orca.py", Content: orcaRuntime},
 				{Name: "main.py", Content: b.generateMain()},
 			},
 		},
@@ -55,6 +59,11 @@ func (b *LangGraphBackend) generateMain() string {
 	allImports := append(b.resolvedProviders.providerImports, b.toolImports()...)
 	allImports = append(allImports, workflowImports(workflows)...)
 	b.writeImports(&s, allImports)
+
+	// Inline the Orca runtime functions.
+	s.WriteString("\n")
+	s.WriteString(orcaRuntime)
+	s.WriteString("\n")
 
 	b.writeOrcaBlockSection(&s, "Schemas", token.BlockSchema)
 	b.writeOrcaBlockSection(&s, "Inputs", token.BlockInput)
@@ -76,9 +85,6 @@ func (b *LangGraphBackend) writeImports(s *strings.Builder, providerImports []py
 
 	// TODO: we need to build the dependency list of python while analyzing the ast
 	// And dump all here instead of hardcoding it here.
-	s.WriteString(python.PythonImport{Module: "orca"}.Source())
-	s.WriteString("\n")
-
 	s.WriteString(python.PythonImport{
 		Module:     "typing",
 		Package:    "",
@@ -95,7 +101,7 @@ func (b *LangGraphBackend) writeImports(s *strings.Builder, providerImports []py
 }
 
 // writeOrcaBlockSection emits all top-level blocks of the given kind as
-// `name = orca.<kind>(...)` under "# --- <sectionTitle> ---". Skips the section when empty.
+// `name = __orca_<kind>(...)` under "# --- <sectionTitle> ---". Skips the section when empty.
 func (b *LangGraphBackend) writeOrcaBlockSection(s *strings.Builder, sectionTitle string, kind token.BlockKind) {
 	blocks := b.CollectBlocksByKind(kind)
 	if len(blocks) == 0 {
@@ -114,6 +120,6 @@ func (b *LangGraphBackend) writeOrcaBlockSection(s *strings.Builder, sectionTitl
 func (b *LangGraphBackend) writeGraphState(s *strings.Builder) {
 	s.WriteString("\n# --- Graph State ---\n")
 	s.WriteString("class GraphState(TypedDict):\n")
-	s.WriteString("    __orca_trigger__: str | None\n")
-	s.WriteString("    __orca_payload__: dict | None\n")
+	fmt.Fprintf(s, "    %strigger: str | None\n", orcaPrefix)
+	fmt.Fprintf(s, "    %spayload: dict | None\n", orcaPrefix)
 }

@@ -63,10 +63,10 @@ func exprToSource(expr ast.Expression) string {
 	}
 }
 
-// annotationToSource emits one `orca.meta("name", ...args)` from an AST annotation.
+// annotationToSource emits one `__orca_meta("name", ...args)` from an AST annotation.
 func annotationToSource(ann *ast.Annotation) string {
 	var sb strings.Builder
-	sb.WriteString("orca.meta(")
+	sb.WriteString(orcaPrefix + "meta(")
 	sb.WriteString(fmt.Sprintf("%q", ann.Name))
 	for _, arg := range ann.Arguments {
 		sb.WriteString(", ")
@@ -124,7 +124,7 @@ func wrapWithMetaIfNeeded(inner string, anns []*ast.Annotation, argIndent, close
 	listSrc := annotationsListSourceMultiline(anns, argIndent)
 	innerIndented := indentNonEmptyLines(inner, argIndent)
 	var sb strings.Builder
-	sb.WriteString("orca.with_meta(\n")
+	sb.WriteString(orcaPrefix + "with_meta(\n")
 	sb.WriteString(innerIndented)
 	sb.WriteString(",\n")
 	sb.WriteString(listSrc)
@@ -170,7 +170,7 @@ func topLevelBlockSource(block *ast.BlockStatement) string {
 // When indent is empty, everything is on one line (used for inline blocks).
 func blockCallSource(body *ast.BlockBody, indent string) string {
 	var sb strings.Builder
-	sb.WriteString("orca.")
+	sb.WriteString(orcaPrefix)
 	sb.WriteString(body.Kind.String())
 	sb.WriteString("(")
 

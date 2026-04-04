@@ -140,7 +140,7 @@ func (b *LangGraphBackend) writeToolSection(s *strings.Builder) {
 // field value with the resolved callable reference instead of the original string.
 func toolBlockSource(tool *ast.BlockStatement, invokeRef string) string {
 	var sb strings.Builder
-	sb.WriteString("orca.tool(")
+	sb.WriteString(orcaPrefix + "tool(")
 
 	indent := "    "
 	for _, assign := range tool.Assignments {
