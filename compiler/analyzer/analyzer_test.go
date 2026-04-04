@@ -1338,7 +1338,7 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			 agent A { model = gpt4 }
 			 workflow run { A -> gpt4 }`,
 			true,
-			"only agent, tool, cron, and webhook blocks can be workflow nodes",
+			"not a valid workflow node",
 		},
 		{
 			"knowledge block as workflow node",
@@ -1347,7 +1347,7 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			 model gpt4 { provider = "openai" }
 			 workflow run { A -> kb }`,
 			true,
-			"only agent, tool, cron, and webhook blocks can be workflow nodes",
+			"not a valid workflow node",
 		},
 		{
 			"expression in non-workflow block",
@@ -1369,7 +1369,7 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			"string literal in workflow edge",
 			`workflow run { "hello" -> "world" }`,
 			true,
-			"workflow edges must be identifier references",
+			"not a valid workflow node",
 		},
 	}
 
@@ -1397,6 +1397,122 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 				for _, d := range result.Diagnostics {
 					if d.Code == diagnostic.CodeUnexpectedExpr || d.Code == diagnostic.CodeInvalidWorkNode {
 						t.Errorf("unexpected diagnostic: %s", d.Message)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestAnalyzeTriggerPositions verifies that triggers (cron, webhook) are only
+// allowed as the first node in an edge chain and cannot be targets of edges.
+func TestAnalyzeTriggerPositions(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errCode     string
+		errContains string
+	}{
+		{
+			"trigger as first node is valid",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { daily -> A }`,
+			false,
+			"",
+			"",
+		},
+		{
+			"trigger as middle node is invalid",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> daily -> B }`,
+			true,
+			diagnostic.CodeTriggerAsTarget,
+			"trigger cannot be the target of an edge",
+		},
+		{
+			"trigger as last node is invalid",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> daily }`,
+			true,
+			diagnostic.CodeTriggerAsTarget,
+			"trigger cannot be the target of an edge",
+		},
+		{
+			"trigger-to-trigger chain is invalid",
+			`cron daily { schedule = "0 9 * * *" }
+			 webhook hooks_in { path = "/hooks/in" }
+			 agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { daily -> hooks_in -> A }`,
+			true,
+			diagnostic.CodeTriggerAsTarget,
+			"trigger cannot be the target of an edge",
+		},
+		{
+			"webhook as first node is valid",
+			`webhook hooks_in { path = "/hooks/in" }
+			 agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { hooks_in -> A }`,
+			false,
+			"",
+			"",
+		},
+		{
+			"webhook as target of agent is invalid",
+			`webhook hooks_in { path = "/hooks/in" }
+			 agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> hooks_in }`,
+			true,
+			diagnostic.CodeTriggerAsTarget,
+			"trigger cannot be the target of an edge",
+		},
+		{
+			"multiple triggers as first nodes in separate chains is valid",
+			`cron daily { schedule = "0 9 * * *" }
+			 webhook hooks_in { path = "/hooks/in" }
+			 agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+			   daily -> A
+			   hooks_in -> B
+			 }`,
+			false,
+			"",
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			result := Analyze(program)
+
+			if tt.expectError {
+				found := false
+				for _, d := range result.Diagnostics {
+					if d.Code == tt.errCode && strings.Contains(d.Message, tt.errContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected diagnostic code=%q containing %q, got %v", tt.errCode, tt.errContains, result.Diagnostics)
+				}
+			} else {
+				for _, d := range result.Diagnostics {
+					if d.Code == diagnostic.CodeTriggerAsTarget {
+						t.Errorf("unexpected trigger diagnostic: %s", d.Message)
 					}
 				}
 			}

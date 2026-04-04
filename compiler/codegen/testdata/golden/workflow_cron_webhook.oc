@@ -22,5 +22,6 @@ webhook hooks_in {
 }
 
 workflow pipeline {
-  daily -> hooks_in -> researcher -> writer
+  daily    -> researcher -> writer
+  hooks_in -> researcher -> writer
 }

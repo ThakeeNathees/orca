@@ -92,6 +92,19 @@ var blockKindStrings = [...]string{
 	BlockCron: "cron", BlockWebhook: "webhook",
 }
 
+// IsWorkflowNode returns true if this block kind can appear as a node in a
+// workflow edge chain (agent, tool, cron, webhook).
+func (k BlockKind) IsWorkflowNode() bool {
+	return k == BlockAgent || k == BlockTool || k == BlockCron || k == BlockWebhook
+}
+
+// IsTrigger returns true if this block kind is a workflow trigger (cron, webhook).
+// Triggers define how a workflow is invoked, not what it does — they are stripped
+// from the graph and handled by the router and deploy.py.
+func (k BlockKind) IsTrigger() bool {
+	return k == BlockCron || k == BlockWebhook
+}
+
 // String returns the string representation of a BlockKind.
 func (k BlockKind) String() string {
 	if int(k) >= 0 && int(k) < len(blockKindStrings) {

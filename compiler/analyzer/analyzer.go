@@ -236,6 +236,7 @@ func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, e
 		for _, expr := range body.Expressions {
 			diags = append(diags, validateWorkflowExpr(expr, symbols)...)
 		}
+		diags = append(diags, validateTriggerPositions(body.Expressions, symbols)...)
 	} else {
 		for _, expr := range body.Expressions {
 			diags = append(diags, diagnostic.Diagnostic{
@@ -566,22 +567,9 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 	return filtered
 }
 
-// workflowNodeKinds is the set of block kinds that can appear as nodes in a
-// workflow edge chain. A block must represent a unit of work with input/output
-// semantics to be a valid workflow node.
-//
-// NOTE: For future work, consider introducing a dedicated WorkflowNode type in
-// the type system rather than this set check, so that workflow-node capability
-// is a first-class property of a block kind.
-var workflowNodeKinds = map[token.BlockKind]bool{
-	token.BlockAgent:   true,
-	token.BlockTool:    true,
-	token.BlockCron:    true,
-	token.BlockWebhook: true,
-}
-
 // validateWorkflowExpr checks that a workflow expression only uses the -> operator
-// and that all node references are workflow-capable block kinds (agent, tool).
+// and that each graph endpoint resolves to a workflow-capable block reference
+// (agent, tool, cron, webhook) via the type system.
 func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	if expr == nil {
 		return nil
@@ -603,40 +591,91 @@ func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []dia
 		}
 		diags = append(diags, validateWorkflowExpr(e.Left, symbols)...)
 		diags = append(diags, validateWorkflowExpr(e.Right, symbols)...)
-	case *ast.Identifier:
-		// First check the reference exists.
-		if refDiags := checkReferences(e, symbols); len(refDiags) > 0 {
-			diags = append(diags, refDiags...)
-			break
-		}
-		// Then check the block kind is workflow-node-capable.
-		if sym, ok := symbols.LookupSymbol(e.Value); ok {
-			if sym.Type.Kind == types.BlockRef && !workflowNodeKinds[sym.Type.BlockKind] {
-				diags = append(diags, diagnostic.Diagnostic{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeInvalidWorkNode,
-					Position: diagnostic.Position{
-						Line:   e.Start().Line,
-						Column: e.Start().Column,
-					},
-					Message: fmt.Sprintf("%q is a %s block; only agent, tool, cron, and webhook blocks can be workflow nodes",
-						e.Value, sym.Type.BlockKind.String()),
-					Source: "analyzer",
-				})
-			}
-		}
 	default:
-		diags = append(diags, diagnostic.Diagnostic{
+		diags = append(diags, validateWorkflowLeafExpr(expr, symbols)...)
+	}
+	return diags
+}
+
+// validateWorkflowLeafExpr checks a single workflow node position (not an arrow).
+// It resolves the expression's type and requires a BlockRef whose kind passes
+// IsWorkflowNode(); other types are not valid graph nodes.
+func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	if refDiags := checkReferences(expr, symbols); len(refDiags) > 0 {
+		return refDiags
+	}
+	typ := types.ExprType(expr, symbols)
+	if typ.Kind != types.BlockRef {
+		return []diagnostic.Diagnostic{{
 			Severity: diagnostic.Error,
 			Code:     diagnostic.CodeUnexpectedExpr,
 			Position: diagnostic.Position{
 				Line:   expr.Start().Line,
 				Column: expr.Start().Column,
 			},
-			Message: "workflow edges must be identifier references connected by '->'",
+			Message: "unexpected expression in workflow block",
 			Source:  "analyzer",
+		}}
+	}
+	if typ.BlockKind.IsWorkflowNode() {
+		return nil
+	}
+	return []diagnostic.Diagnostic{{
+		Severity: diagnostic.Error,
+		Code:     diagnostic.CodeInvalidWorkNode,
+		Position: diagnostic.Position{
+			Line:   expr.Start().Line,
+			Column: expr.Start().Column,
+		},
+		Message: fmt.Sprintf("%s block is not a valid workflow node", typ.BlockKind.String()),
+		Source:  "analyzer",
+	}}
+}
+
+// isTriggerExpr returns true if the expression's resolved type is a trigger block kind.
+// Works with any expression type (identifiers, member access, subscriptions, etc.)
+// by using the type system to infer the block kind.
+func isTriggerExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
+	typ := types.ExprType(expr, symbols)
+	return typ.Kind == types.BlockRef && typ.BlockKind.IsTrigger()
+}
+
+// validateTriggerPositions checks that trigger blocks (cron, webhook) only appear
+// as the first node in edge chains and never as the target of another node.
+// It also rejects trigger-to-trigger chains (e.g. daily -> hooks_in).
+func validateTriggerPositions(exprs []ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	var diags []diagnostic.Diagnostic
+	for _, expr := range exprs {
+		diags = append(diags, checkTriggerChain(expr, symbols)...)
+	}
+	return diags
+}
+
+// checkTriggerChain recursively walks an arrow expression and reports any
+// trigger that appears on the right side of ->. The leftmost node in a chain
+// is never checked here — it's the only valid position for a trigger.
+func checkTriggerChain(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	bin, ok := expr.(*ast.BinaryExpression)
+	if !ok || bin.Operator.Type != token.ARROW {
+		return nil
+	}
+
+	var diags []diagnostic.Diagnostic
+
+	// The parser builds left-associative trees: ((A -> B) -> C).
+	diags = append(diags, checkTriggerChain(bin.Left, symbols)...)
+
+	// Right side is always a target — triggers are not allowed.
+	if isTriggerExpr(bin.Right, symbols) {
+		diags = append(diags, diagnostic.Diagnostic{
+			Severity: diagnostic.Error,
+			Code:     diagnostic.CodeTriggerAsTarget,
+			Position: diagnostic.Position{Line: bin.Right.Start().Line, Column: bin.Right.Start().Column},
+			Message:  "trigger cannot be the target of an edge; triggers must be the first node in a chain",
+			Source:   "analyzer",
 		})
 	}
+
 	return diags
 }
 
