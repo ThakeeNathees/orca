@@ -114,5 +114,6 @@ func (b *LangGraphBackend) writeOrcaBlockSection(s *strings.Builder, sectionTitl
 func (b *LangGraphBackend) writeGraphState(s *strings.Builder) {
 	s.WriteString("\n# --- Graph State ---\n")
 	s.WriteString("class GraphState(TypedDict):\n")
-	s.WriteString("    pass # TODO: writeGraphState\n")
+	s.WriteString("    __orca_trigger__: str | None\n")
+	s.WriteString("    __orca_payload__: dict | None\n")
 }
