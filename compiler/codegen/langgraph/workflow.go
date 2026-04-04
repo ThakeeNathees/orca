@@ -107,7 +107,7 @@ func writeRouter(s *strings.Builder, rw workflow.ResolvedWorkflow) {
 	}
 
 	// Trigger-based routing.
-	fmt.Fprintf(s, "    trigger = state.get(\"__orca_trigger__\")\n")
+	fmt.Fprintf(s, "    trigger = state.get(\"%strigger\")\n", orcaPrefix)
 	for _, trig := range rw.Triggers {
 		entries := rw.TriggerMap[trig]
 		fmt.Fprintf(s, "    if trigger == %q:\n", trig)

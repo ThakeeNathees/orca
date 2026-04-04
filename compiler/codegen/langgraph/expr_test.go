@@ -238,12 +238,12 @@ func TestExprToSource(t *testing.T) {
 					{Name: "model_name", Value: &ast.StringLiteral{Value: "gpt-4o"}},
 				},
 			}},
-			expected: `orca.model(provider="openai", model_name="gpt-4o", )`,
+			expected: `__orca_model(provider="openai", model_name="gpt-4o", )`,
 		},
 		{
 			name:     "empty block expression",
 			expr:     &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: token.BlockAgent}},
-			expected: "orca.agent()",
+			expected: "__orca_agent()",
 		},
 		{
 			name: "block expression field with one annotation",
@@ -259,10 +259,10 @@ func TestExprToSource(t *testing.T) {
 					},
 				},
 			}},
-			expected: "orca.schema(region=orca.with_meta(\n" +
+			expected: "__orca_schema(region=__orca_with_meta(\n" +
 				"    str,\n" +
 				"    [\n" +
-				"        orca.meta(\"desc\", \"AWS region\"),\n" +
+				"        __orca_meta(\"desc\", \"AWS region\"),\n" +
 				"    ],\n" +
 				"), )",
 		},
@@ -281,11 +281,11 @@ func TestExprToSource(t *testing.T) {
 					},
 				},
 			}},
-			expected: "orca.schema(region=orca.with_meta(\n" +
+			expected: "__orca_schema(region=__orca_with_meta(\n" +
 				"    str,\n" +
 				"    [\n" +
-				"        orca.meta(\"required\"),\n" +
-				"        orca.meta(\"desc\", \"r\"),\n" +
+				"        __orca_meta(\"required\"),\n" +
+				"        __orca_meta(\"desc\", \"r\"),\n" +
 				"    ],\n" +
 				"), )",
 		},
@@ -354,7 +354,7 @@ func TestAnnotationToSource(t *testing.T) {
 		{
 			name: "no arguments",
 			ann:  &ast.Annotation{Name: "sensitive"},
-			want: `orca.meta("sensitive")`,
+			want: `__orca_meta("sensitive")`,
 		},
 		{
 			name: "one string argument",
@@ -362,7 +362,7 @@ func TestAnnotationToSource(t *testing.T) {
 				Name:      "desc",
 				Arguments: []ast.Expression{&ast.StringLiteral{Value: "hello"}},
 			},
-			want: `orca.meta("desc", "hello")`,
+			want: `__orca_meta("desc", "hello")`,
 		},
 		{
 			name: "expression argument",
@@ -372,7 +372,7 @@ func TestAnnotationToSource(t *testing.T) {
 					&ast.MemberAccess{Object: &ast.Identifier{Value: "some"}, Member: "expr1"},
 				},
 			},
-			want: `orca.meta("ann1", some.expr1)`,
+			want: `__orca_meta("ann1", some.expr1)`,
 		},
 	}
 
@@ -398,47 +398,47 @@ func TestWrapWithMetaIfNeeded(t *testing.T) {
 	}{
 		{
 			name:        "nil annotations",
-			inner:       `orca.foo()`,
+			inner:       `__orca_foo()`,
 			anns:        nil,
 			argIndent:   "    ",
 			closeIndent: "",
-			want:        `orca.foo()`,
+			want:        `__orca_foo()`,
 		},
 		{
 			name:        "empty slice",
-			inner:       `orca.foo()`,
+			inner:       `__orca_foo()`,
 			anns:        []*ast.Annotation{},
 			argIndent:   "    ",
 			closeIndent: "",
-			want:        `orca.foo()`,
+			want:        `__orca_foo()`,
 		},
 		{
 			name:        "single block-level style annotation",
-			inner:       `orca.input(type=str,)`,
+			inner:       `__orca_input(type=str,)`,
 			anns:        []*ast.Annotation{{Name: "sensitive"}},
 			argIndent:   "    ",
 			closeIndent: "",
-			want: "orca.with_meta(\n" +
-				"    orca.input(type=str,),\n" +
+			want: "__orca_with_meta(\n" +
+				"    __orca_input(type=str,),\n" +
 				"    [\n" +
-				"        orca.meta(\"sensitive\"),\n" +
+				"        __orca_meta(\"sensitive\"),\n" +
 				"    ],\n" +
 				")",
 		},
 		{
 			name:  "multiple annotations list",
-			inner: `orca.bar()`,
+			inner: `__orca_bar()`,
 			anns: []*ast.Annotation{
 				{Name: "a", Arguments: []ast.Expression{&ast.IntegerLiteral{Value: 1}}},
 				{Name: "b"},
 			},
 			argIndent:   "    ",
 			closeIndent: "",
-			want: "orca.with_meta(\n" +
-				"    orca.bar(),\n" +
+			want: "__orca_with_meta(\n" +
+				"    __orca_bar(),\n" +
 				"    [\n" +
-				"        orca.meta(\"a\", 1),\n" +
-				"        orca.meta(\"b\"),\n" +
+				"        __orca_meta(\"a\", 1),\n" +
+				"        __orca_meta(\"b\"),\n" +
 				"    ],\n" +
 				")",
 		},
@@ -448,10 +448,10 @@ func TestWrapWithMetaIfNeeded(t *testing.T) {
 			anns:        []*ast.Annotation{{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "x"}}}},
 			argIndent:   "        ",
 			closeIndent: "    ",
-			want: "orca.with_meta(\n" +
+			want: "__orca_with_meta(\n" +
 				"        str,\n" +
 				"        [\n" +
-				"            orca.meta(\"desc\", \"x\"),\n" +
+				"            __orca_meta(\"desc\", \"x\"),\n" +
 				"        ],\n" +
 				"    )",
 		},
@@ -467,7 +467,7 @@ func TestWrapWithMetaIfNeeded(t *testing.T) {
 	}
 }
 
-// TestTopLevelBlockSource verifies block-level annotations wrap the whole orca.* call.
+// TestTopLevelBlockSource verifies block-level annotations wrap the whole __orca_* call.
 func TestTopLevelBlockSource(t *testing.T) {
 	block := &ast.BlockStatement{
 		Name: "apikey",
@@ -482,11 +482,11 @@ func TestTopLevelBlockSource(t *testing.T) {
 		},
 	}
 	got := topLevelBlockSource(block)
-	if !strings.Contains(got, `orca.with_meta(`) || !strings.Contains(got, `orca.meta("sensitive")`) {
+	if !strings.Contains(got, `__orca_with_meta(`) || !strings.Contains(got, `__orca_meta("sensitive")`) {
 		t.Fatalf("expected with_meta and sensitive meta, got:\n%s", got)
 	}
-	if !strings.Contains(got, `orca.input(`) {
-		t.Fatalf("expected inner orca.input call, got:\n%s", got)
+	if !strings.Contains(got, `__orca_input(`) {
+		t.Fatalf("expected inner __orca_input call, got:\n%s", got)
 	}
 
 	plain := &ast.BlockStatement{
