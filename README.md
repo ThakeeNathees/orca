@@ -110,6 +110,29 @@ app = graph.compile()
 </tr>
 </table>
 
+## Orca Studio
+
+
+**Orca Studio** is an in-browser companion to the text-based language: a [Next.js](https://nextjs.org/) app that lays out Orca concepts — models, agents, tools, tasks, workflows, and the edges between them — on an interactive canvas.
+
+Try it online: [Orca Studio (GitHub Pages)](https://thakeenathees.github.io/orca/studio/).
+
+To run Studio locally:
+
+```
+cd studio
+pnpm install
+pnpm run dev
+```
+
+<img width="2288" height="1132" alt="image" src="https://github.com/user-attachments/assets/b609259b-7b81-4ff5-ba2b-4fd7da7b4559" />
+
+
+<!-- <img width="2288" height="1132" alt="image" src="https://github.com/user-attachments/assets/ffa43486-27f6-4dd1-9f18-68545a0cb781" /> -->
+
+
+<!-- <img alt="image" src="https://github.com/user-attachments/assets/6964f2b3-dea7-4ce3-8ea8-8d028db15b85" /> -->
+
 ### Design Principles
 
 **Declarative over imperative.** You describe the components of an agent system and their relationships. The compiler handles the code generation. No state schemas, no graph wiring, no boilerplate.
@@ -188,22 +211,6 @@ After creating the symlink for your editor of choice, restart the editor to acti
 
 <img src="docs/public/vscode-extension.png" alt="VS Code extension showing syntax highlighting and autocomplete" width="500">
 
-## Orca Studio
-
-**Orca Studio** is an in-browser companion to the text-based language: a [Next.js](https://nextjs.org/) app that lays out Orca concepts — models, agents, tools, tasks, workflows, and the edges between them — on an interactive canvas.
-
-Try it online: [Orca Studio (GitHub Pages)](https://thakeenathees.github.io/orca/studio/).
-
-To run Studio locally:
-
-```
-cd studio
-pnpm install
-pnpm run dev
-```
-
-
-<img src="docs/public/studio-preview.png" alt="Orca Studio visual workflow editor">
 
 ## Contributing
 
