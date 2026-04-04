@@ -62,3 +62,11 @@ export type BlockNode = Node<BlockNodeData>;
 
 /** `accentColor` matches the source port dot (see `getEdgeAccentColor` in `handle-colors.ts`). */
 export type BlockEdge = Edge<{ accentColor?: string }>;
+
+/** Summary entry for the workflow dashboard list. */
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  updatedAt: Date;
+  color: string;
+}
