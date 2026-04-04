@@ -16,4 +16,5 @@ apikey = orca.with_meta(
 
 # --- Graph State ---
 class GraphState(TypedDict):
-    pass # TODO: writeGraphState
+    __orca_trigger__: str | None
+    __orca_payload__: dict | None
