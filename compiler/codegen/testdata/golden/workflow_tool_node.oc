@@ -1,0 +1,23 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+agent drafter {
+  model   = gpt4
+  persona = "You draft reports."
+}
+
+tool validate {
+  desc   = "Validate report against style guide"
+  invoke = "tools.validation.check_style"
+}
+
+agent reviewer {
+  model   = gpt4
+  persona = "You review validated reports."
+}
+
+workflow review_pipeline {
+  drafter -> validate -> reviewer
+}

@@ -1,4 +1,4 @@
-// A workflow block (arrow syntax not yet supported — key=value only for now).
+// A basic workflow block with metadata fields.
 workflow report_pipeline {
-  description = "Research, write, and review a report."
+  desc = "Research, write, and review a report."
 }

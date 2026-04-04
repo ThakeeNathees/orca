@@ -177,6 +177,7 @@ schema report {
 | `unknown-member` | Member not found on referenced block |
 | `invalid-subscript` | Non-integer subscript on a list |
 | `invalid-value` | Field value not in allowed set |
+| `invalid-workflow-node` | Block kind not allowed as a workflow node |
 
 ## Strings
 

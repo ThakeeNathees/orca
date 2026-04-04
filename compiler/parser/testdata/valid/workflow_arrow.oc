@@ -1,6 +1,4 @@
-// A workflow using arrow syntax for agent orchestration.
-
-@suppress("unknown-field")
+// A workflow using arrow syntax. Entry/exit points are inferred automatically.
 workflow report_pipeline {
-  flow = researcher -> writer -> reviewer
+  researcher -> writer -> reviewer
 }

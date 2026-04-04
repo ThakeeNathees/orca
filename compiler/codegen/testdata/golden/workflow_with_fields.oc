@@ -1,0 +1,20 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+agent researcher {
+  model   = gpt4
+  persona = "You research topics."
+}
+
+agent writer {
+  model   = gpt4
+  persona = "You write articles."
+}
+
+workflow pipeline {
+  name = "Content Pipeline"
+  desc = "Research and write articles."
+  researcher -> writer
+}

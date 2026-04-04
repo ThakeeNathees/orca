@@ -1,0 +1,9 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+workflow empty_pipeline {
+  name = "Empty"
+  desc = "A workflow with metadata but no edges."
+}
