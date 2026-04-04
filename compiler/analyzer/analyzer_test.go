@@ -1519,3 +1519,126 @@ func TestAnalyzeTriggerPositions(t *testing.T) {
 		})
 	}
 }
+
+// TestAnalyzeWorkflowEntryNodes verifies the cardinality rules for workflow
+// entry nodes: ambiguous start (0 triggers + 2+ entries) and dangling entries
+// (1+ triggers + untriggered entry nodes).
+func TestAnalyzeWorkflowEntryNodes(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectCode  string // empty = no diagnostic expected
+		severity    diagnostic.Severity
+		errContains string
+	}{
+		{
+			"single entry no trigger is valid",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> B }`,
+			"",
+			0,
+			"",
+		},
+		{
+			"multiple entries no trigger is ambiguous",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+			   A -> C
+			   B -> C
+			 }`,
+			diagnostic.CodeAmbiguousStart,
+			diagnostic.Error,
+			"multiple entry nodes",
+		},
+		{
+			"trigger with all entries covered is valid",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { daily -> A -> B }`,
+			"",
+			0,
+			"",
+		},
+		{
+			"trigger with dangling entry warns",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+			   daily -> A -> C
+			   B -> C
+			 }`,
+			diagnostic.CodeDanglingEntry,
+			diagnostic.Warning,
+			`entry node "B" has no trigger`,
+		},
+		{
+			"multiple triggers covering all entries is valid",
+			`cron daily { schedule = "0 9 * * *" }
+			 webhook hooks_in { path = "/hooks/in" }
+			 agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+			   daily -> A -> C
+			   hooks_in -> B -> C
+			 }`,
+			"",
+			0,
+			"",
+		},
+		{
+			"trigger fan-out to multiple entries is valid",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+			   daily -> A
+			   daily -> B
+			   A -> C
+			   B -> C
+			 }`,
+			"",
+			0,
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			result := Analyze(program)
+
+			if tt.expectCode != "" {
+				found := false
+				for _, d := range result.Diagnostics {
+					if d.Code == tt.expectCode && d.Severity == tt.severity && strings.Contains(d.Message, tt.errContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected %s diagnostic code=%q containing %q, got %v", tt.severity, tt.expectCode, tt.errContains, result.Diagnostics)
+				}
+			} else {
+				for _, d := range result.Diagnostics {
+					if d.Code == diagnostic.CodeAmbiguousStart || d.Code == diagnostic.CodeDanglingEntry {
+						t.Errorf("unexpected diagnostic: %s", d.Message)
+					}
+				}
+			}
+		})
+	}
+}
