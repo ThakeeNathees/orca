@@ -43,10 +43,6 @@ hooks_in = orca.webhook(
 
 # --- Workflows ---
 
-def _node_daily(state: GraphState) -> dict:
-    """Workflow node wrapping 'daily'."""
-    pass  # TODO: implement node invocation for 'daily'
-
 def _node_researcher(state: GraphState) -> dict:
     """Workflow node wrapping 'researcher'."""
     pass  # TODO: implement node invocation for 'researcher'
@@ -55,19 +51,19 @@ def _node_writer(state: GraphState) -> dict:
     """Workflow node wrapping 'writer'."""
     pass  # TODO: implement node invocation for 'writer'
 
-def _node_hooks_in(state: GraphState) -> dict:
-    """Workflow node wrapping 'hooks_in'."""
-    pass  # TODO: implement node invocation for 'hooks_in'
+def _route_pipeline(state: GraphState) -> str:
+    """Route to entry node based on trigger source."""
+    trigger = state.get("__orca_trigger__")
+    if trigger == "daily":
+        return "researcher"
+    if trigger == "hooks_in":
+        return "researcher"
+    raise ValueError(f"unknown trigger: {trigger!r}")
 
 pipeline = StateGraph(GraphState)
-pipeline.add_node("daily", _node_daily)
 pipeline.add_node("researcher", _node_researcher)
 pipeline.add_node("writer", _node_writer)
-pipeline.add_node("hooks_in", _node_hooks_in)
-pipeline.add_edge(START, "daily")
-pipeline.add_edge(START, "hooks_in")
-pipeline.add_edge("daily", "researcher")
+pipeline.add_conditional_edges(START, _route_pipeline)
 pipeline.add_edge("researcher", "writer")
-pipeline.add_edge("hooks_in", "researcher")
 pipeline.add_edge("writer", END)
 pipeline = pipeline.compile()
