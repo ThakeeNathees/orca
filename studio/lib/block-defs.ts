@@ -11,6 +11,14 @@ export interface BlockDef {
   fields: FieldDef[];
 }
 
+// Handles shared by all tool-type nodes: green connector on top for agent tool
+// slots, purple connectors left/right for direct workflow edges.
+const TOOL_NODE_HANDLES: HandleDef[] = [
+  { id: "tool-out", label: "Tool", type: "tool", position: "top" },
+  { id: "agent-in", label: "Input", type: "agent", position: "left", multiple: true },
+  { id: "agent-out", label: "Output", type: "agent", position: "right" },
+];
+
 export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
   model: {
     kind: "model",
@@ -102,9 +110,7 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     color: "#22c55e",
     colorMuted: "#22c55e20",
     icon: "Search",
-    handles: [
-      { id: "tool-out", label: "Tool", type: "tool", position: "top" },
-    ],
+    handles: [...TOOL_NODE_HANDLES],
     fields: [
       {
         key: "provider",
@@ -135,9 +141,7 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     color: "#22c55e",
     colorMuted: "#22c55e20",
     icon: "Terminal",
-    handles: [
-      { id: "tool-out", label: "Tool", type: "tool", position: "top" },
-    ],
+    handles: [...TOOL_NODE_HANDLES],
     fields: [
       {
         key: "timeout",
@@ -167,9 +171,7 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     color: "#22c55e",
     colorMuted: "#22c55e20",
     icon: "Send",
-    handles: [
-      { id: "tool-out", label: "Tool", type: "tool", position: "top" },
-    ],
+    handles: [...TOOL_NODE_HANDLES],
     fields: [
       {
         key: "url",
@@ -205,9 +207,7 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     color: "#22c55e",
     colorMuted: "#22c55e20",
     icon: "Database",
-    handles: [
-      { id: "tool-out", label: "Tool", type: "tool", position: "top" },
-    ],
+    handles: [...TOOL_NODE_HANDLES],
     fields: [
       {
         key: "connection",
@@ -446,9 +446,7 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     color: "#22c55e",
     colorMuted: "#22c55e20",
     icon: "Wrench",
-    handles: [
-      { id: "tool-out", label: "Tool", type: "tool", position: "top" },
-    ],
+    handles: [...TOOL_NODE_HANDLES],
     fields: [
       {
         key: "desc",

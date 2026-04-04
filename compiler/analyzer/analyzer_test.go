@@ -1306,6 +1306,32 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			"",
 		},
 		{
+			"valid workflow with tool node",
+			`agent A { model = gpt4 }
+			 tool T { invoke = "some.module.func" }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> T }`,
+			false,
+			"",
+		},
+		{
+			"model block as workflow node",
+			`model gpt4 { provider = "openai" }
+			 agent A { model = gpt4 }
+			 workflow run { A -> gpt4 }`,
+			true,
+			"only agent and tool blocks can be workflow nodes",
+		},
+		{
+			"knowledge block as workflow node",
+			`knowledge kb { desc = "some docs" }
+			 agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> kb }`,
+			true,
+			"only agent and tool blocks can be workflow nodes",
+		},
+		{
 			"expression in non-workflow block",
 			`agent A { model = gpt4 }
 			 model gpt4 { provider = "openai" A }`,
@@ -1349,9 +1375,9 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 					t.Errorf("expected diagnostic containing %q, got %v", tt.errContains, result.Diagnostics)
 				}
 			} else {
-				// Filter to only unexpected-expr diagnostics.
+				// Filter to only workflow-related diagnostics.
 				for _, d := range result.Diagnostics {
-					if d.Code == diagnostic.CodeUnexpectedExpr {
+					if d.Code == diagnostic.CodeUnexpectedExpr || d.Code == diagnostic.CodeInvalidWorkNode {
 						t.Errorf("unexpected diagnostic: %s", d.Message)
 					}
 				}

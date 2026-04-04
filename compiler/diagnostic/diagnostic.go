@@ -38,6 +38,7 @@ const (
 	CodeUnknownProvider  = "unknown-provider"  // model provider not supported by backend
 	CodeUnsupportedLang  = "unsupported-lang"  // raw string language not supported by backend
 	CodeUnexpectedExpr   = "unexpected-expr"   // expression not allowed in this context
+	CodeInvalidWorkNode  = "invalid-workflow-node" // block kind not allowed as workflow node
 )
 
 // Diagnostic represents a single compiler message (error, warning, etc.)

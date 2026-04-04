@@ -24,8 +24,8 @@ model claude {
 
 ```orca
 tool search {
-  name = "web_search"
-  desc = "Search the web for information"
+  desc   = "Search the web for information"
+  invoke = "tools.search.web_search"
 }
 
 agent researcher {
@@ -61,7 +61,7 @@ agent editor {
 
 ```orca
 workflow content_pipeline {
-  flow = researcher -> writer -> editor
+  researcher -> writer -> editor
 }
 ```
 
@@ -76,5 +76,6 @@ orca build
 1. Two models are configured — GPT-4o for research/editing, Claude for writing.
 2. Three agents form a pipeline: researcher finds information, writer drafts the article, editor polishes it.
 3. The `workflow` block connects them with arrow syntax: `researcher -> writer -> editor`.
+4. `START` and `END` are inferred automatically — `researcher` has no incoming edges so it becomes the entry point, `editor` has no outgoing edges so it becomes the exit.
 
 This pattern — splitting definitions across multiple `.oc` files — is idiomatic. The compiler reads all `.oc` files in the directory and resolves cross-file references automatically.

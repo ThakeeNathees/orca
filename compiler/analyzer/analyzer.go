@@ -566,8 +566,20 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 	return filtered
 }
 
-// validateWorkflowExpr checks that a workflow expression only uses the -> operator.
-// Any other binary operator (e.g. +, -, *) is reported as an error.
+// workflowNodeKinds is the set of block kinds that can appear as nodes in a
+// workflow edge chain. A block must represent a unit of work with input/output
+// semantics to be a valid workflow node.
+//
+// NOTE: For future work, consider introducing a dedicated WorkflowNode type in
+// the type system rather than this set check, so that workflow-node capability
+// is a first-class property of a block kind.
+var workflowNodeKinds = map[token.BlockKind]bool{
+	token.BlockAgent: true,
+	token.BlockTool:  true,
+}
+
+// validateWorkflowExpr checks that a workflow expression only uses the -> operator
+// and that all node references are workflow-capable block kinds (agent, tool).
 func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	if expr == nil {
 		return nil
@@ -590,7 +602,27 @@ func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []dia
 		diags = append(diags, validateWorkflowExpr(e.Left, symbols)...)
 		diags = append(diags, validateWorkflowExpr(e.Right, symbols)...)
 	case *ast.Identifier:
-		diags = append(diags, checkReferences(e, symbols)...)
+		// First check the reference exists.
+		if refDiags := checkReferences(e, symbols); len(refDiags) > 0 {
+			diags = append(diags, refDiags...)
+			break
+		}
+		// Then check the block kind is workflow-node-capable.
+		if sym, ok := symbols.LookupSymbol(e.Value); ok {
+			if sym.Type.Kind == types.BlockRef && !workflowNodeKinds[sym.Type.BlockKind] {
+				diags = append(diags, diagnostic.Diagnostic{
+					Severity: diagnostic.Error,
+					Code:     diagnostic.CodeInvalidWorkNode,
+					Position: diagnostic.Position{
+						Line:   e.Start().Line,
+						Column: e.Start().Column,
+					},
+					Message: fmt.Sprintf("%q is a %s block; only agent and tool blocks can be workflow nodes",
+						e.Value, sym.Type.BlockKind.String()),
+					Source: "analyzer",
+				})
+			}
+		}
 	default:
 		diags = append(diags, diagnostic.Diagnostic{
 			Severity: diagnostic.Error,
