@@ -164,12 +164,17 @@ func toolBlockSource(tool *ast.BlockStatement, invokeRef string) string {
 }
 
 // toolImports returns the collected Python imports from dotted-path tool invokes.
+// Order matches top-level tool block order in the source file (not map iteration,
+// which is randomized and would make golden tests flaky).
 func (b *LangGraphBackend) toolImports() []python.PythonImport {
+	tools := b.CollectBlocksByKind(token.BlockTool)
 	var imports []python.PythonImport
-	for _, resolved := range b.resolvedTools {
-		if resolved.pyImport != nil {
-			imports = append(imports, *resolved.pyImport)
+	for _, tool := range tools {
+		resolved, ok := b.resolvedTools[tool.Name]
+		if !ok || resolved.pyImport == nil {
+			continue
 		}
+		imports = append(imports, *resolved.pyImport)
 	}
 	return imports
 }
