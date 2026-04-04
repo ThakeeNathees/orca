@@ -39,10 +39,14 @@ def _node_writer(state: GraphState) -> dict:
     """Workflow node wrapping 'writer'."""
     pass  # TODO: implement node invocation for 'writer'
 
+def _route_pipeline(state: GraphState) -> str:
+    """Route to entry node based on trigger source."""
+    return "researcher"
+
 pipeline = StateGraph(GraphState)
 pipeline.add_node("researcher", _node_researcher)
 pipeline.add_node("writer", _node_writer)
-pipeline.add_edge(START, "researcher")
+pipeline.add_conditional_edges(START, _route_pipeline)
 pipeline.add_edge("researcher", "writer")
 pipeline.add_edge("writer", END)
 pipeline = pipeline.compile()

@@ -10,7 +10,6 @@ import (
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
-	"github.com/thakee/orca/compiler/helper"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
 	"github.com/thakee/orca/compiler/workflow"
@@ -735,21 +734,19 @@ func validateWorkflowEntryNodes(workflowName string, exprs []ast.Expression, sym
 	var diags []diagnostic.Diagnostic
 
 	if !hasTriggers && len(entryNodes) > 1 {
-		// Sort for deterministic error messages.
-		sorted := make([]string, len(entryNodes))
-		copy(sorted, entryNodes)
-		helper.SortStrings(sorted)
-		diags = append(diags, diagnostic.Diagnostic{
-			Severity: diagnostic.Error,
-			Code:     diagnostic.CodeAmbiguousStart,
-			Position: diagnostic.Position{Line: exprs[0].Start().Line, Column: exprs[0].Start().Column},
-			Message: fmt.Sprintf(
-				"workflow %q has multiple entry nodes (%s) without triggers; add a trigger or use a single entry node",
-				workflowName,
-				helper.JoinQuoted(sorted),
-			),
-			Source: "analyzer",
-		})
+		for _, node := range entryNodes {
+			pos := findIdentPos(exprs, node)
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeAmbiguousStart,
+				Position: pos,
+				Message: fmt.Sprintf(
+					"workflow %q has multiple entry nodes without triggers; add a trigger or use a single entry node",
+					workflowName,
+				),
+				Source: "analyzer",
+			})
+		}
 	}
 
 	if hasTriggers {
@@ -758,7 +755,7 @@ func validateWorkflowEntryNodes(workflowName string, exprs []ast.Expression, sym
 				diags = append(diags, diagnostic.Diagnostic{
 					Severity: diagnostic.Warning,
 					Code:     diagnostic.CodeDanglingEntry,
-					Position: diagnostic.Position{Line: exprs[0].Start().Line, Column: exprs[0].Start().Column},
+					Position: findIdentPos(exprs, node),
 					Message:  fmt.Sprintf("workflow %q: entry node %q has no trigger and will be unreachable", workflowName, node),
 					Source:   "analyzer",
 				})
@@ -788,6 +785,45 @@ func collectTriggerNodes(expr ast.Expression, symbols *types.SymbolTable, trigge
 	}
 }
 
+// findIdentPos searches workflow expressions for the first occurrence of
+// an identifier with the given name and returns its source position.
+// This is used to attach diagnostics to the exact token in the source,
+// e.g. highlighting "analyst" in:
+//
+//	workflow pipeline {
+//	  researcher -> writer  // ← ambiguous-start (could be analyst or researcher)
+//	  analyst -> writer     // ← ambiguous-start (could be analyst or researcher)
+//	}
+func findIdentPos(exprs []ast.Expression, name string) diagnostic.Position {
+	for _, expr := range exprs {
+		if pos, ok := findIdentInExpr(expr, name); ok {
+			return pos
+		}
+	}
+	// Fallback: first expression start.
+	if len(exprs) > 0 {
+		return diagnostic.Position{Line: exprs[0].Start().Line, Column: exprs[0].Start().Column}
+	}
+	return diagnostic.Position{}
+}
+
+// findIdentInExpr recursively walks an expression tree (including nested
+// arrow chains like ((A -> B) -> C)) to find an identifier by name.
+// Returns the source position of the first match, or false if not found.
+func findIdentInExpr(expr ast.Expression, name string) (diagnostic.Position, bool) {
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		if e.Value == name {
+			return diagnostic.Position{Line: e.Start().Line, Column: e.Start().Column}, true
+		}
+	case *ast.BinaryExpression:
+		if pos, ok := findIdentInExpr(e.Left, name); ok {
+			return pos, true
+		}
+		return findIdentInExpr(e.Right, name)
+	}
+	return diagnostic.Position{}, false
+}
 
 // analyzeLetBlock validates references in let block values.
 // Let blocks have no schema — any key name is valid.

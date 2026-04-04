@@ -57,12 +57,16 @@ def _node_reviewer(state: GraphState) -> dict:
     """Workflow node wrapping 'reviewer'."""
     pass  # TODO: implement node invocation for 'reviewer'
 
+def _route_diamond(state: GraphState) -> str:
+    """Route to entry node based on trigger source."""
+    return "classifier"
+
 diamond = StateGraph(GraphState)
 diamond.add_node("classifier", _node_classifier)
 diamond.add_node("writer", _node_writer)
 diamond.add_node("analyst", _node_analyst)
 diamond.add_node("reviewer", _node_reviewer)
-diamond.add_edge(START, "classifier")
+diamond.add_conditional_edges(START, _route_diamond)
 diamond.add_edge("classifier", "writer")
 diamond.add_edge("classifier", "analyst")
 diamond.add_edge("writer", "reviewer")

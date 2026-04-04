@@ -52,11 +52,15 @@ def _node_reviewer(state: GraphState) -> dict:
     """Workflow node wrapping 'reviewer'."""
     pass  # TODO: implement node invocation for 'reviewer'
 
+def _route_review_pipeline(state: GraphState) -> str:
+    """Route to entry node based on trigger source."""
+    return "drafter"
+
 review_pipeline = StateGraph(GraphState)
 review_pipeline.add_node("drafter", _node_drafter)
 review_pipeline.add_node("validate", _node_validate)
 review_pipeline.add_node("reviewer", _node_reviewer)
-review_pipeline.add_edge(START, "drafter")
+review_pipeline.add_conditional_edges(START, _route_review_pipeline)
 review_pipeline.add_edge("drafter", "validate")
 review_pipeline.add_edge("validate", "reviewer")
 review_pipeline.add_edge("reviewer", END)

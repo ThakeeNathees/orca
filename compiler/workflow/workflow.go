@@ -24,78 +24,124 @@ type Edge struct {
 
 // ResolvedWorkflow holds the extracted graph structure for a single workflow block.
 type ResolvedWorkflow struct {
-	Name  string
-	Nodes []string // unique node names (excluding START/END), in order of first appearance
-	Edges []Edge   // all edges in declaration order, including inferred START/END
+	Name       string
+	Nodes      []string            // processing node names (triggers excluded), in order of first appearance
+	Edges      []Edge              // edges between processing nodes + inferred END edges (no START edges)
+	EntryNodes []string            // processing nodes with no incoming edges from other processing nodes
+	Triggers   []string            // trigger node names in order of first appearance
+	TriggerMap map[string][]string // trigger name → processing entry node names it connects to
+}
+
+// HasTriggers returns true if the workflow has any trigger nodes.
+func (rw *ResolvedWorkflow) HasTriggers() bool {
+	return len(rw.Triggers) > 0
+}
+
+// TODO: Consider the workflow router is always returns list[str] and if there
+// is a single entry node, the length will be 1.
+//
+// IsFanOut returns true if any trigger connects to multiple entry nodes.
+func (rw *ResolvedWorkflow) IsFanOut() bool {
+	for _, entries := range rw.TriggerMap {
+		if len(entries) > 1 {
+			return true
+		}
+	}
+	return false
 }
 
 // Resolve extracts nodes and edges from a workflow block's arrow expressions.
-// After collecting explicit edges, it infers implicit START/END connections:
-//   - Any node with no incoming edges gets an implicit START -> node edge
-//   - Any node with no outgoing edges gets an implicit node -> END edge
-func Resolve(block *ast.BlockStatement) ResolvedWorkflow {
-	rw := ResolvedWorkflow{Name: block.Name}
-	seenNodes := make(map[string]bool)
+// The isTrigger predicate identifies which nodes are triggers (cron, webhook).
+// Pass nil if no trigger classification is needed (all nodes are processing nodes).
+//
+// Triggers are separated from processing nodes: they appear in Triggers/TriggerMap
+// but not in Nodes/Edges. Processing entry nodes get no implicit START edges —
+// the caller (codegen) handles START connections via a router function.
+// Implicit END edges are added for processing nodes with no outgoing edges.
+func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWorkflow {
+	if isTrigger == nil {
+		isTrigger = func(string) bool { return false }
+	}
+
+	rw := ResolvedWorkflow{
+		Name:       block.Name,
+		TriggerMap: make(map[string][]string),
+	}
+
+	// Collect all unique edges and nodes from arrow expressions.
+	var allEdges []Edge
 	seenEdges := make(map[[2]string]bool)
+	seenNodes := make(map[string]bool)
+	triggers := make(map[string]bool)
 
 	for _, expr := range block.Expressions {
-		edges := EdgesFromExpr(expr)
-		for _, e := range edges {
+		for _, e := range EdgesFromExpr(expr) {
 			edgeKey := [2]string{e.From, e.To}
 			if seenEdges[edgeKey] {
 				continue
 			}
 			seenEdges[edgeKey] = true
-			rw.Edges = append(rw.Edges, e)
+			allEdges = append(allEdges, e)
 
 			for _, name := range []string{e.From, e.To} {
-				if name != NodeSTART && name != NodeEND && !seenNodes[name] {
+				if !seenNodes[name] {
 					seenNodes[name] = true
-					rw.Nodes = append(rw.Nodes, name)
+					if isTrigger(name) {
+						triggers[name] = true
+						rw.Triggers = append(rw.Triggers, name)
+					} else {
+						rw.Nodes = append(rw.Nodes, name)
+					}
 				}
 			}
 		}
 	}
 
-	rw.Edges = inferTerminals(rw.Nodes, rw.Edges)
+	// Separate trigger edges from processing edges and build TriggerMap.
+	var processingEdges []Edge
+	for _, e := range allEdges {
+		if triggers[e.From] {
+			// Trigger → processing node: record in TriggerMap.
+			rw.TriggerMap[e.From] = append(rw.TriggerMap[e.From], e.To)
+		} else {
+			processingEdges = append(processingEdges, e)
+		}
+	}
+
+	// Infer END edges for processing nodes with no outgoing edges.
+	rw.Edges = inferEndEdges(rw.Nodes, processingEdges)
+
+	// Compute entry nodes: processing nodes with no incoming edges
+	// from other processing nodes.
+	hasIncoming := make(map[string]bool)
+	for _, e := range processingEdges {
+		hasIncoming[e.To] = true
+	}
+	for _, node := range rw.Nodes {
+		if !hasIncoming[node] {
+			rw.EntryNodes = append(rw.EntryNodes, node)
+		}
+	}
+
 	return rw
 }
 
-// inferTerminals adds implicit START/END edges for nodes that have no
-// incoming or outgoing connections. Explicit START/END edges are preserved.
-func inferTerminals(nodes []string, edges []Edge) []Edge {
-	hasIncoming := make(map[string]bool)
+// inferEndEdges appends implicit END edges for processing nodes that have
+// no outgoing edges. START edges are never added — the router handles them.
+func inferEndEdges(nodes []string, edges []Edge) []Edge {
 	hasOutgoing := make(map[string]bool)
-
 	for _, e := range edges {
-		if e.To != NodeEND {
-			hasIncoming[e.To] = true
-		}
-		if e.From != NodeSTART {
-			hasOutgoing[e.From] = true
-		}
+		hasOutgoing[e.From] = true
 	}
 
-	// Prepend implicit START edges (before existing edges for natural ordering).
-	var startEdges []Edge
-	for _, node := range nodes {
-		if !hasIncoming[node] {
-			startEdges = append(startEdges, Edge{From: NodeSTART, To: node})
-		}
-	}
+	result := make([]Edge, len(edges))
+	copy(result, edges)
 
-	// Append implicit END edges.
-	var endEdges []Edge
 	for _, node := range nodes {
 		if !hasOutgoing[node] {
-			endEdges = append(endEdges, Edge{From: node, To: NodeEND})
+			result = append(result, Edge{From: node, To: NodeEND})
 		}
 	}
-
-	result := make([]Edge, 0, len(startEdges)+len(edges)+len(endEdges))
-	result = append(result, startEdges...)
-	result = append(result, edges...)
-	result = append(result, endEdges...)
 	return result
 }
 
