@@ -38,7 +38,7 @@ This creates a sequential pipeline where:
 
 The compiler automatically infers graph entry and exit points from the topology:
 
-- **Entry:** Any node with no incoming edges becomes an entry point. In the future, trigger blocks (cron, webhook, chat) connected to a workflow will determine how the graph is started.
+- **Entry:** Any node with no incoming edges becomes an entry point. [`cron`](/reference/cron) and [`webhook`](/reference/webhook) blocks are valid workflow nodes when you need an explicit schedule- or HTTP-driven entry in the graph (runtime wiring is separate from compilation).
 - **Exit:** Any node with no outgoing edges becomes an exit point.
 
 You never need to specify entry/exit explicitly — just define the edges between your nodes.
@@ -51,6 +51,8 @@ The following block types can appear as nodes in a workflow:
 |-----------|-------------|
 | `agent` | An LLM agent that processes input and produces output |
 | `tool` | A standalone tool execution (not an agent tool call) |
+| `cron` | Cron schedule metadata; use the block’s name as a graph node |
+| `webhook` | Webhook path/method metadata; use the block’s name as a graph node |
 
 When a tool appears in a workflow edge, it runs as an independent graph node. This is different from listing a tool in an agent's `tools` field, where it becomes available for the agent to call.
 

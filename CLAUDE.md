@@ -87,10 +87,10 @@ make lint           # fmt + vet
 | `model` | LLM provider config (provider, version, temperature, etc.) |
 | `agent` | Agent definition (model, tools, prompt) |
 | `tool` | External integrations (gmail, slack, notion, web_search, etc.) |
-| `task` | Work units assigned to agents |
 | `knowledge` | RAG/data sources |
 | `workflow` | Agent orchestration graphs |
-| `trigger` | Cron, webhook, or event-based execution triggers |
+| `cron` | Cron schedule trigger (referenced as a node in workflows) |
+| `webhook` | HTTP webhook trigger (referenced as a node in workflows) |
 
 ## CLI
 

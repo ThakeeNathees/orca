@@ -153,6 +153,8 @@ func TestResolveIdentAsType(t *testing.T) {
 		{"primitive any", "any", Any()},
 		{"block type model", "model", TypeOf(token.BlockModel)},
 		{"block type agent", "agent", TypeOf(token.BlockAgent)},
+		{"block type cron", "cron", TypeOf(token.BlockCron)},
+		{"block type webhook", "webhook", TypeOf(token.BlockWebhook)},
 		{"block type schema", "schema", TypeOf(token.BlockSchema)},
 		{"user schema name", "vpc_data_t", CreateSchema("vpc_data_t")},
 	}

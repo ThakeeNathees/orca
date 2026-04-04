@@ -91,6 +91,24 @@ schema workflow {
 }
 
 @suppress("duplicate-block")
+schema cron {
+  @desc("Cron schedule expression (e.g. \"0 9 * * 1-5\").")
+  schedule = str
+
+  @desc("IANA timezone name (e.g. \"America/New_York\"). Defaults to UTC when unset.")
+  timezone = str | null
+}
+
+@suppress("duplicate-block")
+schema webhook {
+  @desc("URL path for this webhook (e.g. \"/hooks/job\").")
+  path = str
+
+  @desc("HTTP method (e.g. \"POST\").")
+  method = str | null
+}
+
+@suppress("duplicate-block")
 schema input {
   @desc("The type of this input (e.g. str, int, or a user-defined schema).")
   type = schema

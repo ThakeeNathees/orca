@@ -64,6 +64,8 @@ func (b *LangGraphBackend) generateMain() string {
 	b.writeToolSection(&s)
 	b.writeGraphState(&s)
 	b.writeOrcaBlockSection(&s, "Agents", token.BlockAgent)
+	b.writeOrcaBlockSection(&s, "Cron", token.BlockCron)
+	b.writeOrcaBlockSection(&s, "Webhooks", token.BlockWebhook)
 	b.writeWorkflowSection(&s, workflows)
 
 	return s.String()

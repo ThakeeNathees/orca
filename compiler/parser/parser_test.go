@@ -1583,6 +1583,24 @@ func TestParseBlockExpression(t *testing.T) {
 			[]string{"type"},
 		},
 		{
+			"inline cron",
+			`let t {
+				c = cron { schedule = "0 * * * *" }
+			}`,
+			token.BlockCron,
+			1,
+			[]string{"schedule"},
+		},
+		{
+			"inline webhook",
+			`let t {
+				w = webhook { path = "/hooks/x" }
+			}`,
+			token.BlockWebhook,
+			1,
+			[]string{"path"},
+		},
+		{
 			"empty inline block",
 			`agent a {
 				model = model {}
@@ -1616,9 +1634,9 @@ func TestParseBlockExpression(t *testing.T) {
 					targetExpr = list.Elements[0]
 					break
 				}
-				if a.Name == "model" || a.Name == "agent" || a.Name == "task" ||
-					a.Name == "knowledge" || a.Name == "workflow" || a.Name == "trigger" ||
-					a.Name == "input" {
+				if a.Name == "model" || a.Name == "agent" ||
+					a.Name == "knowledge" || a.Name == "workflow" ||
+					a.Name == "input" || a.Name == "c" || a.Name == "w" {
 					targetExpr = a.Value
 					break
 				}
@@ -1994,6 +2012,30 @@ func TestSourceFileOnBlocks(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestParseCronWebhookTopLevelBlocks verifies top-level cron and webhook declarations.
+func TestParseCronWebhookTopLevelBlocks(t *testing.T) {
+	input := `
+cron daily {
+  schedule = "0 9 * * 1-5"
+  timezone = "America/New_York"
+}
+webhook hooks_in {
+  path = "/hooks/in"
+  method = "POST"
+}
+`
+	program := parseOrFail(t, input)
+	assertBlockCount(t, program, 2)
+	b0 := assertBlock(t, program.Statements[0], token.CRON, "daily")
+	if b0.Kind != token.BlockCron {
+		t.Errorf("Kind = %v, want BlockCron", b0.Kind)
+	}
+	b1 := assertBlock(t, program.Statements[1], token.WEBHOOK, "hooks_in")
+	if b1.Kind != token.BlockWebhook {
+		t.Errorf("Kind = %v, want BlockWebhook", b1.Kind)
 	}
 }
 

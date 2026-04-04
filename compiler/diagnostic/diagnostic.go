@@ -25,19 +25,19 @@ type Position struct {
 // Diagnostic codes identify each kind of diagnostic for suppression
 // with @suppress("code") and display in the CLI/editor.
 const (
-	CodeSyntax           = "syntax"            // parse errors
-	CodeDuplicateBlock   = "duplicate-block"   // duplicate block name
-	CodeDuplicateField   = "duplicate-field"   // duplicate field in block
-	CodeMissingField     = "missing-field"     // required field not present
-	CodeUnknownField     = "unknown-field"     // field not defined in schema
-	CodeTypeMismatch     = "type-mismatch"     // field value type doesn't match schema
-	CodeUndefinedRef     = "undefined-ref"     // identifier not in symbol table
-	CodeUnknownMember    = "unknown-member"    // member not found on block type
-	CodeInvalidSubscript = "invalid-subscript" // non-integer subscript on a list
-	CodeInvalidValue     = "invalid-value"     // field value not in allowed set
-	CodeUnknownProvider  = "unknown-provider"  // model provider not supported by backend
-	CodeUnsupportedLang  = "unsupported-lang"  // raw string language not supported by backend
-	CodeUnexpectedExpr   = "unexpected-expr"   // expression not allowed in this context
+	CodeSyntax           = "syntax"                // parse errors
+	CodeDuplicateBlock   = "duplicate-block"       // duplicate block name
+	CodeDuplicateField   = "duplicate-field"       // duplicate field in block
+	CodeMissingField     = "missing-field"         // required field not present
+	CodeUnknownField     = "unknown-field"         // field not defined in schema
+	CodeTypeMismatch     = "type-mismatch"         // field value type doesn't match schema
+	CodeUndefinedRef     = "undefined-ref"         // identifier not in symbol table
+	CodeUnknownMember    = "unknown-member"        // member not found on block type
+	CodeInvalidSubscript = "invalid-subscript"     // non-integer subscript on a list
+	CodeInvalidValue     = "invalid-value"         // field value not in allowed set
+	CodeUnknownProvider  = "unknown-provider"      // model provider not supported by backend
+	CodeUnsupportedLang  = "unsupported-lang"      // raw string language not supported by backend
+	CodeUnexpectedExpr   = "unexpected-expr"       // expression not allowed in this context
 	CodeInvalidWorkNode  = "invalid-workflow-node" // block kind not allowed as workflow node
 )
 

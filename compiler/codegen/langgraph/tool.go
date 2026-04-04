@@ -16,9 +16,9 @@ var defNameRe = regexp.MustCompile(`(?m)^\s*def\s+(\w+)`)
 
 // resolvedToolInvoke holds the pre-processed invoke information for a single tool block.
 type resolvedToolInvoke struct {
-	invokeRef string              // Python identifier to use for invoke= in orca.tool(...)
+	invokeRef string               // Python identifier to use for invoke= in orca.tool(...)
 	pyImport  *python.PythonImport // non-nil when invoke is a dotted import path
-	verbatim  string              // non-empty when invoke is an inline raw string function def
+	verbatim  string               // non-empty when invoke is an inline raw string function def
 }
 
 // resolveToolInvokes pre-processes all tool blocks to determine how each invoke

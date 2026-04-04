@@ -129,6 +129,33 @@ func TestNextTokenIdentAndKeyword(t *testing.T) {
 	}
 }
 
+// TestNextTokenCronWebhook verifies cron and webhook are lexed as block keywords.
+func TestNextTokenCronWebhook(t *testing.T) {
+	input := "cron daily webhook hooks_in"
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.CRON, "cron"},
+		{token.IDENT, "daily"},
+		{token.WEBHOOK, "webhook"},
+		{token.IDENT, "hooks_in"},
+		{token.EOF, ""},
+	}
+
+	l := New(input, "")
+	for i, tt := range tests {
+		tok := l.NextToken()
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - wrong type. expected=%q, got=%q", i, tt.expectedType, tok.Type)
+		}
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - wrong literal. expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
 func TestNextTokenString(t *testing.T) {
 	input := `"hello world"`
 	l := New(input, "")
