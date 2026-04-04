@@ -39,6 +39,7 @@ const (
 	CodeUnsupportedLang  = "unsupported-lang"      // raw string language not supported by backend
 	CodeUnexpectedExpr   = "unexpected-expr"       // expression not allowed in this context
 	CodeInvalidWorkNode  = "invalid-workflow-node" // block kind not allowed as workflow node
+	CodeTriggerAsTarget  = "trigger-as-target"     // trigger block used as edge target instead of source
 )
 
 // Diagnostic represents a single compiler message (error, warning, etc.)
