@@ -6,11 +6,30 @@ import {
   type OnEdgesChange,
   type Connection,
 } from "@xyflow/react";
-import type { BlockNode, BlockEdge, BlockKind, BlockNodeData } from "./types";
+import type {
+  BlockNode,
+  BlockEdge,
+  BlockKind,
+  BlockNodeData,
+  WorkflowSummary,
+} from "./types";
 import { BLOCK_DEFS } from "./block-defs";
 import { getEdgeAccentColor } from "./handle-colors";
 
+type StudioView = "dashboard" | "editor";
+
 interface StudioState {
+  /* ── Navigation ── */
+  currentView: StudioView;
+  workflows: WorkflowSummary[];
+  activeWorkflowId: string | null;
+
+  createWorkflow: () => void;
+  openWorkflow: (id: string) => void;
+  deleteWorkflow: (id: string) => void;
+  goToDashboard: () => void;
+
+  /* ── Editor (per-workflow) ── */
   nodes: BlockNode[];
   edges: BlockEdge[];
   selectedNodeId: string | null;
@@ -21,7 +40,10 @@ interface StudioState {
 
   addNode: (kind: BlockKind, position: { x: number; y: number }) => void;
   removeNode: (id: string) => void;
-  updateNodeData: (id: string, fields: Partial<BlockNodeData["fields"]>) => void;
+  updateNodeData: (
+    id: string,
+    fields: Partial<BlockNodeData["fields"]>
+  ) => void;
   updateNodeLabel: (id: string, label: string) => void;
   setSelectedNodeId: (id: string | null) => void;
 }
@@ -34,6 +56,11 @@ function nextNodeId(): string {
 let edgeIdCounter = 0;
 function nextEdgeId(): string {
   return `edge-${++edgeIdCounter}`;
+}
+
+let workflowIdCounter = 2;
+function nextWorkflowId(): string {
+  return `wf-${++workflowIdCounter}`;
 }
 
 /** Nodes are 240px wide. Layout: lone agent centered above a row of model → memory → tools. */
@@ -153,7 +180,90 @@ const SAMPLE_EDGES: BlockEdge[] = [
   ),
 ];
 
+const PASTEL_COLORS = [
+  "#f9a8d4", // pink
+  "#a78bfa", // purple
+  "#93c5fd", // blue
+  "#6ee7b7", // green
+  "#fcd34d", // yellow
+  "#fdba74", // orange
+  "#f87171", // red
+  "#67e8f9", // cyan
+  "#c4b5fd", // violet
+  "#86efac", // mint
+];
+
+function randomPastelColor(): string {
+  return PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
+}
+
+/** Seed workflows for the dashboard. */
+const SEED_WORKFLOWS: WorkflowSummary[] = [
+  {
+    id: "wf-1",
+    name: "Vector Store RAG",
+    updatedAt: new Date(Date.now() - 2 * 60 * 1000),
+    color: "#f9a8d4",
+  },
+  {
+    id: "wf-2",
+    name: "Basic Prompting",
+    updatedAt: new Date(Date.now() - 3 * 60 * 1000),
+    color: "#a78bfa",
+  },
+];
+
 export const useStudioStore = create<StudioState>((set, get) => ({
+  /* ── Navigation ── */
+  currentView: "dashboard",
+  workflows: SEED_WORKFLOWS,
+  activeWorkflowId: null,
+
+  createWorkflow: () => {
+    const id = nextWorkflowId();
+    const wf: WorkflowSummary = {
+      id,
+      name: "Untitled Workflow",
+      updatedAt: new Date(),
+      color: randomPastelColor(),
+    };
+    set({
+      workflows: [wf, ...get().workflows],
+      activeWorkflowId: id,
+      currentView: "editor",
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+    });
+  },
+
+  deleteWorkflow: (id) => {
+    set({
+      workflows: get().workflows.filter((w) => w.id !== id),
+    });
+  },
+
+  openWorkflow: (id) => {
+    // For now, opening any workflow loads the sample nodes/edges.
+    // In the future each workflow will have its own persisted graph.
+    set({
+      activeWorkflowId: id,
+      currentView: "editor",
+      nodes: SAMPLE_NODES,
+      edges: SAMPLE_EDGES,
+      selectedNodeId: null,
+    });
+  },
+
+  goToDashboard: () => {
+    set({
+      currentView: "dashboard",
+      activeWorkflowId: null,
+      selectedNodeId: null,
+    });
+  },
+
+  /* ── Editor ── */
   nodes: SAMPLE_NODES,
   edges: SAMPLE_EDGES,
   selectedNodeId: null,
