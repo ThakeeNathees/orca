@@ -10,8 +10,10 @@ import (
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
+	"github.com/thakee/orca/compiler/helper"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
+	"github.com/thakee/orca/compiler/workflow"
 )
 
 // defNameRe matches `def <name>` at the start of a Python function definition
@@ -237,6 +239,7 @@ func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, e
 			diags = append(diags, validateWorkflowExpr(expr, symbols)...)
 		}
 		diags = append(diags, validateTriggerPositions(body.Expressions, symbols)...)
+		diags = append(diags, validateWorkflowEntryNodes(name, body.Expressions, symbols)...)
 	} else {
 		for _, expr := range body.Expressions {
 			diags = append(diags, diagnostic.Diagnostic{
@@ -678,6 +681,113 @@ func checkTriggerChain(expr ast.Expression, symbols *types.SymbolTable) []diagno
 
 	return diags
 }
+
+// validateWorkflowEntryNodes checks the cardinality rules for workflow entry nodes:
+//   - 0 triggers + 2+ entry nodes → error (ambiguous start)
+//   - 1+ triggers + dangling untriggered entry nodes → warning (unreachable)
+func validateWorkflowEntryNodes(workflowName string, exprs []ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	// Collect all edges and classify trigger nodes.
+	var edges []workflow.Edge
+	triggers := make(map[string]bool)
+	for _, expr := range exprs {
+		for _, e := range workflow.EdgesFromExpr(expr) {
+			edges = append(edges, e)
+		}
+		collectTriggerNodes(expr, symbols, triggers)
+	}
+
+	if len(edges) == 0 {
+		return nil
+	}
+
+	// Find entry nodes: processing nodes (non-triggers) with no incoming
+	// edges from other processing nodes.
+	hasIncoming := make(map[string]bool)
+	allNodes := make(map[string]bool)
+	for _, e := range edges {
+		if !triggers[e.From] {
+			allNodes[e.From] = true
+		}
+		if !triggers[e.To] {
+			allNodes[e.To] = true
+			if !triggers[e.From] {
+				hasIncoming[e.To] = true
+			}
+		}
+	}
+
+	var entryNodes []string
+	for node := range allNodes {
+		if !hasIncoming[node] {
+			entryNodes = append(entryNodes, node)
+		}
+	}
+
+	// Determine which entry nodes are triggered.
+	triggeredEntries := make(map[string]bool)
+	for _, e := range edges {
+		if triggers[e.From] && !triggers[e.To] {
+			triggeredEntries[e.To] = true
+		}
+	}
+
+	hasTriggers := len(triggers) > 0
+	var diags []diagnostic.Diagnostic
+
+	if !hasTriggers && len(entryNodes) > 1 {
+		// Sort for deterministic error messages.
+		sorted := make([]string, len(entryNodes))
+		copy(sorted, entryNodes)
+		helper.SortStrings(sorted)
+		diags = append(diags, diagnostic.Diagnostic{
+			Severity: diagnostic.Error,
+			Code:     diagnostic.CodeAmbiguousStart,
+			Position: diagnostic.Position{Line: exprs[0].Start().Line, Column: exprs[0].Start().Column},
+			Message: fmt.Sprintf(
+				"workflow %q has multiple entry nodes (%s) without triggers; add a trigger or use a single entry node",
+				workflowName,
+				helper.JoinQuoted(sorted),
+			),
+			Source: "analyzer",
+		})
+	}
+
+	if hasTriggers {
+		for _, node := range entryNodes {
+			if !triggeredEntries[node] {
+				diags = append(diags, diagnostic.Diagnostic{
+					Severity: diagnostic.Warning,
+					Code:     diagnostic.CodeDanglingEntry,
+					Position: diagnostic.Position{Line: exprs[0].Start().Line, Column: exprs[0].Start().Column},
+					Message:  fmt.Sprintf("workflow %q: entry node %q has no trigger and will be unreachable", workflowName, node),
+					Source:   "analyzer",
+				})
+			}
+		}
+	}
+
+	return diags
+}
+
+// collectTriggerNodes walks an arrow expression and records any node that
+// resolves to a trigger block kind in the triggers set.
+func collectTriggerNodes(expr ast.Expression, symbols *types.SymbolTable, triggers map[string]bool) {
+	bin, ok := expr.(*ast.BinaryExpression)
+	if !ok || bin.Operator.Type != token.ARROW {
+		// Single node expression — check if it's a trigger.
+		if isTriggerExpr(expr, symbols) {
+			triggers[workflow.ExprToNodeName(expr)] = true
+		}
+		return
+	}
+
+	collectTriggerNodes(bin.Left, symbols, triggers)
+
+	if isTriggerExpr(bin.Right, symbols) {
+		triggers[workflow.ExprToNodeName(bin.Right)] = true
+	}
+}
+
 
 // analyzeLetBlock validates references in let block values.
 // Let blocks have no schema — any key name is valid.

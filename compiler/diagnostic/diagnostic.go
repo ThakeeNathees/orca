@@ -40,6 +40,8 @@ const (
 	CodeUnexpectedExpr   = "unexpected-expr"       // expression not allowed in this context
 	CodeInvalidWorkNode  = "invalid-workflow-node" // block kind not allowed as workflow node
 	CodeTriggerAsTarget  = "trigger-as-target"     // trigger block used as edge target instead of source
+	CodeAmbiguousStart   = "ambiguous-start"       // multiple entry nodes without triggers to disambiguate
+	CodeDanglingEntry    = "dangling-entry"         // entry node unreachable because no trigger points to it
 )
 
 // Diagnostic represents a single compiler message (error, warning, etc.)
