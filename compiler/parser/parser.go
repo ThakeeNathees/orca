@@ -440,7 +440,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 		return expr
 
 	case token.SCHEMA, token.MODEL, token.AGENT, token.KNOWLEDGE,
-		token.WORKFLOW, token.TOOL, token.INPUT:
+		token.WORKFLOW, token.TOOL, token.INPUT, token.CRON, token.WEBHOOK:
 		// If followed by '{', parse as inline block expression.
 		// Otherwise treat as identifier (e.g., model = gpt4 inside an agent block).
 		if p.peekToken.Type == token.LBRACE {

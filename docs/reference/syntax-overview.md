@@ -12,7 +12,7 @@ block_type name {
 }
 ```
 
-Available block types: [`model`](/reference/model), [`agent`](/reference/agent), [`tool`](/reference/tool), [`workflow`](/reference/workflow), [`knowledge`](/reference/knowledge), [`input`](/reference/input), [`schema`](/reference/schema), and [`let`](/reference/let).
+Available block types: [`model`](/reference/model), [`agent`](/reference/agent), [`tool`](/reference/tool), [`workflow`](/reference/workflow), [`knowledge`](/reference/knowledge), [`cron`](/reference/cron), [`webhook`](/reference/webhook), [`input`](/reference/input), [`schema`](/reference/schema), and [`let`](/reference/let).
 
 ## Comments
 

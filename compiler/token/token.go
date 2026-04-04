@@ -51,6 +51,8 @@ const (
 	INPUT     TokenType = "INPUT"
 	SCHEMA    TokenType = "SCHEMA"
 	LET       TokenType = "LET"
+	CRON      TokenType = "CRON"
+	WEBHOOK   TokenType = "WEBHOOK"
 )
 
 // Operator precedence levels for Pratt parsing. Higher values bind tighter.
@@ -77,6 +79,8 @@ const (
 	BlockInput                      // input block
 	BlockSchema                     // schema block / user-defined schema types
 	BlockLet                        // let block
+	BlockCron                       // cron trigger block (workflow node)
+	BlockWebhook                    // webhook trigger block (workflow node)
 )
 
 // blockKindStrings maps each BlockKind to its string representation.
@@ -85,6 +89,7 @@ var blockKindStrings = [...]string{
 	BlockModel: "model", BlockAgent: "agent", BlockTool: "tool",
 	BlockKnowledge: "knowledge", BlockWorkflow: "workflow",
 	BlockInput: "input", BlockSchema: "schema", BlockLet: "let",
+	BlockCron: "cron", BlockWebhook: "webhook",
 }
 
 // String returns the string representation of a BlockKind.
@@ -99,6 +104,7 @@ func (k BlockKind) String() string {
 var BlockKinds = []BlockKind{
 	BlockModel, BlockAgent, BlockTool, BlockKnowledge,
 	BlockWorkflow, BlockInput, BlockSchema, BlockLet,
+	BlockCron, BlockWebhook,
 }
 
 // Token represents a single lexical token with its type, literal text,
@@ -193,6 +199,8 @@ var keywords = map[string]TokenType{
 	"input":     INPUT,
 	"schema":    SCHEMA,
 	"let":       LET,
+	"cron":      CRON,
+	"webhook":   WEBHOOK,
 }
 
 // LookupIdent checks if an identifier string is a reserved keyword.
@@ -205,10 +213,10 @@ func LookupIdent(ident string) TokenType {
 }
 
 // IsTokenBlockName returns true if the token type introduces a block
-// (model, agent, tool, knowledge, workflow, input, schema, let).
+// (model, agent, tool, knowledge, workflow, input, schema, let, cron, webhook).
 func IsTokenBlockName(t TokenType) bool {
 	switch t {
-	case MODEL, AGENT, KNOWLEDGE, WORKFLOW, TOOL, INPUT, SCHEMA, LET:
+	case MODEL, AGENT, KNOWLEDGE, WORKFLOW, TOOL, INPUT, SCHEMA, LET, CRON, WEBHOOK:
 		return true
 	}
 	return false
@@ -233,6 +241,10 @@ func TokenTypeToBlockKind(t TokenType) (BlockKind, bool) {
 		return BlockSchema, true
 	case LET:
 		return BlockLet, true
+	case CRON:
+		return BlockCron, true
+	case WEBHOOK:
+		return BlockWebhook, true
 	default:
 		return 0, false
 	}

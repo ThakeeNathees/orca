@@ -574,8 +574,10 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 // the type system rather than this set check, so that workflow-node capability
 // is a first-class property of a block kind.
 var workflowNodeKinds = map[token.BlockKind]bool{
-	token.BlockAgent: true,
-	token.BlockTool:  true,
+	token.BlockAgent:   true,
+	token.BlockTool:    true,
+	token.BlockCron:    true,
+	token.BlockWebhook: true,
 }
 
 // validateWorkflowExpr checks that a workflow expression only uses the -> operator
@@ -617,7 +619,7 @@ func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []dia
 						Line:   e.Start().Line,
 						Column: e.Start().Column,
 					},
-					Message: fmt.Sprintf("%q is a %s block; only agent and tool blocks can be workflow nodes",
+					Message: fmt.Sprintf("%q is a %s block; only agent, tool, cron, and webhook blocks can be workflow nodes",
 						e.Value, sym.Type.BlockKind.String()),
 					Source: "analyzer",
 				})

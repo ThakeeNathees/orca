@@ -71,6 +71,20 @@ def workflow(
     return _block("workflow", **_fields(locals()))
 
 
+def cron(
+    schedule: str,
+    timezone: str | None = None,
+) -> SimpleNamespace:
+    return _block("cron", **_fields(locals()))
+
+
+def webhook(
+    path: str,
+    method: str | None = None,
+) -> SimpleNamespace:
+    return _block("webhook", **_fields(locals()))
+
+
 def input(
     type: SimpleNamespace,
     desc: str | None = None,

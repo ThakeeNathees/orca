@@ -34,6 +34,12 @@ func TestLookupIdent(t *testing.T) {
 	if LookupIdent("foobar") != IDENT {
 		t.Errorf("expected IDENT for 'foobar'")
 	}
+	if LookupIdent("cron") != CRON {
+		t.Errorf("expected CRON for 'cron'")
+	}
+	if LookupIdent("webhook") != WEBHOOK {
+		t.Errorf("expected WEBHOOK for 'webhook'")
+	}
 }
 
 func TestIsTokenBlockNameLet(t *testing.T) {
@@ -56,6 +62,8 @@ func TestBlockKindString(t *testing.T) {
 		{BlockInput, "input"},
 		{BlockSchema, "schema"},
 		{BlockLet, "let"},
+		{BlockCron, "cron"},
+		{BlockWebhook, "webhook"},
 		{BlockKind(999), "unknown"},
 	}
 
@@ -84,6 +92,8 @@ func TestTokenTypeToBlockKind(t *testing.T) {
 		{"INPUT", INPUT, BlockInput, true},
 		{"SCHEMA", SCHEMA, BlockSchema, true},
 		{"LET", LET, BlockLet, true},
+		{"CRON", CRON, BlockCron, true},
+		{"WEBHOOK", WEBHOOK, BlockWebhook, true},
 		{"IDENT not a block", IDENT, 0, false},
 		{"STRING not a block", STRING, 0, false},
 		{"EOF not a block", EOF, 0, false},
@@ -105,8 +115,8 @@ func TestTokenTypeToBlockKind(t *testing.T) {
 // TestBlockKindsSlice verifies that BlockKinds contains all block kinds
 // and no primitives.
 func TestBlockKindsSlice(t *testing.T) {
-	if len(BlockKinds) != 8 {
-		t.Errorf("len(BlockKinds) = %d, want 8", len(BlockKinds))
+	if len(BlockKinds) != 10 {
+		t.Errorf("len(BlockKinds) = %d, want 10", len(BlockKinds))
 	}
 	// All entries should be block kinds (String() != "unknown").
 	for _, k := range BlockKinds {
@@ -159,6 +169,8 @@ func TestDescribe(t *testing.T) {
 		{"INPUT keyword", INPUT, "'INPUT'"},
 		{"SCHEMA keyword", SCHEMA, "'SCHEMA'"},
 		{"LET keyword", LET, "'LET'"},
+		{"CRON keyword", CRON, "'CRON'"},
+		{"WEBHOOK keyword", WEBHOOK, "'WEBHOOK'"},
 		{"unknown token", TokenType("UNKNOWN"), "UNKNOWN"},
 	}
 
@@ -190,6 +202,8 @@ func TestIsIdentLike(t *testing.T) {
 		{"INPUT", INPUT, true},
 		{"SCHEMA", SCHEMA, true},
 		{"LET", LET, true},
+		{"CRON", CRON, true},
+		{"WEBHOOK", WEBHOOK, true},
 		{"STRING not ident-like", STRING, false},
 		{"INT not ident-like", INT, false},
 		{"TRUE not ident-like", TRUE, false},
@@ -244,7 +258,7 @@ func TestPrecedence(t *testing.T) {
 
 // TestIsTokenBlockNameAllKeywords verifies all block keywords return true.
 func TestIsTokenBlockNameAllKeywords(t *testing.T) {
-	blockTokens := []TokenType{MODEL, AGENT, KNOWLEDGE, WORKFLOW, TOOL, INPUT, SCHEMA, LET}
+	blockTokens := []TokenType{MODEL, AGENT, KNOWLEDGE, WORKFLOW, TOOL, INPUT, SCHEMA, LET, CRON, WEBHOOK}
 	for _, tok := range blockTokens {
 		if !IsTokenBlockName(tok) {
 			t.Errorf("IsTokenBlockName(%s) = false, want true", tok)

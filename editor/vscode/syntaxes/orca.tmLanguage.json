@@ -46,7 +46,7 @@
       ]
     },
     "block-definition": {
-      "match": "\\b(model|agent|tool|task|knowledge|workflow|trigger|schema|input|let)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+      "match": "\\b(model|agent|tool|knowledge|workflow|cron|webhook|schema|input|let)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
       "captures": {
         "1": { "name": "keyword.other.block-type.orca" },
         "2": { "name": "entity.name.type.orca" }
@@ -211,7 +211,7 @@
       "name": "support.type.orca"
     },
     "keyword": {
-      "match": "\\b(model|agent|tool|task|knowledge|workflow|trigger|schema|input|let)\\b",
+      "match": "\\b(model|agent|tool|knowledge|workflow|cron|webhook|schema|input|let)\\b",
       "name": "keyword.other.block-type.orca"
     },
     "identifier": {

@@ -44,6 +44,7 @@ export default defineConfig({
             { text: 'tool', link: '/reference/tool' },
             { text: 'workflow', link: '/reference/workflow' },
             { text: 'cron', link: '/reference/cron' },
+            { text: 'webhook', link: '/reference/webhook' },
             { text: 'input', link: '/reference/input' },
             { text: 'schema', link: '/reference/schema' },
             { text: 'let', link: '/reference/let' },

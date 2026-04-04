@@ -19,6 +19,8 @@ func TestGetBlockSchema(t *testing.T) {
 		{"tool schema exists", token.BlockTool, true, 4},
 		{"knowledge schema exists", token.BlockKnowledge, true, 1},
 		{"workflow schema exists", token.BlockWorkflow, true, 2},
+		{"cron schema exists", token.BlockCron, true, 2},
+		{"webhook schema exists", token.BlockWebhook, true, 2},
 		{"input schema exists", token.BlockInput, true, 4},
 		{"schema kind has no builtin schema", token.BlockSchema, false, 0},
 	}

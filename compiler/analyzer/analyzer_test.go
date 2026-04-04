@@ -1315,12 +1315,30 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			"",
 		},
 		{
+			"valid workflow with cron node",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { daily -> A }`,
+			false,
+			"",
+		},
+		{
+			"valid workflow with webhook node",
+			`webhook hooks_in { path = "/hooks/in" }
+			 agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { hooks_in -> A }`,
+			false,
+			"",
+		},
+		{
 			"model block as workflow node",
 			`model gpt4 { provider = "openai" }
 			 agent A { model = gpt4 }
 			 workflow run { A -> gpt4 }`,
 			true,
-			"only agent and tool blocks can be workflow nodes",
+			"only agent, tool, cron, and webhook blocks can be workflow nodes",
 		},
 		{
 			"knowledge block as workflow node",
@@ -1329,7 +1347,7 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			 model gpt4 { provider = "openai" }
 			 workflow run { A -> kb }`,
 			true,
-			"only agent and tool blocks can be workflow nodes",
+			"only agent, tool, cron, and webhook blocks can be workflow nodes",
 		},
 		{
 			"expression in non-workflow block",
