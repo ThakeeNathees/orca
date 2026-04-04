@@ -38,7 +38,7 @@ export function NavSidebar() {
                 className={cn(
                   "flex size-9 items-center justify-center rounded-md transition-colors",
                   isActive
-                    ? "bg-accent text-foreground"
+                    ? "bg-[#27272A] text-foreground"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                   btnProps.className
                 )}

@@ -8,6 +8,7 @@ import { Palette } from "@/components/palette";
 import { Canvas } from "@/components/canvas";
 import { Inspector } from "@/components/inspector";
 import { NavSidebar } from "@/components/nav-sidebar";
+import { ProjectSidebar } from "@/components/project-sidebar";
 import { Dashboard } from "@/components/dashboard";
 import {
   ViewModeToggle,
@@ -71,6 +72,7 @@ export default function Home() {
     <ReactFlowProvider>
       <div className="flex h-full">
         <NavSidebar />
+        {currentView === "dashboard" && <ProjectSidebar />}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopBar />
           {currentView === "dashboard" ? <Dashboard /> : <WorkflowEditor />}
