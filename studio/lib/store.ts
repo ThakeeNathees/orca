@@ -12,6 +12,7 @@ import type {
   BlockKind,
   BlockNodeData,
   WorkflowSummary,
+  Project,
 } from "./types";
 import { BLOCK_DEFS } from "./block-defs";
 import { getEdgeAccentColor } from "./handle-colors";
@@ -23,6 +24,14 @@ interface StudioState {
   currentView: StudioView;
   workflows: WorkflowSummary[];
   activeWorkflowId: string | null;
+
+  /* ── Projects ── */
+  projects: Project[];
+  activeProjectId: string;
+  createProject: () => void;
+  renameProject: (id: string, name: string) => void;
+  deleteProject: (id: string) => void;
+  setActiveProject: (id: string) => void;
 
   createWorkflow: () => void;
   openWorkflow: (id: string) => void;
@@ -62,6 +71,16 @@ let workflowIdCounter = 2;
 function nextWorkflowId(): string {
   return `wf-${++workflowIdCounter}`;
 }
+
+let projectIdCounter = 1;
+function nextProjectId(): string {
+  return `proj-${++projectIdCounter}`;
+}
+
+const SEED_PROJECTS: Project[] = [
+  { id: "proj-1", name: "My Project" },
+];
+
 
 /** Nodes are 240px wide. Layout: lone agent centered above a row of model → memory → tools. */
 const NODE_W = 240;
@@ -204,12 +223,14 @@ const SEED_WORKFLOWS: WorkflowSummary[] = [
     name: "Vector Store RAG",
     updatedAt: new Date(Date.now() - 2 * 60 * 1000),
     color: "#f9a8d4",
+    projectId: "proj-1",
   },
   {
     id: "wf-2",
     name: "Basic Prompting",
     updatedAt: new Date(Date.now() - 3 * 60 * 1000),
     color: "#a78bfa",
+    projectId: "proj-1",
   },
 ];
 
@@ -219,6 +240,41 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   workflows: SEED_WORKFLOWS,
   activeWorkflowId: null,
 
+  /* ── Projects ── */
+  projects: SEED_PROJECTS,
+  activeProjectId: "proj-1",
+
+  createProject: () => {
+    const id = nextProjectId();
+    set({
+      projects: [...get().projects, { id, name: "New Project" }],
+      activeProjectId: id,
+    });
+  },
+
+  renameProject: (id, name) => {
+    set({
+      projects: get().projects.map((p) =>
+        p.id === id ? { ...p, name } : p
+      ),
+    });
+  },
+
+  deleteProject: (id) => {
+    const projects = get().projects.filter((p) => p.id !== id);
+    if (projects.length === 0) return; // don't delete the last project
+    set({
+      projects,
+      workflows: get().workflows.filter((w) => w.projectId !== id),
+      activeProjectId:
+        get().activeProjectId === id ? projects[0].id : get().activeProjectId,
+    });
+  },
+
+  setActiveProject: (id) => {
+    set({ activeProjectId: id });
+  },
+
   createWorkflow: () => {
     const id = nextWorkflowId();
     const wf: WorkflowSummary = {
@@ -226,6 +282,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       name: "Untitled Workflow",
       updatedAt: new Date(),
       color: randomPastelColor(),
+      projectId: get().activeProjectId,
     };
     set({
       workflows: [wf, ...get().workflows],

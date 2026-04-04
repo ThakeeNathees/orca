@@ -93,9 +93,12 @@ function WorkflowMenu({
 }
 
 export function Dashboard() {
-  const workflows = useStudioStore((s) => s.workflows);
+  const allWorkflows = useStudioStore((s) => s.workflows);
+  const activeProjectId = useStudioStore((s) => s.activeProjectId);
   const openWorkflow = useStudioStore((s) => s.openWorkflow);
   const deleteWorkflow = useStudioStore((s) => s.deleteWorkflow);
+
+  const workflows = allWorkflows.filter((w) => w.projectId === activeProjectId);
 
   const [deleteTarget, setDeleteTarget] = useState<WorkflowSummary | null>(
     null

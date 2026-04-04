@@ -69,4 +69,11 @@ export interface WorkflowSummary {
   name: string;
   updatedAt: Date;
   color: string;
+  projectId: string;
+}
+
+/** A project groups related workflows. */
+export interface Project {
+  id: string;
+  name: string;
 }
