@@ -113,8 +113,3 @@ apikey = __orca_input(
     default="sk-xxx",
     sensitive=True,
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

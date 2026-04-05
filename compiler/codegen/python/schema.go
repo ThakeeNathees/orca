@@ -59,6 +59,12 @@ func SchemaBlockToSource(block *ast.BlockStatement) string {
 	return sb.String()
 }
 
+// OrcaTypeToPythonTypeName converts a resolved types.Type to a Python type annotation string.
+// Exported for use by other codegen packages (e.g. workflow state generation).
+func OrcaTypeToPythonTypeName(t types.Type) string {
+	return orcaTypeToPythonTypeName(t)
+}
+
 // orcaTypeToPythonTypeName converts a resolved types.Type to a Python type annotation string.
 // Uses the type system's resolved types rather than raw AST pattern-matching,
 // giving correct results for all type constructs (unions, generics, schema refs).

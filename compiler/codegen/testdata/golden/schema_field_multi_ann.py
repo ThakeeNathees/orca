@@ -111,8 +111,3 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
 
 class cfg(BaseModel):
     region: str = Field(description="Region code")
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

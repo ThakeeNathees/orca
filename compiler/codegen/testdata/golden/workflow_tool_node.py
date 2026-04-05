@@ -125,11 +125,6 @@ validate = __orca_tool(
     invoke=check_style,
 )
 
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None
-
 # --- Agents ---
 
 drafter = __orca_agent(
@@ -144,27 +139,34 @@ reviewer = __orca_agent(
 
 # --- Workflows ---
 
-def _node_drafter(state: GraphState) -> dict:
+class __orca_state_review_pipeline(TypedDict):
+    __orca_trigger: str | None
+    __orca_payload: dict | None
+    drafter: Any
+    validate: Any
+    reviewer: Any
+
+def __orca_node_drafter(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'drafter'."""
     pass  # TODO: implement node invocation for 'drafter'
 
-def _node_validate(state: GraphState) -> dict:
+def __orca_node_validate(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'validate'."""
     pass  # TODO: implement node invocation for 'validate'
 
-def _node_reviewer(state: GraphState) -> dict:
+def __orca_node_reviewer(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'reviewer'."""
     pass  # TODO: implement node invocation for 'reviewer'
 
-def _route_review_pipeline(state: GraphState) -> str:
+def __orca_route_review_pipeline(state: __orca_state_review_pipeline) -> str:
     """Route to entry node based on trigger source."""
     return "drafter"
 
-review_pipeline = StateGraph(GraphState)
-review_pipeline.add_node("drafter", _node_drafter)
-review_pipeline.add_node("validate", _node_validate)
-review_pipeline.add_node("reviewer", _node_reviewer)
-review_pipeline.add_conditional_edges(START, _route_review_pipeline)
+review_pipeline = StateGraph(__orca_state_review_pipeline)
+review_pipeline.add_node("drafter", __orca_node_drafter)
+review_pipeline.add_node("validate", __orca_node_validate)
+review_pipeline.add_node("reviewer", __orca_node_reviewer)
+review_pipeline.add_conditional_edges(START, __orca_route_review_pipeline)
 review_pipeline.add_edge("drafter", "validate")
 review_pipeline.add_edge("validate", "reviewer")
 review_pipeline.add_edge("reviewer", END)

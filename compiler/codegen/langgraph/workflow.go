@@ -31,6 +31,7 @@ func (b *LangGraphBackend) triggerPredicate() func(string) bool {
 
 // writeWorkflowSection emits all workflow blocks as LangGraph StateGraph
 // construction code. Each workflow generates:
+//   - A per-workflow TypedDict state class with typed node fields
 //   - Node wrapper functions for each referenced agent/tool
 //   - A router function that dispatches to entry nodes based on trigger source
 //   - StateGraph instantiation with add_node/add_conditional_edges/add_edge calls
@@ -55,30 +56,45 @@ func (b *LangGraphBackend) writeWorkflowSection(s *strings.Builder, blocks []*as
 	}
 }
 
+// nodeFuncName returns the Python function name for a workflow node wrapper.
+func nodeFuncName(nodeName string) string {
+	return orcaPrefix + "node_" + nodeName
+}
+
+// stateClassName returns the TypedDict class name for a workflow's state.
+func stateClassName(workflowName string) string {
+	return orcaPrefix + "state_" + workflowName
+}
+
 // writeWorkflow emits the LangGraph code for a single workflow.
 func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.ResolvedWorkflow) {
+	stateName := stateClassName(rw.Name)
+
+	// Per-workflow typed state class.
+	b.writeWorkflowState(s, rw, stateName)
+
 	// Node wrapper functions (processing nodes only, not triggers).
 	for _, node := range rw.Nodes {
 		s.WriteString("\n")
-		fmt.Fprintf(s, "def _node_%s(state: GraphState) -> dict:\n", node)
+		fmt.Fprintf(s, "def %s(state: %s) -> dict:\n", nodeFuncName(node), stateName)
 		fmt.Fprintf(s, "    \"\"\"Workflow node wrapping '%s'.\"\"\"\n", node)
 		fmt.Fprintf(s, "    pass  # TODO: implement node invocation for '%s'\n", node)
 	}
 
 	// Router function.
 	s.WriteString("\n")
-	writeRouter(s, rw)
+	writeRouter(s, rw, stateName)
 
 	// StateGraph construction.
 	s.WriteString("\n")
-	fmt.Fprintf(s, "%s = StateGraph(GraphState)\n", rw.Name)
+	fmt.Fprintf(s, "%s = StateGraph(%s)\n", rw.Name, stateName)
 
 	for _, node := range rw.Nodes {
-		fmt.Fprintf(s, "%s.add_node(\"%s\", _node_%s)\n", rw.Name, node, node)
+		fmt.Fprintf(s, "%s.add_node(\"%s\", %s)\n", rw.Name, node, nodeFuncName(node))
 	}
 
 	// START → router (always conditional edges).
-	fmt.Fprintf(s, "%s.add_conditional_edges(START, _route_%s)\n", rw.Name, rw.Name)
+	fmt.Fprintf(s, "%s.add_conditional_edges(START, %sroute_%s)\n", rw.Name, orcaPrefix, rw.Name)
 
 	// Processing edges + END edges.
 	for _, edge := range rw.Edges {
@@ -88,16 +104,56 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 	fmt.Fprintf(s, "%s = %s.compile()\n", rw.Name, rw.Name)
 }
 
-// writeRouter emits the _route_<workflow> function that dispatches to entry
-// nodes based on the trigger source in state["__orca_trigger__"].
-func writeRouter(s *strings.Builder, rw workflow.ResolvedWorkflow) {
+// writeWorkflowState emits a per-workflow TypedDict class with typed fields
+// for trigger metadata and each processing node's output.
+func (b *LangGraphBackend) writeWorkflowState(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string) {
+	s.WriteString("\n")
+	fmt.Fprintf(s, "class %s(TypedDict):\n", stateName)
+	fmt.Fprintf(s, "    %strigger: str | None\n", orcaPrefix)
+	fmt.Fprintf(s, "    %spayload: dict | None\n", orcaPrefix)
+
+	for _, node := range rw.Nodes {
+		typeAnnotation := b.nodeFieldType(node)
+		fmt.Fprintf(s, "    %s: %s\n", node, typeAnnotation)
+	}
+}
+
+// nodeFieldType determines the Python type annotation for a node's output
+// field in the workflow state. Rules:
+//   - Agent without output_schema → "str | None"
+//   - Agent with output_schema → "<schema_name> | None"
+//   - Tool without output_schema → "dict | None"
+//   - Tool with output_schema → "<schema_name> | None"
+//   - Unknown → "str | None"
+func (b *LangGraphBackend) nodeFieldType(nodeName string) string {
+	block := b.Program.Ast.FindBlockWithName(nodeName)
+	if block == nil {
+		return "Any"
+	}
+
+	// Check for output_schema field.
+	if schemaExpr, ok := block.GetFieldExpression("output_schema"); ok {
+		// Use bootstrap mode (nil symbol table) to resolve the schema name
+		// as a type, since the symbol table stores schemas without names.
+		schemaType := types.ExprType(schemaExpr, nil)
+		typeName := python.OrcaTypeToPythonTypeName(schemaType)
+		return typeName + " | None"
+	}
+
+	// No output_schema — output type is unknown.
+	return "Any"
+}
+
+// writeRouter emits the __orca_route_<workflow> function that dispatches to entry
+// nodes based on the trigger source in state["__orca_trigger"].
+func writeRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string) {
 	fanOut := rw.IsFanOut()
 	returnType := "str"
 	if fanOut {
 		returnType = "list[str]"
 	}
 
-	fmt.Fprintf(s, "def _route_%s(state: GraphState) -> %s:\n", rw.Name, returnType)
+	fmt.Fprintf(s, "def %sroute_%s(state: %s) -> %s:\n", orcaPrefix, rw.Name, stateName, returnType)
 	fmt.Fprintf(s, "    \"\"\"Route to entry node based on trigger source.\"\"\"\n")
 
 	if !rw.HasTriggers() {

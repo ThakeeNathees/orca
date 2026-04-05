@@ -129,11 +129,6 @@ calculator = __orca_tool(
     invoke=CalculatorTool,
 )
 
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None
-
 # --- Agents ---
 
 researcher = __orca_agent(

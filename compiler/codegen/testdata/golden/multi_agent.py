@@ -122,11 +122,6 @@ claude = __orca_model(
     temperature=0.3,
 )
 
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None
-
 # --- Agents ---
 
 researcher = __orca_agent(

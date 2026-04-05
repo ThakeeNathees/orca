@@ -116,11 +116,6 @@ gpt4 = __orca_model(
     model_name="gpt-4o",
 )
 
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None
-
 # --- Agents ---
 
 classifier = __orca_agent(
@@ -145,32 +140,40 @@ reviewer = __orca_agent(
 
 # --- Workflows ---
 
-def _node_classifier(state: GraphState) -> dict:
+class __orca_state_diamond(TypedDict):
+    __orca_trigger: str | None
+    __orca_payload: dict | None
+    classifier: Any
+    writer: Any
+    analyst: Any
+    reviewer: Any
+
+def __orca_node_classifier(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'classifier'."""
     pass  # TODO: implement node invocation for 'classifier'
 
-def _node_writer(state: GraphState) -> dict:
+def __orca_node_writer(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'writer'."""
     pass  # TODO: implement node invocation for 'writer'
 
-def _node_analyst(state: GraphState) -> dict:
+def __orca_node_analyst(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'analyst'."""
     pass  # TODO: implement node invocation for 'analyst'
 
-def _node_reviewer(state: GraphState) -> dict:
+def __orca_node_reviewer(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'reviewer'."""
     pass  # TODO: implement node invocation for 'reviewer'
 
-def _route_diamond(state: GraphState) -> str:
+def __orca_route_diamond(state: __orca_state_diamond) -> str:
     """Route to entry node based on trigger source."""
     return "classifier"
 
-diamond = StateGraph(GraphState)
-diamond.add_node("classifier", _node_classifier)
-diamond.add_node("writer", _node_writer)
-diamond.add_node("analyst", _node_analyst)
-diamond.add_node("reviewer", _node_reviewer)
-diamond.add_conditional_edges(START, _route_diamond)
+diamond = StateGraph(__orca_state_diamond)
+diamond.add_node("classifier", __orca_node_classifier)
+diamond.add_node("writer", __orca_node_writer)
+diamond.add_node("analyst", __orca_node_analyst)
+diamond.add_node("reviewer", __orca_node_reviewer)
+diamond.add_conditional_edges(START, __orca_route_diamond)
 diamond.add_edge("classifier", "writer")
 diamond.add_edge("classifier", "analyst")
 diamond.add_edge("writer", "reviewer")

@@ -76,7 +76,6 @@ func (b *LangGraphBackend) generateMain() string {
 	b.writeOrcaBlockSection(&s, "Models", token.BlockModel)
 	b.writeOrcaBlockSection(&s, "Knowledge", token.BlockKnowledge)
 	b.writeToolSection(&s)
-	b.writeGraphState(&s)
 	b.writeOrcaBlockSection(&s, "Agents", token.BlockAgent)
 	b.writeOrcaBlockSection(&s, "Cron", token.BlockCron)
 	b.writeOrcaBlockSection(&s, "Webhooks", token.BlockWebhook)
@@ -135,9 +134,3 @@ func (b *LangGraphBackend) writeSchemaSection(s *strings.Builder, blocks []*ast.
 	}
 }
 
-func (b *LangGraphBackend) writeGraphState(s *strings.Builder) {
-	s.WriteString("\n# --- Graph State ---\n")
-	s.WriteString("class GraphState(TypedDict):\n")
-	fmt.Fprintf(s, "    %strigger: str | None\n", orcaPrefix)
-	fmt.Fprintf(s, "    %spayload: dict | None\n", orcaPrefix)
-}

@@ -115,11 +115,6 @@ gpt4 = __orca_model(
     temperature=0.7,
 )
 
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None
-
 # --- Agents ---
 
 writer = __orca_agent(

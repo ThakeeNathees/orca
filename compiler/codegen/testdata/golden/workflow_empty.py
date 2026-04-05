@@ -113,8 +113,3 @@ gpt4 = __orca_model(
     provider="openai",
     model_name="gpt-4o",
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

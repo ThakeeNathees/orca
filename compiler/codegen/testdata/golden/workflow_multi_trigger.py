@@ -116,11 +116,6 @@ gpt4 = __orca_model(
     model_name="gpt-4o",
 )
 
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None
-
 # --- Agents ---
 
 researcher = __orca_agent(
@@ -152,19 +147,26 @@ hooks_in = __orca_webhook(
 
 # --- Workflows ---
 
-def _node_researcher(state: GraphState) -> dict:
+class __orca_state_pipeline(TypedDict):
+    __orca_trigger: str | None
+    __orca_payload: dict | None
+    researcher: Any
+    writer: Any
+    analyst: Any
+
+def __orca_node_researcher(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'researcher'."""
     pass  # TODO: implement node invocation for 'researcher'
 
-def _node_writer(state: GraphState) -> dict:
+def __orca_node_writer(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'writer'."""
     pass  # TODO: implement node invocation for 'writer'
 
-def _node_analyst(state: GraphState) -> dict:
+def __orca_node_analyst(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'analyst'."""
     pass  # TODO: implement node invocation for 'analyst'
 
-def _route_pipeline(state: GraphState) -> str:
+def __orca_route_pipeline(state: __orca_state_pipeline) -> str:
     """Route to entry node based on trigger source."""
     trigger = state.get("__orca_trigger")
     if trigger == "daily":
@@ -173,11 +175,11 @@ def _route_pipeline(state: GraphState) -> str:
         return "analyst"
     raise ValueError(f"unknown trigger: {trigger!r}")
 
-pipeline = StateGraph(GraphState)
-pipeline.add_node("researcher", _node_researcher)
-pipeline.add_node("writer", _node_writer)
-pipeline.add_node("analyst", _node_analyst)
-pipeline.add_conditional_edges(START, _route_pipeline)
+pipeline = StateGraph(__orca_state_pipeline)
+pipeline.add_node("researcher", __orca_node_researcher)
+pipeline.add_node("writer", __orca_node_writer)
+pipeline.add_node("analyst", __orca_node_analyst)
+pipeline.add_conditional_edges(START, __orca_route_pipeline)
 pipeline.add_edge("researcher", "writer")
 pipeline.add_edge("analyst", "writer")
 pipeline.add_edge("writer", END)
