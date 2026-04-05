@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
+import { useEscapeKey } from "@/lib/hooks/use-escape-key";
 
 interface DropdownMenuContextValue {
   open: boolean;
@@ -25,6 +26,9 @@ export function DropdownMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useEscapeKey(closeMenu, open);
+
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -32,15 +36,8 @@ export function DropdownMenu({ children }: { children: ReactNode }) {
         setOpen(false);
       }
     };
-    const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
     document.addEventListener("mousedown", handler);
-    document.addEventListener("keydown", keyHandler);
-    return () => {
-      document.removeEventListener("mousedown", handler);
-      document.removeEventListener("keydown", keyHandler);
-    };
+    return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
   return (

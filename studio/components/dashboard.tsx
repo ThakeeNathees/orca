@@ -94,12 +94,10 @@ export function Dashboard() {
           ) : (
             <div className="space-y-1">
               {workflows.map((wf) => (
-                <div
+                <button
                   key={wf.id}
-                  role="button"
-                  tabIndex={0}
+                  type="button"
                   onClick={() => openWorkflow(wf.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openWorkflow(wf.id); }}
                   className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-sidebar-accent cursor-pointer"
                 >
                   {/* Icon */}
@@ -126,7 +124,7 @@ export function Dashboard() {
                     onOpen={() => openWorkflow(wf.id)}
                     onDelete={() => setDeleteTarget(wf)}
                   />
-                </div>
+                </button>
               ))}
             </div>
           )}

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEscapeKey } from "@/lib/hooks/use-escape-key";
 
 interface DialogProps {
   open: boolean;
@@ -11,14 +12,7 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
-  React.useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onOpenChange(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onOpenChange]);
+  useEscapeKey(React.useCallback(() => onOpenChange(false), [onOpenChange]), open);
 
   if (!open) return null;
 
