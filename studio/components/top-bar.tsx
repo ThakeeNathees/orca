@@ -74,11 +74,11 @@ export function TopBar() {
       {isEditor && (
         <div className="flex shrink-0 items-center gap-2">
           <div
-            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[#86efac] shadow-sm dark:bg-[#6ee7b7]"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-green-300 shadow-sm dark:bg-green-300"
             aria-hidden
           >
             <Workflow
-              className="size-[15px] text-[#18181b] dark:text-[#0f172a]"
+              className="size-[15px] text-zinc-900 dark:text-slate-900"
               strokeWidth={2}
             />
           </div>
