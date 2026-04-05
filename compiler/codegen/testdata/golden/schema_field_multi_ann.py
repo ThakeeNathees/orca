@@ -36,7 +36,7 @@ def __orca_with_meta(value: Any, metas: list[Any]) -> SimpleNamespace:
 
 
 def __orca_model(
-    provider: str,
+    provider_class: type,
     model_name: str | SimpleNamespace,
     api_key: str | None = None,
     base_url: str | None = None,
@@ -119,41 +119,21 @@ def __orca_gather(state: dict, predecessors: list[str]) -> Any:
 
 
 def __orca_resolve_model(model_ns: SimpleNamespace) -> Any:
-    """Resolve a model SimpleNamespace to a LangChain ChatModel instance.
+    """Instantiate a LangChain ChatModel from a model SimpleNamespace.
 
-    Maps provider string to the corresponding LangChain class and passes
-    through model_name, temperature, api_key, and base_url.
+    The provider_class field is the actual class (e.g. ChatOpenAI), resolved
+    at compile time by the codegen. No runtime provider lookup needed.
     """
-    provider = model_ns.provider
-    model_name = model_ns.model_name
-    kwargs: dict[str, Any] = {"model": model_name}
-    if getattr(model_ns, "temperature", None) is not None:
-        kwargs["temperature"] = model_ns.temperature
-    if getattr(model_ns, "api_key", None) is not None:
-        kwargs["api_key"] = model_ns.api_key
-    if getattr(model_ns, "base_url", None) is not None:
-        kwargs["base_url"] = model_ns.base_url
-
-    providers = {
-        "openai": "ChatOpenAI",
-        "anthropic": "ChatAnthropic",
-        "google": "ChatGoogleGenerativeAI",
-    }
-    class_name = providers.get(provider)
-    if class_name is None:
-        raise ValueError(f"unsupported model provider: {provider!r}")
-
-    # The class is already imported by the generated code.
-    cls = globals().get(class_name)
-    if cls is None:
-        raise RuntimeError(
-            f"{class_name} not found — ensure the provider import is generated"
-        )
-    return cls(**kwargs)
+    return model_ns.provider_class(**__orca_fields({
+        "model": model_ns.model_name,
+        "temperature": getattr(model_ns, "temperature", None),
+        "api_key": getattr(model_ns, "api_key", None),
+        "base_url": getattr(model_ns, "base_url", None),
+    }))
 
 
 def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
-    """Invoke an agent node using create_react_agent (works with or without tools)."""
+    """Invoke an agent node using create_agent (works with or without tools)."""
     llm = __orca_resolve_model(agent.model)
     tools = [t.invoke for t in getattr(agent, "tools", None) or []]
     output_schema = getattr(agent, "output_schema", None)
@@ -161,7 +141,7 @@ def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
     if output_schema is not None:
         llm = llm.with_structured_output(output_schema)
 
-    react = create_react_agent(llm, tools)
+    react = create_agent(llm, tools)
     result = react.invoke(
         {"messages": [{"role": "system", "content": agent.persona},
                       {"role": "user", "content": str(input_data)}]}

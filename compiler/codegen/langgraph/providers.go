@@ -4,6 +4,7 @@ package langgraph
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
@@ -44,6 +45,16 @@ var providerRegistry = map[string]providerInfo{
 			Symbols:    []python.ImportSymbol{{Name: "ChatGoogleGenerativeAI"}},
 		},
 	},
+}
+
+// providerClassName returns the LangChain class name for a provider string,
+// e.g. "openai" → "ChatOpenAI". Returns empty string if unknown.
+func providerClassName(provider string) string {
+	info, ok := providerRegistry[provider]
+	if !ok || len(info.PyImport.Symbols) == 0 {
+		return ""
+	}
+	return info.PyImport.Symbols[0].Name
 }
 
 // resolvedProviders holds the result of a single pass over model blocks:
@@ -117,6 +128,58 @@ func (b *LangGraphBackend) resolveProviders() {
 	}
 
 	b.resolvedProviders = resolvedProviders{providerImports: imports}
+}
+
+// writeModelSection emits model blocks with the provider field replaced by the
+// resolved LangChain class reference. Instead of provider="openai", emits
+// provider_class=ChatOpenAI so the runtime can instantiate directly.
+func (b *LangGraphBackend) writeModelSection(s *strings.Builder) {
+	models := b.CollectBlocksByKind(token.BlockModel)
+	if len(models) == 0 {
+		return
+	}
+
+	s.WriteString("\n# --- Models ---\n")
+
+	for _, model := range models {
+		s.WriteString("\n")
+		fmt.Fprintf(s, "%s = %s\n", model.Name, modelBlockSource(model))
+	}
+}
+
+// modelBlockSource generates the __orca_model(...) call with the provider field
+// substituted from a string to the resolved class name.
+func modelBlockSource(model *ast.BlockStatement) string {
+	var sb strings.Builder
+	sb.WriteString(orcaPrefix + "model(")
+
+	indent := "    "
+	for _, assign := range model.Assignments {
+		sb.WriteString("\n")
+		sb.WriteString(indent)
+
+		if assign.Name == "provider" {
+			if str, ok := assign.Value.(*ast.StringLiteral); ok {
+				if className := providerClassName(str.Value); className != "" {
+					sb.WriteString("provider_class=")
+					sb.WriteString(className)
+					sb.WriteString(",")
+					continue
+				}
+			}
+		}
+
+		sb.WriteString(assign.Name)
+		sb.WriteString("=")
+		sb.WriteString(assignmentValueSource(assign, indent))
+		sb.WriteString(",")
+	}
+	if len(model.Assignments) > 0 {
+		sb.WriteString("\n")
+	}
+	sb.WriteString(")")
+
+	return wrapWithMetaIfNeeded(sb.String(), model.Annotations, "    ", "")
 }
 
 // collectBodiesByKind returns all BlockBody nodes matching the given kind,
