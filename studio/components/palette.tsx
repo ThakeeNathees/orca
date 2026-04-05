@@ -148,28 +148,23 @@ function CollapsedGroupRow({
     <div className="flex justify-center">
       <Tooltip>
         <TooltipTrigger
-          render={(props) => {
-            const p = { ...props } as Record<string, unknown>;
-            delete p.type;
-            const divProps = p as React.ButtonHTMLAttributes<HTMLButtonElement>;
-            return (
-              <button
-                type="button"
-                {...divProps}
-                aria-label={`Expand palette — ${label}`}
-                onClick={(e) => {
-                  divProps.onClick?.(e as React.MouseEvent<HTMLButtonElement>);
-                  onExpand(label);
-                }}
-                className={cn(
-                  "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                  divProps.className
-                )}
-              >
-                <GroupIcon className="h-4 w-4" />
-              </button>
-            );
-          }}
+          render={({ type: _type, ...btnProps }) => (
+            <button
+              type="button"
+              {...btnProps}
+              aria-label={`Expand palette — ${label}`}
+              onClick={(e) => {
+                btnProps.onClick?.(e);
+                onExpand(label);
+              }}
+              className={cn(
+                "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                btnProps.className
+              )}
+            >
+              <GroupIcon className="h-4 w-4" />
+            </button>
+          )}
         />
         <TooltipContent side="right" sideOffset={8}>
           {label}

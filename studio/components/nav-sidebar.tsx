@@ -20,34 +20,26 @@ export function NavSidebar() {
       {/* Dashboard nav item */}
       <Tooltip>
         <TooltipTrigger
-          render={(props) => {
-            const p = { ...props } as Record<string, unknown>;
-            delete p.type;
-            const btnProps =
-              p as React.ButtonHTMLAttributes<HTMLButtonElement>;
-            return (
-              <button
-                type="button"
-                {...btnProps}
-                onClick={(e) => {
-                  btnProps.onClick?.(
-                    e as React.MouseEvent<HTMLButtonElement>
-                  );
-                  goToDashboard();
-                }}
-                className={cn(
-                  "flex size-9 items-center justify-center rounded-md transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                  btnProps.className
-                )}
-                aria-label="Dashboard"
-              >
-                <Home className="size-[18px]" />
-              </button>
-            );
-          }}
+          render={({ type: _type, ...btnProps }) => (
+            <button
+              type="button"
+              {...btnProps}
+              onClick={(e) => {
+                btnProps.onClick?.(e);
+                goToDashboard();
+              }}
+              className={cn(
+                "flex size-9 items-center justify-center rounded-md transition-colors",
+                isActive
+                  ? "bg-sidebar-accent text-foreground"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                btnProps.className
+              )}
+              aria-label="Dashboard"
+            >
+              <Home className="size-[18px]" />
+            </button>
+          )}
         />
         <TooltipContent side="right" sideOffset={8}>
           Dashboard

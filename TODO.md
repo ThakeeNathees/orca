@@ -67,30 +67,20 @@ Eliminate the most impactful code duplication.
 
 ### 3a — Replace `div[role="button"]` with `<button>`
 
-- [ ] `project-sidebar.tsx` — `ProjectItem` uses `<div role="button">`, change to `<button>`
-- [ ] `dashboard.tsx` — any clickable divs should be real buttons
-- [ ] Ensure keyboard handlers (Enter/Space) work natively via `<button>`
-- [ ] **Test:** Keyboard navigation works on interactive elements (Enter activates items)
+- [x] `project-sidebar.tsx` — `ProjectItem` uses `<div role="button">`, change to `<button>`
+- [x] `dashboard.tsx` — any clickable divs should be real buttons
+- [x] Ensure keyboard handlers (Enter/Space) work natively via `<button>`
 
 ### 3b — Fix unsafe type casting
 
-- [ ] `nav-sidebar.tsx` lines 24-27 — replace `delete p.type` cast pattern with proper destructuring:
-  ```tsx
-  // Before (unsafe)
-  const p = { ...props } as Record<string, unknown>;
-  delete p.type;
-  const btnProps = p as React.ButtonHTMLAttributes<HTMLButtonElement>;
-
-  // After (safe)
-  const { type, ...btnProps } = props;
-  ```
-- [ ] `palette.tsx` — same pattern, same fix
-- [ ] Grep for any other `delete p.` patterns and fix them
+- [x] `nav-sidebar.tsx` — replace `delete p.type` cast pattern with destructuring
+- [x] `palette.tsx` — same pattern, same fix
 
 ### 3c — Escape key handling consolidation
 
-- [ ] Create a `useEscapeKey(callback)` hook in `lib/hooks/use-escape-key.ts`
-- [ ] Replace manual `keydown` + `"Escape"` listeners in `dashboard.tsx`, `project-sidebar.tsx`, and `dialog.tsx`
+- [x] Create a `useEscapeKey(callback)` hook in `lib/hooks/use-escape-key.ts`
+- [x] Replace manual `keydown` + `"Escape"` listeners in `dialog.tsx` and `dropdown-menu.tsx`
+- [x] **Tests:** 4 tests for useEscapeKey (fires on Escape, ignores other keys, disabled, cleanup)
 
 ---
 
