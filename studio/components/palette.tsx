@@ -148,18 +148,18 @@ function CollapsedGroupRow({
     <div className="flex justify-center">
       <Tooltip>
         <TooltipTrigger
-          render={({ type: _type, ...btnProps }) => (
+          render={(props) => (
             <button
+              {...props}
               type="button"
-              {...btnProps}
               aria-label={`Expand palette — ${label}`}
               onClick={(e) => {
-                btnProps.onClick?.(e);
+                props.onClick?.(e);
                 onExpand(label);
               }}
               className={cn(
                 "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                btnProps.className
+                props.className
               )}
             >
               <GroupIcon className="h-4 w-4" />
