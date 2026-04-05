@@ -111,6 +111,25 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
     return __orca_block("let", **kwargs)
 
 
+def __orca_gather(state: dict, predecessors: list[str]) -> Any:
+    """Collect predecessor outputs from workflow state.
+
+    Single predecessor returns its value directly.
+    Multiple predecessors returns a dict keyed by predecessor name.
+    """
+    raise NotImplementedError("TODO: __orca_gather")
+
+
+def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
+    """Invoke an agent node. Uses create_react_agent internally (works with or without tools)."""
+    raise NotImplementedError("TODO: __orca_invoke_agent")
+
+
+def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
+    """Invoke a tool node directly."""
+    raise NotImplementedError("TODO: __orca_invoke_tool")
+
+
 # --- Models ---
 
 gpt4 = __orca_model(
@@ -148,15 +167,21 @@ class __orca_state_review_pipeline(TypedDict):
 
 def __orca_node_drafter(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'drafter'."""
-    pass  # TODO: implement node invocation for 'drafter'
+    input_data = state["__orca_payload"]
+    result = __orca_invoke_agent(drafter, input_data)
+    return {"drafter": result}
 
 def __orca_node_validate(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'validate'."""
-    pass  # TODO: implement node invocation for 'validate'
+    input_data = __orca_gather(state, ["drafter"])
+    result = __orca_invoke_tool(validate, input_data)
+    return {"validate": result}
 
 def __orca_node_reviewer(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'reviewer'."""
-    pass  # TODO: implement node invocation for 'reviewer'
+    input_data = __orca_gather(state, ["validate"])
+    result = __orca_invoke_agent(reviewer, input_data)
+    return {"reviewer": result}
 
 def __orca_route_review_pipeline(state: __orca_state_review_pipeline) -> str:
     """Route to entry node based on trigger source."""
