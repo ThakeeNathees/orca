@@ -1,12 +1,4 @@
-"""Orca runtime — inlined into generated main.py.
-
-These functions are called by generated code to create block instances.
-All public names are prefixed with __orca_ to avoid collisions with user code.
-"""
-
-from __future__ import annotations
-
-from types import SimpleNamespace
+from types import SimpleNamespace, TypedDict
 from typing import Any
 
 
