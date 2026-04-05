@@ -71,7 +71,7 @@ function ProjectItem({
       className={cn(
         "group flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors cursor-pointer",
         isActive
-          ? "bg-[#27272A] text-foreground"
+          ? "bg-sidebar-accent text-foreground"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
       )}
     >

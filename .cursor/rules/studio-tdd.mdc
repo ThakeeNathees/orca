@@ -1,0 +1,47 @@
+---
+description: TDD and testing rules for the studio (Next.js + React) codebase
+alwaysApply: true
+---
+
+# Studio: TDD & Testing
+
+The `studio/` directory follows **test-driven development**. Apply these rules whenever working on studio code.
+
+## Core rules
+
+- **Write tests before implementation.** No new component, hook, utility, or store action without a failing test first.
+- **Every PR must include tests** for the code it adds or changes. No exceptions.
+- **Run `pnpm test` from `studio/`** before considering any task complete.
+
+## Test framework
+
+- **Vitest** as the test runner (`vitest.config.ts` at `studio/` root)
+- **React Testing Library** for component tests
+- **jsdom** environment (configured in vitest)
+- Test files live next to the code they test: `foo.tsx` → `foo.test.tsx`
+
+## What to test
+
+- **Store actions** (`lib/store.ts`): test each action in isolation using Zustand's `getState()`/`setState()`
+- **Pure logic** (`lib/block-defs.ts`, `lib/handle-colors.ts`): unit test all exported functions
+- **Components**: render tests (does it render without crashing?), interaction tests (click/type triggers correct behavior)
+- **Error boundaries**: test that fallback UI renders when children throw
+
+## What NOT to test
+
+- shadcn UI primitives in `components/ui/` — these are third-party, don't test them
+- Visual styling / CSS classes — don't assert on class names
+- next/dynamic or SSR behavior — we run in jsdom
+
+## Mocking guidelines
+
+- Mock `@xyflow/react` — it requires DOM measurement APIs that jsdom lacks
+- Mock `next/dynamic` — return stub components
+- Mock `@monaco-editor/react` — heavy dependency, stub it
+- Do NOT mock the Zustand store for store tests — test the real store
+- Do NOT mock internal modules unless absolutely necessary
+
+## Naming conventions
+
+- Describe blocks: component or module name
+- Test names: `it("does X when Y")` — describe behavior, not implementation
