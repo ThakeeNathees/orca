@@ -4,6 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import { Plus, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStudioStore } from "@/lib/store";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 function ProjectItem({
   project,
@@ -19,12 +25,8 @@ function ProjectItem({
   onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [editValue, setEditValue] = useState(project.name);
   const inputRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (editing) {
@@ -32,17 +34,6 @@ function ProjectItem({
       inputRef.current?.select();
     }
   }, [editing]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpen]);
 
   const commitRename = () => {
     const trimmed = editValue.trim();
@@ -98,55 +89,27 @@ function ProjectItem({
 
       {/* Three-dot menu */}
       {!editing && (
-        <div ref={menuRef} className="relative shrink-0">
-          <button
-            ref={menuBtnRef}
-            type="button"
+        <DropdownMenu>
+          <DropdownMenuTrigger
             className="ml-1 flex size-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!menuOpen && menuBtnRef.current) {
-                const rect = menuBtnRef.current.getBoundingClientRect();
-                setMenuPos({ top: rect.bottom + 4, left: rect.left });
-              }
-              setMenuOpen((prev) => !prev);
-            }}
             aria-label={`Options for ${project.name}`}
           >
             <MoreHorizontal className="size-3.5" />
-          </button>
-
-          {menuOpen && (
-            <div
-              className="fixed z-[9999] w-32 overflow-hidden rounded-md border border-border bg-card shadow-lg"
-              style={{ top: menuPos.top, left: menuPos.left }}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuItem
+              onClick={() => {
+                setEditing(true);
+                setEditValue(project.name);
+              }}
             >
-              <button
-                type="button"
-                className="flex w-full items-center px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                  setEditing(true);
-                  setEditValue(project.name);
-                }}
-              >
-                Rename
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center px-3 py-2 text-sm text-red-400 transition-colors hover:bg-accent cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                  onDelete();
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          )}
-        </div>
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={onDelete}>
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </div>
   );

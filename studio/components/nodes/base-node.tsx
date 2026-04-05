@@ -5,42 +5,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { BLOCK_DEFS } from "@/lib/block-defs";
 import { HANDLE_COLORS } from "@/lib/handle-colors";
 import type { BlockNode, HandleDef } from "@/lib/types";
-import {
-  Cpu,
-  Bot,
-  BookOpen,
-  GitBranch,
-  ArrowRightToLine,
-  Braces,
-  Clock,
-  Globe,
-  MessageCircle,
-  Search,
-  Terminal,
-  Send,
-  Database,
-  Brain,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  Cpu,
-  Bot,
-  BookOpen,
-  GitBranch,
-  ArrowRightToLine,
-  Braces,
-  Clock,
-  Globe,
-  MessageCircle,
-  Search,
-  Terminal,
-  Send,
-  Database,
-  Brain,
-  Wrench,
-};
+import { ICON_MAP } from "@/lib/icons";
 
 /**
  * Handle box must match the visible dot (11×11). XYFlow attaches edges to the handle side

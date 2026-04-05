@@ -1,0 +1,37 @@
+import {
+  Cpu,
+  Bot,
+  BookOpen,
+  GitBranch,
+  ArrowRightToLine,
+  Braces,
+  Clock,
+  Globe,
+  MessageCircle,
+  Search,
+  Terminal,
+  Send,
+  Database,
+  Brain,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
+
+/** Maps icon name strings (used in BlockDef.icon) to Lucide icon components. */
+export const ICON_MAP: Record<string, LucideIcon> = {
+  Cpu,
+  Bot,
+  BookOpen,
+  GitBranch,
+  ArrowRightToLine,
+  Braces,
+  Clock,
+  Globe,
+  MessageCircle,
+  Search,
+  Terminal,
+  Send,
+  Database,
+  Brain,
+  Wrench,
+};
