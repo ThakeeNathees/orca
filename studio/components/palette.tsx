@@ -13,46 +13,19 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
-  Cpu,
   Bot,
   BookOpen,
-  GitBranch,
-  ArrowRightToLine,
   Braces,
-  Clock,
-  Globe,
-  MessageCircle,
   Zap,
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
-  Terminal,
-  Send,
-  Database,
-  Brain,
   Wrench,
   GripVertical,
   type LucideIcon,
 } from "lucide-react";
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  Cpu,
-  Bot,
-  BookOpen,
-  GitBranch,
-  ArrowRightToLine,
-  Braces,
-  Clock,
-  Globe,
-  MessageCircle,
-  Search,
-  Terminal,
-  Send,
-  Database,
-  Brain,
-  Wrench,
-};
+import { ICON_MAP } from "@/lib/icons";
 
 const GROUP_ICONS: Record<string, LucideIcon> = {
   "Models & Agents": Bot,

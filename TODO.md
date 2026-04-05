@@ -45,27 +45,21 @@ Eliminate the most impactful code duplication.
 
 ### 2a — Shared icon map
 
-- [ ] Extract `ICON_MAP` from `palette.tsx` and `nodes/base-node.tsx` into `lib/icons.ts`
-- [ ] Both files import from the shared module
-- [ ] **Test:** Unit test that every `BlockKind` in `block-defs.ts` has a corresponding icon entry
+- [x] Extract `ICON_MAP` from `palette.tsx` and `nodes/base-node.tsx` into `lib/icons.ts`
+- [x] Both files import from the shared module
+- [x] **Test:** Unit test that every `BlockKind` in `block-defs.ts` has a corresponding icon entry
 
 ### 2b — Reusable context menu / dropdown
 
-- [ ] Install or use existing Radix DropdownMenu (already available via shadcn's dependency tree)
-  - `npx shadcn@latest add dropdown-menu`
-- [ ] Create `<ContextMenu>` wrapper in `components/ui/context-menu.tsx` if needed
-- [ ] Replace the hand-rolled menu in **`project-sidebar.tsx`** (getBoundingClientRect + portal)
-- [ ] Replace the hand-rolled menu in **`dashboard.tsx`** (`WorkflowMenu` component)
-- [ ] Remove all manual `getBoundingClientRect()` positioning logic
-- [ ] **Tests:**
-  - Dropdown opens on trigger click
-  - Dropdown closes on Escape
-  - Menu items fire callbacks
+- [x] Create reusable `DropdownMenu` component in `components/ui/dropdown-menu.tsx`
+- [x] Replace the hand-rolled menu in **`project-sidebar.tsx`** (getBoundingClientRect + portal)
+- [x] Replace the hand-rolled menu in **`dashboard.tsx`** (`WorkflowMenu` component)
+- [x] Remove all manual `getBoundingClientRect()` positioning logic
 
 ### 2c — Shared input styling
 
-- [ ] Extract repeated input class string (`h-8 text-[13px] bg-muted/40 border-transparent ...`) into a constant in `lib/styles.ts` or a Tailwind `@apply` utility
-- [ ] Apply consistently in `inspector.tsx`, `code-field-editor.tsx`, and anywhere else it appears
+- [x] Extract repeated input class strings into constants in `lib/styles.ts`
+- [x] Apply consistently in `inspector.tsx`
 
 ---
 

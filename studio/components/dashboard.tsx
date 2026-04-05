@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Workflow, MoreHorizontal, FolderOpen, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogHeader, DialogBody } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { useStudioStore } from "@/lib/store";
 import type { WorkflowSummary } from "@/lib/types";
 
@@ -31,64 +37,25 @@ function WorkflowMenu({
   onOpen: () => void;
   onDelete: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
   return (
-    <div ref={menuRef} className="relative shrink-0">
-      <button
-        type="button"
-        className="flex size-8 items-center justify-center rounded-md text-muted-foreground opacity-100 hover:bg-accent hover:text-foreground cursor-pointer"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((prev) => !prev);
-        }}
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         aria-label={`Options for ${workflow.name}`}
       >
         <MoreHorizontal className="size-4" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-md border border-border bg-card shadow-lg">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(false);
-              onOpen();
-            }}
-          >
-            <FolderOpen className="size-4" />
-            Open
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[#ef4444] transition-colors hover:bg-accent cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(false);
-              onDelete();
-            }}
-          >
-            <Trash2 className="size-4" />
-            Delete
-          </button>
-        </div>
-      )}
-    </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onOpen}>
+          <FolderOpen className="size-4" />
+          Open
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={onDelete}>
+          <Trash2 className="size-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

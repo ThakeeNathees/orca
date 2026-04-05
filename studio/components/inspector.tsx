@@ -18,6 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { X, Trash2 } from "lucide-react";
+import {
+  FIELD_INPUT_CLASS,
+  FIELD_TEXTAREA_CLASS,
+  FIELD_SELECT_TRIGGER_CLASS,
+} from "@/lib/styles";
 
 const CodeFieldEditor = dynamic(
   () =>
@@ -48,7 +53,7 @@ function FieldRenderer({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
-          className="h-8 text-[13px] bg-muted/40 border-transparent focus-visible:border-border"
+          className={FIELD_INPUT_CLASS}
         />
       );
 
@@ -59,7 +64,7 @@ function FieldRenderer({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
-          className="h-8 text-[13px] bg-muted/40 border-transparent focus-visible:border-border"
+          className={FIELD_INPUT_CLASS}
         />
       );
 
@@ -73,7 +78,7 @@ function FieldRenderer({
           min={field.min}
           max={field.max}
           step={field.step}
-          className="h-8 text-[13px] bg-muted/40 border-transparent focus-visible:border-border"
+          className={FIELD_INPUT_CLASS}
         />
       );
 
@@ -83,7 +88,7 @@ function FieldRenderer({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
-          className="min-h-[60px] resize-y text-[13px] bg-muted/40 border-transparent focus-visible:border-border"
+          className={FIELD_TEXTAREA_CLASS}
           rows={3}
         />
       );
@@ -94,7 +99,7 @@ function FieldRenderer({
           value={String(value ?? "")}
           onValueChange={(v) => onChange(v ?? "")}
         >
-          <SelectTrigger className="h-8 text-[13px] bg-muted/40 border-transparent">
+          <SelectTrigger className={FIELD_SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="Select..." />
           </SelectTrigger>
           <SelectContent>
@@ -200,7 +205,7 @@ export function Inspector() {
               onChange={(e) =>
                 updateNodeLabel(selectedNode.id, e.target.value)
               }
-              className="h-8 text-[13px] bg-muted/40 border-transparent focus-visible:border-border"
+              className={FIELD_INPUT_CLASS}
             />
           </div>
 
