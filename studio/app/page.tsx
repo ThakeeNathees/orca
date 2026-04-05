@@ -14,6 +14,7 @@ import {
   ViewModeToggle,
   type StudioViewMode,
 } from "@/components/view-mode-toggle";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { SAMPLE_ORCA_SOURCE } from "@/lib/sample-oc";
 import { useStudioStore } from "@/lib/store";
 
@@ -43,7 +44,9 @@ function WorkflowEditor() {
           </div>
         </div>
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <Palette />
+          <ErrorBoundary>
+            <Palette />
+          </ErrorBoundary>
           <div
             className="relative flex min-h-0 min-w-0 flex-1 flex-col"
             id="studio-panel-center"
@@ -53,12 +56,20 @@ function WorkflowEditor() {
             }
           >
             {viewMode === "ui" ? (
-              <Canvas />
+              <ErrorBoundary>
+                <Canvas />
+              </ErrorBoundary>
             ) : (
-              <StudioCodeEditor value={sourceCode} onChange={setSourceCode} />
+              <ErrorBoundary>
+                <StudioCodeEditor value={sourceCode} onChange={setSourceCode} />
+              </ErrorBoundary>
             )}
           </div>
-          {viewMode === "ui" ? <Inspector /> : null}
+          {viewMode === "ui" ? (
+            <ErrorBoundary>
+              <Inspector />
+            </ErrorBoundary>
+          ) : null}
         </div>
       </div>
     </div>
@@ -72,10 +83,20 @@ export default function Home() {
     <ReactFlowProvider>
       <div className="flex h-full">
         <NavSidebar />
-        {currentView === "dashboard" && <ProjectSidebar />}
+        {currentView === "dashboard" && (
+          <ErrorBoundary>
+            <ProjectSidebar />
+          </ErrorBoundary>
+        )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopBar />
-          {currentView === "dashboard" ? <Dashboard /> : <WorkflowEditor />}
+          {currentView === "dashboard" ? (
+            <ErrorBoundary>
+              <Dashboard />
+            </ErrorBoundary>
+          ) : (
+            <WorkflowEditor />
+          )}
         </div>
       </div>
     </ReactFlowProvider>
