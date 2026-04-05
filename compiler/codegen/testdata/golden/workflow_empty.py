@@ -107,6 +107,25 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
     return __orca_block("let", **kwargs)
 
 
+def __orca_gather(state: dict, predecessors: list[str]) -> Any:
+    """Collect predecessor outputs from workflow state.
+
+    Single predecessor returns its value directly.
+    Multiple predecessors returns a dict keyed by predecessor name.
+    """
+    raise NotImplementedError("TODO: __orca_gather")
+
+
+def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
+    """Invoke an agent node. Uses create_react_agent internally (works with or without tools)."""
+    raise NotImplementedError("TODO: __orca_invoke_agent")
+
+
+def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
+    """Invoke a tool node directly."""
+    raise NotImplementedError("TODO: __orca_invoke_tool")
+
+
 # --- Models ---
 
 gpt4 = __orca_model(

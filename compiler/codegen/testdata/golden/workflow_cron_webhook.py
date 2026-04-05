@@ -109,6 +109,25 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
     return __orca_block("let", **kwargs)
 
 
+def __orca_gather(state: dict, predecessors: list[str]) -> Any:
+    """Collect predecessor outputs from workflow state.
+
+    Single predecessor returns its value directly.
+    Multiple predecessors returns a dict keyed by predecessor name.
+    """
+    raise NotImplementedError("TODO: __orca_gather")
+
+
+def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
+    """Invoke an agent node. Uses create_react_agent internally (works with or without tools)."""
+    raise NotImplementedError("TODO: __orca_invoke_agent")
+
+
+def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
+    """Invoke a tool node directly."""
+    raise NotImplementedError("TODO: __orca_invoke_tool")
+
+
 # --- Models ---
 
 gpt4 = __orca_model(
@@ -150,11 +169,15 @@ class __orca_state_pipeline(TypedDict):
 
 def __orca_node_researcher(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'researcher'."""
-    pass  # TODO: implement node invocation for 'researcher'
+    input_data = state["__orca_payload"]
+    result = __orca_invoke_agent(researcher, input_data)
+    return {"researcher": result}
 
 def __orca_node_writer(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'writer'."""
-    pass  # TODO: implement node invocation for 'writer'
+    input_data = __orca_gather(state, ["researcher"])
+    result = __orca_invoke_agent(writer, input_data)
+    return {"writer": result}
 
 def __orca_route_pipeline(state: __orca_state_pipeline) -> str:
     """Route to entry node based on trigger source."""

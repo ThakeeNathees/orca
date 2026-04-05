@@ -15,11 +15,6 @@ import (
 //go:embed orca.py
 var orcaRuntime string
 
-// orcaPrefix is the namespace prefix for all Orca runtime symbols in generated
-// Python code. Block constructors become __orca_model(), __orca_agent(), etc.
-// GraphState trigger fields become __orca_trigger, __orca_payload.
-const orcaPrefix = "__orca_"
-
 // LangGraphBackend generates Python/LangGraph code directly from the analyzed AST.
 type LangGraphBackend struct {
 	codegen.BaseBackend

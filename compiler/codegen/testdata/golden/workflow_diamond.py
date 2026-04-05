@@ -109,6 +109,25 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
     return __orca_block("let", **kwargs)
 
 
+def __orca_gather(state: dict, predecessors: list[str]) -> Any:
+    """Collect predecessor outputs from workflow state.
+
+    Single predecessor returns its value directly.
+    Multiple predecessors returns a dict keyed by predecessor name.
+    """
+    raise NotImplementedError("TODO: __orca_gather")
+
+
+def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
+    """Invoke an agent node. Uses create_react_agent internally (works with or without tools)."""
+    raise NotImplementedError("TODO: __orca_invoke_agent")
+
+
+def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
+    """Invoke a tool node directly."""
+    raise NotImplementedError("TODO: __orca_invoke_tool")
+
+
 # --- Models ---
 
 gpt4 = __orca_model(
@@ -150,19 +169,27 @@ class __orca_state_diamond(TypedDict):
 
 def __orca_node_classifier(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'classifier'."""
-    pass  # TODO: implement node invocation for 'classifier'
+    input_data = state["__orca_payload"]
+    result = __orca_invoke_agent(classifier, input_data)
+    return {"classifier": result}
 
 def __orca_node_writer(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'writer'."""
-    pass  # TODO: implement node invocation for 'writer'
+    input_data = __orca_gather(state, ["classifier"])
+    result = __orca_invoke_agent(writer, input_data)
+    return {"writer": result}
 
 def __orca_node_analyst(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'analyst'."""
-    pass  # TODO: implement node invocation for 'analyst'
+    input_data = __orca_gather(state, ["classifier"])
+    result = __orca_invoke_agent(analyst, input_data)
+    return {"analyst": result}
 
 def __orca_node_reviewer(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'reviewer'."""
-    pass  # TODO: implement node invocation for 'reviewer'
+    input_data = __orca_gather(state, ["writer", "analyst"])
+    result = __orca_invoke_agent(reviewer, input_data)
+    return {"reviewer": result}
 
 def __orca_route_diamond(state: __orca_state_diamond) -> str:
     """Route to entry node based on trigger source."""

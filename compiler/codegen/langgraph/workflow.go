@@ -61,6 +61,11 @@ func nodeFuncName(nodeName string) string {
 	return orcaPrefix + "node_" + nodeName
 }
 
+// routeFuncName returns the Python function name for a workflow router.
+func routeFuncName(workflowName string) string {
+	return orcaPrefix + "route_" + workflowName
+}
+
 // stateClassName returns the TypedDict class name for a workflow's state.
 func stateClassName(workflowName string) string {
 	return orcaPrefix + "state_" + workflowName
@@ -76,9 +81,7 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 	// Node wrapper functions (processing nodes only, not triggers).
 	for _, node := range rw.Nodes {
 		s.WriteString("\n")
-		fmt.Fprintf(s, "def %s(state: %s) -> dict:\n", nodeFuncName(node), stateName)
-		fmt.Fprintf(s, "    \"\"\"Workflow node wrapping '%s'.\"\"\"\n", node)
-		fmt.Fprintf(s, "    pass  # TODO: implement node invocation for '%s'\n", node)
+		b.writeNodeFunc(s, rw, node, stateName)
 	}
 
 	// Router function.
@@ -94,7 +97,7 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 	}
 
 	// START → router (always conditional edges).
-	fmt.Fprintf(s, "%s.add_conditional_edges(START, %sroute_%s)\n", rw.Name, orcaPrefix, rw.Name)
+	fmt.Fprintf(s, "%s.add_conditional_edges(START, %s)\n", rw.Name, routeFuncName(rw.Name))
 
 	// Processing edges + END edges.
 	for _, edge := range rw.Edges {
@@ -109,13 +112,52 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 func (b *LangGraphBackend) writeWorkflowState(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string) {
 	s.WriteString("\n")
 	fmt.Fprintf(s, "class %s(TypedDict):\n", stateName)
-	fmt.Fprintf(s, "    %strigger: str | None\n", orcaPrefix)
-	fmt.Fprintf(s, "    %spayload: dict | None\n", orcaPrefix)
+	fmt.Fprintf(s, "    %s: str | None\n", orcaTriggerField)
+	fmt.Fprintf(s, "    %s: dict | None\n", orcaPayloadField)
 
 	for _, node := range rw.Nodes {
 		typeAnnotation := b.nodeFieldType(node)
 		fmt.Fprintf(s, "    %s: %s\n", node, typeAnnotation)
 	}
+}
+
+// writeNodeFunc emits a single workflow node wrapper function with gather + invoke + return.
+func (b *LangGraphBackend) writeNodeFunc(s *strings.Builder, rw workflow.ResolvedWorkflow, node, stateName string) {
+	fmt.Fprintf(s, "def %s(state: %s) -> dict:\n", nodeFuncName(node), stateName)
+	fmt.Fprintf(s, "    \"\"\"Workflow node wrapping '%s'.\"\"\"\n", node)
+
+	// Gather input from predecessors.
+	preds := rw.Predecessors(node)
+	if len(preds) == 0 {
+		// Entry node — read payload directly.
+		fmt.Fprintf(s, "    input_data = state[\"%s\"]\n", orcaPayloadField)
+	} else {
+		fmt.Fprintf(s, "    input_data = %s(state, [", orcaGatherFunc)
+		for i, p := range preds {
+			if i > 0 {
+				s.WriteString(", ")
+			}
+			fmt.Fprintf(s, "%q", p)
+		}
+		s.WriteString("])\n")
+	}
+
+	// Invoke the block.
+	invokeFunc := b.nodeInvokeFunc(node)
+	fmt.Fprintf(s, "    result = %s(%s, input_data)\n", invokeFunc, node)
+
+	// Return result keyed by node name.
+	fmt.Fprintf(s, "    return {%q: result}\n", node)
+}
+
+// nodeInvokeFunc returns the runtime invoke function name for a node.
+// Agents use __orca_invoke_agent, tools use __orca_invoke_tool.
+func (b *LangGraphBackend) nodeInvokeFunc(nodeName string) string {
+	block := b.Program.Ast.FindBlockWithName(nodeName)
+	if block != nil && block.Kind == token.BlockTool {
+		return orcaInvokeToolFunc
+	}
+	return orcaInvokeAgentFunc
 }
 
 // nodeFieldType determines the Python type annotation for a node's output
@@ -153,7 +195,7 @@ func writeRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName str
 		returnType = "list[str]"
 	}
 
-	fmt.Fprintf(s, "def %sroute_%s(state: %s) -> %s:\n", orcaPrefix, rw.Name, stateName, returnType)
+	fmt.Fprintf(s, "def %s(state: %s) -> %s:\n", routeFuncName(rw.Name), stateName, returnType)
 	fmt.Fprintf(s, "    \"\"\"Route to entry node based on trigger source.\"\"\"\n")
 
 	if !rw.HasTriggers() {
@@ -163,7 +205,7 @@ func writeRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName str
 	}
 
 	// Trigger-based routing.
-	fmt.Fprintf(s, "    trigger = state.get(\"%strigger\")\n", orcaPrefix)
+	fmt.Fprintf(s, "    trigger = state.get(\"%s\")\n", orcaTriggerField)
 	for _, trig := range rw.Triggers {
 		entries := rw.TriggerMap[trig]
 		fmt.Fprintf(s, "    if trigger == %q:\n", trig)
