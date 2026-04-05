@@ -1,6 +1,6 @@
 "use client";
 
-import { GitBranch } from "lucide-react";
+import { Home } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -17,7 +17,7 @@ export function NavSidebar() {
 
   return (
     <aside className="flex w-[52px] shrink-0 flex-col items-center border-r border-border bg-sidebar py-3 gap-4">
-      {/* Workflows nav item */}
+      {/* Dashboard nav item */}
       <Tooltip>
         <TooltipTrigger
           render={(props) => {
@@ -42,15 +42,15 @@ export function NavSidebar() {
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                   btnProps.className
                 )}
-                aria-label="Workflows"
+                aria-label="Dashboard"
               >
-                <GitBranch className="size-[18px]" />
+                <Home className="size-[18px]" />
               </button>
             );
           }}
         />
         <TooltipContent side="right" sideOffset={8}>
-          Workflows
+          Dashboard
         </TooltipContent>
       </Tooltip>
     </aside>

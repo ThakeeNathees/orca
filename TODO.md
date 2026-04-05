@@ -14,12 +14,12 @@ phase leaves the codebase in a shippable state.
 
 Set up the test framework so every subsequent phase can ship with tests.
 
-- [ ] Add **Vitest** + **React Testing Library** + **jsdom**
+- [x] Add **Vitest** + **React Testing Library** + **jsdom**
   - `pnpm add -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom`
   - Add `vitest.config.ts` with jsdom environment, path aliases matching `tsconfig.json`
   - Add `"test": "vitest run"` and `"test:watch": "vitest"` scripts to `package.json`
-- [ ] Add a **smoke test** that renders `<Page />` without crashing (validates the setup works)
-- [ ] Add ESLint rule `no-restricted-syntax` to ban `div[role="button"]` going forward
+- [x] Add a **smoke test** that renders `<Page />` without crashing (validates the setup works)
+- [x] Add ESLint rule `no-restricted-syntax` to ban `div[role="button"]` going forward
 
 ---
 
@@ -27,13 +27,13 @@ Set up the test framework so every subsequent phase can ship with tests.
 
 Prevent full-app crashes and improve robustness.
 
-- [ ] Create a reusable `<ErrorBoundary>` component (`components/error-boundary.tsx`)
+- [x] Create a reusable `<ErrorBoundary>` component (`components/error-boundary.tsx`)
   - Render a fallback UI with "Something went wrong" + retry button
   - Log errors to console (prep for future error reporting)
-- [ ] Wrap **Canvas**, **Inspector**, **Palette**, and **CodeEditor** in error boundaries
+- [x] Wrap **Canvas**, **Inspector**, **Palette**, and **CodeEditor** in error boundaries
   - Each panel should crash independently without taking down the whole app
-- [ ] Add error boundaries around **dashboard** and **project-sidebar** as well
-- [ ] **Tests:**
+- [x] Add error boundaries around **dashboard** and **project-sidebar** as well
+- [x] **Tests:**
   - Test that ErrorBoundary renders fallback when child throws
   - Test that retry button re-mounts the child
 
