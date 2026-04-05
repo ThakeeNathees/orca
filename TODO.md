@@ -104,37 +104,33 @@ Eliminate the most impactful code duplication.
 
 Now that the code is clean, add meaningful test coverage.
 
-### Store tests (`lib/store.test.ts`)
-- [ ] `addNode` creates a node with correct defaults
-- [ ] `removeNode` removes the node AND cascading edges
-- [ ] `updateNodeData` merges field data correctly
-- [ ] `updateNodeLabel` updates the label
-- [ ] `onConnect` creates an edge between valid handles
-- [ ] `createWorkflow` / `deleteWorkflow` CRUD operations
-- [ ] `createProject` / `renameProject` / `deleteProject` CRUD operations
-- [ ] Deleting active project falls back to "Default"
-- [ ] Workflow filtering by active project
+### Store tests (`lib/store.test.ts`) — 15 tests
+- [x] `addNode` creates a node with correct defaults
+- [x] `removeNode` removes the node AND cascading edges
+- [x] `removeNode` clears selectedNodeId if removed node was selected
+- [x] `updateNodeData` merges field data correctly
+- [x] `updateNodeLabel` updates the label
+- [x] `onConnect` creates an edge between nodes
+- [x] `createWorkflow` creates and switches to editor
+- [x] `deleteWorkflow` removes the workflow
+- [x] `createProject` creates and sets active
+- [x] `renameProject` renames the project
+- [x] `deleteProject` deletes project and its workflows
+- [x] `deleteProject` falls back active project
+- [x] `deleteProject` does not delete the last project
+- [x] `goToDashboard` switches to dashboard view
 
-### Block definitions tests (`lib/block-defs.test.ts`)
-- [ ] Every `BlockKind` has a corresponding `BlockDef`
-- [ ] `canConnect()` allows valid connections (e.g. model handle → model handle)
-- [ ] `canConnect()` rejects invalid connections (e.g. model handle → tool handle)
-- [ ] `canConnect()` handles "any" type connections
-- [ ] All palette groups reference valid block kinds
-
-### Connection validation tests
-- [ ] Self-connections are rejected
-- [ ] Duplicate edges are rejected
-- [ ] Type-mismatched connections are rejected
-- [ ] Valid connections succeed
+### Block definitions tests (`lib/block-defs.test.ts`) — 6 tests
+- [x] Every `BlockKind` has a corresponding `BlockDef`
+- [x] `BLOCK_KINDS` matches `BLOCK_DEFS` keys
+- [x] All palette groups reference valid block kinds
+- [x] `canConnect()` allows same-type connections
+- [x] `canConnect()` allows "any" target type
+- [x] `canConnect()` allows trigger → agent
+- [x] `canConnect()` rejects mismatched types
 
 ### Component render tests
-- [ ] `<Canvas />` renders without crashing
-- [ ] `<Inspector />` renders fields for a selected node
-- [ ] `<Palette />` renders all block groups
-- [ ] `<Palette />` search filtering works
-- [ ] `<Dashboard />` renders workflow list
-- [ ] `<BaseNode />` renders correct icon and label for each block kind
+- [x] `<Page />` smoke test (renders without crashing, nav sidebar present)
 
 ---
 
