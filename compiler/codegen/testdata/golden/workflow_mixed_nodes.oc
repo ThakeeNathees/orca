@@ -1,0 +1,27 @@
+schema report {
+  content = str
+}
+
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+agent researcher {
+  model   = gpt4
+  persona = "Research."
+}
+
+agent writer {
+  model         = gpt4
+  persona       = "Write."
+  output_schema = report
+}
+
+tool validate {
+  invoke = "tools.validate.check"
+}
+
+workflow pipeline {
+  researcher -> writer -> validate
+}

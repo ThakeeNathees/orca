@@ -116,8 +116,3 @@ class address(BaseModel):
 class person(BaseModel):
     name: str
     home: address = Field(description="Home address")
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

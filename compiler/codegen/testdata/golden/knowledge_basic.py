@@ -110,8 +110,3 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
 docs = __orca_knowledge(
     desc="Company knowledge base",
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

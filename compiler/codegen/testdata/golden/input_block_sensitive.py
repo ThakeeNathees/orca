@@ -115,8 +115,3 @@ apikey = __orca_with_meta(
         __orca_meta("sensitive"),
     ],
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

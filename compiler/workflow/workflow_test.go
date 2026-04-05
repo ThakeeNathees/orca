@@ -224,3 +224,73 @@ func TestExprToNodeName(t *testing.T) {
 		})
 	}
 }
+
+// TestPredecessors verifies predecessor computation from the resolved workflow.
+func TestPredecessors(t *testing.T) {
+	// Build a workflow: cron -> A -> B -> D, A -> C -> D (diamond with trigger).
+	block := &ast.BlockStatement{
+		Name: "pipeline",
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockWorkflow,
+			Expressions: []ast.Expression{
+				arrow(arrow(ident("cron"), ident("A")), ident("B")),
+				arrow(ident("A"), ident("C")),
+				arrow(ident("B"), ident("D")),
+				arrow(ident("C"), ident("D")),
+			},
+		},
+	}
+
+	isTrigger := func(name string) bool { return name == "cron" }
+	rw := Resolve(block, isTrigger)
+
+	tests := []struct {
+		name     string
+		node     string
+		expected []string
+	}{
+		{"entry node has no predecessors", "A", nil},
+		{"single predecessor", "B", []string{"A"}},
+		{"single predecessor C", "C", []string{"A"}},
+		{"fan-in node has multiple predecessors", "D", []string{"B", "C"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := rw.Predecessors(tt.node)
+			if len(got) != len(tt.expected) {
+				t.Fatalf("Predecessors(%q) = %v, want %v", tt.node, got, tt.expected)
+			}
+			for i, g := range got {
+				if g != tt.expected[i] {
+					t.Errorf("Predecessors(%q)[%d] = %q, want %q", tt.node, i, g, tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+// TestPredecessorsNoTrigger verifies predecessors when there's no trigger.
+func TestPredecessorsNoTrigger(t *testing.T) {
+	block := &ast.BlockStatement{
+		Name: "simple",
+		BlockBody: ast.BlockBody{
+			Kind: token.BlockWorkflow,
+			Expressions: []ast.Expression{
+				arrow(ident("A"), ident("B")),
+			},
+		},
+	}
+
+	rw := Resolve(block, nil)
+
+	got := rw.Predecessors("A")
+	if len(got) != 0 {
+		t.Errorf("Predecessors(A) = %v, want []", got)
+	}
+
+	got = rw.Predecessors("B")
+	if len(got) != 1 || got[0] != "A" {
+		t.Errorf("Predecessors(B) = %v, want [A]", got)
+	}
+}

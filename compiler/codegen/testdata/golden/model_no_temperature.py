@@ -113,8 +113,3 @@ claude = __orca_model(
     provider="anthropic",
     model_name="claude-sonnet-4-20250514",
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

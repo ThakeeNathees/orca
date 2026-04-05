@@ -3,6 +3,10 @@ from typing import TypedDict
 
 from langchain_openai import ChatOpenAI
 
+from langgraph.graph import StateGraph, START, END
+
+from pydantic import BaseModel, Field
+
 """Orca runtime — inlined into generated main.py.
 
 These functions are called by generated code to create block instances.
@@ -107,6 +111,12 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
     return __orca_block("let", **kwargs)
 
 
+# --- Schemas ---
+
+class report(BaseModel):
+    content: str = Field(description="The report content")
+    score: int = Field(description="Quality score")
+
 # --- Models ---
 
 gpt4 = __orca_model(
@@ -116,7 +126,41 @@ gpt4 = __orca_model(
 
 # --- Agents ---
 
+researcher = __orca_agent(
+    model=gpt4,
+    persona="Research topics.",
+)
+
 writer = __orca_agent(
     model=gpt4,
-    persona="You are a helpful writer.",
+    persona="Write reports.",
+    output_schema=report,
 )
+
+# --- Workflows ---
+
+class __orca_state_pipeline(TypedDict):
+    __orca_trigger: str | None
+    __orca_payload: dict | None
+    researcher: Any
+    writer: report | None
+
+def __orca_node_researcher(state: __orca_state_pipeline) -> dict:
+    """Workflow node wrapping 'researcher'."""
+    pass  # TODO: implement node invocation for 'researcher'
+
+def __orca_node_writer(state: __orca_state_pipeline) -> dict:
+    """Workflow node wrapping 'writer'."""
+    pass  # TODO: implement node invocation for 'writer'
+
+def __orca_route_pipeline(state: __orca_state_pipeline) -> str:
+    """Route to entry node based on trigger source."""
+    return "researcher"
+
+pipeline = StateGraph(__orca_state_pipeline)
+pipeline.add_node("researcher", __orca_node_researcher)
+pipeline.add_node("writer", __orca_node_writer)
+pipeline.add_conditional_edges(START, __orca_route_pipeline)
+pipeline.add_edge("researcher", "writer")
+pipeline.add_edge("writer", END)
+pipeline = pipeline.compile()

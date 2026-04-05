@@ -113,8 +113,3 @@ vars = __orca_let(
     temperature=0.7,
     debug=True,
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

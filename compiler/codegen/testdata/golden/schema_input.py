@@ -118,8 +118,3 @@ vpc_data = __orca_input(
     type=vpc_data_t,
     desc="VPC configuration",
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

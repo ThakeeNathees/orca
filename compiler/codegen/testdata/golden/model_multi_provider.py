@@ -129,8 +129,3 @@ gemini = __orca_model(
     provider="google",
     model_name="gemini-pro",
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

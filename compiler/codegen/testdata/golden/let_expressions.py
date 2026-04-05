@@ -116,8 +116,3 @@ vars = __orca_let(
     items=["a", "b", "c"],
     config={"key": "value", "num": 1},
 )
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

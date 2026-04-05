@@ -112,8 +112,3 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
 class vpc_data_t(BaseModel):
     region: str
     instance_count: int
-
-# --- Graph State ---
-class GraphState(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None

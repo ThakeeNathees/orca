@@ -37,6 +37,18 @@ func (rw *ResolvedWorkflow) HasTriggers() bool {
 	return len(rw.Triggers) > 0
 }
 
+// Predecessors returns the list of predecessor processing node names for the
+// given node. Entry nodes (no incoming edges) return an empty slice.
+func (rw *ResolvedWorkflow) Predecessors(node string) []string {
+	var preds []string
+	for _, e := range rw.Edges {
+		if e.To == node && e.From != NodeSTART && e.From != NodeEND {
+			preds = append(preds, e.From)
+		}
+	}
+	return preds
+}
+
 // TODO: Consider the workflow router is always returns list[str] and if there
 // is a single entry node, the length will be 1.
 //
