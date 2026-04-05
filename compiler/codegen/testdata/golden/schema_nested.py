@@ -109,15 +109,13 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
 
 # --- Schemas ---
 
-class vpc_data_t(BaseModel):
-    region: str
+class address(BaseModel):
+    street: str = Field(description="Street name")
+    city: str
 
-# --- Inputs ---
-
-vpc_data = __orca_input(
-    type=vpc_data_t,
-    desc="VPC configuration",
-)
+class person(BaseModel):
+    name: str
+    home: address = Field(description="Home address")
 
 # --- Graph State ---
 class GraphState(TypedDict):
