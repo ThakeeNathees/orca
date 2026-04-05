@@ -93,11 +93,14 @@ export function Dashboard() {
             </div>
           ) : (
             <div className="space-y-1">
+              {/* eslint-disable no-restricted-syntax -- compound rows with nested buttons */}
               {workflows.map((wf) => (
-                <button
+                <div
                   key={wf.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => openWorkflow(wf.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openWorkflow(wf.id); }}
                   className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-sidebar-accent cursor-pointer"
                 >
                   {/* Icon */}
@@ -105,7 +108,7 @@ export function Dashboard() {
                     className="flex size-10 shrink-0 items-center justify-center rounded-lg shadow-sm"
                     style={{ backgroundColor: wf.color }}
                   >
-                    <Workflow className="size-[18px] text-[#18181b]" />
+                    <Workflow className="size-[18px] text-zinc-900" />
                   </div>
 
                   {/* Name + timestamp */}
@@ -124,7 +127,7 @@ export function Dashboard() {
                     onOpen={() => openWorkflow(wf.id)}
                     onDelete={() => setDeleteTarget(wf)}
                   />
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -161,7 +164,7 @@ export function Dashboard() {
             <Button
               size="sm"
               onClick={confirmDelete}
-              className="bg-[#ef4444] text-white hover:bg-[#dc2626] cursor-pointer"
+              className="bg-red-500 text-white hover:bg-red-600 cursor-pointer"
             >
               Delete
             </Button>

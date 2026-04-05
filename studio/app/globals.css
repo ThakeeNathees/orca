@@ -2,6 +2,13 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/*
+ * Z-index stacking order:
+ *   z-10  — ReactFlow handles (base-node)
+ *   z-50  — Overlays: dropdown-menu, tooltip, select, sheet, view-mode-toggle
+ *   z-100 — Dialog (modal, needs to sit above all overlays)
+ */
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

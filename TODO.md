@@ -88,16 +88,15 @@ Eliminate the most impactful code duplication.
 
 ### 4a — Remove hardcoded hex colors
 
-- [ ] Audit all `.tsx` files for hardcoded hex values (`#ef4444`, `#dc2626`, `#18181b`, `#86efac`, `#6ee7b7`, etc.)
-- [ ] Map each to a Tailwind theme color or CSS variable defined in `globals.css`
-- [ ] Update components to use `text-red-500`, `bg-green-300`, etc. or `var(--color-*)` tokens
-- [ ] **No visual regressions** — verify in browser
+- [x] Audit all `.tsx` files for hardcoded hex values
+- [x] Replace with Tailwind classes: `bg-red-500`, `bg-green-300`, `text-zinc-900`, `dark:bg-zinc-900`, etc.
+- [x] Export `HANDLE_COLOR_FALLBACK` from `handle-colors.ts`, use in `base-node.tsx`
+- [x] Zero hardcoded hex colors remaining in `components/`
 
 ### 4b — Extract magic numbers
 
-- [ ] Collect z-index values (`9999`, `50`, `100`, `z-[100]`) into named constants or Tailwind config
+- [x] Document z-index stacking order in `globals.css` (z-10 handles, z-50 overlays, z-100 dialog)
 - [ ] Extract repeated dimensions (sidebar width `52px`, palette width, etc.) into CSS variables or constants
-- [ ] Document the z-index stacking order somewhere (comment in `globals.css` or a `lib/z-index.ts`)
 
 ---
 

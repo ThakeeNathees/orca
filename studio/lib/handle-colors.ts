@@ -16,7 +16,7 @@ export const HANDLE_COLORS: Record<string, string> = {
   any: "#a1a1aa",
 };
 
-const FALLBACK = HANDLE_COLORS.any;
+export const HANDLE_COLOR_FALLBACK = HANDLE_COLORS.any;
 
 /**
  * Edge accent follows the **source** port (the dot the edge leaves from), e.g. model-out → model pink,
@@ -28,9 +28,9 @@ export function getEdgeAccentColor(
   sourceHandleId: string | null | undefined
 ): string {
   const node = nodes.find((n) => n.id === sourceNodeId);
-  if (!node || !sourceHandleId) return FALLBACK;
+  if (!node || !sourceHandleId) return HANDLE_COLOR_FALLBACK;
   const def = BLOCK_DEFS[node.data.kind];
   const handle = def.handles.find((h) => h.id === sourceHandleId);
-  if (!handle) return FALLBACK;
-  return HANDLE_COLORS[handle.type] ?? FALLBACK;
+  if (!handle) return HANDLE_COLOR_FALLBACK;
+  return HANDLE_COLORS[handle.type] ?? HANDLE_COLOR_FALLBACK;
 }
