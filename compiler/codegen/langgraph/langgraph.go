@@ -68,7 +68,7 @@ func (b *LangGraphBackend) generateMain() string {
 	b.writeSchemaSection(&s, schemaBlocks)
 	b.writeOrcaBlockSection(&s, "Inputs", token.BlockInput)
 	b.writeOrcaBlockSection(&s, "Variables", token.BlockLet)
-	b.writeOrcaBlockSection(&s, "Models", token.BlockModel)
+	b.writeModelSection(&s)
 	b.writeOrcaBlockSection(&s, "Knowledge", token.BlockKnowledge)
 	b.writeToolSection(&s)
 	b.writeOrcaBlockSection(&s, "Agents", token.BlockAgent)

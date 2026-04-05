@@ -75,20 +75,22 @@ func stateClassName(workflowName string) string {
 func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.ResolvedWorkflow) {
 	stateName := stateClassName(rw.Name)
 
-	// Per-workflow typed state class.
-	b.writeWorkflowState(s, rw, stateName)
-
-	// Node wrapper functions (processing nodes only, not triggers).
+	// Look up each node's block once for both state type and node function generation.
+	nodeBlocks := make(map[string]*ast.BlockStatement, len(rw.Nodes))
 	for _, node := range rw.Nodes {
-		s.WriteString("\n")
-		b.writeNodeFunc(s, rw, node, stateName)
+		nodeBlocks[node] = b.Program.Ast.FindBlockWithName(node)
 	}
 
-	// Router function.
+	writeWorkflowState(s, rw, stateName, nodeBlocks)
+
+	for _, node := range rw.Nodes {
+		s.WriteString("\n")
+		b.writeNodeFunc(s, rw, node, stateName, nodeBlocks[node])
+	}
+
 	s.WriteString("\n")
 	writeRouter(s, rw, stateName)
 
-	// StateGraph construction.
 	s.WriteString("\n")
 	fmt.Fprintf(s, "%s = StateGraph(%s)\n", rw.Name, stateName)
 
@@ -96,10 +98,8 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 		fmt.Fprintf(s, "%s.add_node(\"%s\", %s)\n", rw.Name, node, nodeFuncName(node))
 	}
 
-	// START → router (always conditional edges).
 	fmt.Fprintf(s, "%s.add_conditional_edges(START, %s)\n", rw.Name, routeFuncName(rw.Name))
 
-	// Processing edges + END edges.
 	for _, edge := range rw.Edges {
 		fmt.Fprintf(s, "%s.add_edge(%s, %s)\n", rw.Name, edgeEndpoint(edge.From), edgeEndpoint(edge.To))
 	}
@@ -109,27 +109,24 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 
 // writeWorkflowState emits a per-workflow TypedDict class with typed fields
 // for trigger metadata and each processing node's output.
-func (b *LangGraphBackend) writeWorkflowState(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string) {
+func writeWorkflowState(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string, nodeBlocks map[string]*ast.BlockStatement) {
 	s.WriteString("\n")
 	fmt.Fprintf(s, "class %s(TypedDict):\n", stateName)
 	fmt.Fprintf(s, "    %s: str | None\n", orcaTriggerField)
 	fmt.Fprintf(s, "    %s: dict | None\n", orcaPayloadField)
 
 	for _, node := range rw.Nodes {
-		typeAnnotation := b.nodeFieldType(node)
-		fmt.Fprintf(s, "    %s: %s\n", node, typeAnnotation)
+		fmt.Fprintf(s, "    %s: %s\n", node, nodeFieldType(nodeBlocks[node]))
 	}
 }
 
 // writeNodeFunc emits a single workflow node wrapper function with gather + invoke + return.
-func (b *LangGraphBackend) writeNodeFunc(s *strings.Builder, rw workflow.ResolvedWorkflow, node, stateName string) {
+func (b *LangGraphBackend) writeNodeFunc(s *strings.Builder, rw workflow.ResolvedWorkflow, node, stateName string, block *ast.BlockStatement) {
 	fmt.Fprintf(s, "def %s(state: %s) -> dict:\n", nodeFuncName(node), stateName)
 	fmt.Fprintf(s, "    \"\"\"Workflow node wrapping '%s'.\"\"\"\n", node)
 
-	// Gather input from predecessors.
 	preds := rw.Predecessors(node)
 	if len(preds) == 0 {
-		// Entry node — read payload directly.
 		fmt.Fprintf(s, "    input_data = state[\"%s\"]\n", orcaPayloadField)
 	} else {
 		fmt.Fprintf(s, "    input_data = %s(state, [", orcaGatherFunc)
@@ -142,18 +139,13 @@ func (b *LangGraphBackend) writeNodeFunc(s *strings.Builder, rw workflow.Resolve
 		s.WriteString("])\n")
 	}
 
-	// Invoke the block.
-	invokeFunc := b.nodeInvokeFunc(node)
+	invokeFunc := nodeInvokeFunc(block)
 	fmt.Fprintf(s, "    result = %s(%s, input_data)\n", invokeFunc, node)
-
-	// Return result keyed by node name.
 	fmt.Fprintf(s, "    return {%q: result}\n", node)
 }
 
 // nodeInvokeFunc returns the runtime invoke function name for a node.
-// Agents use __orca_invoke_agent, tools use __orca_invoke_tool.
-func (b *LangGraphBackend) nodeInvokeFunc(nodeName string) string {
-	block := b.Program.Ast.FindBlockWithName(nodeName)
+func nodeInvokeFunc(block *ast.BlockStatement) string {
 	if block != nil && block.Kind == token.BlockTool {
 		return orcaInvokeToolFunc
 	}
@@ -161,28 +153,17 @@ func (b *LangGraphBackend) nodeInvokeFunc(nodeName string) string {
 }
 
 // nodeFieldType determines the Python type annotation for a node's output
-// field in the workflow state. Rules:
-//   - Agent without output_schema → "str | None"
-//   - Agent with output_schema → "<schema_name> | None"
-//   - Tool without output_schema → "dict | None"
-//   - Tool with output_schema → "<schema_name> | None"
-//   - Unknown → "str | None"
-func (b *LangGraphBackend) nodeFieldType(nodeName string) string {
-	block := b.Program.Ast.FindBlockWithName(nodeName)
+// field in the workflow state based on its output_schema.
+func nodeFieldType(block *ast.BlockStatement) string {
 	if block == nil {
 		return "Any"
 	}
-
-	// Check for output_schema field.
 	if schemaExpr, ok := block.GetFieldExpression("output_schema"); ok {
-		// Use bootstrap mode (nil symbol table) to resolve the schema name
-		// as a type, since the symbol table stores schemas without names.
+		// Bootstrap mode (nil symbol table) resolves the schema name as a type.
 		schemaType := types.ExprType(schemaExpr, nil)
 		typeName := python.OrcaTypeToPythonTypeName(schemaType)
 		return typeName + " | None"
 	}
-
-	// No output_schema — output type is unknown.
 	return "Any"
 }
 
@@ -252,13 +233,23 @@ func workflowImports(blocks []*ast.BlockStatement) []python.PythonImport {
 		return nil
 	}
 
-	return []python.PythonImport{{
-		Module:     "langgraph.graph",
-		FromImport: true,
-		Symbols: []python.ImportSymbol{
-			{Name: "StateGraph"},
-			{Name: "START"},
-			{Name: "END"},
+	return []python.PythonImport{
+		{
+			Module:     "langgraph.graph",
+			FromImport: true,
+			Symbols: []python.ImportSymbol{
+				{Name: "StateGraph"},
+				{Name: "START"},
+				{Name: "END"},
+			},
 		},
-	}}
+		{
+			Module:     "langchain.agents",
+			Package:    "langchain",
+			FromImport: true,
+			Symbols: []python.ImportSymbol{
+				{Name: "create_agent"},
+			},
+		},
+	}
 }
