@@ -111,17 +111,71 @@ def __orca_gather(state: dict, predecessors: list[str]) -> Any:
     Single predecessor returns its value directly.
     Multiple predecessors returns a dict keyed by predecessor name.
     """
-    raise NotImplementedError("TODO: __orca_gather")
+    if len(predecessors) == 1:
+        return state.get(predecessors[0])
+    return {k: state.get(k) for k in predecessors}
+
+
+def __orca_resolve_model(model_ns: SimpleNamespace) -> Any:
+    """Resolve a model SimpleNamespace to a LangChain ChatModel instance.
+
+    Maps provider string to the corresponding LangChain class and passes
+    through model_name, temperature, api_key, and base_url.
+    """
+    provider = model_ns.provider
+    model_name = model_ns.model_name
+    kwargs: dict[str, Any] = {"model": model_name}
+    if getattr(model_ns, "temperature", None) is not None:
+        kwargs["temperature"] = model_ns.temperature
+    if getattr(model_ns, "api_key", None) is not None:
+        kwargs["api_key"] = model_ns.api_key
+    if getattr(model_ns, "base_url", None) is not None:
+        kwargs["base_url"] = model_ns.base_url
+
+    providers = {
+        "openai": "ChatOpenAI",
+        "anthropic": "ChatAnthropic",
+        "google": "ChatGoogleGenerativeAI",
+    }
+    class_name = providers.get(provider)
+    if class_name is None:
+        raise ValueError(f"unsupported model provider: {provider!r}")
+
+    # The class is already imported by the generated code.
+    cls = globals().get(class_name)
+    if cls is None:
+        raise RuntimeError(
+            f"{class_name} not found — ensure the provider import is generated"
+        )
+    return cls(**kwargs)
 
 
 def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
-    """Invoke an agent node. Uses create_react_agent internally (works with or without tools)."""
-    raise NotImplementedError("TODO: __orca_invoke_agent")
+    """Invoke an agent node using create_react_agent (works with or without tools)."""
+    llm = __orca_resolve_model(agent.model)
+    tools = [t.invoke for t in getattr(agent, "tools", None) or []]
+    output_schema = getattr(agent, "output_schema", None)
+
+    if output_schema is not None:
+        llm = llm.with_structured_output(output_schema)
+
+    react = create_react_agent(llm, tools)
+    result = react.invoke(
+        {"messages": [{"role": "system", "content": agent.persona},
+                      {"role": "user", "content": str(input_data)}]}
+    )
+
+    # Extract the final AI message content.
+    last_msg = result["messages"][-1]
+    if output_schema is not None:
+        # Structured output is attached to the last tool message or parsed content.
+        return getattr(last_msg, "content", last_msg)
+    return last_msg.content
 
 
 def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
-    """Invoke a tool node directly."""
-    raise NotImplementedError("TODO: __orca_invoke_tool")
+    """Invoke a tool node by calling its invoke callable directly."""
+    return tool.invoke(input_data)
 
 
 # --- Variables ---
