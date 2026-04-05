@@ -133,7 +133,7 @@ export function Dashboard() {
                   tabIndex={0}
                   onClick={() => openWorkflow(wf.id)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openWorkflow(wf.id); }}
-                  className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-[#27272A] cursor-pointer"
+                  className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-sidebar-accent cursor-pointer"
                 >
                   {/* Icon */}
                   <div
