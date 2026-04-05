@@ -628,7 +628,7 @@ func TestProviderDeps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(tt.program)}}
 			b.resolveProviders()
-			deps := dependenciesFromProviders(b.resolvedProviders)
+			deps := dependenciesFromProviders(b.resolvedProviders, false)
 			var got []string
 			for i, d := range deps {
 				if i == 0 {

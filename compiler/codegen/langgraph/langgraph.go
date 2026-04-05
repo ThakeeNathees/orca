@@ -33,6 +33,9 @@ func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
 	b.resolveProviders()
 	b.resolveToolInvokes()
 
+	workflows := b.collectWorkflows()
+	hasWorkflows := len(workflows) > 0
+
 	return codegen.CodegenOutput{
 		BackendType: codegen.BackendLangGraph,
 		RootDir: codegen.OutputDirectory{
@@ -41,7 +44,7 @@ func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
 				{Name: "main.py", Content: b.generateMain()},
 			},
 		},
-		Dependencies: dependenciesFromProviders(b.resolvedProviders),
+		Dependencies: dependenciesFromProviders(b.resolvedProviders, hasWorkflows),
 		Diagnostics:  b.Program.Diagnostics,
 	}
 }

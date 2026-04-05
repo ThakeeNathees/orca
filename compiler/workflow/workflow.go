@@ -87,7 +87,22 @@ func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWor
 	triggers := make(map[string]bool)
 
 	for _, expr := range block.Expressions {
-		for _, e := range EdgesFromExpr(expr) {
+		edges := EdgesFromExpr(expr)
+		if len(edges) == 0 {
+			// Standalone identifier (no arrows) — treat as a single node.
+			if name := ExprToNodeName(expr); name != "" && !seenNodes[name] {
+				seenNodes[name] = true
+				if isTrigger(name) {
+					triggers[name] = true
+					rw.Triggers = append(rw.Triggers, name)
+				} else {
+					rw.Nodes = append(rw.Nodes, name)
+				}
+			}
+			continue
+		}
+
+		for _, e := range edges {
 			edgeKey := [2]string{e.From, e.To}
 			if seenEdges[edgeKey] {
 				continue
@@ -117,6 +132,14 @@ func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWor
 			rw.TriggerMap[e.From] = append(rw.TriggerMap[e.From], e.To)
 		} else {
 			processingEdges = append(processingEdges, e)
+		}
+	}
+
+	// Standalone triggers (not connected via arrows) implicitly connect
+	// to all processing nodes (which will become entry nodes).
+	for _, trig := range rw.Triggers {
+		if _, mapped := rw.TriggerMap[trig]; !mapped && len(rw.Nodes) > 0 {
+			rw.TriggerMap[trig] = append([]string{}, rw.Nodes...)
 		}
 	}
 
