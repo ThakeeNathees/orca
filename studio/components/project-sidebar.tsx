@@ -45,7 +45,7 @@ function ProjectItem({
     setEditing(false);
   };
 
-  // eslint-disable-next-line no-restricted-syntax -- compound row with nested buttons
+  /* eslint-disable no-restricted-syntax */
   return (
     <div
       role="button"

@@ -20,12 +20,12 @@ export function NavSidebar() {
       {/* Dashboard nav item */}
       <Tooltip>
         <TooltipTrigger
-          render={({ type: _type, ...btnProps }) => (
+          render={(props) => (
             <button
+              {...props}
               type="button"
-              {...btnProps}
               onClick={(e) => {
-                btnProps.onClick?.(e);
+                props.onClick?.(e);
                 goToDashboard();
               }}
               className={cn(
@@ -33,7 +33,7 @@ export function NavSidebar() {
                 isActive
                   ? "bg-sidebar-accent text-foreground"
                   : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                btnProps.className
+                props.className
               )}
               aria-label="Dashboard"
             >

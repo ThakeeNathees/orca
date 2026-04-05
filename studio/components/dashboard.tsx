@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Workflow, MoreHorizontal, FolderOpen, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -71,12 +71,12 @@ export function Dashboard() {
     null
   );
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (deleteTarget) {
       deleteWorkflow(deleteTarget.id);
       setDeleteTarget(null);
     }
-  }, [deleteTarget, deleteWorkflow]);
+  };
 
   return (
     <div className="flex h-full flex-1 flex-col bg-sidebar">
