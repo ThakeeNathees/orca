@@ -6,7 +6,7 @@ import (
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
-	"github.com/thakee/orca/compiler/token"
+	"github.com/thakee/orca/compiler/types"
 )
 
 // parseProgram is a test helper that parses input and fails on parse errors.
@@ -60,11 +60,11 @@ func TestResolveBlockBody(t *testing.T) {
 		line      int
 		col       int
 		expect    CursorPosition
-		blockKind token.BlockKind
+		blockKind string
 		blockName string
 	}{
-		{"start of field line", 2, 1, BlockBody, token.BlockModel, "gpt4"},
-		{"on closing brace line", 3, 1, BlockBody, token.BlockModel, "gpt4"},
+		{"start of field line", 2, 1, BlockBody, "model", "gpt4"},
+		{"on closing brace line", 3, 1, BlockBody, "model", "gpt4"},
 	}
 
 	for _, tt := range tests {
@@ -515,7 +515,7 @@ func TestResolveUserSchemaBlock(t *testing.T) {
 	if ctx.Block == nil {
 		t.Fatal("Block should not be nil")
 	}
-	if ctx.BlockKind != token.BlockSchema {
+	if ctx.BlockKind != types.BlockKindSchema {
 		t.Errorf("BlockKind = %v, want BlockSchema", ctx.BlockKind)
 	}
 }
@@ -531,13 +531,13 @@ func TestResolveInlineBlockBody(t *testing.T) {
 		line      int
 		col       int
 		expect    CursorPosition
-		blockKind token.BlockKind
+		blockKind string
 		isInline  bool
 	}{
 		// Line 4 is blank inside the inline model block.
-		{"inside inline block", 4, 3, BlockBody, token.BlockModel, true},
+		{"inside inline block", 4, 3, BlockBody, "model", true},
 		// Line 6 is blank after the inline block, still inside the agent block.
-		{"after inline block", 6, 3, BlockBody, token.BlockAgent, false},
+		{"after inline block", 6, 3, BlockBody, "agent", false},
 	}
 
 	for _, tt := range tests {
@@ -575,7 +575,7 @@ func TestResolveInlineSchemaBody(t *testing.T) {
 	if ctx.InlineBlock == nil {
 		t.Fatal("InlineBlock should not be nil")
 	}
-	if ctx.BlockKind != token.BlockSchema {
+	if ctx.BlockKind != types.BlockKindSchema {
 		t.Errorf("BlockKind = %v, want BlockSchema", ctx.BlockKind)
 	}
 }

@@ -164,7 +164,7 @@ func (l *Lexer) NextToken() token.Token {
 	default:
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
-			tok.Type = token.LookupIdent(tok.Literal)
+			tok.Type = token.IDENT
 			setTokenEnd(&tok)
 			return tok
 		} else if isDigit(l.ch) {
@@ -363,21 +363,13 @@ func dedentRawString(raw string, baseline int) string {
 func (l *Lexer) readNumber() token.Token {
 	tok := token.Token{Line: l.line, Column: l.column}
 	pos := l.position
-	isFloat := l.ch == '.'
 
 	for isDigit(l.ch) || (l.ch == '.' && isDigit(l.peekChar())) {
-		if l.ch == '.' {
-			isFloat = true
-		}
 		l.readChar()
 	}
 
+	tok.Type = token.NUMBER
 	tok.Literal = l.input[pos:l.position]
-	if isFloat {
-		tok.Type = token.FLOAT
-	} else {
-		tok.Type = token.INT
-	}
 	setTokenEnd(&tok)
 	return tok
 }

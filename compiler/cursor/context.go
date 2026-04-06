@@ -28,7 +28,7 @@ type Context struct {
 	Position    CursorPosition      // where the cursor sits structurally
 	Block       *ast.BlockStatement // enclosing top-level block, nil if TopLevel
 	InlineBlock *ast.BlockBody      // innermost block body (inline), nil if not inside one
-	BlockKind   token.BlockKind     // block kind enum (of the innermost block)
+	BlockKind   string              // block kind (of the innermost block)
 	Schema      *types.BlockSchema  // schema for the block type, nil if unknown
 	Assignment  *ast.Assignment     // enclosing assignment, nil if not on a value
 }
@@ -118,12 +118,12 @@ func resolveInlineBlock(be *ast.BlockExpression, parent *ast.BlockStatement, lin
 // schema blocks, uses the block name as the lookup key (e.g. "vpc_data_t");
 // for all other kinds, uses the kind string (e.g. "model"). Returns nil when
 // no schema is registered (e.g. anonymous inline schemas with empty name).
-func resolveBlockSchema(kind token.BlockKind, name string) *types.BlockSchema {
+func resolveBlockSchema(kind string, name string) *types.BlockSchema {
 	var schemaName string
-	if kind == token.BlockSchema && name != "" {
+	if kind == types.BlockKindSchema && name != "" {
 		schemaName = name
 	} else {
-		schemaName = kind.String()
+		schemaName = kind
 	}
 	if schema, ok := types.GetSchema(schemaName); ok {
 		return &schema

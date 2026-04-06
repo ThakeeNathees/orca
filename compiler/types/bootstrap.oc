@@ -1,33 +1,85 @@
 // Schema definitions for all block types.
-// Fields without | null are required. Fields with | null are optional.
-// Use @desc("...") to add a description to a field.
+
+// Annotation details:
+//   @suppress: Suppresses compiler diagnostics.
+//   @desc: Adds a description to a field.
+//   @workflow_node: Indicates that the block is a workflow node.
+//   @trigger_node: Indicates that its a workflow trigger.
+//   @only_assignments: Indicates that the block only supports assignments.
+
+// TODO: Add an ascii diagram of how the schema works.
+
+// TODO:
+// We need to remove the null schema and add this
+//
+//   schema Null {}  // The "class" of null
+//
+// Also null, true, false are builtin (pre-defined) instances
+// of Null, bool "classes"
+//
+// Also consider adding this:
+//
+//   schema schema {}
+//
+// Also adding schema let {} with annotation indicating that it
+// can have any assignments.
 
 // Primitive type schemas — these define the built-in types.
 @suppress("duplicate-block")
+@only_assignments
 schema str {}
 
 @suppress("duplicate-block")
-schema int {}
+@only_assignments
+schema number {}
 
 @suppress("duplicate-block")
-schema float {}
-
-@suppress("duplicate-block")
+@only_assignments
 schema bool {}
 
 @suppress("duplicate-block")
+@only_assignments
 schema list {}
 
 @suppress("duplicate-block")
+@only_assignments
 schema map {}
 
 @suppress("duplicate-block")
+@only_assignments
 schema any {}
 
 @suppress("duplicate-block")
+@only_assignments
 schema null {}
 
 @suppress("duplicate-block")
+@only_assignments
+schema input {
+  @desc("The type of this input (e.g. str, number, or a user-defined schema).")
+  type = schema
+
+  @desc("A human-readable description of what this input is for.")
+  desc = str | null
+
+  @desc("The default value if no value is provided at runtime.")
+  default = any | null
+
+  @desc("Whether this input contains sensitive data that should be masked.")
+  sensitive = bool | null
+}
+
+@suppress("duplicate-block")
+schema workflow {
+  @desc("The name of the workflow.")
+  name = str | null
+
+  @desc("The description of the workflow.")
+  desc = str | null
+}
+
+@suppress("duplicate-block")
+@only_assignments
 schema model {
   @desc("The LLM provider to use (e.g. openai, anthropic).")
   provider = str
@@ -46,6 +98,8 @@ schema model {
 }
 
 @suppress("duplicate-block")
+@only_assignments
+@workflow_node
 schema agent {
   @desc("The model to use. Can be a reference to a model block or a string.")
   model = str | model
@@ -61,6 +115,8 @@ schema agent {
 }
 
 @suppress("duplicate-block")
+@only_assignments
+@workflow_node
 schema tool {
   @desc("The description of the tool.")
   desc = str | null
@@ -76,21 +132,16 @@ schema tool {
 }
 
 @suppress("duplicate-block")
+@only_assignments
 schema knowledge {
   @desc("The description of the knowledge source.")
   desc = str | null
 }
 
 @suppress("duplicate-block")
-schema workflow {
-  @desc("The name of the workflow.")
-  name = str | null
-
-  @desc("The description of the workflow.")
-  desc = str | null
-}
-
-@suppress("duplicate-block")
+@only_assignments
+@workflow_node
+@trigger_node
 schema cron {
   @desc("Cron schedule expression (e.g. \"0 9 * * 1-5\").")
   schedule = str
@@ -100,25 +151,13 @@ schema cron {
 }
 
 @suppress("duplicate-block")
+@only_assignments
+@workflow_node
+@trigger_node
 schema webhook {
   @desc("URL path for this webhook (e.g. \"/hooks/job\").")
   path = str
 
   @desc("HTTP method (e.g. \"POST\").")
   method = str | null
-}
-
-@suppress("duplicate-block")
-schema input {
-  @desc("The type of this input (e.g. str, int, or a user-defined schema).")
-  type = schema
-
-  @desc("A human-readable description of what this input is for.")
-  desc = str | null
-
-  @desc("The default value if no value is provided at runtime.")
-  default = any | null
-
-  @desc("Whether this input contains sensitive data that should be masked.")
-  sensitive = bool | null
 }

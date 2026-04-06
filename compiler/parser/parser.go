@@ -113,7 +113,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 func (p *Parser) parseStatement() ast.Statement {
 	annotations := p.collectAnnotations()
 
-	if token.IsTokenBlockName(p.curToken.Type) {
+	if p.curToken.Type == token.IDENT {
 		block := p.parseBlock()
 		if block == nil {
 			return nil
@@ -121,7 +121,7 @@ func (p *Parser) parseStatement() ast.Statement {
 		block.Annotations = annotations
 		return block
 	}
-	p.addError(fmt.Sprintf("expected block keyword (model, agent, tool, let, ...), got %s",
+	p.addError(fmt.Sprintf("expected block kind (identifier), got %s",
 		token.Describe(p.curToken.Type)))
 	return nil
 }
@@ -136,17 +136,14 @@ func (p *Parser) parseStatement() ast.Statement {
 // on incomplete input.
 func (p *Parser) parseBlock() *ast.BlockStatement {
 	block := &ast.BlockStatement{}
+	block.Kind = p.curToken.Literal
 	block.SourceFile = p.l.SourceFile
 	block.TokenStart = p.curToken
-	blockType := p.curToken.Literal // e.g., "model", "agent"
-
-	kind, _ := token.TokenTypeToBlockKind(p.curToken.Type)
-	block.Kind = kind
 
 	// Expect the block's name identifier (e.g., "gpt4" in "model gpt4 {").
-	if !token.IsIdentLike(p.peekToken.Type) {
+	if p.peekToken.Type != token.IDENT {
 		p.addErrorAt(p.peekToken, fmt.Sprintf("expected name after '%s', got %s",
-			blockType, token.Describe(p.peekToken.Type)))
+			block.Kind, token.Describe(p.peekToken.Type)))
 		p.syncToBlockEnd()
 		return nil
 	}
@@ -157,7 +154,7 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	// Expect the opening brace.
 	if p.peekToken.Type != token.LBRACE {
 		p.addErrorAt(p.peekToken, fmt.Sprintf("expected '{' after '%s %s', got %s",
-			blockType, block.Name, token.Describe(p.peekToken.Type)))
+			block.Kind, block.Name, token.Describe(p.peekToken.Type)))
 		p.syncToBlockEnd()
 		return nil
 	}
@@ -166,12 +163,12 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 
 	// Parse the body: assignments and/or edge expressions (A -> B -> C).
 	// The analyzer validates whether expressions are allowed for the block kind.
-	block.Assignments, block.Expressions = p.parseBlockBody(blockType, block.Name)
+	block.Assignments, block.Expressions = p.parseBlockBody(block.Kind, block.Name)
 
 	// Expect the closing brace.
 	if p.curToken.Type != token.RBRACE {
 		p.addError(fmt.Sprintf("expected '}' to close '%s %s' block, got %s",
-			blockType, block.Name, token.Describe(p.curToken.Type)))
+			block.Kind, block.Name, token.Describe(p.curToken.Type)))
 		// Return the partial block with whatever assignments parsed.
 		block.TokenEnd = p.prevToken
 		return block
@@ -182,38 +179,18 @@ func (p *Parser) parseBlock() *ast.BlockStatement {
 	return block
 }
 
-// parseAssignments parses all key = value pairs inside a block body,
-// stopping when it hits a closing brace or EOF. Returns the collected
-// assignments as a slice. Error-tolerant: failed assignments are skipped
-// and parsing continues with the next one.
-func (p *Parser) parseAssignments(blockType, blockName string) []*ast.Assignment {
-	var assignments []*ast.Assignment
-	p.nextToken() // move past {
-
-	for p.curToken.Type != token.RBRACE && p.curToken.Type != token.EOF {
-		a := p.parseAssignment(blockType, blockName)
-		if a != nil {
-			assignments = append(assignments, a)
-		}
-		// parseAssignment syncs to the next assignment on error,
-		// so no extra skip needed here.
-	}
-
-	return assignments
-}
-
 // parseAssignment parses a single `key = value` pair. The key must be an
 // identifier or a keyword used as an identifier (like "model" inside a block).
 //
 // Error-tolerant: on failure, syncs to the next assignment boundary
 // (next identifier-like token at the same nesting level, or '}'/EOF)
 // so subsequent assignments can still be parsed.
-func (p *Parser) parseAssignment(blockType, blockName string) *ast.Assignment {
+func (p *Parser) parseAssignment(blockKind string, blockName string) *ast.Assignment {
 	annotations := p.collectAnnotations()
 
-	if !token.IsIdentLike(p.curToken.Type) {
-		p.addError(fmt.Sprintf("expected property name in '%s %s' block, got %s",
-			blockType, blockName, token.Describe(p.curToken.Type)))
+	if p.curToken.Type != token.IDENT {
+		p.addError(fmt.Sprintf("expected identifier for assignment key in %s %s, got %s",
+			blockKind, blockName, token.Describe(p.curToken.Type)))
 		p.syncToNextAssignment()
 		return nil
 	}
@@ -311,7 +288,7 @@ func (p *Parser) syncToBlockEnd() {
 			p.nextToken() // consume the }
 			return
 		}
-		if token.IsTokenBlockName(p.curToken.Type) {
+		if p.curToken.Type == token.IDENT {
 			return // stop before the keyword so the main loop can parse it
 		}
 		p.nextToken()
@@ -324,7 +301,7 @@ func (p *Parser) syncToBlockEnd() {
 func (p *Parser) syncToNextAssignment() {
 	p.nextToken() // always advance at least once
 	for p.curToken.Type != token.EOF && p.curToken.Type != token.RBRACE {
-		if token.IsIdentLike(p.curToken.Type) && p.peekToken.Type == token.ASSIGN {
+		if p.curToken.Type == token.IDENT && p.peekToken.Type == token.ASSIGN {
 			return
 		}
 		p.nextToken()
@@ -399,59 +376,39 @@ func (p *Parser) parsePrimary() ast.Expression {
 		p.nextToken()
 		return expr
 
-	case token.INT:
-		val, err := strconv.ParseInt(p.curToken.Literal, 10, 64)
-		if err != nil {
-			p.addError(fmt.Sprintf("invalid integer literal '%s'", p.curToken.Literal))
-			return nil
-		}
-		expr := &ast.IntegerLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: val}
-		p.nextToken()
-		return expr
-
-	case token.FLOAT:
-		val, err := strconv.ParseFloat(p.curToken.Literal, 64)
-		if err != nil {
+	case token.NUMBER:
+		// Parse all numbers as float64 (single NumberLiteral type)
+		if val, err := strconv.ParseFloat(p.curToken.Literal, 64); err == nil {
+			expr := &ast.NumberLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: val}
+			p.nextToken()
+			return expr
+		} else {
 			p.addError(fmt.Sprintf("invalid number literal '%s'", p.curToken.Literal))
 			return nil
 		}
-		expr := &ast.FloatLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: val}
-		p.nextToken()
-		return expr
 
-	case token.TRUE:
-		expr := &ast.BooleanLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: true}
-		p.nextToken()
-		return expr
-
-	case token.FALSE:
-		expr := &ast.BooleanLiteral{BaseNode: ast.NewTerminal(p.curToken), Value: false}
-		p.nextToken()
-		return expr
-
-	case token.NULL:
-		expr := &ast.NullLiteral{BaseNode: ast.NewTerminal(p.curToken)}
-		p.nextToken()
-		return expr
-
+	// In Orca's philosophy there is no special identifiers (example true, false, null, schema, etc.).
+	// However orca has them, so null and bool are schemas defined in the bootstrap.oc and
+	// true/false are "instances" of bool, and they defined as such:
+	//
+	//     bool true {}
+	//     bool false {}
+	//
+	// Also bool is not a special keyword, it's another identifier defined as such:
+	//
+	//    schema bool {}
+	//
+	// And you've guessed it, schema is an identifier as well, where the schema
+	// is bootstrapped as
+	//
+	//    schema schema {}
+	//
 	case token.IDENT:
-		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
-		p.nextToken()
-		return expr
-
-	case token.SCHEMA, token.MODEL, token.AGENT, token.KNOWLEDGE,
-		token.WORKFLOW, token.TOOL, token.INPUT, token.CRON, token.WEBHOOK:
 		// If followed by '{', parse as inline block expression.
 		// Otherwise treat as identifier (e.g., model = gpt4 inside an agent block).
 		if p.peekToken.Type == token.LBRACE {
 			return p.parseBlockExpression()
 		}
-		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
-		p.nextToken()
-		return expr
-
-	case token.LET:
-		// Let keywords are valid as identifiers in expression position but cannot be inlined.
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
 		return expr
@@ -474,7 +431,7 @@ func (p *Parser) parseMemberAccess(object ast.Expression) *ast.MemberAccess {
 	dotToken := p.curToken
 	p.nextToken() // consume the dot
 
-	if !token.IsIdentLike(p.curToken.Type) {
+	if p.curToken.Type != token.IDENT {
 		p.addError(fmt.Sprintf("expected member name after '.', got %s",
 			token.Describe(p.curToken.Type)))
 		// Return a partial MemberAccess with empty Member so the AST is
@@ -647,25 +604,17 @@ func (p *Parser) parseList() ast.Expression {
 // The block keyword must be the current token with `{` as the peek token.
 // Works for all block types except let.
 func (p *Parser) parseBlockExpression() *ast.BlockExpression {
-	kind, ok := token.TokenTypeToBlockKind(p.curToken.Type)
-	if !ok {
-		p.addError(fmt.Sprintf("unexpected token %s in block expression", token.Describe(p.curToken.Type)))
-		return nil
-	}
-
 	be := &ast.BlockExpression{}
-	be.Kind = kind
+	be.Kind = p.curToken.Literal
 	be.SourceFile = p.l.SourceFile
 	be.TokenStart = p.curToken // the block keyword
 
-	blockName := p.curToken.Literal
-
 	p.nextToken() // move to {
-	be.Assignments, be.Expressions = p.parseBlockBody(blockName, "inline")
+	be.Assignments, be.Expressions = p.parseBlockBody(be.Kind, "inline")
 
 	if p.curToken.Type != token.RBRACE {
 		p.addError(fmt.Sprintf("expected '}' to close inline %s, got %s",
-			blockName, token.Describe(p.curToken.Type)))
+			be.Kind, token.Describe(p.curToken.Type)))
 		return nil
 	}
 	be.TokenEnd = p.curToken
@@ -677,7 +626,7 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 // assignments and bare expressions (e.g. edge chains A -> B -> C).
 // An identifier followed by '=' is parsed as an assignment; otherwise it's
 // parsed as an expression. The analyzer validates which block kinds allow expressions.
-func (p *Parser) parseBlockBody(blockType, blockName string) ([]*ast.Assignment, []ast.Expression) {
+func (p *Parser) parseBlockBody(blockKind, blockName string) ([]*ast.Assignment, []ast.Expression) {
 	var assignments []*ast.Assignment
 	var expressions []ast.Expression
 	p.nextToken() // move past {
@@ -685,8 +634,8 @@ func (p *Parser) parseBlockBody(blockType, blockName string) ([]*ast.Assignment,
 	for p.curToken.Type != token.RBRACE && p.curToken.Type != token.EOF {
 		// Annotations or identifier followed by '=' indicate an assignment.
 		if p.curToken.Type == token.AT ||
-			(token.IsIdentLike(p.curToken.Type) && p.peekToken.Type == token.ASSIGN) {
-			a := p.parseAssignment(blockType, blockName)
+			(p.curToken.Type == token.IDENT && p.peekToken.Type == token.ASSIGN) {
+			a := p.parseAssignment(blockKind, blockName)
 			if a != nil {
 				assignments = append(assignments, a)
 			}

@@ -102,6 +102,7 @@ func TestNextTokenSkipsWhitespace(t *testing.T) {
 	}
 }
 
+// Block kind names (model, agent, …) are ordinary identifiers at lex time.
 func TestNextTokenIdentAndKeyword(t *testing.T) {
 	input := "model smart_model agent input null"
 
@@ -109,11 +110,11 @@ func TestNextTokenIdentAndKeyword(t *testing.T) {
 		expectedType    token.TokenType
 		expectedLiteral string
 	}{
-		{token.MODEL, "model"},
+		{token.IDENT, "model"},
 		{token.IDENT, "smart_model"},
-		{token.AGENT, "agent"},
-		{token.INPUT, "input"},
-		{token.NULL, "null"},
+		{token.IDENT, "agent"},
+		{token.IDENT, "input"},
+		{token.IDENT, "null"},
 		{token.EOF, ""},
 	}
 
@@ -129,7 +130,7 @@ func TestNextTokenIdentAndKeyword(t *testing.T) {
 	}
 }
 
-// TestNextTokenCronWebhook verifies cron and webhook are lexed as block keywords.
+// TestNextTokenCronWebhook verifies former block names are lexed as identifiers.
 func TestNextTokenCronWebhook(t *testing.T) {
 	input := "cron daily webhook hooks_in"
 
@@ -137,9 +138,9 @@ func TestNextTokenCronWebhook(t *testing.T) {
 		expectedType    token.TokenType
 		expectedLiteral string
 	}{
-		{token.CRON, "cron"},
+		{token.IDENT, "cron"},
 		{token.IDENT, "daily"},
-		{token.WEBHOOK, "webhook"},
+		{token.IDENT, "webhook"},
 		{token.IDENT, "hooks_in"},
 		{token.EOF, ""},
 	}
@@ -175,9 +176,9 @@ func TestNextTokenNumbers(t *testing.T) {
 		expectedType    token.TokenType
 		expectedLiteral string
 	}{
-		{token.INT, "42"},
-		{token.FLOAT, "0.7"},
-		{token.FLOAT, ".5"},
+		{token.NUMBER, "42"},
+		{token.NUMBER, "0.7"},
+		{token.NUMBER, ".5"},
 		{token.EOF, ""},
 	}
 
@@ -198,15 +199,16 @@ func TestNextTokenComment(t *testing.T) {
 model`
 	l := New(input, "")
 	tok := l.NextToken()
-	// Comments are skipped, so we should get MODEL
-	if tok.Type != token.MODEL {
-		t.Fatalf("expected MODEL after comment, got %s (%q)", tok.Type, tok.Literal)
+	// Comments are skipped, so we should get the identifier "model"
+	if tok.Type != token.IDENT || tok.Literal != "model" {
+		t.Fatalf("expected IDENT \"model\" after comment, got %s (%q)", tok.Type, tok.Literal)
 	}
 	if tok.Line != 2 {
 		t.Fatalf("expected line 2, got %d", tok.Line)
 	}
 }
 
+// Lexer does not classify boolean spellings — they are IDENT like other names.
 func TestNextTokenBooleans(t *testing.T) {
 	input := "true false"
 
@@ -214,8 +216,8 @@ func TestNextTokenBooleans(t *testing.T) {
 		expectedType    token.TokenType
 		expectedLiteral string
 	}{
-		{token.TRUE, "true"},
-		{token.FALSE, "false"},
+		{token.IDENT, "true"},
+		{token.IDENT, "false"},
 		{token.EOF, ""},
 	}
 
@@ -311,7 +313,7 @@ func TestNextTokenFullBlock(t *testing.T) {
 		expectedType    token.TokenType
 		expectedLiteral string
 	}{
-		{token.MODEL, "model"},
+		{token.IDENT, "model"},
 		{token.IDENT, "smart_model"},
 		{token.LBRACE, "{"},
 		{token.IDENT, "provider"},
@@ -319,7 +321,7 @@ func TestNextTokenFullBlock(t *testing.T) {
 		{token.STRING, "openai"},
 		{token.IDENT, "temperature"},
 		{token.ASSIGN, "="},
-		{token.FLOAT, "0.2"},
+		{token.NUMBER, "0.2"},
 		{token.RBRACE, "}"},
 		{token.EOF, ""},
 	}
@@ -463,10 +465,10 @@ func TestRawStringInBlock(t *testing.T) {
 	}, "\n")
 
 	l := New(input, "")
-	// agent
+	// agent (block kind name — lexed as IDENT)
 	tok := l.NextToken()
-	if tok.Type != token.AGENT {
-		t.Fatalf("expected AGENT, got %s", tok.Type)
+	if tok.Type != token.IDENT || tok.Literal != "agent" {
+		t.Fatalf("expected IDENT \"agent\", got %s %q", tok.Type, tok.Literal)
 	}
 	// a
 	tok = l.NextToken()
@@ -650,8 +652,8 @@ func TestRawStringFollowedByTokens(t *testing.T) {
 	}
 
 	tok = l.NextToken()
-	if tok.Type != token.INT {
-		t.Fatalf("expected INT, got %s (%q)", tok.Type, tok.Literal)
+	if tok.Type != token.NUMBER {
+		t.Fatalf("expected NUMBER, got %s (%q)", tok.Type, tok.Literal)
 	}
 	if tok.Literal != "42" {
 		t.Errorf("literal = %q, want %q", tok.Literal, "42")

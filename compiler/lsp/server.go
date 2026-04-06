@@ -299,7 +299,7 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 
 	switch node.Kind {
 	case cursor.BlockNameNode:
-		content := fmt.Sprintf("```orca\n%s %s\n```", node.Block.Kind.String(), node.Block.Name)
+		content := fmt.Sprintf("```orca\n%s %s\n```", node.Block.Kind, node.Block.Name)
 		return &protocol.Hover{
 			Contents: protocol.MarkupContent{Kind: protocol.MarkupKindMarkdown, Value: content},
 		}, nil
@@ -418,7 +418,7 @@ func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol
 	// For input blocks, members access the value schema (the "type" field),
 	// not the input block's own fields.
 	if block, ok := target.(*ast.BlockStatement); ok {
-		if block.Kind == token.BlockInput {
+		if block.Kind == analyzer.BlockKindInput {
 			if schema := findTypeSchema(block); schema != nil {
 				if loc, ok := findAssignmentLocation(schema, ma.Member); ok {
 					return loc, true
@@ -486,7 +486,7 @@ func findMemberValue(target ast.Node, member string, doc *documentState) ast.Nod
 	}
 
 	// For input blocks, members access the value schema (the "type" field).
-	if block, ok := target.(*ast.BlockStatement); ok && block.Kind == token.BlockInput {
+	if block, ok := target.(*ast.BlockStatement); ok && block.Kind == analyzer.BlockKindInput {
 		if schema := findTypeSchema(block); schema != nil {
 			if result := resolveAssignmentValue(schema.Assignments, member, doc); result != nil {
 				return result

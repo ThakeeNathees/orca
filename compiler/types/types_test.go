@@ -1,10 +1,6 @@
 package types
 
-import (
-	"testing"
-
-	"github.com/thakee/orca/compiler/token"
-)
+import "testing"
 
 // TestTypeKindString verifies that each TypeKind has a correct string representation.
 func TestTypeKindString(t *testing.T) {
@@ -25,71 +21,6 @@ func TestTypeKindString(t *testing.T) {
 				t.Errorf("TypeKind.String() = %q, want %q", got, tt.expected)
 			}
 		})
-	}
-}
-
-// TestTypeOf verifies that TypeOf returns cached BlockRef types for real block kinds,
-// and that primitive accessors return schema-based types.
-func TestTypeOf(t *testing.T) {
-	// Test real block kinds via TypeOf.
-	blockTests := []struct {
-		name      string
-		input     token.BlockKind
-		blockKind token.BlockKind
-	}{
-		{"model", token.BlockModel, token.BlockModel},
-		{"agent", token.BlockAgent, token.BlockAgent},
-		{"tool", token.BlockTool, token.BlockTool},
-	}
-
-	for _, tt := range blockTests {
-		t.Run(tt.name, func(t *testing.T) {
-			typ := TypeOf(tt.input)
-			if typ.Kind != BlockRef {
-				t.Errorf("Kind = %v, want BlockRef", typ.Kind)
-			}
-			if typ.BlockKind != tt.blockKind {
-				t.Errorf("BlockKind = %v, want %v", typ.BlockKind, tt.blockKind)
-			}
-		})
-	}
-
-	// Test primitives via accessor functions (now schema types).
-	primTests := []struct {
-		name       string
-		fn         func() Type
-		schemaName string
-	}{
-		{"str", Str, "str"},
-		{"int", Int, "int"},
-		{"float", Float, "float"},
-		{"bool", Bool, "bool"},
-		{"any", Any, "any"},
-		{"null", Null, "null"},
-	}
-
-	for _, tt := range primTests {
-		t.Run(tt.name, func(t *testing.T) {
-			typ := tt.fn()
-			if typ.Kind != BlockRef {
-				t.Errorf("Kind = %v, want BlockRef", typ.Kind)
-			}
-			if typ.BlockKind != token.BlockSchema {
-				t.Errorf("BlockKind = %v, want BlockSchema", typ.BlockKind)
-			}
-			if typ.SchemaName != tt.schemaName {
-				t.Errorf("SchemaName = %q, want %q", typ.SchemaName, tt.schemaName)
-			}
-		})
-	}
-}
-
-// TestTypeOfCaching verifies that TypeOf returns equal types.
-func TestTypeOfCaching(t *testing.T) {
-	a := Str()
-	b := Str()
-	if !a.Equals(b) {
-		t.Error("TypeOf should return equal values")
 	}
 }
 
@@ -155,17 +86,18 @@ func TestMapType(t *testing.T) {
 func TestBlockRefType(t *testing.T) {
 	tests := []struct {
 		name      string
-		blockKind token.BlockKind
+		blockKind string
+		blockName string
 	}{
-		{"model ref", token.BlockModel},
-		{"agent ref", token.BlockAgent},
-		{"tool ref", token.BlockTool},
-		{"schema ref", token.BlockSchema},
+		{"model ref", "model", "m"},
+		{"agent ref", "agent", "a"},
+		{"tool ref", "tool", "t"},
+		{"schema ref", BlockKindSchema, "s"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			refType := NewBlockRefType(tt.blockKind)
+			refType := NewBlockRefType(tt.blockKind, tt.blockName)
 			if refType.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", refType.Kind)
 			}
@@ -194,11 +126,11 @@ func TestTypeEquals(t *testing.T) {
 		{"list vs list diff element", NewListType(str), NewListType(intT), false},
 		{"map vs map same", NewMapType(str, intT), NewMapType(str, intT), true},
 		{"map vs map diff value", NewMapType(str, intT), NewMapType(str, str), false},
-		{"block ref same", NewBlockRefType(token.BlockModel), NewBlockRefType(token.BlockModel), true},
-		{"block ref diff", NewBlockRefType(token.BlockModel), NewBlockRefType(token.BlockAgent), false},
+		{"block ref same", NewBlockRefType("model", "m1"), NewBlockRefType("model", "m2"), true},
+		{"block ref diff", NewBlockRefType("model", "m1"), NewBlockRefType("agent", "a1"), false},
 		{"any equals any", Any(), Any(), true},
 		{"named vs list", str, NewListType(str), false},
-		{"union same members", NewUnionType(str, NewBlockRefType(token.BlockModel)), NewUnionType(str, NewBlockRefType(token.BlockModel)), true},
+		{"union same members", NewUnionType(str, NewBlockRefType("model", "m1")), NewUnionType(str, NewBlockRefType("model", "m2")), true},
 		{"union diff members", NewUnionType(str, intT), NewUnionType(str, floatT), false},
 		{"union diff length", NewUnionType(str, intT), NewUnionType(str), false},
 		{"union vs named", NewUnionType(str), str, false},
@@ -225,7 +157,7 @@ func TestUnionType(t *testing.T) {
 		expectLen   int
 		expectTypes []Type
 	}{
-		{"str or model", []Type{str, NewBlockRefType(token.BlockModel)}, 2, []Type{str, NewBlockRefType(token.BlockModel)}},
+		{"str or model", []Type{str, NewBlockRefType("model", "m1")}, 2, []Type{str, NewBlockRefType("model", "m2")}},
 		{"str or int or float", []Type{str, intT, floatT}, 3, []Type{str, intT, floatT}},
 		{"single member", []Type{str}, 1, []Type{str}},
 	}
@@ -251,7 +183,7 @@ func TestUnionType(t *testing.T) {
 // TestUnionTypeContains verifies that Contains checks membership correctly.
 func TestUnionTypeContains(t *testing.T) {
 	str := Str()
-	union := NewUnionType(str, NewBlockRefType(token.BlockModel))
+	union := NewUnionType(str, NewBlockRefType("model", "m1"))
 
 	tests := []struct {
 		name     string
@@ -259,9 +191,9 @@ func TestUnionTypeContains(t *testing.T) {
 		expected bool
 	}{
 		{"contains str", str, true},
-		{"contains model", NewBlockRefType(token.BlockModel), true},
+		{"contains model", NewBlockRefType("model", "m2"), true},
 		{"does not contain int", Int(), false},
-		{"does not contain agent", NewBlockRefType(token.BlockAgent), false},
+		{"does not contain agent", NewBlockRefType("agent", "a1"), false},
 	}
 
 	for _, tt := range tests {
@@ -276,27 +208,27 @@ func TestUnionTypeContains(t *testing.T) {
 // TestIsAny verifies the IsAny helper.
 func TestIsAny(t *testing.T) {
 	if !Any().IsAny() {
-		t.Error("TypeOf(any).IsAny() should be true")
+		t.Error("CreateSchema(any).IsAny() should be true")
 	}
 	if Str().IsAny() {
-		t.Error("TypeOf(str).IsAny() should be false")
+		t.Error("CreateSchema(str).IsAny() should be false")
 	}
 }
 
 // TestIsNull verifies the IsNull helper.
 func TestIsNull(t *testing.T) {
 	if !Null().IsNull() {
-		t.Error("TypeOf(null).IsNull() should be true")
+		t.Error("CreateSchema(null).IsNull() should be true")
 	}
 	if Str().IsNull() {
-		t.Error("TypeOf(str).IsNull() should be false")
+		t.Error("CreateSchema(str).IsNull() should be false")
 	}
 }
 
 // TestTypeOfUserDefinedSchema verifies that SchemaTypeOf works for user-defined
 // schema names.
 func TestTypeOfUserDefinedSchema(t *testing.T) {
-	vpc := CreateSchema("vpc_data_t")
+	vpc := NewBlockRefType(BlockKindSchema, "vpc_data_t")
 	str := Str()
 
 	// Both are BlockRef — no distinction in Kind.
@@ -308,29 +240,29 @@ func TestTypeOfUserDefinedSchema(t *testing.T) {
 		t.Error("vpc_data_t should not equal str")
 	}
 	// Same name returns equal.
-	if !vpc.Equals(CreateSchema("vpc_data_t")) {
+	if !vpc.Equals(NewBlockRefType(BlockKindSchema, "vpc_data_t")) {
 		t.Error("vpc_data_t should equal vpc_data_t")
 	}
 }
 
 // TestSchemaTypeOfFields verifies SchemaTypeOf sets BlockKind and SchemaName correctly.
 func TestSchemaTypeOfFields(t *testing.T) {
-	typ := CreateSchema("my_schema")
+	typ := NewBlockRefType(BlockKindSchema, "my_schema")
 	if typ.Kind != BlockRef {
 		t.Errorf("Kind = %v, want BlockRef", typ.Kind)
 	}
-	if typ.BlockKind != token.BlockSchema {
-		t.Errorf("BlockKind = %v, want BlockSchema", typ.BlockKind)
+	if typ.BlockKind != BlockKindSchema {
+		t.Errorf("BlockKind = %v, want %q", typ.BlockKind, BlockKindSchema)
 	}
-	if typ.SchemaName != "my_schema" {
-		t.Errorf("SchemaName = %q, want %q", typ.SchemaName, "my_schema")
+	if typ.BlockName != "my_schema" {
+		t.Errorf("SchemaName = %q, want %q", typ.BlockName, "my_schema")
 	}
 }
 
 // TestSchemaTypeOfCaching verifies SchemaTypeOf returns equal types for the same name.
 func TestSchemaTypeOfCaching(t *testing.T) {
-	a := CreateSchema("cached_schema")
-	b := CreateSchema("cached_schema")
+	a := NewBlockRefType(BlockKindSchema, "cached_schema")
+	b := NewBlockRefType(BlockKindSchema, "cached_schema")
 	if !a.Equals(b) {
 		t.Error("SchemaTypeOf should return equal values for the same name")
 	}
@@ -345,10 +277,10 @@ func TestSchemaTypeEquality(t *testing.T) {
 		b      Type
 		expect bool
 	}{
-		{"same schema", CreateSchema("foo"), CreateSchema("foo"), true},
-		{"different schemas", CreateSchema("foo"), CreateSchema("bar"), false},
-		{"schema vs model", CreateSchema("foo"), NewBlockRefType(token.BlockModel), false},
-		{"schema vs bare BlockSchema", CreateSchema("foo"), TypeOf(token.BlockSchema), false},
+		{"same schema", NewBlockRefType(BlockKindSchema, "foo"), NewBlockRefType(BlockKindSchema, "foo"), true},
+		{"different schemas", NewBlockRefType(BlockKindSchema, "foo"), NewBlockRefType(BlockKindSchema, "bar"), false},
+		{"schema vs model", NewBlockRefType(BlockKindSchema, "foo"), NewBlockRefType("model", ""), false},
+		{"schema vs bare BlockSchema", NewBlockRefType(BlockKindSchema, "foo"), NewBlockRefType(BlockKindSchema, ""), false},
 	}
 
 	for _, tt := range tests {
@@ -362,8 +294,8 @@ func TestSchemaTypeEquality(t *testing.T) {
 
 // TestSchemaTypeCompatibility verifies IsCompatible for user-defined schema types.
 func TestSchemaTypeCompatibility(t *testing.T) {
-	fooSchema := CreateSchema("foo_t")
-	barSchema := CreateSchema("bar_t")
+	fooSchema := NewBlockRefType(BlockKindSchema, "foo_t")
+	barSchema := NewBlockRefType(BlockKindSchema, "bar_t")
 	anyT := Any()
 
 	tests := []struct {
@@ -396,8 +328,8 @@ func TestSchemaTypeString(t *testing.T) {
 		typ    Type
 		expect string
 	}{
-		{"named schema", CreateSchema("vpc_data_t"), "vpc_data_t"},
-		{"bare BlockSchema", TypeOf(token.BlockSchema), "schema"},
+		{"named schema", NewBlockRefType(BlockKindSchema, "vpc_data_t"), "vpc_data_t"},
+		{"bare BlockSchema", NewBlockRefType(BlockKindSchema, "schema"), "schema"},
 	}
 
 	for _, tt := range tests {
@@ -421,14 +353,14 @@ func TestTypeStringRendering(t *testing.T) {
 		{"int", Int(), "int"},
 		{"null", Null(), "null"},
 		{"any", Any(), "any"},
-		{"model", NewBlockRefType(token.BlockModel), "model"},
-		{"user schema", CreateSchema("vpc_data_t"), "vpc_data_t"},
+		{"model", NewBlockRefType("model", "m"), "model"},
+		{"user schema", NewBlockRefType(BlockKindSchema, "vpc_data_t"), "vpc_data_t"},
 		{"list", Type{Kind: List}, "list"},
 		{"list[str]", NewListType(Str()), "list[str]"},
 		{"map", Type{Kind: Map}, "map"},
 		{"map[int]", NewMapType(Str(), Int()), "map[int]"},
 		{"union str | int", NewUnionType(Str(), Int()), "str | int"},
-		{"union str | model | null", NewUnionType(Str(), NewBlockRefType(token.BlockModel), Null()), "str | model | null"},
+		{"union str | model | null", NewUnionType(Str(), NewBlockRefType("model", "m"), Null()), "str | model | null"},
 	}
 
 	for _, tt := range tests {
@@ -454,7 +386,7 @@ func TestPrimitivesInUnion(t *testing.T) {
 		{"contains int", Int(), true},
 		{"contains null", Null(), true},
 		{"does not contain float", Float(), false},
-		{"does not contain model", NewBlockRefType(token.BlockModel), false},
+		{"does not contain model", NewBlockRefType("model", "m"), false},
 	}
 
 	for _, tt := range tests {
@@ -477,11 +409,11 @@ func TestPrimitiveAndBlockRefEquality(t *testing.T) {
 	}{
 		{"str == str", Str(), Str(), true},
 		{"str != int", Str(), Int(), false},
-		{"str != model", Str(), NewBlockRefType(token.BlockModel), false},
-		{"model == model", NewBlockRefType(token.BlockModel), NewBlockRefType(token.BlockModel), true},
+		{"str != model", Str(), NewBlockRefType("model", "m"), false},
+		{"model == model", NewBlockRefType("model", "m"), NewBlockRefType("model", "m"), true},
 		{"list[str] == list[str]", NewListType(Str()), NewListType(Str()), true},
 		{"list[str] != list[int]", NewListType(Str()), NewListType(Int()), false},
-		{"list[model] == list[model]", NewListType(NewBlockRefType(token.BlockModel)), NewListType(NewBlockRefType(token.BlockModel)), true},
+		{"list[model] == list[model]", NewListType(NewBlockRefType("model", "m")), NewListType(NewBlockRefType("model", "m")), true},
 	}
 
 	for _, tt := range tests {
@@ -524,7 +456,7 @@ func TestIsCompatible(t *testing.T) {
 	listStr := NewListType(str)
 	listInt := NewListType(intT)
 	mapStrStr := NewMapType(str, str)
-	unionListNull := NewUnionType(NewListType(TypeOf(token.BlockTool)), Null())
+	unionListNull := NewUnionType(NewListType(NewBlockRefType("tool", "t")), Null())
 
 	tests := []struct {
 		name     string
@@ -552,7 +484,7 @@ func TestIsCompatible(t *testing.T) {
 		{"any compatible with any", anyT, anyT, true},
 
 		// Union: got is a union containing a compatible member.
-		{"union(list,null) compatible with list", unionListNull, NewListType(TypeOf(token.BlockTool)), true},
+		{"union(list,null) compatible with list", unionListNull, NewListType(NewBlockRefType("tool", "t")), true},
 		{"union(list,null) not compatible with str", unionListNull, str, false},
 
 		// Union: expected is a union.

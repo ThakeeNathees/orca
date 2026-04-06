@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/thakee/orca/compiler/ast"
@@ -65,14 +66,17 @@ func assertBlockCount(t *testing.T, program *ast.Program, expected int) {
 	}
 }
 
-func assertBlock(t *testing.T, stmt ast.Statement, expType token.TokenType, expName string) *ast.BlockStatement {
+func assertBlock(t *testing.T, stmt ast.Statement, expKind string, expName string) *ast.BlockStatement {
 	t.Helper()
 	block, ok := stmt.(*ast.BlockStatement)
 	if !ok {
 		t.Fatalf("expected *ast.BlockStatement, got %T", stmt)
 	}
-	if block.TokenStart.Type != expType {
-		t.Errorf("expected block type %s, got %s", expType, block.TokenStart.Type)
+	if block.TokenStart.Type != token.IDENT {
+		t.Errorf("expected block keyword token type IDENT, got %s", block.TokenStart.Type)
+	}
+	if block.Kind != expKind {
+		t.Errorf("expected block kind %q, got %q", expKind, block.Kind)
 	}
 	if block.Name != expName {
 		t.Errorf("expected block name %q, got %q", expName, block.Name)
@@ -113,7 +117,7 @@ func TestParseModelBlock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
 			assertBlockCount(t, program, 1)
-			block := assertBlock(t, program.Statements[0], token.MODEL, tt.expName)
+			block := assertBlock(t, program.Statements[0], "model", tt.expName)
 
 			if len(block.Assignments) != tt.expCount {
 				t.Errorf("expected %d assignments, got %d", tt.expCount, len(block.Assignments))
@@ -131,7 +135,7 @@ func TestParseModelBlockValues(t *testing.T) {
 
 	program := parseOrFail(t, input)
 	assertBlockCount(t, program, 1)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "gpt4")
+	block := assertBlock(t, program.Statements[0], "model", "gpt4")
 
 	tests := []struct {
 		key      string
@@ -140,7 +144,7 @@ func TestParseModelBlockValues(t *testing.T) {
 	}{
 		{"provider", "string", "openai"},
 		{"version", "string", "gpt-4o"},
-		{"temperature", "float", 0.2},
+		{"temperature", "number", 0.2},
 	}
 
 	for i, tt := range tests {
@@ -158,10 +162,10 @@ func TestParseModelBlockValues(t *testing.T) {
 			if s.Value != tt.expValue.(string) {
 				t.Errorf("assignment %d: expected %q, got %q", i, tt.expValue, s.Value)
 			}
-		case "float":
-			f, ok := a.Value.(*ast.FloatLiteral)
+		case "number":
+			f, ok := a.Value.(*ast.NumberLiteral)
 			if !ok {
-				t.Errorf("assignment %d: expected FloatLiteral, got %T", i, a.Value)
+				t.Errorf("assignment %d: expected NumberLiteral, got %T", i, a.Value)
 				continue
 			}
 			if f.Value != tt.expValue.(float64) {
@@ -204,7 +208,7 @@ func TestParseAgentBlock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
 			assertBlockCount(t, program, 1)
-			block := assertBlock(t, program.Statements[0], token.AGENT, tt.expName)
+			block := assertBlock(t, program.Statements[0], "agent", tt.expName)
 
 			if len(block.Assignments) != tt.expCount {
 				t.Errorf("expected %d assignments, got %d", tt.expCount, len(block.Assignments))
@@ -222,7 +226,7 @@ func TestParseAgentBlockValues(t *testing.T) {
 
 	program := parseOrFail(t, input)
 	assertBlockCount(t, program, 1)
-	block := assertBlock(t, program.Statements[0], token.AGENT, "researcher")
+	block := assertBlock(t, program.Statements[0], "agent", "researcher")
 
 	// model = gpt4 (reference)
 	a0 := block.Assignments[0]
@@ -284,7 +288,7 @@ func TestParseRawStringValue(t *testing.T) {
 	input := "agent a {\n    persona = ```md\n        Hello world.\n        ```\n}"
 	program := parseOrFail(t, input)
 	assertBlockCount(t, program, 1)
-	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+	block := assertBlock(t, program.Statements[0], "agent", "a")
 
 	a0 := block.Assignments[0]
 	if a0.Name != "persona" {
@@ -306,7 +310,7 @@ func TestParseRawStringValue(t *testing.T) {
 func TestParseRawStringNoLang(t *testing.T) {
 	input := "agent a {\n    persona = ```\n        Hello.\n        ```\n}"
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+	block := assertBlock(t, program.Statements[0], "agent", "a")
 
 	str, ok := block.Assignments[0].Value.(*ast.StringLiteral)
 	if !ok {
@@ -325,7 +329,7 @@ func TestParseRawStringNoLang(t *testing.T) {
 func TestParseRawStringContentStartingWithIdentifier(t *testing.T) {
 	input := "agent a {\n    persona = ```\n        foo\n        bar\n        ```\n}"
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+	block := assertBlock(t, program.Statements[0], "agent", "a")
 
 	str, ok := block.Assignments[0].Value.(*ast.StringLiteral)
 	if !ok {
@@ -345,7 +349,7 @@ func TestParseRawStringContentStartingWithIdentifier(t *testing.T) {
 func TestParseRawStringMultiLine(t *testing.T) {
 	input := "agent a {\n    persona = ```md\n        Line one.\n          Indented.\n\n        Line three.\n        ```\n}"
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+	block := assertBlock(t, program.Statements[0], "agent", "a")
 
 	str, ok := block.Assignments[0].Value.(*ast.StringLiteral)
 	if !ok {
@@ -373,8 +377,8 @@ agent researcher {
 `
 	program := parseOrFail(t, input)
 	assertBlockCount(t, program, 2)
-	assertBlock(t, program.Statements[0], token.MODEL, "gpt4")
-	assertBlock(t, program.Statements[1], token.AGENT, "researcher")
+	assertBlock(t, program.Statements[0], "model", "gpt4")
+	assertBlock(t, program.Statements[1], "agent", "researcher")
 }
 
 // --- error cases ---
@@ -463,17 +467,17 @@ func TestErrorRecoveryPartialAST(t *testing.T) {
 func TestParseIntegerValue(t *testing.T) {
 	input := `model m { max_tokens = 4096 }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	if len(block.Assignments) != 1 {
 		t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
 	}
-	intVal, ok := block.Assignments[0].Value.(*ast.IntegerLiteral)
+	intVal, ok := block.Assignments[0].Value.(*ast.NumberLiteral)
 	if !ok {
-		t.Fatalf("expected IntegerLiteral, got %T", block.Assignments[0].Value)
+		t.Fatalf("expected NumberLiteral, got %T", block.Assignments[0].Value)
 	}
 	if intVal.Value != 4096 {
-		t.Errorf("expected 4096, got %d", intVal.Value)
+		t.Errorf("expected 4096, got %f", intVal.Value)
 	}
 }
 
@@ -482,7 +486,7 @@ func TestParseIntegerValue(t *testing.T) {
 func TestParseListWithStrings(t *testing.T) {
 	input := `agent a { scopes = ["read", "write"] }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+	block := assertBlock(t, program.Statements[0], "agent", "a")
 
 	list, ok := block.Assignments[0].Value.(*ast.ListLiteral)
 	if !ok {
@@ -516,7 +520,7 @@ func TestParseListTrailingComma(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+			block := assertBlock(t, program.Statements[0], "agent", "a")
 			list, ok := block.Assignments[0].Value.(*ast.ListLiteral)
 			if !ok {
 				t.Fatalf("expected ListLiteral, got %T", block.Assignments[0].Value)
@@ -542,7 +546,7 @@ func TestParseMapTrailingComma(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			block := assertBlock(t, program.Statements[0], "model", "m")
 			mapLit, ok := block.Assignments[0].Value.(*ast.MapLiteral)
 			if !ok {
 				t.Fatalf("expected MapLiteral, got %T", block.Assignments[0].Value)
@@ -559,7 +563,7 @@ func TestParseMapTrailingComma(t *testing.T) {
 func TestParseKeywordAsAssignmentKey(t *testing.T) {
 	input := `agent researcher { model = gpt4 }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.AGENT, "researcher")
+	block := assertBlock(t, program.Statements[0], "agent", "researcher")
 
 	if len(block.Assignments) != 1 {
 		t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
@@ -584,16 +588,21 @@ func TestParseBooleanValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			block := assertBlock(t, program.Statements[0], "model", "m")
 			if len(block.Assignments) != 1 {
 				t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
 			}
-			b, ok := block.Assignments[0].Value.(*ast.BooleanLiteral)
+			// Lexer emits true/false as IDENT; parser yields Identifier until analysis.
+			id, ok := block.Assignments[0].Value.(*ast.Identifier)
 			if !ok {
-				t.Fatalf("expected BooleanLiteral, got %T", block.Assignments[0].Value)
+				t.Fatalf("expected Identifier, got %T", block.Assignments[0].Value)
 			}
-			if b.Value != tt.expected {
-				t.Errorf("expected %v, got %v", tt.expected, b.Value)
+			want := "true"
+			if !tt.expected {
+				want = "false"
+			}
+			if id.Value != want {
+				t.Errorf("expected %q, got %q", want, id.Value)
 			}
 		})
 	}
@@ -607,10 +616,9 @@ func exprString(expr ast.Expression) string {
 	switch e := expr.(type) {
 	case *ast.Identifier:
 		return e.Value
-	case *ast.IntegerLiteral:
-		return fmt.Sprintf("%d", e.Value)
-	case *ast.FloatLiteral:
-		return fmt.Sprintf("%g", e.Value)
+	case *ast.NumberLiteral:
+		// Shortest decimal form: whole numbers print without a fractional part (1 not 1.000000).
+		return strconv.FormatFloat(e.Value, 'f', -1, 64)
 	case *ast.StringLiteral:
 		return fmt.Sprintf("%q", e.Value)
 	case *ast.BooleanLiteral:
@@ -650,7 +658,7 @@ func exprString(expr ast.Expression) string {
 func TestParseBinaryExpression(t *testing.T) {
 	input := `model m { val = 1 + 2 }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	be, ok := block.Assignments[0].Value.(*ast.BinaryExpression)
 	if !ok {
@@ -717,7 +725,7 @@ func TestParseOperatorPrecedence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			block := assertBlock(t, program.Statements[0], "model", "m")
 			got := exprString(block.Assignments[0].Value)
 			if got != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, got)
@@ -731,7 +739,7 @@ func TestParseOperatorPrecedence(t *testing.T) {
 func TestParseMemberAccess(t *testing.T) {
 	input := `model m { val = a.b }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	ma, ok := block.Assignments[0].Value.(*ast.MemberAccess)
 	if !ok {
@@ -752,7 +760,7 @@ func TestParseMemberAccess(t *testing.T) {
 func TestParseMemberAccessChained(t *testing.T) {
 	input := `model m { val = a.b.c }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	got := exprString(block.Assignments[0].Value)
 	expected := "((a.b).c)"
@@ -792,7 +800,7 @@ func TestParseMemberAccessPrecedence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			block := assertBlock(t, program.Statements[0], "model", "m")
 			got := exprString(block.Assignments[0].Value)
 			if got != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, got)
@@ -815,7 +823,7 @@ func TestParseMemberAccessErrorMissingMember(t *testing.T) {
 func TestParseSubscription(t *testing.T) {
 	input := `model m { val = a[0] }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	sub, ok := block.Assignments[0].Value.(*ast.Subscription)
 	if !ok {
@@ -828,19 +836,19 @@ func TestParseSubscription(t *testing.T) {
 	if ident.Value != "a" {
 		t.Errorf("expected object 'a', got %q", ident.Value)
 	}
-	idx, ok := sub.Index.(*ast.IntegerLiteral)
+	idx, ok := sub.Index.(*ast.NumberLiteral)
 	if !ok {
-		t.Fatalf("expected IntegerLiteral as index, got %T", sub.Index)
+		t.Fatalf("expected NumberLiteral as index, got %T", sub.Index)
 	}
 	if idx.Value != 0 {
-		t.Errorf("expected index 0, got %d", idx.Value)
+		t.Errorf("expected index 0, got %f", idx.Value)
 	}
 }
 
 func TestParseSubscriptionWithExpression(t *testing.T) {
 	input := `model m { val = a[b + 1] }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	got := exprString(block.Assignments[0].Value)
 	expected := "(a[(b + 1)])"
@@ -885,7 +893,7 @@ func TestParseSubscriptionPrecedence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			block := assertBlock(t, program.Statements[0], "model", "m")
 			got := exprString(block.Assignments[0].Value)
 			if got != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, got)
@@ -920,7 +928,7 @@ func TestParseSubscriptionErrors(t *testing.T) {
 func TestParseMapLiteral(t *testing.T) {
 	input := `model m { val = {name: "alice", age: 30} }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	ml, ok := block.Assignments[0].Value.(*ast.MapLiteral)
 	if !ok {
@@ -954,19 +962,19 @@ func TestParseMapLiteral(t *testing.T) {
 	if key1.Value != "age" {
 		t.Errorf("expected key 'age', got %q", key1.Value)
 	}
-	val1, ok := ml.Entries[1].Value.(*ast.IntegerLiteral)
+	val1, ok := ml.Entries[1].Value.(*ast.NumberLiteral)
 	if !ok {
-		t.Fatalf("expected IntegerLiteral value, got %T", ml.Entries[1].Value)
+		t.Fatalf("expected NumberLiteral value, got %T", ml.Entries[1].Value)
 	}
 	if val1.Value != 30 {
-		t.Errorf("expected value 30, got %d", val1.Value)
+		t.Errorf("expected value 30, got %f", val1.Value)
 	}
 }
 
 func TestParseMapLiteralEmpty(t *testing.T) {
 	input := `model m { val = {} }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	ml, ok := block.Assignments[0].Value.(*ast.MapLiteral)
 	if !ok {
@@ -980,7 +988,7 @@ func TestParseMapLiteralEmpty(t *testing.T) {
 func TestParseMapLiteralStringKeys(t *testing.T) {
 	input := `model m { val = {"key": "value"} }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	ml, ok := block.Assignments[0].Value.(*ast.MapLiteral)
 	if !ok {
@@ -1034,7 +1042,7 @@ func TestParseMapLiteralExprString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			block := assertBlock(t, program.Statements[0], "model", "m")
 			got := exprString(block.Assignments[0].Value)
 			if tt.expected != "" && got != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, got)
@@ -1070,7 +1078,7 @@ func TestParseMapLiteralErrors(t *testing.T) {
 func TestParseCallExpression(t *testing.T) {
 	input := `model m { val = retry(3) }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	call, ok := block.Assignments[0].Value.(*ast.CallExpression)
 	if !ok {
@@ -1086,19 +1094,19 @@ func TestParseCallExpression(t *testing.T) {
 	if len(call.Arguments) != 1 {
 		t.Fatalf("expected 1 argument, got %d", len(call.Arguments))
 	}
-	arg, ok := call.Arguments[0].(*ast.IntegerLiteral)
+	arg, ok := call.Arguments[0].(*ast.NumberLiteral)
 	if !ok {
-		t.Fatalf("expected IntegerLiteral as argument, got %T", call.Arguments[0])
+		t.Fatalf("expected NumberLiteral as argument, got %T", call.Arguments[0])
 	}
 	if arg.Value != 3 {
-		t.Errorf("expected argument 3, got %d", arg.Value)
+		t.Errorf("expected argument 3, got %f", arg.Value)
 	}
 }
 
 func TestParseCallExpressionNoArgs(t *testing.T) {
 	input := `model m { val = reset() }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	call, ok := block.Assignments[0].Value.(*ast.CallExpression)
 	if !ok {
@@ -1112,7 +1120,7 @@ func TestParseCallExpressionNoArgs(t *testing.T) {
 func TestParseCallExpressionMultipleArgs(t *testing.T) {
 	input := `model m { val = fallback(backup_agent, "default", 3) }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 
 	call, ok := block.Assignments[0].Value.(*ast.CallExpression)
 	if !ok {
@@ -1169,7 +1177,7 @@ func TestParseCallExpressionPrecedence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+			block := assertBlock(t, program.Statements[0], "model", "m")
 			got := exprString(block.Assignments[0].Value)
 			if got != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, got)
@@ -1269,17 +1277,21 @@ func TestInvalidFiles(t *testing.T) {
 	}
 }
 
-// TestParseNullLiteral verifies that null is parsed as a NullLiteral.
+// TestParseNullLiteral verifies that null is lexed as IDENT and parsed as an identifier.
 func TestParseNullLiteral(t *testing.T) {
 	input := `input x { default = null }`
 	program := parseOrFail(t, input)
 	assertBlockCount(t, program, 1)
-	block := assertBlock(t, program.Statements[0], token.INPUT, "x")
+	block := assertBlock(t, program.Statements[0], "input", "x")
 	if len(block.Assignments) != 1 {
 		t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
 	}
-	if _, ok := block.Assignments[0].Value.(*ast.NullLiteral); !ok {
-		t.Errorf("expected NullLiteral, got %T", block.Assignments[0].Value)
+	// Lexer emits null as IDENT; parser yields Identifier until analysis.
+	id, ok := block.Assignments[0].Value.(*ast.Identifier)
+	if !ok {
+		t.Errorf("expected Identifier, got %T", block.Assignments[0].Value)
+	} else if id.Value != "null" {
+		t.Errorf("expected null identifier, got %q", id.Value)
 	}
 }
 
@@ -1287,7 +1299,7 @@ func TestParseNullLiteral(t *testing.T) {
 func TestParseNullInUnion(t *testing.T) {
 	input := `schema s { field = str | null }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.SCHEMA, "s")
+	block := assertBlock(t, program.Statements[0], "schema", "s")
 	binExpr, ok := block.Assignments[0].Value.(*ast.BinaryExpression)
 	if !ok {
 		t.Fatalf("expected BinaryExpression, got %T", block.Assignments[0].Value)
@@ -1295,8 +1307,12 @@ func TestParseNullInUnion(t *testing.T) {
 	if binExpr.Operator.Type != token.PIPE {
 		t.Errorf("expected PIPE operator, got %s", binExpr.Operator.Type)
 	}
-	if _, ok := binExpr.Right.(*ast.NullLiteral); !ok {
-		t.Errorf("expected NullLiteral on right, got %T", binExpr.Right)
+	// `null` is lexed as IDENT and parsed as Identifier.
+	right, ok := binExpr.Right.(*ast.Identifier)
+	if !ok {
+		t.Errorf("expected Identifier on right, got %T", binExpr.Right)
+	} else if right.Value != "null" {
+		t.Errorf("right = %q, want %q", right.Value, "null")
 	}
 }
 
@@ -1328,7 +1344,7 @@ func TestParseFieldAnnotation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.SCHEMA, "s")
+			block := assertBlock(t, program.Statements[0], "schema", "s")
 			if len(block.Assignments) != 1 {
 				t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
 			}
@@ -1355,7 +1371,7 @@ func TestParseFieldAnnotation(t *testing.T) {
 func TestParseMultipleAnnotations(t *testing.T) {
 	input := "schema s {\n  @required\n  @desc(\"region\")\n  region = str\n}"
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.SCHEMA, "s")
+	block := assertBlock(t, program.Statements[0], "schema", "s")
 	assign := block.Assignments[0]
 	if len(assign.Annotations) != 2 {
 		t.Fatalf("expected 2 annotations, got %d", len(assign.Annotations))
@@ -1373,7 +1389,7 @@ func TestParseMultipleAnnotations(t *testing.T) {
 func TestParseBlockAnnotation(t *testing.T) {
 	input := "@sensitive\ninput apikey {\n  type = str\n}"
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.INPUT, "apikey")
+	block := assertBlock(t, program.Statements[0], "input", "apikey")
 	if len(block.Annotations) != 1 {
 		t.Fatalf("expected 1 block annotation, got %d", len(block.Annotations))
 	}
@@ -1387,7 +1403,7 @@ func TestParseBlockAnnotation(t *testing.T) {
 func TestParseNoAnnotations(t *testing.T) {
 	input := `model m { provider = "openai" }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.MODEL, "m")
+	block := assertBlock(t, program.Statements[0], "model", "m")
 	if len(block.Assignments[0].Annotations) != 0 {
 		t.Errorf("expected 0 annotations, got %d", len(block.Assignments[0].Annotations))
 	}
@@ -1476,8 +1492,8 @@ func TestParseSchemaExpression(t *testing.T) {
 			if !ok {
 				t.Fatalf("expected *ast.BlockExpression, got %T", target.Value)
 			}
-			if be.Kind != token.BlockSchema {
-				t.Fatalf("expected block kind BlockSchema, got %v", be.Kind)
+			if be.Kind != "schema" {
+				t.Fatalf("expected block kind schema, got %v", be.Kind)
 			}
 			if len(be.Assignments) != tt.fieldCount {
 				t.Fatalf("expected %d fields, got %d", tt.fieldCount, len(be.Assignments))
@@ -1524,7 +1540,7 @@ func TestParseBlockExpression(t *testing.T) {
 	tests := []struct {
 		name       string
 		input      string
-		blockKind  token.BlockKind
+		blockKind  string
 		fieldCount int
 		fieldNames []string
 	}{
@@ -1533,7 +1549,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`agent a {
 				model = model { provider = "openai" version = "gpt-4o" }
 			}`,
-			token.BlockModel,
+			"model",
 			2,
 			[]string{"provider", "version"},
 		},
@@ -1542,7 +1558,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`agent a {
 				tools = [tool { name = "gmail" }]
 			}`,
-			token.BlockTool,
+			"tool",
 			1,
 			[]string{"name"},
 		},
@@ -1551,7 +1567,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`workflow w {
 				agent = agent { model = gpt4 persona = "test" }
 			}`,
-			token.BlockAgent,
+			"agent",
 			2,
 			[]string{"model", "persona"},
 		},
@@ -1560,7 +1576,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`agent a {
 				knowledge = knowledge { source = "docs" }
 			}`,
-			token.BlockKnowledge,
+			"knowledge",
 			1,
 			[]string{"source"},
 		},
@@ -1569,7 +1585,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`agent a {
 				workflow = workflow { entry = "start" }
 			}`,
-			token.BlockWorkflow,
+			"workflow",
 			1,
 			[]string{"entry"},
 		},
@@ -1578,7 +1594,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`agent a {
 				input = input { type = str }
 			}`,
-			token.BlockInput,
+			"input",
 			1,
 			[]string{"type"},
 		},
@@ -1587,7 +1603,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`let t {
 				c = cron { schedule = "0 * * * *" }
 			}`,
-			token.BlockCron,
+			"cron",
 			1,
 			[]string{"schedule"},
 		},
@@ -1596,7 +1612,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`let t {
 				w = webhook { path = "/hooks/x" }
 			}`,
-			token.BlockWebhook,
+			"webhook",
 			1,
 			[]string{"path"},
 		},
@@ -1605,7 +1621,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`agent a {
 				model = model {}
 			}`,
-			token.BlockModel,
+			"model",
 			0,
 			nil,
 		},
@@ -1614,7 +1630,7 @@ func TestParseBlockExpression(t *testing.T) {
 			`agent a {
 				model = gpt4
 			}`,
-			0, // sentinel: expect identifier, not block expression
+			"", // unused: expect identifier, not block expression
 			-1,
 			nil,
 		},
@@ -1765,7 +1781,7 @@ func TestParseWorkflowEdges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
 			assertBlockCount(t, program, 1)
-			block := assertBlock(t, program.Statements[0], token.WORKFLOW, "run")
+			block := assertBlock(t, program.Statements[0], "workflow", "run")
 
 			if len(block.Expressions) != tt.expEdges {
 				t.Fatalf("expected %d edge expressions, got %d", tt.expEdges, len(block.Expressions))
@@ -1790,7 +1806,7 @@ func TestParseWorkflowEdges(t *testing.T) {
 func TestParseWorkflowInlineEdges(t *testing.T) {
 	input := `agent a { flow = workflow { A -> B -> C } }`
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], token.AGENT, "a")
+	block := assertBlock(t, program.Statements[0], "agent", "a")
 
 	if len(block.Assignments) != 1 {
 		t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
@@ -1800,8 +1816,8 @@ func TestParseWorkflowInlineEdges(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *ast.BlockExpression, got %T", block.Assignments[0].Value)
 	}
-	if be.Kind != token.BlockWorkflow {
-		t.Fatalf("expected BlockWorkflow, got %v", be.Kind)
+	if be.Kind != "workflow" {
+		t.Fatalf("expected workflow inline block, got %v", be.Kind)
 	}
 	if len(be.Expressions) != 1 {
 		t.Fatalf("expected 1 edge expression, got %d", len(be.Expressions))
@@ -1854,7 +1870,7 @@ func TestParseLetBlock(t *testing.T) {
 			if len(program.Statements) == 0 {
 				t.Fatal("expected at least one statement")
 			}
-			block := assertBlock(t, program.Statements[0], token.LET, tt.expName)
+			block := assertBlock(t, program.Statements[0], "let", tt.expName)
 			if len(block.Assignments) != tt.expCount {
 				t.Fatalf("expected %d assignments, got %d", tt.expCount, len(block.Assignments))
 			}
@@ -1893,7 +1909,7 @@ func TestParseLetBlockComplexValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			program := parseOrFail(t, tt.input)
-			block := assertBlock(t, program.Statements[0], token.LET, "vars")
+			block := assertBlock(t, program.Statements[0], "let", "vars")
 			if len(block.Assignments) != 1 {
 				t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
 			}
@@ -2029,13 +2045,13 @@ webhook hooks_in {
 `
 	program := parseOrFail(t, input)
 	assertBlockCount(t, program, 2)
-	b0 := assertBlock(t, program.Statements[0], token.CRON, "daily")
-	if b0.Kind != token.BlockCron {
-		t.Errorf("Kind = %v, want BlockCron", b0.Kind)
+	b0 := assertBlock(t, program.Statements[0], "cron", "daily")
+	if b0.Kind != "cron" {
+		t.Errorf("Kind = %v, want cron", b0.Kind)
 	}
-	b1 := assertBlock(t, program.Statements[1], token.WEBHOOK, "hooks_in")
-	if b1.Kind != token.BlockWebhook {
-		t.Errorf("Kind = %v, want BlockWebhook", b1.Kind)
+	b1 := assertBlock(t, program.Statements[1], "webhook", "hooks_in")
+	if b1.Kind != "webhook" {
+		t.Errorf("Kind = %v, want webhook", b1.Kind)
 	}
 }
 

@@ -23,15 +23,17 @@ func exprToSource(expr ast.Expression) string {
 		return fmt.Sprintf("%d", e.Value)
 	case *ast.FloatLiteral:
 		return formatFloat(e.Value)
-	case *ast.BooleanLiteral:
-		if e.Value {
-			return "True"
-		}
-		return "False"
-	case *ast.NullLiteral:
-		return "None"
 	case *ast.Identifier:
-		return e.Value
+		switch e.Value {
+		case "null":
+			return "None"
+		case "true":
+			return "True"
+		case "false":
+			return "False"
+		default:
+			return e.Value
+		}
 	case *ast.MemberAccess:
 		return exprToSource(e.Object) + "." + e.Member
 	case *ast.Subscription:
@@ -171,7 +173,7 @@ func topLevelBlockSource(block *ast.BlockStatement) string {
 func blockCallSource(body *ast.BlockBody, indent string) string {
 	var sb strings.Builder
 	sb.WriteString(orcaPrefix)
-	sb.WriteString(body.Kind.String())
+	sb.WriteString(body.Kind)
 	sb.WriteString("(")
 
 	if indent == "" {

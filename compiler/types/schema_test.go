@@ -2,32 +2,30 @@ package types
 
 import (
 	"testing"
-
-	"github.com/thakee/orca/compiler/token"
 )
 
 // TestGetBlockSchema verifies that block schemas are correctly returned.
 func TestGetBlockSchema(t *testing.T) {
 	tests := []struct {
 		name      string
-		blockKind token.BlockKind
+		blockKind string
 		ok        bool
 		numFields int
 	}{
-		{"model schema exists", token.BlockModel, true, 5},
-		{"agent schema exists", token.BlockAgent, true, 4},
-		{"tool schema exists", token.BlockTool, true, 4},
-		{"knowledge schema exists", token.BlockKnowledge, true, 1},
-		{"workflow schema exists", token.BlockWorkflow, true, 2},
-		{"cron schema exists", token.BlockCron, true, 2},
-		{"webhook schema exists", token.BlockWebhook, true, 2},
-		{"input schema exists", token.BlockInput, true, 4},
-		{"schema kind has no builtin schema", token.BlockSchema, false, 0},
+		{"model schema exists", "model", true, 5},
+		{"agent schema exists", "agent", true, 4},
+		{"tool schema exists", "tool", true, 4},
+		{"knowledge schema exists", "knowledge", true, 1},
+		{"workflow schema exists", "workflow", true, 2},
+		{"cron schema exists", "cron", true, 2},
+		{"webhook schema exists", "webhook", true, 2},
+		{"input schema exists", "input", true, 4},
+		{"schema kind has no builtin schema", BlockKindSchema, false, 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			schema, ok := GetBlockSchema(tt.blockKind)
+			schema, ok := GetSchema(tt.blockKind)
 			if ok != tt.ok {
 				t.Errorf("ok = %v, want %v", ok, tt.ok)
 			}
@@ -83,9 +81,9 @@ func TestLookupBlockSchemaBuiltin(t *testing.T) {
 		typ  Type
 		ok   bool
 	}{
-		{"model type", NewBlockRefType(token.BlockModel), true},
-		{"agent type", NewBlockRefType(token.BlockAgent), true},
-		{"str type", Str(), true},
+		{"model type", NewBlockRefType("model", "m"), true},
+		{"agent type", NewBlockRefType("agent", "a"), true},
+		{"str type", NewBlockRefType("schema", "str"), true},
 	}
 
 	for _, tt := range tests {
@@ -108,7 +106,7 @@ func TestLookupBlockSchemaUserSchema(t *testing.T) {
 		},
 	})
 
-	typ := CreateSchema("test_lookup_schema")
+	typ := NewBlockRefType("schema", "test_lookup_schema")
 	schema, ok := LookupBlockSchema(typ)
 	if !ok {
 		t.Fatal("expected user schema to be found via LookupBlockSchema")
@@ -121,7 +119,7 @@ func TestLookupBlockSchemaUserSchema(t *testing.T) {
 // TestLookupBlockSchemaUnknown verifies LookupBlockSchema returns false for
 // unknown schema names.
 func TestLookupBlockSchemaUnknown(t *testing.T) {
-	typ := CreateSchema("nonexistent_schema")
+	typ := NewBlockRefType("schema", "nonexistent_schema")
 	_, ok := LookupBlockSchema(typ)
 	if ok {
 		t.Error("expected unknown user schema to return false")
@@ -130,13 +128,13 @@ func TestLookupBlockSchemaUnknown(t *testing.T) {
 
 // TestLookupFieldSchemaBuiltin verifies LookupFieldSchema for built-in types.
 func TestLookupFieldSchemaBuiltin(t *testing.T) {
-	typ := NewBlockRefType(token.BlockModel)
+	typ := NewBlockRefType("model", "m")
 	field, ok := LookupFieldSchema(typ, "provider")
 	if !ok {
 		t.Fatal("expected model.provider to be found")
 	}
-	if !field.Type.Equals(Str()) {
-		t.Errorf("Type = %s, want str", field.Type.String())
+	if !field.Type.Equals(NewBlockRefType("schema", "str")) {
+		t.Errorf("Type = %s, want str (as NewBlockRefType)", field.Type.String())
 	}
 }
 
@@ -149,7 +147,7 @@ func TestLookupFieldSchemaUserSchema(t *testing.T) {
 		},
 	})
 
-	typ := CreateSchema("test_field_lookup")
+	typ := NewBlockRefType("schema", "test_field_lookup")
 	field, ok := LookupFieldSchema(typ, "region")
 	if !ok {
 		t.Fatal("expected field 'region' to be found")
@@ -242,11 +240,11 @@ func TestRegisterSchemaAndGetSchema(t *testing.T) {
 func TestGetFieldSchemaUnknownBlock(t *testing.T) {
 	tests := []struct {
 		name      string
-		blockKind token.BlockKind
+		blockKind string
 		field     string
 		ok        bool
 	}{
-		{"unknown block kind", token.BlockKind(999), "anything", false},
+		{"unknown block kind", "unknown", "anything", false},
 	}
 
 	for _, tt := range tests {
@@ -267,7 +265,7 @@ func TestLookupFieldSchemaUnknownSchema(t *testing.T) {
 		field string
 		ok    bool
 	}{
-		{"nonexistent user schema", CreateSchema("totally_unknown_schema"), "field", false},
+		{"nonexistent user schema", NewBlockRefType("schema", "totally_unknown_schema"), "field", false},
 	}
 
 	for _, tt := range tests {
@@ -284,20 +282,20 @@ func TestLookupFieldSchemaUnknownSchema(t *testing.T) {
 func TestGetFieldSchema(t *testing.T) {
 	tests := []struct {
 		name      string
-		blockKind token.BlockKind
+		blockKind string
 		field     string
 		ok        bool
 		kind      TypeKind
 		expType   *Type // expected type to check with Equals (nil to skip)
 		required  bool
 	}{
-		{"model provider", token.BlockModel, "provider", true, BlockRef, typePtr(Str()), true},
-		{"model model_name", token.BlockModel, "model_name", true, Union, nil, true},
-		{"model temperature", token.BlockModel, "temperature", true, BlockRef, typePtr(Float()), false},
-		{"agent model union", token.BlockAgent, "model", true, Union, nil, true},
-		{"agent persona", token.BlockAgent, "persona", true, BlockRef, typePtr(Str()), true},
-		{"agent tools list", token.BlockAgent, "tools", true, List, nil, false},
-		{"unknown field", token.BlockModel, "nonexistent", false, BlockRef, nil, false},
+		{"model provider", "model", "provider", true, BlockRef, typePtr(NewBlockRefType("schema", "str")), true},
+		{"model model_name", "model", "model_name", true, Union, nil, true},
+		{"model temperature", "model", "temperature", true, Union, nil, true},
+		{"agent model union", "agent", "model", true, Union, nil, true},
+		{"agent persona", "agent", "persona", true, BlockRef, typePtr(NewBlockRefType("schema", "str")), true},
+		{"agent tools list", "agent", "tools", true, Union, nil, true},
+		{"unknown field", "model", "nonexistent", false, BlockRef, nil, false},
 	}
 
 	for _, tt := range tests {

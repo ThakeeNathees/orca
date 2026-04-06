@@ -6,7 +6,6 @@ import (
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
-	"github.com/thakee/orca/compiler/token"
 )
 
 // CodegenOutput holds the complete output from a code generation backend.
@@ -64,7 +63,7 @@ type BaseBackend struct {
 }
 
 // CollectBlocksByKind returns all block statements of the given block kind.
-func (b *BaseBackend) CollectBlocksByKind(kind token.BlockKind) []*ast.BlockStatement {
+func (b *BaseBackend) CollectBlocksByKind(kind string) []*ast.BlockStatement {
 	var blocks []*ast.BlockStatement
 	for _, stmt := range b.Program.Ast.Statements {
 		if block, ok := stmt.(*ast.BlockStatement); ok && block.Kind == kind {
@@ -76,5 +75,5 @@ func (b *BaseBackend) CollectBlocksByKind(kind token.BlockKind) []*ast.BlockStat
 
 // CollectLets returns all let block statements.
 func (b *BaseBackend) CollectLets() []*ast.BlockStatement {
-	return b.CollectBlocksByKind(token.BlockLet)
+	return b.CollectBlocksByKind(analyzer.BlockKindLet)
 }

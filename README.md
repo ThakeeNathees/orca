@@ -53,13 +53,12 @@ agent writer {
   persona = "You're a professional writer"
 }
 
-workflow search_and_write {
-  researcher -> writer
-}
-
 cron daily {
   schedule = "0 9 * * 1-5"
-  run      = search_and_write
+}
+
+workflow search_and_write {
+  daily -> researcher -> writer
 }
 ```
 

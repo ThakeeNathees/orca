@@ -97,20 +97,20 @@ func orcaTypeToPythonTypeName(t types.Type) string {
 // Built-in primitives map directly; "any" → "Any", "null" → "None".
 // User-defined schema names pass through as-is.
 func orcaSchemaToPythonTypeName(t types.Type) string {
-	if t.SchemaName == "" {
+	if t.BlockName == "" {
 		// Generic block reference (e.g. model, agent) — use "Any".
 		return "Any"
 	}
-	switch t.SchemaName {
+	switch t.BlockName {
 	case "str", "int", "float", "bool":
-		return t.SchemaName
+		return t.BlockName
 	case "any":
 		return "Any"
 	case "null":
 		return "None"
 	default:
 		// User-defined schema name.
-		return t.SchemaName
+		return t.BlockName
 	}
 }
 

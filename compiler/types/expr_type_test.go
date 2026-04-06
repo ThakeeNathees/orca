@@ -20,7 +20,7 @@ func TestExprType(t *testing.T) {
 		{"boolean true", &ast.BooleanLiteral{Value: true}, Bool()},
 		{"boolean false", &ast.BooleanLiteral{Value: false}, Bool()},
 		{"null literal", &ast.NullLiteral{}, Null()},
-		{"identifier without symbols resolves as schema type", &ast.Identifier{Value: "gpt4"}, CreateSchema("gpt4")},
+		{"identifier without symbols resolves as block ref", &ast.Identifier{Value: "gpt4"}, NewBlockRefType("moddel", "gpt4")},
 	}
 
 	for _, tt := range tests {
@@ -124,8 +124,8 @@ func TestExprTypeMapLiteral(t *testing.T) {
 // to their block reference type when a symbol table is provided.
 func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType(token.BlockModel), token.Token{})
-	st.Define("researcher", NewBlockRefType(token.BlockAgent), token.Token{})
+	st.Define("gpt4", NewBlockRefType("model", "gpt4"), token.Token{})
+	st.Define("researcher", NewBlockRefType("agent", "researcher"), token.Token{})
 	st.Define("str", Str(), token.Token{})
 
 	tests := []struct {
@@ -133,10 +133,10 @@ func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 		ident    string
 		expected Type
 	}{
-		{"defined model", "gpt4", NewBlockRefType(token.BlockModel)},
-		{"defined agent", "researcher", NewBlockRefType(token.BlockAgent)},
+		{"defined model", "gpt4", NewBlockRefType("model", "gpt4")},
+		{"defined agent", "researcher", NewBlockRefType("agent", "researcher")},
 		{"builtin schema str", "str", Str()},
-		{"undefined falls back to schema type", "unknown", CreateSchema("unknown")},
+		{"undefined falls back to NewBlockRefType", "unknown", NewBlockRefType("unknown", "unknown")},
 	}
 
 	for _, tt := range tests {
@@ -157,7 +157,7 @@ func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 // to the field's type via the block schema.
 func TestExprTypeMemberAccess(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType(token.BlockModel), token.Token{})
+	st.Define("gpt4", NewBlockRefType("model", "gpt4"), token.Token{})
 
 	tests := []struct {
 		name     string
@@ -166,8 +166,8 @@ func TestExprTypeMemberAccess(t *testing.T) {
 		expected Type
 		isUnion  bool
 	}{
-		{"model.provider", "gpt4", "provider", Str(), false},
-		{"model.temperature", "gpt4", "temperature", Float(), false},
+		{"model.provider", "gpt4", "provider", NewBlockRefType(BlockKindSchema, "str"), false},
+		{"model.temperature", "gpt4", "temperature", Type{}, true},
 		{"model.model_name (union)", "gpt4", "model_name", Type{}, true},
 		{"unknown member", "gpt4", "nonexistent", Any(), false},
 		{"unknown object", "unknown", "anything", Any(), false},

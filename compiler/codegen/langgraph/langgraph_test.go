@@ -15,6 +15,7 @@ import (
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
 	"github.com/thakee/orca/compiler/token"
+	"github.com/thakee/orca/compiler/types"
 )
 
 // analyzedProgram runs semantic analysis on a parsed AST for tests that construct
@@ -65,27 +66,27 @@ func findFile(b *LangGraphBackend, name string) string {
 func TestCollectBlocksByKind(t *testing.T) {
 	program := &ast.Program{
 		Statements: []ast.Statement{
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, BlockBody: ast.BlockBody{Kind: token.BlockModel}, Name: "m1"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT}}, BlockBody: ast.BlockBody{Kind: token.BlockAgent}, Name: "a1"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL}}, BlockBody: ast.BlockBody{Kind: token.BlockModel}, Name: "m2"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.LET}}, BlockBody: ast.BlockBody{Kind: token.BlockLet}, Name: "vars"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.INPUT}}, BlockBody: ast.BlockBody{Kind: token.BlockInput}, Name: "user_query"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.SCHEMA}}, BlockBody: ast.BlockBody{Kind: token.BlockSchema}, Name: "cfg"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.KNOWLEDGE}}, BlockBody: ast.BlockBody{Kind: token.BlockKnowledge}, Name: "kb"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindModel}, Name: "m1"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindAgent}, Name: "a1"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindModel}, Name: "m2"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindLet}, Name: "vars"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindInput}, Name: "user_query"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindSchema}, Name: "cfg"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindKnowledge}, Name: "kb"},
 		},
 	}
 
 	tests := []struct {
 		name     string
-		kind     token.BlockKind
+		kind     string
 		expected int
 	}{
-		{"models", token.BlockModel, 2},
-		{"agents", token.BlockAgent, 1},
-		{"lets", token.BlockLet, 1},
-		{"inputs", token.BlockInput, 1},
-		{"schemas", token.BlockSchema, 1},
-		{"knowledge", token.BlockKnowledge, 1},
+		{"models", analyzer.BlockKindModel, 2},
+		{"agents", analyzer.BlockKindAgent, 1},
+		{"lets", analyzer.BlockKindLet, 1},
+		{"inputs", analyzer.BlockKindInput, 1},
+		{"schemas", types.BlockKindSchema, 1},
+		{"knowledge", analyzer.BlockKindKnowledge, 1},
 	}
 
 	for _, tt := range tests {
@@ -105,7 +106,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 		name           string
 		program        *ast.Program
 		sectionTitle   string
-		kind           token.BlockKind
+		kind           string
 		wantEmpty      bool
 		wantSubstrings []string
 	}{
@@ -113,7 +114,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			name:           "empty program emits nothing",
 			program:        &ast.Program{},
 			sectionTitle:   "Models",
-			kind:           token.BlockModel,
+			kind:           analyzer.BlockKindModel,
 			wantEmpty:      true,
 			wantSubstrings: nil,
 		},
@@ -121,7 +122,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			name:         "one model block",
 			program:      programWithModels(modelBlock("gpt4", "openai", "gpt-4o")),
 			sectionTitle: "Models",
-			kind:         token.BlockModel,
+			kind:         analyzer.BlockKindModel,
 			wantSubstrings: []string{
 				"\n# --- Models ---\n",
 				"\n\ngpt4 = __orca_model(\n",
@@ -132,7 +133,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			name:         "two agent blocks preserve order",
 			program:      &ast.Program{Statements: []ast.Statement{agentBlock("a1", "m", "p1"), agentBlock("a2", "m", "p2")}},
 			sectionTitle: "Agents",
-			kind:         token.BlockAgent,
+			kind:         analyzer.BlockKindAgent,
 			wantSubstrings: []string{
 				"\n# --- Agents ---\n",
 				"a1 = __orca_agent(",
@@ -143,7 +144,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			name:         "schema block",
 			program:      &ast.Program{Statements: []ast.Statement{schemaBlock("vpc_data_t", schemaField{"region", "str"}, schemaField{"count", "int"})}},
 			sectionTitle: "Schemas",
-			kind:         token.BlockSchema,
+			kind:         types.BlockKindSchema,
 			wantSubstrings: []string{
 				"\n# --- Schemas ---\n",
 				"vpc_data_t = __orca_schema(\n",
@@ -155,7 +156,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 			name:         "knowledge block",
 			program:      &ast.Program{Statements: []ast.Statement{knowledgeBlock("docs", "Company wiki")}},
 			sectionTitle: "Knowledge",
-			kind:         token.BlockKnowledge,
+			kind:         analyzer.BlockKindKnowledge,
 			wantSubstrings: []string{
 				"\n# --- Knowledge ---\n",
 				"docs = __orca_knowledge(\n",
@@ -388,9 +389,9 @@ func TestWriteAgent(t *testing.T) {
 		{
 			name: "source comment included",
 			block: &ast.BlockStatement{
-				BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Line: 15}},
+				BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Line: 15}},
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockAgent,
+					Kind: analyzer.BlockKindAgent,
 					Assignments: []*ast.Assignment{
 						{Name: "model", Value: &ast.Identifier{Value: "gpt4"}},
 						{Name: "persona", Value: &ast.StringLiteral{Value: "test"}},
@@ -892,9 +893,9 @@ func TestValidateProviders(t *testing.T) {
 // modelBlock creates a model block with provider and model_name fields.
 func modelBlock(name, provider, modelName string) *ast.BlockStatement {
 	return &ast.BlockStatement{
-		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.MODEL, Literal: "model"}},
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "model"}},
 		BlockBody: ast.BlockBody{
-			Kind: token.BlockModel,
+			Kind: analyzer.BlockKindModel,
 			Assignments: []*ast.Assignment{
 				{Name: "provider", Value: &ast.StringLiteral{Value: provider}},
 				{Name: "model_name", Value: &ast.StringLiteral{Value: modelName}},
@@ -927,16 +928,16 @@ func modelBlockWithIntTemp(name, provider, modelName string, temp int64) *ast.Bl
 // modelBlockAtLine creates a model block at a specific source line.
 func modelBlockAtLine(name, provider, modelName string, line int) *ast.BlockStatement {
 	block := modelBlock(name, provider, modelName)
-	block.BaseNode = ast.BaseNode{TokenStart: token.Token{Type: token.MODEL, Literal: "model", Line: line}}
+	block.BaseNode = ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "model", Line: line}}
 	return block
 }
 
 // agentBlock creates an agent block with model and persona.
 func agentBlock(name, model, persona string) *ast.BlockStatement {
 	return &ast.BlockStatement{
-		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.AGENT, Literal: "agent"}},
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "agent"}},
 		BlockBody: ast.BlockBody{
-			Kind: token.BlockAgent,
+			Kind: analyzer.BlockKindAgent,
 			Assignments: []*ast.Assignment{
 				{Name: "model", Value: &ast.Identifier{Value: model}},
 				{Name: "persona", Value: &ast.StringLiteral{Value: persona}},
@@ -962,9 +963,9 @@ func schemaBlock(name string, fields ...schemaField) *ast.BlockStatement {
 		})
 	}
 	return &ast.BlockStatement{
-		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.SCHEMA, Literal: "schema"}},
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "schema"}},
 		BlockBody: ast.BlockBody{
-			Kind:        token.BlockSchema,
+			Kind:        types.BlockKindSchema,
 			Assignments: assigns,
 		},
 		Name: name,
@@ -981,9 +982,9 @@ func knowledgeBlock(blockName, descValue string) *ast.BlockStatement {
 		})
 	}
 	return &ast.BlockStatement{
-		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.KNOWLEDGE, Literal: "knowledge"}},
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "knowledge"}},
 		BlockBody: ast.BlockBody{
-			Kind:        token.BlockKnowledge,
+			Kind:        analyzer.BlockKindKnowledge,
 			Assignments: assigns,
 		},
 		Name: blockName,
@@ -993,9 +994,9 @@ func knowledgeBlock(blockName, descValue string) *ast.BlockStatement {
 // inputBlock creates an input block with a type reference (identifier or schema name).
 func inputBlock(name, typeName string) *ast.BlockStatement {
 	return &ast.BlockStatement{
-		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.INPUT, Literal: "input"}},
+		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "input"}},
 		BlockBody: ast.BlockBody{
-			Kind: token.BlockInput,
+			Kind: analyzer.BlockKindInput,
 			Assignments: []*ast.Assignment{
 				{Name: "type", Value: &ast.Identifier{Value: typeName}},
 			},

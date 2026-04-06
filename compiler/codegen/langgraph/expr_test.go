@@ -4,8 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/token"
+	"github.com/thakee/orca/compiler/types"
 )
 
 // TestExprToSource verifies conversion of AST expressions to Python source.
@@ -232,7 +234,7 @@ func TestExprToSource(t *testing.T) {
 		{
 			name: "block expression with assignments",
 			expr: &ast.BlockExpression{BlockBody: ast.BlockBody{
-				Kind: token.BlockModel,
+				Kind: analyzer.BlockKindModel,
 				Assignments: []*ast.Assignment{
 					{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}},
 					{Name: "model_name", Value: &ast.StringLiteral{Value: "gpt-4o"}},
@@ -242,13 +244,13 @@ func TestExprToSource(t *testing.T) {
 		},
 		{
 			name:     "empty block expression",
-			expr:     &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: token.BlockAgent}},
+			expr:     &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: analyzer.BlockKindAgent}},
 			expected: "__orca_agent()",
 		},
 		{
 			name: "block expression field with one annotation",
 			expr: &ast.BlockExpression{BlockBody: ast.BlockBody{
-				Kind: token.BlockSchema,
+				Kind: types.BlockKindSchema,
 				Assignments: []*ast.Assignment{
 					{
 						Name: "region",
@@ -269,7 +271,7 @@ func TestExprToSource(t *testing.T) {
 		{
 			name: "block expression field with multiple annotations",
 			expr: &ast.BlockExpression{BlockBody: ast.BlockBody{
-				Kind: token.BlockSchema,
+				Kind: types.BlockKindSchema,
 				Assignments: []*ast.Assignment{
 					{
 						Name: "region",
@@ -328,7 +330,7 @@ func TestExprToSourceExhaustiveKinds(t *testing.T) {
 		{"MapLiteral", &ast.MapLiteral{Entries: []ast.MapEntry{{Key: &ast.StringLiteral{Value: "k"}, Value: &ast.IntegerLiteral{Value: 1}}}}},
 		{"BinaryExpression", &ast.BinaryExpression{Left: &ast.Identifier{Value: "a"}, Operator: token.Token{Literal: "->"}, Right: &ast.Identifier{Value: "b"}}},
 		{"CallExpression", &ast.CallExpression{Callee: &ast.Identifier{Value: "f"}, Arguments: []ast.Expression{}}},
-		{"BlockExpression", &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: token.BlockModel, Assignments: []*ast.Assignment{{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}}}}}},
+		{"BlockExpression", &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: analyzer.BlockKindModel, Assignments: []*ast.Assignment{{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}}}}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -475,7 +477,7 @@ func TestTopLevelBlockSource(t *testing.T) {
 			{Name: "sensitive"},
 		},
 		BlockBody: ast.BlockBody{
-			Kind: token.BlockInput,
+			Kind: analyzer.BlockKindInput,
 			Assignments: []*ast.Assignment{
 				{Name: "type", Value: &ast.Identifier{Value: "str"}},
 			},
@@ -492,7 +494,7 @@ func TestTopLevelBlockSource(t *testing.T) {
 	plain := &ast.BlockStatement{
 		Name: "x",
 		BlockBody: ast.BlockBody{
-			Kind: token.BlockInput,
+			Kind: analyzer.BlockKindInput,
 			Assignments: []*ast.Assignment{
 				{Name: "type", Value: &ast.Identifier{Value: "str"}},
 			},
