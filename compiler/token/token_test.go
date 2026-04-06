@@ -21,111 +21,6 @@ func TestTokenCreation(t *testing.T) {
 	}
 }
 
-func TestLookupIdent(t *testing.T) {
-	if LookupIdent("model") != MODEL {
-		t.Errorf("expected MODEL for 'model'")
-	}
-	if LookupIdent("agent") != AGENT {
-		t.Errorf("expected AGENT for 'agent'")
-	}
-	if LookupIdent("let") != LET {
-		t.Errorf("expected LET for 'let'")
-	}
-	if LookupIdent("foobar") != IDENT {
-		t.Errorf("expected IDENT for 'foobar'")
-	}
-	if LookupIdent("cron") != CRON {
-		t.Errorf("expected CRON for 'cron'")
-	}
-	if LookupIdent("webhook") != WEBHOOK {
-		t.Errorf("expected WEBHOOK for 'webhook'")
-	}
-}
-
-func TestIsTokenBlockNameLet(t *testing.T) {
-	if !IsTokenBlockName(LET) {
-		t.Error("expected LET to be a block keyword")
-	}
-}
-
-// TestBlockKindString verifies string representation for all BlockKind values.
-func TestBlockKindString(t *testing.T) {
-	tests := []struct {
-		kind   BlockKind
-		expect string
-	}{
-		{BlockModel, "model"},
-		{BlockAgent, "agent"},
-		{BlockTool, "tool"},
-		{BlockKnowledge, "knowledge"},
-		{BlockWorkflow, "workflow"},
-		{BlockInput, "input"},
-		{BlockSchema, "schema"},
-		{BlockLet, "let"},
-		{BlockCron, "cron"},
-		{BlockWebhook, "webhook"},
-		{BlockKind(999), "unknown"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expect, func(t *testing.T) {
-			if got := tt.kind.String(); got != tt.expect {
-				t.Errorf("BlockKind(%d).String() = %q, want %q", tt.kind, got, tt.expect)
-			}
-		})
-	}
-}
-
-// TestTokenTypeToBlockKind verifies mapping from token types to block kinds.
-func TestTokenTypeToBlockKind(t *testing.T) {
-	tests := []struct {
-		name     string
-		tokType  TokenType
-		expected BlockKind
-		ok       bool
-	}{
-		{"MODEL", MODEL, BlockModel, true},
-		{"AGENT", AGENT, BlockAgent, true},
-		{"TOOL", TOOL, BlockTool, true},
-		{"KNOWLEDGE", KNOWLEDGE, BlockKnowledge, true},
-		{"WORKFLOW", WORKFLOW, BlockWorkflow, true},
-		{"INPUT", INPUT, BlockInput, true},
-		{"SCHEMA", SCHEMA, BlockSchema, true},
-		{"LET", LET, BlockLet, true},
-		{"CRON", CRON, BlockCron, true},
-		{"WEBHOOK", WEBHOOK, BlockWebhook, true},
-		{"IDENT not a block", IDENT, 0, false},
-		{"STRING not a block", STRING, 0, false},
-		{"EOF not a block", EOF, 0, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			kind, ok := TokenTypeToBlockKind(tt.tokType)
-			if ok != tt.ok {
-				t.Errorf("ok = %v, want %v", ok, tt.ok)
-			}
-			if ok && kind != tt.expected {
-				t.Errorf("kind = %v, want %v", kind, tt.expected)
-			}
-		})
-	}
-}
-
-// TestBlockKindsSlice verifies that BlockKinds contains all block kinds
-// and no primitives.
-func TestBlockKindsSlice(t *testing.T) {
-	if len(BlockKinds) != 10 {
-		t.Errorf("len(BlockKinds) = %d, want 10", len(BlockKinds))
-	}
-	// All entries should be block kinds (String() != "unknown").
-	for _, k := range BlockKinds {
-		if k.String() == "unknown" {
-			t.Errorf("BlockKinds contains unknown kind: %d", k)
-		}
-	}
-}
-
 // TestDescribe exercises Describe for all token types to verify human-readable descriptions.
 // Coverage: exercises Describe for all token types
 func TestDescribe(t *testing.T) {
@@ -141,9 +36,6 @@ func TestDescribe(t *testing.T) {
 		{"FLOAT", FLOAT, "number"},
 		{"STRING", STRING, "string"},
 		{"RAWSTRING", RAWSTRING, "raw string"},
-		{"TRUE", TRUE, "boolean"},
-		{"FALSE", FALSE, "boolean"},
-		{"NULL", NULL, "null"},
 		{"ASSIGN", ASSIGN, "'='"},
 		{"DOT", DOT, "'.'"},
 		{"COMMA", COMMA, "','"},
@@ -161,62 +53,13 @@ func TestDescribe(t *testing.T) {
 		{"ARROW", ARROW, "'->'"},
 		{"PIPE", PIPE, "'|'"},
 		{"AT", AT, "'@'"},
-		{"MODEL keyword", MODEL, "'MODEL'"},
-		{"AGENT keyword", AGENT, "'AGENT'"},
-		{"KNOWLEDGE keyword", KNOWLEDGE, "'KNOWLEDGE'"},
-		{"WORKFLOW keyword", WORKFLOW, "'WORKFLOW'"},
-		{"TOOL keyword", TOOL, "'TOOL'"},
-		{"INPUT keyword", INPUT, "'INPUT'"},
-		{"SCHEMA keyword", SCHEMA, "'SCHEMA'"},
-		{"LET keyword", LET, "'LET'"},
-		{"CRON keyword", CRON, "'CRON'"},
-		{"WEBHOOK keyword", WEBHOOK, "'WEBHOOK'"},
-		{"unknown token", TokenType("UNKNOWN"), "UNKNOWN"},
+		{"unknown token", TokenType("UNKNOWN"), "'UNKNOWN'"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := Describe(tt.tokType); got != tt.expected {
 				t.Errorf("Describe(%s) = %q, want %q", tt.tokType, got, tt.expected)
-			}
-		})
-	}
-}
-
-// TestIsIdentLike verifies that IDENT, NULL, and block keywords are ident-like,
-// while other token types are not.
-// Coverage: exercises IsIdentLike for all token types
-func TestIsIdentLike(t *testing.T) {
-	tests := []struct {
-		name     string
-		tokType  TokenType
-		expected bool
-	}{
-		{"IDENT", IDENT, true},
-		{"NULL", NULL, true},
-		{"MODEL", MODEL, true},
-		{"AGENT", AGENT, true},
-		{"TOOL", TOOL, true},
-		{"KNOWLEDGE", KNOWLEDGE, true},
-		{"WORKFLOW", WORKFLOW, true},
-		{"INPUT", INPUT, true},
-		{"SCHEMA", SCHEMA, true},
-		{"LET", LET, true},
-		{"CRON", CRON, true},
-		{"WEBHOOK", WEBHOOK, true},
-		{"STRING not ident-like", STRING, false},
-		{"INT not ident-like", INT, false},
-		{"TRUE not ident-like", TRUE, false},
-		{"FALSE not ident-like", FALSE, false},
-		{"EOF not ident-like", EOF, false},
-		{"LBRACE not ident-like", LBRACE, false},
-		{"PLUS not ident-like", PLUS, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := IsIdentLike(tt.tokType); got != tt.expected {
-				t.Errorf("IsIdentLike(%s) = %v, want %v", tt.tokType, got, tt.expected)
 			}
 		})
 	}
@@ -253,22 +96,5 @@ func TestPrecedence(t *testing.T) {
 				t.Errorf("Precedence(%s) = %d, want %d", tt.tokType, got, tt.expected)
 			}
 		})
-	}
-}
-
-// TestIsTokenBlockNameAllKeywords verifies all block keywords return true.
-func TestIsTokenBlockNameAllKeywords(t *testing.T) {
-	blockTokens := []TokenType{MODEL, AGENT, KNOWLEDGE, WORKFLOW, TOOL, INPUT, SCHEMA, LET, CRON, WEBHOOK}
-	for _, tok := range blockTokens {
-		if !IsTokenBlockName(tok) {
-			t.Errorf("IsTokenBlockName(%s) = false, want true", tok)
-		}
-	}
-
-	nonBlockTokens := []TokenType{IDENT, STRING, INT, FLOAT, TRUE, FALSE, NULL, EOF, LBRACE}
-	for _, tok := range nonBlockTokens {
-		if IsTokenBlockName(tok) {
-			t.Errorf("IsTokenBlockName(%s) = true, want false", tok)
-		}
 	}
 }

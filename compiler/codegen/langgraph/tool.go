@@ -5,9 +5,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen/python"
-	"github.com/thakee/orca/compiler/token"
 )
 
 // defNameRe matches `def <name>` at the start of a Python function definition
@@ -26,7 +26,7 @@ type resolvedToolInvoke struct {
 // validates inline raw string functions. Results are stored in resolvedTools
 // keyed by block name.
 func (b *LangGraphBackend) resolveToolInvokes() {
-	tools := b.CollectBlocksByKind(token.BlockTool)
+	tools := b.CollectBlocksByKind(analyzer.BlockKindTool)
 	if len(tools) == 0 {
 		return
 	}
@@ -107,7 +107,7 @@ func (b *LangGraphBackend) resolveDottedPathInvoke(tool *ast.BlockStatement, str
 // Inline raw string invokes emit the function definition verbatim before the
 // tool variable; dotted path invokes reference the imported callable.
 func (b *LangGraphBackend) writeToolSection(s *strings.Builder) {
-	tools := b.CollectBlocksByKind(token.BlockTool)
+	tools := b.CollectBlocksByKind(analyzer.BlockKindTool)
 	if len(tools) == 0 {
 		return
 	}
@@ -167,7 +167,7 @@ func toolBlockSource(tool *ast.BlockStatement, invokeRef string) string {
 // Order matches top-level tool block order in the source file (not map iteration,
 // which is randomized and would make golden tests flaky).
 func (b *LangGraphBackend) toolImports() []python.PythonImport {
-	tools := b.CollectBlocksByKind(token.BlockTool)
+	tools := b.CollectBlocksByKind(analyzer.BlockKindTool)
 	var imports []python.PythonImport
 	for _, tool := range tools {
 		resolved, ok := b.resolvedTools[tool.Name]

@@ -87,10 +87,10 @@ type Annotation struct {
 // blocks) and BlockExpression (inline anonymous blocks) embed this so
 // that analyzer, codegen, and tooling can operate on a single type.
 type BlockBody struct {
-	Kind        token.BlockKind // the block type (model, agent, tool, …)
-	Assignments []*Assignment   // key = value pairs inside the block body
-	Expressions []Expression    // workflow edge expressions (A -> B -> C)
-	SourceFile  string          // the .oc file this block was parsed from
+	Kind        string        // the block type (model, agent, tool, …)
+	Assignments []*Assignment // key = value pairs inside the block body
+	Expressions []Expression  // workflow edge expressions (A -> B -> C)
+	SourceFile  string        // the .oc file this block was parsed from
 }
 
 // GetFieldExpression returns the right-hand expression for the first assignment
@@ -155,23 +155,14 @@ type StringLiteral struct {
 
 func (s *StringLiteral) expressionNode() {}
 
-// IntegerLiteral represents a whole number value like 4096.
+// NumberLiteral represents both ints and floats (internally float64).
 // Terminal node — start == end.
-type IntegerLiteral struct {
-	BaseNode
-	Value int64
-}
-
-func (il *IntegerLiteral) expressionNode() {}
-
-// FloatLiteral represents a decimal number value like 0.2.
-// Terminal node — start == end.
-type FloatLiteral struct {
+type NumberLiteral struct {
 	BaseNode
 	Value float64
 }
 
-func (fl *FloatLiteral) expressionNode() {}
+func (nl *NumberLiteral) expressionNode() {}
 
 // BooleanLiteral represents true or false.
 // Terminal node — start == end.

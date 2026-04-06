@@ -1,2 +1,5 @@
-# Personal experiments
-experiments/
+
+# The folder to do experiments and have local only files
+# 0_ prefixed so that it'll displaied at the top of the list.
+0_ignore/
+

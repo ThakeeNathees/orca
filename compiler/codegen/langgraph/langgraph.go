@@ -9,7 +9,7 @@ import (
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/python"
-	"github.com/thakee/orca/compiler/token"
+	"github.com/thakee/orca/compiler/types"
 )
 
 //go:embed runtime.py
@@ -60,7 +60,7 @@ func (b *LangGraphBackend) generateMain() string {
 	s.WriteString("from __future__ import annotations\n\n")
 
 	workflows := b.collectWorkflows()
-	schemaBlocks := b.CollectBlocksByKind(token.BlockSchema)
+	schemaBlocks := b.CollectBlocksByKind(types.BlockKindSchema)
 	allImports := append(b.resolvedProviders.providerImports, b.toolImports()...)
 	allImports = append(allImports, workflowImports(workflows)...)
 	if len(schemaBlocks) > 0 {
@@ -74,14 +74,14 @@ func (b *LangGraphBackend) generateMain() string {
 	s.WriteString("\n")
 
 	b.writeSchemaSection(&s, schemaBlocks)
-	b.writeOrcaBlockSection(&s, "Inputs", token.BlockInput)
-	b.writeOrcaBlockSection(&s, "Variables", token.BlockLet)
+	b.writeOrcaBlockSection(&s, "Inputs", analyzer.BlockKindInput)
+	b.writeOrcaBlockSection(&s, "Variables", analyzer.BlockKindLet)
 	b.writeModelSection(&s)
-	b.writeOrcaBlockSection(&s, "Knowledge", token.BlockKnowledge)
+	b.writeOrcaBlockSection(&s, "Knowledge", analyzer.BlockKindKnowledge)
 	b.writeToolSection(&s)
-	b.writeOrcaBlockSection(&s, "Agents", token.BlockAgent)
-	b.writeOrcaBlockSection(&s, "Cron", token.BlockCron)
-	b.writeOrcaBlockSection(&s, "Webhooks", token.BlockWebhook)
+	b.writeOrcaBlockSection(&s, "Agents", analyzer.BlockKindAgent)
+	b.writeOrcaBlockSection(&s, "Cron", analyzer.BlockKindCron)
+	b.writeOrcaBlockSection(&s, "Webhooks", analyzer.BlockKindWebhook)
 	b.writeWorkflowSection(&s, workflows)
 
 	return s.String()
@@ -97,7 +97,7 @@ func (b *LangGraphBackend) writeImports(s *strings.Builder, providerImports []py
 
 // writeOrcaBlockSection emits all top-level blocks of the given kind as
 // `name = __orca_<kind>(...)` under "# --- <sectionTitle> ---". Skips the section when empty.
-func (b *LangGraphBackend) writeOrcaBlockSection(s *strings.Builder, sectionTitle string, kind token.BlockKind) {
+func (b *LangGraphBackend) writeOrcaBlockSection(s *strings.Builder, sectionTitle string, kind string) {
 	blocks := b.CollectBlocksByKind(kind)
 	if len(blocks) == 0 {
 		return

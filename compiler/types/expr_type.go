@@ -1,5 +1,7 @@
 package types
 
+// FIXME: This should moved to analyzer.
+
 import (
 	"fmt"
 
@@ -13,76 +15,44 @@ import (
 // loading builtins.oc where the RHS of assignments are type declarations.
 func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 	switch e := expr.(type) {
+	// FIXME: Move the "str", "number", "bool", "null" to constants.go file.
 	case *ast.StringLiteral:
-		return Str()
-	case *ast.IntegerLiteral:
-		return Int()
-	case *ast.FloatLiteral:
-		return Float()
+		return identType("str", symbols)
+	case *ast.NumberLiteral:
+		return identType("number", symbols)
 	case *ast.BooleanLiteral:
-		return Bool()
+		return identType("bool", symbols)
 	case *ast.NullLiteral:
-		return Null()
+		return identType("null", symbols)
 	case *ast.ListLiteral:
 		return listLiteralType(e, symbols)
 	case *ast.MapLiteral:
 		return mapLiteralType(e, symbols)
 	case *ast.Identifier:
-		return identType(e, symbols)
+		return identType(e.Value, symbols)
 	case *ast.MemberAccess:
 		return memberAccessType(e, symbols)
 	case *ast.BlockExpression:
-		return blockExprType(e)
+		return blockExprType(e, symbols)
 	case *ast.BinaryExpression:
 		return binaryExprType(e, symbols)
 	case *ast.Subscription:
 		return subscriptionType(e, symbols)
 	case *ast.CallExpression:
 		// TODO: resolve return type from the callee's type.
-		return Any()
+		return anyType(symbols)
 	default:
-		return Any()
+		return anyType(symbols)
 	}
-}
-
-// identType resolves an identifier's type. With a symbol table, looks up the
-// identifier. Without one (bootstrap mode), resolves as a type name — block
-// keywords become block references, everything else is a schema type.
-func identType(ident *ast.Identifier, symbols *SymbolTable) Type {
-	if symbols != nil {
-		if typ, ok := symbols.Lookup(ident.Value); ok {
-			return typ
-		}
-	}
-	// Bootstrap / fallback: resolve as a type name.
-	return resolveIdentAsType(ident.Value)
-}
-
-// resolveIdentAsType maps an identifier name to an internal Type.
-// Block type names resolve via TokenTypeToBlockKind; primitives and
-// user-defined names resolve as schema types.
-func resolveIdentAsType(name string) Type {
-	tokType := token.LookupIdent(name)
-	if kind, ok := token.TokenTypeToBlockKind(tokType); ok {
-		return NewBlockRefType(kind)
-	}
-	return CreateSchema(name)
 }
 
 // blockExprType returns the type of an inline block expression.
 // For schema blocks, registers the inline schema under a synthetic name
 // so member access can resolve through it.
-func blockExprType(e *ast.BlockExpression) Type {
-	if e.Kind == token.BlockSchema {
-		schema, err := SchemaFromAssignments(e.Assignments)
-		if err != nil {
-			return TypeOf(token.BlockSchema)
-		}
-		name := fmt.Sprintf("__anon_%d", inlineCounter.Add(1))
-		RegisterSchema(name, schema)
-		return CreateSchema(name)
-	}
-	return TypeOf(e.Kind)
+func blockExprType(e *ast.BlockExpression, symtab *SymbolTable) Type {
+	name := fmt.Sprintf("__anon_%d", inlineCounter.Add(1))
+	schema := NewBlockSchema(nil, name, &e.BlockBody, symtab)
+	return NewBlockRefType(name, &schema)
 }
 
 // binaryExprType resolves the type of a binary expression. Pipe operators
@@ -97,13 +67,13 @@ func binaryExprType(e *ast.BinaryExpression, symbols *SymbolTable) Type {
 		// treated as bitwise OR — this is not yet implemented.
 		members := flattenUnionTypes(e, symbols)
 		if len(members) == 0 {
-			return Any()
+			return anyType(symbols)
 		}
 		return NewUnionType(members...)
 	case token.PLUS, token.MINUS, token.STAR, token.SLASH:
 		return arithmeticResultType(e, symbols)
 	default:
-		return Any()
+		return anyType(symbols)
 	}
 }
 
@@ -119,26 +89,20 @@ func arithmeticResultType(e *ast.BinaryExpression, symbols *SymbolTable) Type {
 	right := ExprType(e.Right, symbols)
 
 	// String concatenation: str + str → str.
-	if e.Operator.Type == token.PLUS && left.Equals(Str()) && right.Equals(Str()) {
-		return Str()
+	isLeftStr := IsCompatible(left, identType("str", symbols))
+	isRightStr := IsCompatible(right, identType("str", symbols))
+	if e.Operator.Type == token.PLUS && isLeftStr && isRightStr {
+		return identType("str", symbols)
 	}
 
-	// Numeric promotions.
-	leftInt := left.Equals(Int())
-	leftFloat := left.Equals(Float())
-	rightInt := right.Equals(Int())
-	rightFloat := right.Equals(Float())
-
-	switch {
-	case leftInt && rightInt:
-		return Int()
-	case leftFloat && rightFloat:
-		return Float()
-	case (leftInt && rightFloat) || (leftFloat && rightInt):
-		return Float()
-	default:
-		return Any()
+	// <number> op <number> → <number>.
+	isLeftNum := IsCompatible(left, identType("number", symbols))
+	isRightNum := IsCompatible(right, identType("number", symbols))
+	if isLeftNum && isRightNum {
+		return identType("number", symbols)
 	}
+
+	return anyType(symbols)
 }
 
 // flattenUnionTypes recursively collects all members of a pipe-separated
@@ -157,48 +121,71 @@ func flattenUnionTypes(expr ast.Expression, symbols *SymbolTable) []Type {
 	}
 }
 
+// identType resolves an identifier's type. With a symbol table, looks up the
+// identifier. Without one (bootstrap mode), resolves as a type name — block
+// keywords become block references, everything else is a schema type.
+func identType(name string, symtab *SymbolTable) Type {
+	if symtab != nil {
+		if ty, ok := symtab.Lookup(name); ok {
+			return ty
+		}
+	}
+	// Not found in symbol table, we set the block schema to nil
+	// and the analyzer will either resolve or report an error.
+	// because the block may defined after the current one.
+	return NewBlockRefType(name, nil)
+}
+
 // subscriptionType returns the type of a subscription expression.
 // In bootstrap mode (symbols == nil), first tries to resolve parameterized
 // types like list[tool] or map[str], then falls back to subscript result
 // type inference. With symbols, always infers from the object type.
-func subscriptionType(e *ast.Subscription, symbols *SymbolTable) Type {
-	if symbols == nil {
-		// Bootstrap: try parameterized type like list[tool] or map[str].
-		if baseIdent, ok := e.Object.(*ast.Identifier); ok {
-			elemType := ExprType(e.Index, nil)
-			switch baseIdent.Value {
-			case "list":
-				return NewListType(elemType)
-			case "map":
-				return NewMapType(Str(), elemType)
-			}
+func subscriptionType(e *ast.Subscription, symtab *SymbolTable) Type {
+	// Bootstrap: try parameterized type like list[tool] or map[str].
+	if baseIdent, ok := e.Object.(*ast.Identifier); ok {
+		elemType := ExprType(e.Index, symtab)
+		switch baseIdent.Value {
+		case "list":
+			return NewListType(elemType)
+		case "map":
+			// NOTE: Map keys are always "str" but we set anyways maybe
+			// in the future we support other key types.
+			return NewMapType(identType("str", symtab), elemType)
 		}
 	}
-	return subscriptResultType(ExprType(e.Object, symbols))
+	return subscriptResultType(ExprType(e.Object, symtab), symtab)
 }
 
 // memberAccessType resolves the type of a member access expression
 // (e.g. gpt4.model_name). Looks up the object's type, then finds
 // the member's type in the corresponding block schema.
-func memberAccessType(ma *ast.MemberAccess, symbols *SymbolTable) Type {
+func memberAccessType(ma *ast.MemberAccess, symtab *SymbolTable) Type {
 	// Incomplete member access (e.g. "gpt4." while typing).
 	if ma.Member == "" {
-		return Any()
+		return anyType(symtab)
 	}
 
-	objType := ExprType(ma.Object, symbols)
+	objType := ExprType(ma.Object, symtab)
+
+	// TODO: Handle other kinds, Best to remove list, and map from kinds.
 	if objType.Kind != BlockRef {
-		return Any()
+		return anyType(symtab)
 	}
 
-	schema, ok := LookupBlockSchema(objType)
-	if !ok {
-		return Any()
+	// If the block is not resolved, try to resolve it from the symbol table.
+	if objType.Block == nil {
+		if ty, ok := symtab.Lookup(objType.BlockName); ok {
+			objType.Block = ty.Block
+		}
 	}
 
-	field, ok := schema.Fields[ma.Member]
+	if objType.Block == nil {
+		return anyType(symtab)
+	}
+
+	field, ok := objType.Block.Fields[ma.Member]
 	if !ok {
-		return Any()
+		return anyType(symtab)
 	}
 
 	return field.Type
@@ -206,46 +193,48 @@ func memberAccessType(ma *ast.MemberAccess, symbols *SymbolTable) Type {
 
 // subscriptResultType returns the element/value type when subscripting a type.
 // For list[T] returns T, for map[K,V] returns V, for unions checks members.
-func subscriptResultType(t Type) Type {
+func subscriptResultType(t Type, symtab *SymbolTable) Type {
 	switch t.Kind {
 	case List:
 		if t.ElementType != nil {
 			return *t.ElementType
 		}
-		return Any()
+		return anyType(symtab)
 	case Map:
 		if t.ValueType != nil {
 			return *t.ValueType
 		}
-		return Any()
+		return anyType(symtab)
 	case Union:
 		// Find the subscriptable member and return its result type.
 		for _, m := range t.Members {
 			if m.Kind == List || m.Kind == Map {
-				return subscriptResultType(m)
+				return subscriptResultType(m, symtab)
 			}
 		}
-		return Any()
+		return anyType(symtab)
 	default:
-		return Any()
+		return anyType(symtab)
 	}
 }
 
 // mapLiteralType infers the type of a map literal. Keys are always strings.
 // If all values have the same type, returns map[T]. Otherwise returns
 // an untyped map.
-func mapLiteralType(m *ast.MapLiteral, symbols *SymbolTable) Type {
+func mapLiteralType(m *ast.MapLiteral, symtab *SymbolTable) Type {
 	if len(m.Entries) == 0 {
 		return Type{Kind: Map}
 	}
 
-	first := ExprType(m.Entries[0].Value, symbols)
-	for _, entry := range m.Entries[1:] {
-		if !ExprType(entry.Value, symbols).Equals(first) {
-			return Type{Kind: Map}
-		}
-	}
-	return NewMapType(Str(), first)
+	// TODO: Check if the first element's type is compatible with
+	// all the other elements' types. in that case, that can be the
+	// map value type.
+	//
+	// first := ExprType(m.Entries[0].Value, symbols)
+	// for _, entry := range m.Entries[1:] {
+	// }
+
+	return NewMapType(identType("str", symtab), anyType(symtab))
 }
 
 // listLiteralType infers the type of a list literal. If all elements
@@ -255,11 +244,18 @@ func listLiteralType(list *ast.ListLiteral, symbols *SymbolTable) Type {
 		return Type{Kind: List}
 	}
 
-	first := ExprType(list.Elements[0], symbols)
-	for _, elem := range list.Elements[1:] {
-		if !ExprType(elem, symbols).Equals(first) {
-			return Type{Kind: List}
-		}
-	}
-	return NewListType(first)
+	// TODO: Check if the first element's type is compatible with
+	// first := ExprType(list.Elements[0], symbols)
+	// for _, elem := range list.Elements[1:] {
+	// 	if !ExprType(elem, symbols).Equals(first) {
+	// 		return Type{Kind: List}
+	// 	}
+	// }
+	// return NewListType(first)
+
+	return Type{Kind: List}
+}
+
+func anyType(symtab *SymbolTable) Type {
+	return identType("any", symtab)
 }

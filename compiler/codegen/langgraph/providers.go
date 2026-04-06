@@ -11,7 +11,6 @@ import (
 	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/diagnostic"
-	"github.com/thakee/orca/compiler/token"
 )
 
 // providerInfo holds LangChain metadata for a model provider.
@@ -96,7 +95,7 @@ func (b *LangGraphBackend) resolveProviders() {
 	seen := make(map[string]bool)
 	var names []string
 
-	for _, body := range b.collectBodiesByKind(token.BlockModel) {
+	for _, body := range b.collectBodiesByKind(analyzer.BlockKindModel) {
 		expr, ok := body.GetFieldExpression("provider")
 		if !ok {
 			continue
@@ -141,7 +140,7 @@ func (b *LangGraphBackend) resolveProviders() {
 // resolved LangChain class reference. Instead of provider="openai", emits
 // provider_class=ChatOpenAI so the runtime can instantiate directly.
 func (b *LangGraphBackend) writeModelSection(s *strings.Builder) {
-	models := b.CollectBlocksByKind(token.BlockModel)
+	models := b.CollectBlocksByKind(analyzer.AnnotationTriggerNode)
 	if len(models) == 0 {
 		return
 	}
@@ -192,7 +191,7 @@ func modelBlockSource(model *ast.BlockStatement) string {
 // collectBodiesByKind returns all BlockBody nodes matching the given kind,
 // including both top-level block statements and inline block expressions
 // nested within other blocks' assignments.
-func (b *LangGraphBackend) collectBodiesByKind(kind token.BlockKind) []*ast.BlockBody {
+func (b *LangGraphBackend) collectBodiesByKind(kind string) []*ast.BlockBody {
 	var bodies []*ast.BlockBody
 	for _, stmt := range b.Program.Ast.Statements {
 		block, ok := stmt.(*ast.BlockStatement)
@@ -209,7 +208,7 @@ func (b *LangGraphBackend) collectBodiesByKind(kind token.BlockKind) []*ast.Bloc
 
 // collectInlineBodies recursively collects BlockBody nodes of the given kind
 // from inline BlockExpression nodes nested within assignment values.
-func collectInlineBodies(assignments []*ast.Assignment, kind token.BlockKind, bodies *[]*ast.BlockBody) {
+func collectInlineBodies(assignments []*ast.Assignment, kind string, bodies *[]*ast.BlockBody) {
 	for _, assign := range assignments {
 		if assign == nil {
 			continue

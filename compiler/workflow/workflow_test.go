@@ -78,10 +78,10 @@ func TestResolve(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		block          *ast.BlockStatement
-		isTrigger      func(string) bool
-		expectedNodes  []string
+		name             string
+		block            *ast.BlockStatement
+		isTrigger        func(string) bool
+		expectedNodes    []string
 		expectedTriggers []string
 		expectedEntries  []string
 		expectedTrigMap  map[string][]string
@@ -258,7 +258,7 @@ func TestPredecessors(t *testing.T) {
 	block := &ast.BlockStatement{
 		Name: "pipeline",
 		BlockBody: ast.BlockBody{
-			Kind: token.BlockWorkflow,
+			Kind: types.BlockKindWorkflow,
 			Expressions: []ast.Expression{
 				arrow(arrow(ident("cron"), ident("A")), ident("B")),
 				arrow(ident("A"), ident("C")),
@@ -302,7 +302,7 @@ func TestPredecessorsNoTrigger(t *testing.T) {
 	block := &ast.BlockStatement{
 		Name: "simple",
 		BlockBody: ast.BlockBody{
-			Kind: token.BlockWorkflow,
+			Kind: types.BlockKindWorkflow,
 			Expressions: []ast.Expression{
 				arrow(ident("A"), ident("B")),
 			},

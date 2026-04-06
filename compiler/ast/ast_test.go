@@ -16,19 +16,19 @@ func TestBlockStatementBaseNode(t *testing.T) {
 		{
 			name: "model block",
 			block: BlockStatement{
-				BaseNode: BaseNode{TokenStart: token.Token{Type: token.MODEL, Literal: "model"}},
+				BaseNode: BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "model"}},
 				Name:     "gpt4",
 			},
-			expStart:   token.MODEL,
+			expStart:   token.IDENT,
 			expLiteral: "model",
 		},
 		{
 			name: "agent block",
 			block: BlockStatement{
-				BaseNode: BaseNode{TokenStart: token.Token{Type: token.AGENT, Literal: "agent"}},
+				BaseNode: BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "agent"}},
 				Name:     "researcher",
 			},
-			expStart:   token.AGENT,
+			expStart:   token.IDENT,
 			expLiteral: "agent",
 		},
 	}

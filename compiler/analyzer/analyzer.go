@@ -10,6 +10,7 @@ import (
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
+	"github.com/thakee/orca/compiler/helper"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
 	"github.com/thakee/orca/compiler/workflow"
@@ -33,11 +34,18 @@ type AnalyzedProgram struct {
 // along with diagnostics so callers (like the LSP) can use it for
 // hover, go-to-definition, and other features.
 func Analyze(program *ast.Program) AnalyzedProgram {
-	var diags []diagnostic.Diagnostic
 
-	symbols, dupDiags := buildSymbolTable(program)
+	analyzedProgram := AnalyzedProgram{
+		Ast:         program,
+		SymbolTable: types.NewSymbolTable(),
+		Diagnostics: []diagnostic.Diagnostic{},
+	}
+
+	st, diags := buildSymbolTable(program)
+	analyzedProgram.SymbolTable = st
+	analyzedProgram.Diagnostics = append(analyzedProgram.Diagnostics, diags...)
+
 	registerUserSchemas(program)
-	diags = append(diags, dupDiags...)
 
 	for _, stmt := range program.Statements {
 		block, ok := stmt.(*ast.BlockStatement)
@@ -46,18 +54,12 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 		}
 
 		var blockDiags []diagnostic.Diagnostic
-		// Let blocks are free-form variable bindings with no schema, so
-		// they can't go through analyzeBlock (which does schema-based
-		// validation). analyzeLetBlock handles duplicate key detection
-		// and reference validation for let values instead.
-		if block.Kind == token.BlockLet {
-			blockDiags = analyzeLetBlock(block, symbols)
-		} else {
-			blockDiags = analyzeBlock(block, symbols)
-			// Apply block-level @suppress annotations.
-			codes, all := suppressedCodes(block.Annotations)
-			blockDiags = filterSuppressed(blockDiags, codes, all)
-		}
+		blockDiags = analyzeBlock(block, symbols)
+
+		// Apply block-level @suppress annotations.
+		codes, all := suppressedCodes(block.Annotations)
+		blockDiags = filterSuppressed(blockDiags, codes, all)
+
 		// Tag diagnostics with the source file for multi-file compilation.
 		for i := range blockDiags {
 			blockDiags[i].File = block.SourceFile
@@ -76,56 +78,37 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 // name with its block reference type. Reports duplicate block names.
 func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Diagnostic) {
 	st := types.NewSymbolTable()
+
+	// Define true and false
+	st.Define("true", types.Bool(), token.Token{})
+	st.Define("false", types.Bool(), token.Token{})
+
 	var diags []diagnostic.Diagnostic
 
+	// TODO: This should be done in the boot loading process itself not here.
+	//
 	// Seed with built-in schema names (str, int, model, agent, etc.)
 	// so they are recognized as valid references in user code.
 	// Block types like "model" resolve to their own kind; primitives
 	// like "str" resolve to BlockRef(schema).
-	for _, name := range types.BuiltinSchemaNames() {
-		tokType := token.LookupIdent(name)
-		kind, ok := token.TokenTypeToBlockKind(tokType)
-		if !ok {
-			kind = token.BlockSchema
-		}
-		st.Define(name, types.NewBlockRefType(kind), token.Token{})
+	for _, builtinNames := range types.BuiltinSchemaNames() {
+		st.Define(
+			builtinNames,
+			types.NewBlockRefType(types.BlockKindSchema, builtinNames),
+			token.Token{},
+		)
 	}
 
 	for _, stmt := range program.Statements {
+
+		// NOTE: Block is and will always be the only statement supported by Orca
+		// Probably we dont need this generic statement base class.
 		block, ok := stmt.(*ast.BlockStatement)
 		if !ok {
 			continue
 		}
 
-		// Named let blocks register the block name as a symbol and build
-		// a per-instance schema from the assignments so that member access
-		// (e.g. vars.name) can resolve field types.
-		if block.Kind == token.BlockLet {
-			if _, exists := st.Lookup(block.Name); exists {
-				diags = append(diags, diagnostic.Diagnostic{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeDuplicateBlock,
-					Position: diagnostic.Position{
-						Line:   block.NameToken.Line,
-						Column: block.NameToken.Column,
-					},
-					Message: fmt.Sprintf("duplicate block name %q", block.Name),
-					Source:  "analyzer",
-					File:    block.SourceFile,
-				})
-			}
-			schema := types.BlockSchema{Fields: make(map[string]types.FieldSchema)}
-			for _, assign := range block.Assignments {
-				typ := types.ExprType(assign.Value, st)
-				schema.Fields[assign.Name] = types.FieldSchema{Type: typ}
-			}
-			types.RegisterSchema(block.Name, schema)
-			st.Define(block.Name, types.NewLetType(block.Name), block.NameToken)
-			continue
-		}
-
-		kind := block.Kind
-
+		// TODO: Split the bellow logic into smaller function for readability.
 		if _, exists := st.Lookup(block.Name); exists {
 			codes, all := suppressedCodes(block.Annotations)
 			if !all && !codes[diagnostic.CodeDuplicateBlock] {
@@ -142,18 +125,22 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 				})
 			}
 		}
+
+		schema := types.NewBlockSchema(block.Annotations, block.Name, &block.BlockBody)
+
 		// For input blocks, resolve the declared type so that member
 		// access works through the schema (e.g. vpc_data.region) and
 		// type checking shows the actual type (e.g. list[str]) instead
 		// of just "input".
-		typ := types.NewBlockRefType(kind)
-		if kind == token.BlockInput {
+		typ := types.NewBlockRefType(block.Kind, block.Name)
+		if block.Kind == BlockKindInput {
 			if declared, ok := inputDeclaredType(block); ok {
 				typ = declared
 			}
 		}
 		st.Define(block.Name, typ, block.NameToken)
 	}
+
 	return st, diags
 }
 
@@ -163,13 +150,10 @@ func buildSymbolTable(program *ast.Program) (*types.SymbolTable, []diagnostic.Di
 func registerUserSchemas(program *ast.Program) {
 	for _, stmt := range program.Statements {
 		block, ok := stmt.(*ast.BlockStatement)
-		if !ok || block.Kind != token.BlockSchema {
+		if !ok || block.Kind != types.BlockKindSchema {
 			continue
 		}
-		schema, err := types.SchemaFromBlock(block)
-		if err != nil {
-			continue
-		}
+		schema := types.NewBlockSchema(block.Annotations, block.Name, &block.BlockBody)
 		types.RegisterSchema(block.Name, schema)
 	}
 }
@@ -191,21 +175,45 @@ func inputDeclaredType(block *ast.BlockStatement) (types.Type, bool) {
 // analyzeBlock validates a top-level block statement by delegating to
 // analyzeBlockBody for the core body validation.
 func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
-	return analyzeBlockBody(&block.BlockBody, block.Name, block.OpenBrace, block.TokenEnd, symbols)
+	return analyzeBlockBody(
+		&block.BlockBody,
+		block.Annotations,
+		block.Name,
+		block.OpenBrace,
+		block.TokenEnd,
+		symbols,
+	)
 }
 
 // analyzeBlockBody performs all validation checks on a block body: duplicate
 // fields, unknown fields, missing required fields, undefined references, and
 // type mismatches. Shared by both top-level BlockStatement and inline
 // BlockExpression so that both get identical validation.
-func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, endToken token.Token, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+func analyzeBlockBody(
+	body *ast.BlockBody,
+	annotations []*ast.Annotation,
+	name string,
+	openBrace token.Token,
+	endToken token.Token,
+	symbols *types.SymbolTable,
+) []diagnostic.Diagnostic {
 	kind := body.Kind
-	// Use the generic "schema" schema here, not the block's own definition.
-	// Schema blocks are type declarations (e.g. `region = str` means "region
-	// is of type str"), not regular blocks with typed values.
-	schema, ok := types.GetBlockSchema(kind)
+
+	schema, ok := types.GetSchema(kind)
 	if !ok {
-		return nil
+		// If a schema is not registered (throught the schema <name> {}) this is
+		// an arbitary block and we infer the schema from the block body.
+		schema = types.NewBlockSchema(annotations, name, body)
+		// NOTE that we dont register this schema in the global schema map as:
+		//   types.RegisterSchema(kind, schema)
+		// Because they dont have a single definition of schema, Example:
+		//   let vars { a = 1 b = 2 }
+		//   let conf { a = "" b = "" }
+		// So the 'let' kind dont have a schema definition, but 'vars' and 'conf'
+		// Should be registered into the symbol table for lookups like: vars.a, conf.a
+		//
+		// TODO: Associate the symbol with schema (ie. getTypeSchema(Type) -> BlockSchema)
+		symbols.Define(name, types.NewBlockRefType(kind, name), openBrace)
 	}
 
 	var diags []diagnostic.Diagnostic
@@ -221,7 +229,7 @@ func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, e
 					Line:   assign.Start().Line,
 					Column: assign.Start().Column,
 				},
-				Message: fmt.Sprintf("duplicate field %q in %s %q", assign.Name, kind.String(), name),
+				Message: fmt.Sprintf("duplicate field %q in %s %q", assign.Name, kind, name),
 				Source:  "analyzer",
 			})
 		}
@@ -232,26 +240,32 @@ func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, e
 		diags = append(diags, fieldDiags...)
 	}
 
+	if schema, ok := types.GetSchema(kind); ok {
+		if onlyAssignments := helper.HasAnnotation(schema.Annotations, AnnotationOnlyAssignments); onlyAssignments {
+			for _, expr := range body.Expressions {
+				// TODO: once assignments become expressions, we need to check that here.
+				diags = append(diags, diagnostic.Diagnostic{
+					Severity: diagnostic.Error,
+					Code:     diagnostic.CodeUnexpectedExpr,
+					Position: diagnostic.Position{
+						Line:   expr.Start().Line,
+						Column: expr.Start().Column,
+					},
+					Message: fmt.Sprintf("unexpected expression in %s block", kind),
+					Source:  "analyzer",
+				})
+			}
+		}
+
+	}
+
 	// Validate expressions: only workflow blocks allow bare expressions.
-	if kind == token.BlockWorkflow {
+	if kind == BlockKindWorkflow {
 		for _, expr := range body.Expressions {
 			diags = append(diags, validateWorkflowExpr(expr, symbols)...)
 		}
 		diags = append(diags, validateTriggerPositions(body.Expressions, symbols)...)
 		diags = append(diags, validateWorkflowEntryNodes(name, body.Expressions, symbols)...)
-	} else {
-		for _, expr := range body.Expressions {
-			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUnexpectedExpr,
-				Position: diagnostic.Position{
-					Line:   expr.Start().Line,
-					Column: expr.Start().Column,
-				},
-				Message: fmt.Sprintf("unexpected expression in %s block", kind.String()),
-				Source:  "analyzer",
-			})
-		}
 	}
 
 	// Check for missing required fields.
@@ -279,7 +293,7 @@ func analyzeBlockBody(body *ast.BlockBody, name string, openBrace token.Token, e
 
 // validateField checks a single field assignment against the block's schema.
 // Reports unknown fields, undefined identifier references, and type mismatches.
-func validateField(assign *ast.Assignment, blockName string, kind token.BlockKind, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+func validateField(assign *ast.Assignment, blockName string, kind string, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	fieldSchema, ok := schema.Fields[assign.Name]
 	if !ok {
 		return []diagnostic.Diagnostic{{
@@ -289,7 +303,7 @@ func validateField(assign *ast.Assignment, blockName string, kind token.BlockKin
 				Line:   assign.Start().Line,
 				Column: assign.Start().Column,
 			},
-			Message: fmt.Sprintf("unknown field %q in %s block", assign.Name, kind.String()),
+			Message: fmt.Sprintf("unknown field %q in %s block", assign.Name, kind),
 			Source:  "analyzer",
 		}}
 	}
@@ -311,46 +325,47 @@ func validateField(assign *ast.Assignment, blockName string, kind token.BlockKin
 	}
 
 	expected := fieldSchema.Type
-	if types.IsCompatible(exprType, expected) {
-		// Validate invoke field specifics for tool blocks.
-		if assign.Name == "invoke" {
-			if str, ok := assign.Value.(*ast.StringLiteral); ok {
-				if str.Lang != "" && str.Lang != "py" {
-					return []diagnostic.Diagnostic{{
-						Severity: diagnostic.Warning,
-						Code:     diagnostic.CodeUnsupportedLang,
-						Position: diagnostic.Position{
-							Line:   str.Start().Line,
-							Column: str.Start().Column,
-						},
-						Message: fmt.Sprintf("unsupported language %q in invoke field; only \"py\" is supported", str.Lang),
-						Source:  "analyzer",
-					}}
-				}
-				if str.Lang == "py" && kind == token.BlockTool {
-					return validateInlineInvoke(str, blockName)
-				}
-			}
-		}
-		return nil
+	if !types.IsCompatible(exprType, expected) {
+		end := assign.Value.End()
+		return []diagnostic.Diagnostic{{
+			Severity: diagnostic.Error,
+			Code:     diagnostic.CodeTypeMismatch,
+			Position: diagnostic.Position{
+				Line:   assign.Value.Start().Line,
+				Column: assign.Value.Start().Column,
+			},
+			EndPosition: diagnostic.Position{
+				Line:   end.EndLine,
+				Column: end.EndCol + 1,
+			},
+			Message: fmt.Sprintf("field %q expects type %s, got %s",
+				assign.Name, expected.String(), exprType.String()),
+			Source: "analyzer",
+		}}
 	}
 
-	end := assign.Value.End()
-	return []diagnostic.Diagnostic{{
-		Severity: diagnostic.Error,
-		Code:     diagnostic.CodeTypeMismatch,
-		Position: diagnostic.Position{
-			Line:   assign.Value.Start().Line,
-			Column: assign.Value.Start().Column,
-		},
-		EndPosition: diagnostic.Position{
-			Line:   end.EndLine,
-			Column: end.EndCol + 1,
-		},
-		Message: fmt.Sprintf("field %q expects type %s, got %s",
-			assign.Name, expected.String(), exprType.String()),
-		Source: "analyzer",
-	}}
+	// TODO: This is a "tool" kind specific validation maybe move somewhere else.
+	// Validate invoke field specifics for tool blocks.
+	if kind == BlockKindTool && assign.Name == "invoke" {
+		// TODO: Here we're checking for literal string but first we need to const fold.
+		if str, ok := assign.Value.(*ast.StringLiteral); ok {
+			if str.Lang != "" && str.Lang != LangTagPython {
+				return []diagnostic.Diagnostic{{
+					Severity: diagnostic.Warning,
+					Code:     diagnostic.CodeUnsupportedLang,
+					Position: diagnostic.Position{
+						Line:   str.Start().Line,
+						Column: str.Start().Column,
+					},
+					Message: fmt.Sprintf("unsupported language %q in invoke field; only \"py\" is supported", str.Lang),
+					Source:  "analyzer",
+				}}
+			}
+			return validateInlineInvoke(str, blockName)
+		}
+	}
+
+	return nil
 }
 
 // validateInlineInvoke checks that an inline Python invoke raw string contains
@@ -439,7 +454,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 					Line:   e.End().Line,
 					Column: e.End().Column,
 				},
-				Message: fmt.Sprintf("%q has no field %q", objType.BlockKind.String(), e.Member),
+				Message: fmt.Sprintf("%q has no field %q", objType.BlockKind, e.Member),
 				Source:  "analyzer",
 			}}
 		}
@@ -519,7 +534,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if e == nil {
 			return nil
 		}
-		diags := analyzeBlockBody(&e.BlockBody, "(inline)", e.TokenStart, e.TokenEnd, symbols)
+		diags := analyzeBlockBody(&e.BlockBody, nil, "(inline)", e.TokenStart, e.TokenEnd, symbols)
 		if len(diags) > 0 {
 			return diags
 		}
@@ -606,6 +621,8 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 	if refDiags := checkReferences(expr, symbols); len(refDiags) > 0 {
 		return refDiags
 	}
+
+	// Workflow leaf expression must be a block reference.
 	typ := types.ExprType(expr, symbols)
 	if typ.Kind != types.BlockRef {
 		return []diagnostic.Diagnostic{{
@@ -619,19 +636,23 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 			Source:  "analyzer",
 		}}
 	}
-	if typ.BlockKind.IsWorkflowNode() {
-		return nil
+
+	// Ensure the block is a workflow node.
+	schema, ok := types.GetSchema(typ.BlockKind)
+	if !(ok && helper.HasAnnotation(schema.Annotations, AnnotationWorkflowNode)) {
+		return []diagnostic.Diagnostic{{
+			Severity: diagnostic.Error,
+			Code:     diagnostic.CodeInvalidWorkNode,
+			Position: diagnostic.Position{
+				Line:   expr.Start().Line,
+				Column: expr.Start().Column,
+			},
+			Message: fmt.Sprintf("%s block is not a valid workflow node", typ.BlockKind),
+			Source:  "analyzer",
+		}}
 	}
-	return []diagnostic.Diagnostic{{
-		Severity: diagnostic.Error,
-		Code:     diagnostic.CodeInvalidWorkNode,
-		Position: diagnostic.Position{
-			Line:   expr.Start().Line,
-			Column: expr.Start().Column,
-		},
-		Message: fmt.Sprintf("%s block is not a valid workflow node", typ.BlockKind.String()),
-		Source:  "analyzer",
-	}}
+
+	return nil
 }
 
 // isTriggerExpr returns true if the expression's resolved type is a trigger block kind.
@@ -639,7 +660,14 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 // by using the type system to infer the block kind.
 func isTriggerExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
 	typ := types.ExprType(expr, symbols)
-	return typ.Kind == types.BlockRef && typ.BlockKind.IsTrigger()
+	if typ.Kind != types.BlockRef {
+		return false
+	}
+	schema, ok := types.GetSchema(typ.BlockKind)
+	if !ok {
+		return false
+	}
+	return helper.HasAnnotation(schema.Annotations, AnnotationTriggerNode)
 }
 
 // validateTriggerPositions checks that trigger blocks (cron, webhook) only appear
@@ -823,32 +851,4 @@ func findIdentInExpr(expr ast.Expression, name string) (diagnostic.Position, boo
 		return findIdentInExpr(e.Right, name)
 	}
 	return diagnostic.Position{}, false
-}
-
-// analyzeLetBlock validates references in let block values.
-// Let blocks have no schema — any key name is valid.
-func analyzeLetBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
-	var diags []diagnostic.Diagnostic
-
-	seen := make(map[string]bool, len(block.Assignments))
-	for _, assign := range block.Assignments {
-		if seen[assign.Name] {
-			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeDuplicateField,
-				Position: diagnostic.Position{
-					Line:   assign.Start().Line,
-					Column: assign.Start().Column,
-				},
-				Message: fmt.Sprintf("duplicate variable %q in let block %q", assign.Name, block.Name),
-				Source:  "analyzer",
-			})
-		}
-		seen[assign.Name] = true
-		if refDiags := checkReferences(assign.Value, symbols); len(refDiags) > 0 {
-			diags = append(diags, refDiags...)
-		}
-	}
-
-	return diags
 }

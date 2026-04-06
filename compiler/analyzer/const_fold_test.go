@@ -33,12 +33,12 @@ func TestConstFoldLiterals(t *testing.T) {
 		},
 		{
 			name: "bool true",
-			expr: &ast.BooleanLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.TRUE, Literal: "true"}), Value: true},
+			expr: &ast.BooleanLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "true"}), Value: true},
 			want: ConstValue{Kind: ConstBool, Bool: true},
 		},
 		{
 			name: "null",
-			expr: &ast.NullLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NULL, Literal: "null"})},
+			expr: &ast.NullLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"})},
 			want: ConstValue{Kind: ConstNull},
 		},
 	}
@@ -132,7 +132,7 @@ func TestConstFoldListAndMap(t *testing.T) {
 
 func TestConstFoldMapNonStringKeyDiagnostic(t *testing.T) {
 	boolKey := &ast.BooleanLiteral{
-		BaseNode: ast.NewTerminal(token.Token{Type: token.TRUE, Literal: "true", Line: 5, Column: 3}),
+		BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "true", Line: 5, Column: 3}),
 		Value:    true,
 	}
 	str := &ast.StringLiteral{
@@ -168,7 +168,7 @@ func TestConstFoldBlockExpression(t *testing.T) {
 			name: "assignments only",
 			be: &ast.BlockExpression{
 				BlockBody: ast.BlockBody{
-					Kind:        token.BlockModel,
+					Kind:        "model",
 					Expressions: nil,
 					Assignments: []*ast.Assignment{
 						{Name: "provider", Value: str("openai")},
@@ -183,7 +183,7 @@ func TestConstFoldBlockExpression(t *testing.T) {
 			name: "workflow edges not constant",
 			be: &ast.BlockExpression{
 				BlockBody: ast.BlockBody{
-					Kind:        token.BlockWorkflow,
+					Kind:        BlockKindWorkflow,
 					Expressions: []ast.Expression{idExpr("a")},
 					Assignments: []*ast.Assignment{{Name: "x", Value: str("y")}},
 				},
@@ -243,7 +243,7 @@ func TestConstFoldMemberAccess(t *testing.T) {
 			name: "block_expression_known_field",
 			expr: memberAccess(&ast.BlockExpression{
 				BlockBody: ast.BlockBody{
-					Kind:        token.BlockModel,
+					Kind:        "model",
 					Expressions: nil,
 					Assignments: []*ast.Assignment{
 						{Name: "provider", Value: str("acme")},
@@ -256,7 +256,7 @@ func TestConstFoldMemberAccess(t *testing.T) {
 			name: "block_expression_unknown_field",
 			expr: memberAccess(&ast.BlockExpression{
 				BlockBody: ast.BlockBody{
-					Kind:        token.BlockModel,
+					Kind:        "model",
 					Assignments: []*ast.Assignment{{Name: "x", Value: i(1)}},
 				},
 			}, "nope"),
@@ -267,11 +267,11 @@ func TestConstFoldMemberAccess(t *testing.T) {
 			name: "nested_block_member_access",
 			expr: memberAccess(memberAccess(&ast.BlockExpression{
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockModel,
+					Kind: "model",
 					Assignments: []*ast.Assignment{
 						{Name: "inner", Value: &ast.BlockExpression{
 							BlockBody: ast.BlockBody{
-								Kind:        token.BlockModel,
+								Kind:        "model",
 								Assignments: []*ast.Assignment{{Name: "temperature", Value: i(2)}},
 							},
 						}},
@@ -288,7 +288,7 @@ func TestConstFoldMemberAccess(t *testing.T) {
 		{
 			name: "null_object_not_folded_member",
 			expr: memberAccess(&ast.NullLiteral{
-				BaseNode: ast.NewTerminal(token.Token{Type: token.NULL, Literal: "null"}),
+				BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"}),
 			}, "x"),
 			want:         ConstValue{Kind: ConstUnknown},
 			expDiagCodes: []string{diagnostic.CodeUnexpectedExpr},
@@ -307,7 +307,7 @@ func TestConstFoldMemberAccess(t *testing.T) {
 			name: "block_ref_identifier_then_member",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("gpt", types.TypeOf(token.BlockModel), token.Token{Type: token.IDENT, Literal: "gpt"})
+				st.Define("gpt", types.NewBlockRefType("model", "gpt"), token.Token{Type: token.IDENT, Literal: "gpt"})
 				return st
 			}(),
 			program: &ast.Program{
@@ -436,7 +436,7 @@ func TestConstFoldSubscription(t *testing.T) {
 			name: "block_base_not_subscriptable",
 			expr: subExpr(&ast.BlockExpression{
 				BlockBody: ast.BlockBody{
-					Kind:        token.BlockModel,
+					Kind:        "model",
 					Assignments: []*ast.Assignment{{Name: "x", Value: i(1)}},
 				},
 			}, i(0)),
@@ -566,7 +566,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "m",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("m", types.TypeOf(token.BlockModel), token.Token{Type: token.IDENT, Literal: "m"})
+				st.Define("m", types.NewBlockRefType("model", "m"), token.Token{Type: token.IDENT, Literal: "m"})
 				return st
 			}(),
 			program: nil,
@@ -577,7 +577,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "m",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("m", types.TypeOf(token.BlockModel), token.Token{Type: token.IDENT, Literal: "m"})
+				st.Define("m", types.NewBlockRefType("model", "m"), token.Token{Type: token.IDENT, Literal: "m"})
 				return st
 			}(),
 			program: &ast.Program{},
@@ -588,7 +588,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "wanted",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("wanted", types.TypeOf(token.BlockModel), token.Token{Type: token.IDENT, Literal: "wanted"})
+				st.Define("wanted", types.NewBlockRefType("model", "wanted"), token.Token{Type: token.IDENT, Literal: "wanted"})
 				return st
 			}(),
 			program: &ast.Program{
@@ -603,7 +603,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "gpt",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("gpt", types.TypeOf(token.BlockModel), token.Token{Type: token.IDENT, Literal: "gpt"})
+				st.Define("gpt", types.NewBlockRefType("model", "gpt"), token.Token{Type: token.IDENT, Literal: "gpt"})
 				return st
 			}(),
 			program: &ast.Program{
@@ -635,7 +635,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "wf",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("wf", types.TypeOf(token.BlockWorkflow), token.Token{Type: token.IDENT, Literal: "wf"})
+				st.Define("wf", types.NewBlockRefType(BlockKindWorkflow, "wf"), token.Token{Type: token.IDENT, Literal: "wf"})
 				return st
 			}(),
 			program: &ast.Program{

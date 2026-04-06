@@ -25,19 +25,19 @@ func TestOrcaTypeToPythonTypeName(t *testing.T) {
 		{"null → None", types.Null(), "None"},
 
 		// User-defined schema refs.
-		{"user schema", types.CreateSchema("article"), "article"},
-		{"user schema snake_case", types.CreateSchema("vpc_data_t"), "vpc_data_t"},
+		{"user schema", types.NewBlockRefType(types.BlockKindSchema, "article"), "article"},
+		{"user schema snake_case", types.NewBlockRefType(types.BlockKindSchema, "vpc_data_t"), "vpc_data_t"},
 
 		// List types.
 		{"list[str]", types.NewListType(types.Str()), "list[str]"},
 		{"list[int]", types.NewListType(types.Int()), "list[int]"},
-		{"list[article]", types.NewListType(types.CreateSchema("article")), "list[article]"},
+		{"list[article]", types.NewListType(types.NewBlockRefType(types.BlockKindSchema, "article")), "list[article]"},
 		{"list[list[str]]", types.NewListType(types.NewListType(types.Str())), "list[list[str]]"},
 		{"untyped list", types.Type{Kind: types.List}, "list"},
 
 		// Map types.
 		{"dict[str, int]", types.NewMapType(types.Str(), types.Int()), "dict[str, int]"},
-		{"dict[str, article]", types.NewMapType(types.Str(), types.CreateSchema("article")), "dict[str, article]"},
+		{"dict[str, article]", types.NewMapType(types.Str(), types.NewBlockRefType(types.BlockKindSchema, "article")), "dict[str, article]"},
 		{"dict[str, list[str]]", types.NewMapType(types.Str(), types.NewListType(types.Str())), "dict[str, list[str]]"},
 		{"untyped dict", types.Type{Kind: types.Map}, "dict"},
 
@@ -48,11 +48,11 @@ func TestOrcaTypeToPythonTypeName(t *testing.T) {
 		{"str | int | None", types.NewUnionType(types.Str(), types.Int(), types.Null()), "str | int | None"},
 		{"str | int | float", types.NewUnionType(types.Str(), types.Int(), types.Float()), "str | int | float"},
 		{"list[str] | None", types.NewUnionType(types.NewListType(types.Str()), types.Null()), "list[str] | None"},
-		{"article | None", types.NewUnionType(types.CreateSchema("article"), types.Null()), "article | None"},
+		{"article | None", types.NewUnionType(types.NewBlockRefType(types.BlockKindSchema, "article"), types.Null()), "article | None"},
 
 		// Generic block ref (non-schema) — e.g. bare "model" type.
-		{"generic block ref model", types.NewBlockRefType(token.BlockModel), "Any"},
-		{"generic block ref agent", types.NewBlockRefType(token.BlockAgent), "Any"},
+		{"generic block ref model", types.NewBlockRefType(types.BlockKindSchema, "model"), "Any"},
+		{"generic block ref agent", types.NewBlockRefType(types.BlockKindSchema, "agent"), "Any"},
 	}
 
 	for _, tt := range tests {
@@ -77,7 +77,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{Name: "title", Value: &ast.Identifier{Value: "str"}},
 						{Name: "count", Value: &ast.Identifier{Value: "int"}},
@@ -93,7 +93,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "config",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{Name: "name", Value: &ast.Identifier{Value: "str"}},
 						{Name: "count", Value: &ast.Identifier{Value: "int"}},
@@ -113,7 +113,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "flexible",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{Name: "data", Value: &ast.Identifier{Value: "any"}},
 					},
@@ -127,7 +127,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name:  "title",
@@ -147,7 +147,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name:  "body",
@@ -167,7 +167,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "score",
@@ -188,7 +188,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "score",
@@ -209,7 +209,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "score",
@@ -233,7 +233,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "result",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "value",
@@ -258,7 +258,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "result",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "value",
@@ -279,7 +279,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "person",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{Name: "name", Value: &ast.Identifier{Value: "str"}},
 						{Name: "home", Value: &ast.Identifier{Value: "address"}},
@@ -295,7 +295,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "person",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "backup",
@@ -316,7 +316,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "tags",
@@ -336,7 +336,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "items",
@@ -359,7 +359,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "config",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "metadata",
@@ -379,13 +379,13 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "report",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "summary",
 							Value: &ast.BlockExpression{
 								BlockBody: ast.BlockBody{
-									Kind: token.BlockSchema,
+									Kind: types.BlockKindSchema,
 									Assignments: []*ast.Assignment{
 										{Name: "text", Value: &ast.Identifier{Value: "str"}},
 										{Name: "score", Value: &ast.Identifier{Value: "int"}},
@@ -405,7 +405,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "empty",
 				BlockBody: ast.BlockBody{
-					Kind:        token.BlockSchema,
+					Kind:        types.BlockKindSchema,
 					Assignments: nil,
 				},
 			},
@@ -417,7 +417,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name:  "region",
@@ -438,7 +438,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "report",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name:  "title",
@@ -480,7 +480,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			block: &ast.BlockStatement{
 				Name: "opts",
 				BlockBody: ast.BlockBody{
-					Kind: token.BlockSchema,
+					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "a",
