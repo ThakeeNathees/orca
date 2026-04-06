@@ -9,8 +9,8 @@ import (
 // TestSymbolTableLookup verifies basic symbol table operations.
 func TestSymbolTableLookup(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType("model", "m"), token.Token{})
-	st.Define("researcher", NewBlockRefType("agent", "researcher"), token.Token{})
+	st.Define("gpt4", NewBlockRefType("gpt4", nil), token.Token{})
+	st.Define("researcher", NewBlockRefType("researcher", nil), token.Token{})
 
 	tests := []struct {
 		name     string
@@ -41,17 +41,17 @@ func TestSymbolTableLookup(t *testing.T) {
 func TestLookupSymbol(t *testing.T) {
 	st := NewSymbolTable()
 	defTok := token.Token{Type: token.IDENT, Literal: "mymodel", Line: 5, Column: 3}
-	st.Define("mymodel", NewBlockRefType("model", "mymodel"), defTok)
+	st.Define("mymodel", NewBlockRefType("mymodel", nil), defTok)
 
 	tests := []struct {
-		name      string
-		symbol    string
-		found     bool
-		expectBK  string
-		expectLn  int
-		expectCol int
+		name            string
+		symbol          string
+		found           bool
+		expectBlockName string
+		expectLn        int
+		expectCol       int
 	}{
-		{"defined symbol returns full data", "mymodel", true, "model", 5, 3},
+		{"defined symbol returns full data", "mymodel", true, "mymodel", 5, 3},
 		{"undefined symbol returns false", "nosuchsym", false, "", 0, 0},
 	}
 
@@ -62,8 +62,8 @@ func TestLookupSymbol(t *testing.T) {
 				t.Errorf("LookupSymbol(%q) found = %v, want %v", tt.symbol, ok, tt.found)
 			}
 			if ok {
-				if sym.Type.BlockKind != tt.expectBK {
-					t.Errorf("BlockKind = %v, want %v", sym.Type.BlockKind, tt.expectBK)
+				if sym.Type.BlockName != tt.expectBlockName {
+					t.Errorf("BlockName = %q, want %q", sym.Type.BlockName, tt.expectBlockName)
 				}
 				if sym.DefToken.Line != tt.expectLn {
 					t.Errorf("DefToken.Line = %d, want %d", sym.DefToken.Line, tt.expectLn)
@@ -76,16 +76,16 @@ func TestLookupSymbol(t *testing.T) {
 	}
 }
 
-// TestSymbolTableBlockKind verifies that the BlockKind is preserved.
-func TestSymbolTableBlockKind(t *testing.T) {
+// TestSymbolTableBlockName verifies that BlockName on the stored Type is preserved.
+func TestSymbolTableBlockName(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType("model", "gpt4"), token.Token{})
+	st.Define("gpt4", NewBlockRefType("gpt4", nil), token.Token{})
 
 	typ, ok := st.Lookup("gpt4")
 	if !ok {
 		t.Fatal("expected gpt4 to be defined")
 	}
-	if typ.BlockKind != "model" {
-		t.Errorf("BlockKind = %v, want %v", typ.BlockKind, "model")
+	if typ.BlockName != "gpt4" {
+		t.Errorf("BlockName = %q, want %q", typ.BlockName, "gpt4")
 	}
 }

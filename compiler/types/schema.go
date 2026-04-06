@@ -157,26 +157,15 @@ func (b *BlockSchema) IsEqualTo(other *BlockSchema) bool {
 	return true
 }
 
-// TODO: Remove this.
-// GetFieldSchema returns the field schema for a specific field within
-// a block type identified by BlockKind. Returns the field schema and true if found.
-func GetFieldSchema(kind string, fieldName string) (FieldSchema, bool) {
-	schema, ok := blockSchemas[kind]
-	if !ok {
-		return FieldSchema{}, false
-	}
-	field, ok := schema.Fields[fieldName]
-	return field, ok
-}
-
-// TODO: Remove this.
 // LookupFieldSchema returns the field schema for a named field within a Type,
 // dispatching between built-in block schemas and user-defined schemas.
 func LookupFieldSchema(t Type, fieldName string) (FieldSchema, bool) {
-	schema, ok := t.GetSchema(t)
-	if !ok {
+	if t.Kind != BlockRef || t.Block == nil {
 		return FieldSchema{}, false
 	}
-	field, ok := schema.Fields[fieldName]
-	return field, ok
+
+	if schema, ok := t.Block.Fields[fieldName]; ok {
+		return schema, true
+	}
+	return FieldSchema{}, false
 }

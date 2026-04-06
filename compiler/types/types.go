@@ -94,14 +94,26 @@ func NewBlockRefType(blockName string, block *BlockSchema) Type {
 
 // IsAny returns true if this type is the "any" type (matches everything).
 func (t Type) IsAny() bool {
-	// Maybe we have to check Block.Ast.Kind == "schema", (but we don't have to because
-	// duplicate definition are not allowed and any is defined before user defined schemas).
-	return (t.Kind == BlockRef) && (t.Block != nil) && (t.Block.BlockName == "any")
+	if t.Kind != BlockRef {
+		return false
+	}
+	if t.Block != nil {
+		return t.Block.BlockName == "any"
+	}
+	// Unresolved identifier "any" (bootstrap / before schema resolution).
+	return t.BlockName == "any"
 }
 
 // IsNull returns true if this type is the "null" type.
 func (t Type) IsNull() bool {
-	return (t.Kind == BlockRef) && (t.Block != nil) && (t.Block.BlockName == "null")
+	if t.Kind != BlockRef {
+		return false
+	}
+	if t.Block != nil {
+		return t.Block.BlockName == "null"
+	}
+	// Unresolved identifier "null" so NewFieldSchema can strip `| null` from unions.
+	return t.BlockName == "null"
 }
 
 // String returns a human-readable representation of a type using Orca syntax.
@@ -110,6 +122,10 @@ func (t Type) String() string {
 	case BlockRef:
 		if t.Block != nil {
 			return t.Block.BlockName
+		}
+		// Unresolved ref: use the identifier / block name (same as Equals for lazy refs).
+		if t.BlockName != "" {
+			return t.BlockName
 		}
 		return "<type:blockref>"
 	case List:
@@ -144,6 +160,15 @@ func IsCompatible(got Type, expected Type) bool {
 	// Any is compatible with everything in both directions.
 	if got.IsAny() || expected.IsAny() {
 		return true
+	}
+
+	// Unresolved block refs with the same name are the same type (literals, IdentType in
+	// bootstrap mode). Without this, IsCompatible never succeeds for lazy str/str or
+	// number/number, and arithmeticResultType falls through to any.
+	if got.Kind == BlockRef && expected.Kind == BlockRef {
+		if got.Block == nil && expected.Block == nil && got.BlockName == expected.BlockName {
+			return true
+		}
 	}
 
 	// If expected is a union, got must be compatible with at least one member.
@@ -237,4 +262,45 @@ func IsCompatible(got Type, expected Type) bool {
 
 	// Unreachable code.
 	return false
+}
+
+// Equals returns true if two types are structurally equivalent.
+func (t Type) Equals(other Type) bool {
+	if t.Kind != other.Kind {
+		return false
+	}
+	switch t.Kind {
+	case BlockRef:
+		// Same resolved schema block (pointer identity), or matching lazy refs with no Block yet.
+		switch {
+		case t.Block != nil && other.Block != nil:
+			return t.Block == other.Block
+		case t.Block == nil && other.Block == nil:
+			return t.BlockName == other.BlockName
+		default:
+			return false
+		}
+	case List:
+		if t.ElementType == nil || other.ElementType == nil {
+			return t.ElementType == other.ElementType
+		}
+		return t.ElementType.Equals(*other.ElementType)
+	case Map:
+		if t.KeyType == nil || other.KeyType == nil || t.ValueType == nil || other.ValueType == nil {
+			return false
+		}
+		return t.KeyType.Equals(*other.KeyType) && t.ValueType.Equals(*other.ValueType)
+	case Union:
+		if len(t.Members) != len(other.Members) {
+			return false
+		}
+		for i := range t.Members {
+			if !t.Members[i].Equals(other.Members[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return true
+	}
 }
