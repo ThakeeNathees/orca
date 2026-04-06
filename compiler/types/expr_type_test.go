@@ -14,13 +14,12 @@ func TestExprType(t *testing.T) {
 		expr     ast.Expression
 		expected Type
 	}{
-		{"string literal", &ast.StringLiteral{Value: "hello"}, Str()},
-		{"integer literal", &ast.IntegerLiteral{Value: 42}, Int()},
-		{"float literal", &ast.FloatLiteral{Value: 0.5}, Float()},
-		{"boolean true", &ast.BooleanLiteral{Value: true}, Bool()},
-		{"boolean false", &ast.BooleanLiteral{Value: false}, Bool()},
-		{"null literal", &ast.NullLiteral{}, Null()},
-		{"identifier without symbols resolves as block ref", &ast.Identifier{Value: "gpt4"}, NewBlockRefType("moddel", "gpt4")},
+		{"string literal", &ast.StringLiteral{Value: "hello"}, IdentType("str", nil)},
+		{"integer literal", &ast.NumberLiteral{Value: 42}, IdentType("number", nil)},
+		{"float literal", &ast.NumberLiteral{Value: 0.5}, IdentType("number", nil)},
+		{"boolean true", &ast.BooleanLiteral{Value: true}, IdentType("bool", nil)},
+		{"boolean false", &ast.BooleanLiteral{Value: false}, IdentType("bool", nil)},
+		{"identifier without symbols resolves as block ref", &ast.Identifier{Value: "gpt4"}, NewBlockRefType("gpt4", nil)},
 	}
 
 	for _, tt := range tests {
@@ -53,16 +52,14 @@ func TestExprTypeList(t *testing.T) {
 	if got.Kind != List {
 		t.Fatalf("Kind = %v, want List", got.Kind)
 	}
-	if got.ElementType == nil {
-		t.Fatal("ElementType should not be nil")
-	}
-	if !got.ElementType.Equals(Str()) {
-		t.Errorf("ElementType = %s, want str", got.ElementType.String())
+	if got.ElementType != nil {
+		t.Fatal("ElementType should be nil until list[T] inference is implemented")
 	}
 }
 
 // TestExprTypeMapLiteral verifies map literal type inference.
 func TestExprTypeMapLiteral(t *testing.T) {
+	anyTyp := IdentType("any", nil)
 	tests := []struct {
 		name    string
 		entries []ast.MapEntry
@@ -76,23 +73,23 @@ func TestExprTypeMapLiteral(t *testing.T) {
 				{Key: &ast.Identifier{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
 				{Key: &ast.Identifier{Value: "b"}, Value: &ast.StringLiteral{Value: "y"}},
 			},
-			true, Str(),
+			true, anyTyp,
 		},
 		{
 			"uniform int values",
 			[]ast.MapEntry{
-				{Key: &ast.Identifier{Value: "a"}, Value: &ast.IntegerLiteral{Value: 1}},
-				{Key: &ast.Identifier{Value: "b"}, Value: &ast.IntegerLiteral{Value: 2}},
+				{Key: &ast.Identifier{Value: "a"}, Value: &ast.NumberLiteral{Value: 1}},
+				{Key: &ast.Identifier{Value: "b"}, Value: &ast.NumberLiteral{Value: 2}},
 			},
-			true, Int(),
+			true, anyTyp,
 		},
 		{
 			"mixed values",
 			[]ast.MapEntry{
 				{Key: &ast.Identifier{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
-				{Key: &ast.Identifier{Value: "b"}, Value: &ast.IntegerLiteral{Value: 1}},
+				{Key: &ast.Identifier{Value: "b"}, Value: &ast.NumberLiteral{Value: 1}},
 			},
-			false, Type{},
+			true, anyTyp,
 		},
 	}
 
@@ -110,7 +107,7 @@ func TestExprTypeMapLiteral(t *testing.T) {
 				if !got.ValueType.Equals(tt.valTyp) {
 					t.Errorf("ValueType = %s, want %s", got.ValueType.String(), tt.valTyp.String())
 				}
-				if got.KeyType == nil || !got.KeyType.Equals(Str()) {
+				if got.KeyType == nil || !got.KeyType.Equals(IdentType("str", nil)) {
 					t.Error("KeyType should be str")
 				}
 			} else if got.ValueType != nil {
@@ -124,19 +121,19 @@ func TestExprTypeMapLiteral(t *testing.T) {
 // to their block reference type when a symbol table is provided.
 func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType("model", "gpt4"), token.Token{})
-	st.Define("researcher", NewBlockRefType("agent", "researcher"), token.Token{})
-	st.Define("str", Str(), token.Token{})
+	st.Define("gpt4", NewBlockRefType("gpt4", nil), token.Token{})
+	st.Define("researcher", NewBlockRefType("researcher", nil), token.Token{})
+	st.Define("str", NewBlockRefType("str", nil), token.Token{})
 
 	tests := []struct {
 		name     string
 		ident    string
 		expected Type
 	}{
-		{"defined model", "gpt4", NewBlockRefType("model", "gpt4")},
-		{"defined agent", "researcher", NewBlockRefType("agent", "researcher")},
-		{"builtin schema str", "str", Str()},
-		{"undefined falls back to NewBlockRefType", "unknown", NewBlockRefType("unknown", "unknown")},
+		{"defined model", "gpt4", NewBlockRefType("gpt4", nil)},
+		{"defined agent", "researcher", NewBlockRefType("researcher", nil)},
+		{"builtin schema str", "str", NewBlockRefType("str", nil)},
+		{"undefined falls back to NewBlockRefType", "unknown", NewBlockRefType("unknown", nil)},
 	}
 
 	for _, tt := range tests {
@@ -156,21 +153,29 @@ func TestExprTypeIdentWithSymbolTable(t *testing.T) {
 // TestExprTypeMemberAccess verifies that member access expressions resolve
 // to the field's type via the block schema.
 func TestExprTypeMemberAccess(t *testing.T) {
-	st := NewSymbolTable()
-	st.Define("gpt4", NewBlockRefType("model", "gpt4"), token.Token{})
+	res := Bootstrap(testBootstrapSource)
+	schemaByName := make(map[string]*BlockSchema)
+	for i := range res.Schemas {
+		s := &res.Schemas[i]
+		schemaByName[s.BlockName] = s
+	}
 
+	st := NewSymbolTable()
+	st.Define("gpt4", NewBlockRefType("gpt4", schemaByName["model"]), token.Token{})
+
+	model := schemaByName["model"]
 	tests := []struct {
-		name     string
-		object   string
-		member   string
-		expected Type
-		isUnion  bool
+		name   string
+		object string
+		member string
+		// wantField: if non-empty, compare ExprType to model.Fields[member].Type
+		wantField string
 	}{
-		{"model.provider", "gpt4", "provider", NewBlockRefType(BlockKindSchema, "str"), false},
-		{"model.temperature", "gpt4", "temperature", Type{}, true},
-		{"model.model_name (union)", "gpt4", "model_name", Type{}, true},
-		{"unknown member", "gpt4", "nonexistent", Any(), false},
-		{"unknown object", "unknown", "anything", Any(), false},
+		{"model.provider", "gpt4", "provider", "provider"},
+		{"model.temperature", "gpt4", "temperature", "temperature"},
+		{"model.model_name", "gpt4", "model_name", "model_name"},
+		{"unknown member", "gpt4", "nonexistent", ""},
+		{"unknown object", "unknown", "anything", ""},
 	}
 
 	for _, tt := range tests {
@@ -180,13 +185,21 @@ func TestExprTypeMemberAccess(t *testing.T) {
 				Member: tt.member,
 			}
 			got := ExprType(expr, st)
-			if tt.isUnion {
-				if got.Kind != Union {
-					t.Errorf("Kind = %v, want Union", got.Kind)
+			switch {
+			case tt.wantField != "":
+				want := model.Fields[tt.wantField].Type
+				if !got.Equals(want) {
+					t.Errorf("ExprType() = %s, want %s", got.String(), want.String())
 				}
-			} else {
-				if !got.Equals(tt.expected) {
-					t.Errorf("ExprType() = %s, want %s", got.String(), tt.expected.String())
+			case tt.object == "unknown":
+				want := IdentType("any", st)
+				if !got.Equals(want) {
+					t.Errorf("ExprType() = %s, want %s", got.String(), want.String())
+				}
+			default:
+				want := IdentType("any", st)
+				if !got.Equals(want) {
+					t.Errorf("ExprType() = %s, want %s", got.String(), want.String())
 				}
 			}
 		})
@@ -196,6 +209,7 @@ func TestExprTypeMemberAccess(t *testing.T) {
 // TestExprTypeSubscription verifies that subscription expressions resolve
 // to the element type for lists and the value type for maps.
 func TestExprTypeSubscription(t *testing.T) {
+	anyTyp := IdentType("any", nil)
 	tests := []struct {
 		name     string
 		object   ast.Expression
@@ -203,42 +217,42 @@ func TestExprTypeSubscription(t *testing.T) {
 		expected Type
 	}{
 		{
-			"list[str] subscript returns str",
+			"list[str] subscript returns any (untyped list)",
 			&ast.ListLiteral{Elements: []ast.Expression{
 				&ast.StringLiteral{Value: "a"},
 				&ast.StringLiteral{Value: "b"},
 			}},
-			&ast.IntegerLiteral{Value: 0},
-			Str(),
+			&ast.NumberLiteral{Value: 0},
+			anyTyp,
 		},
 		{
-			"list[int] subscript returns int",
+			"list[number] subscript returns any (untyped list)",
 			&ast.ListLiteral{Elements: []ast.Expression{
-				&ast.IntegerLiteral{Value: 1},
-				&ast.IntegerLiteral{Value: 2},
+				&ast.NumberLiteral{Value: 1},
+				&ast.NumberLiteral{Value: 2},
 			}},
-			&ast.IntegerLiteral{Value: 0},
-			Int(),
+			&ast.NumberLiteral{Value: 0},
+			anyTyp,
 		},
 		{
-			"map[str] subscript returns str",
+			"map subscript returns any (value type any)",
 			&ast.MapLiteral{Entries: []ast.MapEntry{
 				{Key: &ast.Identifier{Value: "k"}, Value: &ast.StringLiteral{Value: "v"}},
 			}},
 			&ast.StringLiteral{Value: "k"},
-			Str(),
+			anyTyp,
 		},
 		{
 			"untyped list subscript returns any",
 			&ast.ListLiteral{},
-			&ast.IntegerLiteral{Value: 0},
-			Any(),
+			&ast.NumberLiteral{Value: 0},
+			anyTyp,
 		},
 		{
 			"untyped map subscript returns any",
 			&ast.MapLiteral{},
 			&ast.StringLiteral{Value: "k"},
-			Any(),
+			anyTyp,
 		},
 	}
 
@@ -261,18 +275,22 @@ func TestExprTypeBinaryArrow(t *testing.T) {
 		Right:    &ast.Identifier{Value: "b"},
 	}
 	got := ExprType(expr, nil)
-	if !got.IsAny() {
-		t.Errorf("ExprType() = %v, want any", got)
+	want := IdentType("any", nil)
+	if !got.Equals(want) {
+		t.Errorf("ExprType() = %s, want %s", got.String(), want.String())
 	}
 }
 
 // TestExprTypeBinaryArithmetic verifies result type inference for arithmetic
 // and string binary expressions covering all operator + type combinations.
 func TestExprTypeBinaryArithmetic(t *testing.T) {
-	intLit := func(v int64) ast.Expression { return &ast.IntegerLiteral{Value: v} }
-	floatLit := func(v float64) ast.Expression { return &ast.FloatLiteral{Value: v} }
+	numLit := func(v float64) ast.Expression { return &ast.NumberLiteral{Value: v} }
 	strLit := func(v string) ast.Expression { return &ast.StringLiteral{Value: v} }
 	boolLit := func(v bool) ast.Expression { return &ast.BooleanLiteral{Value: v} }
+
+	strTyp := IdentType("str", nil)
+	numTyp := IdentType("number", nil)
+	anyTyp := IdentType("any", nil)
 
 	tests := []struct {
 		name     string
@@ -281,42 +299,21 @@ func TestExprTypeBinaryArithmetic(t *testing.T) {
 		right    ast.Expression
 		expected Type
 	}{
-		// String concatenation.
-		{"str + str → str", token.PLUS, strLit("a"), strLit("b"), Str()},
-
-		// int op int → int.
-		{"int + int → int", token.PLUS, intLit(1), intLit(2), Int()},
-		{"int - int → int", token.MINUS, intLit(3), intLit(1), Int()},
-		{"int * int → int", token.STAR, intLit(2), intLit(4), Int()},
-		{"int / int → int", token.SLASH, intLit(8), intLit(2), Int()},
-
-		// float op float → float.
-		{"float + float → float", token.PLUS, floatLit(1.1), floatLit(2.2), Float()},
-		{"float - float → float", token.MINUS, floatLit(3.0), floatLit(1.5), Float()},
-		{"float * float → float", token.STAR, floatLit(2.0), floatLit(4.0), Float()},
-		{"float / float → float", token.SLASH, floatLit(8.0), floatLit(2.0), Float()},
-
-		// int op float → float (numeric widening).
-		{"int + float → float", token.PLUS, intLit(1), floatLit(2.5), Float()},
-		{"int - float → float", token.MINUS, intLit(5), floatLit(1.5), Float()},
-		{"int * float → float", token.STAR, intLit(2), floatLit(3.0), Float()},
-		{"int / float → float", token.SLASH, intLit(9), floatLit(3.0), Float()},
-
-		// float op int → float (numeric widening).
-		{"float + int → float", token.PLUS, floatLit(2.5), intLit(1), Float()},
-		{"float - int → float", token.MINUS, floatLit(5.5), intLit(2), Float()},
-		{"float * int → float", token.STAR, floatLit(3.0), intLit(4), Float()},
-		{"float / int → float", token.SLASH, floatLit(9.0), intLit(3), Float()},
+		{"str + str → str", token.PLUS, strLit("a"), strLit("b"), strTyp},
+		{"number + number → number", token.PLUS, numLit(1), numLit(2), numTyp},
+		{"number - number → number", token.MINUS, numLit(3), numLit(1), numTyp},
+		{"number * number → number", token.STAR, numLit(2), numLit(4), numTyp},
+		{"number / number → number", token.SLASH, numLit(8), numLit(2), numTyp},
 
 		// Mixed / unknown operands → any.
-		{"str + int → any", token.PLUS, strLit("a"), intLit(1), Any()},
-		{"bool + int → any", token.PLUS, boolLit(true), intLit(1), Any()},
-		{"str - str → any", token.MINUS, strLit("a"), strLit("b"), Any()},
-		{"str * str → any", token.STAR, strLit("a"), strLit("b"), Any()},
-		{"str / str → any", token.SLASH, strLit("a"), strLit("b"), Any()},
+		{"str + number → any", token.PLUS, strLit("a"), numLit(1), anyTyp},
+		{"bool + number → any", token.PLUS, boolLit(true), numLit(1), anyTyp},
+		{"str - str → any", token.MINUS, strLit("a"), strLit("b"), anyTyp},
+		{"str * str → any", token.STAR, strLit("a"), strLit("b"), anyTyp},
+		{"str / str → any", token.SLASH, strLit("a"), strLit("b"), anyTyp},
 
 		// Non-arithmetic operators → any.
-		{"arrow → any", token.ARROW, intLit(1), intLit(2), Any()},
+		{"arrow → any", token.ARROW, numLit(1), numLit(2), anyTyp},
 	}
 
 	for _, tt := range tests {

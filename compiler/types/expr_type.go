@@ -17,19 +17,19 @@ func ExprType(expr ast.Expression, symbols *SymbolTable) Type {
 	switch e := expr.(type) {
 	// FIXME: Move the "str", "number", "bool", "null" to constants.go file.
 	case *ast.StringLiteral:
-		return identType("str", symbols)
+		return IdentType("str", symbols)
 	case *ast.NumberLiteral:
-		return identType("number", symbols)
+		return IdentType("number", symbols)
 	case *ast.BooleanLiteral:
-		return identType("bool", symbols)
+		return IdentType("bool", symbols)
 	case *ast.NullLiteral:
-		return identType("null", symbols)
+		return IdentType("null", symbols)
 	case *ast.ListLiteral:
 		return listLiteralType(e, symbols)
 	case *ast.MapLiteral:
 		return mapLiteralType(e, symbols)
 	case *ast.Identifier:
-		return identType(e.Value, symbols)
+		return IdentType(e.Value, symbols)
 	case *ast.MemberAccess:
 		return memberAccessType(e, symbols)
 	case *ast.BlockExpression:
@@ -89,17 +89,17 @@ func arithmeticResultType(e *ast.BinaryExpression, symbols *SymbolTable) Type {
 	right := ExprType(e.Right, symbols)
 
 	// String concatenation: str + str → str.
-	isLeftStr := IsCompatible(left, identType("str", symbols))
-	isRightStr := IsCompatible(right, identType("str", symbols))
+	isLeftStr := IsCompatible(left, IdentType("str", symbols))
+	isRightStr := IsCompatible(right, IdentType("str", symbols))
 	if e.Operator.Type == token.PLUS && isLeftStr && isRightStr {
-		return identType("str", symbols)
+		return IdentType("str", symbols)
 	}
 
 	// <number> op <number> → <number>.
-	isLeftNum := IsCompatible(left, identType("number", symbols))
-	isRightNum := IsCompatible(right, identType("number", symbols))
+	isLeftNum := IsCompatible(left, IdentType("number", symbols))
+	isRightNum := IsCompatible(right, IdentType("number", symbols))
 	if isLeftNum && isRightNum {
-		return identType("number", symbols)
+		return IdentType("number", symbols)
 	}
 
 	return anyType(symbols)
@@ -121,10 +121,10 @@ func flattenUnionTypes(expr ast.Expression, symbols *SymbolTable) []Type {
 	}
 }
 
-// identType resolves an identifier's type. With a symbol table, looks up the
+// IdentType resolves an identifier's type. With a symbol table, looks up the
 // identifier. Without one (bootstrap mode), resolves as a type name — block
 // keywords become block references, everything else is a schema type.
-func identType(name string, symtab *SymbolTable) Type {
+func IdentType(name string, symtab *SymbolTable) Type {
 	if symtab != nil {
 		if ty, ok := symtab.Lookup(name); ok {
 			return ty
@@ -150,7 +150,7 @@ func subscriptionType(e *ast.Subscription, symtab *SymbolTable) Type {
 		case "map":
 			// NOTE: Map keys are always "str" but we set anyways maybe
 			// in the future we support other key types.
-			return NewMapType(identType("str", symtab), elemType)
+			return NewMapType(IdentType("str", symtab), elemType)
 		}
 	}
 	return subscriptResultType(ExprType(e.Object, symtab), symtab)
@@ -234,7 +234,7 @@ func mapLiteralType(m *ast.MapLiteral, symtab *SymbolTable) Type {
 	// for _, entry := range m.Entries[1:] {
 	// }
 
-	return NewMapType(identType("str", symtab), anyType(symtab))
+	return NewMapType(IdentType("str", symtab), anyType(symtab))
 }
 
 // listLiteralType infers the type of a list literal. If all elements
@@ -257,5 +257,5 @@ func listLiteralType(list *ast.ListLiteral, symbols *SymbolTable) Type {
 }
 
 func anyType(symtab *SymbolTable) Type {
-	return identType("any", symtab)
+	return IdentType("any", symtab)
 }
