@@ -109,6 +109,23 @@ func TestAnalyzeMissingRequiredField(t *testing.T) {
 		fieldName   string
 	}{
 		{
+			"agent with all required fields",
+			`agent researcher {
+				model = "gpt-4o"
+				persona = "You are a researcher."
+			}`,
+			false,
+			"",
+		},
+		{
+			"agent missing model",
+			`agent researcher {
+				persona = "You are a researcher."
+			}`,
+			true,
+			"model",
+		},
+		{
 			"model missing provider",
 			`model gpt4 {
 				temperature = 0.7
@@ -126,29 +143,12 @@ func TestAnalyzeMissingRequiredField(t *testing.T) {
 			"",
 		},
 		{
-			"agent missing model",
-			`agent researcher {
-				persona = "You are a researcher."
-			}`,
-			true,
-			"model",
-		},
-		{
 			"agent missing persona",
 			`agent researcher {
 				model = "gpt-4o"
 			}`,
 			true,
 			"persona",
-		},
-		{
-			"agent with all required fields",
-			`agent researcher {
-				model = "gpt-4o"
-				persona = "You are a researcher."
-			}`,
-			false,
-			"",
 		},
 	}
 
@@ -207,6 +207,11 @@ func TestAnalyzeFieldTypeMismatch(t *testing.T) {
 		expectError bool
 	}{
 		{
+			"number field with string value",
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" temperature = "high" }`,
+			true,
+		},
+		{
 			"string field with string value",
 			`model gpt4 { provider = "openai" model_name = "gpt-4o" }`,
 			false,
@@ -217,14 +222,9 @@ func TestAnalyzeFieldTypeMismatch(t *testing.T) {
 			true,
 		},
 		{
-			"float field with float value",
+			"number field with number value",
 			`model gpt4 { provider = "openai" model_name = "gpt-4o" temperature = 0.7 }`,
 			false,
-		},
-		{
-			"float field with string value",
-			`model gpt4 { provider = "openai" model_name = "gpt-4o" temperature = "high" }`,
-			true,
 		},
 		{
 			"list field with list value",
@@ -440,14 +440,14 @@ func TestAnalyzeDuplicateFieldName(t *testing.T) {
 		expectError bool
 	}{
 		{
-			"unique fields",
-			`model gpt4 { provider = "openai" model_name = "gpt-4o" temperature = 0.7 }`,
-			false,
-		},
-		{
 			"duplicate field",
 			`model gpt4 { provider = "openai" model_name = "gpt-4o" provider = "anthropic" }`,
 			true,
+		},
+		{
+			"unique fields",
+			`model gpt4 { provider = "openai" model_name = "gpt-4o" temperature = 0.7 }`,
+			false,
 		},
 	}
 
@@ -518,178 +518,6 @@ func TestAnalyzeMemberAccess(t *testing.T) {
 			}
 			if !tt.expectError && found {
 				t.Errorf("unexpected error containing %q in %v", tt.errorSubstr, diags)
-			}
-		})
-	}
-}
-
-// TestAnalyzeInputBlock verifies the input block is recognized and validated.
-func TestAnalyzeInputBlock(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       string
-		expectError bool
-		errorSubstr string
-	}{
-		{
-			"valid input with all fields",
-			`input apikey {
-				type = str
-				desc = "the api key"
-				default = "sk-xxx"
-				sensitive = true
-			}`,
-			false,
-			"",
-		},
-		{
-			"valid input type only",
-			`input apikey {
-				type = str
-			}`,
-			false,
-			"",
-		},
-		{
-			"input missing required type",
-			`input apikey {
-				desc = "the api key"
-			}`,
-			true,
-			`missing required field "type"`,
-		},
-		{
-			"input unknown field",
-			`input apikey {
-				type = str
-				bogus = "nope"
-			}`,
-			true,
-			`unknown field "bogus"`,
-		},
-		{
-			"input with schema ref",
-			`schema vpc_data_t {
-				region = str
-			}
-			input vpc_data {
-				type = vpc_data_t
-				desc = "vpc config"
-			}`,
-			false,
-			"",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			program := parseProgram(t, tt.input)
-			diags := Analyze(program).Diagnostics
-			found := hasErrorContaining(diags, tt.errorSubstr)
-			if tt.expectError && !found {
-				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
-			}
-			if !tt.expectError && found {
-				t.Errorf("unexpected error containing %q in %v", tt.errorSubstr, diags)
-			}
-		})
-	}
-}
-
-// TestInputTypeResolution verifies that input blocks resolve to their
-// declared type, so member access works through the schema.
-func TestInputTypeResolution(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       string
-		expectError bool
-		errorSubstr string
-	}{
-		{
-			"access field on input with user schema",
-			`schema vpc_data_t {
-				region = str
-				instance_count = int | null
-			}
-			input vpc_data {
-				type = vpc_data_t
-			}
-			agent a {
-				model = vpc_data.region
-				persona = "hi"
-			}`,
-			false,
-			"",
-		},
-		{
-			"access nonexistent field on input",
-			`schema vpc_data_t {
-				region = str
-			}
-			input vpc_data {
-				type = vpc_data_t
-			}
-			agent a {
-				model = vpc_data.bogus
-				persona = "hi"
-			}`,
-			true,
-			`has no field "bogus"`,
-		},
-		{
-			"input with primitive type is compatible with that type",
-			`input prov {
-				type = str
-			}
-			model my_model {
-				provider = prov
-				model_name = "gpt"
-			}`,
-			false,
-			"",
-		},
-		{
-			"input member type mismatch with expected field type",
-			`input inp {
-				type = schema {
-					lst = list[str]
-				}
-			}
-			agent foo {
-				model = ""
-				persona = ""
-				tools = inp.lst
-			}`,
-			true,
-			"expects type list[tool], got list[str]",
-		},
-		{
-			"input with primitive type has no fields",
-			`input apikey {
-				type = str
-			}
-			agent a {
-				model = apikey.something
-				persona = "hi"
-			}`,
-			true,
-			`has no field "something"`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			program := parseProgram(t, tt.input)
-			diags := Analyze(program).Diagnostics
-			if tt.expectError {
-				found := hasErrorContaining(diags, tt.errorSubstr)
-				if !found {
-					t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
-				}
-			} else {
-				if len(diags) != 0 {
-					t.Errorf("expected no diagnostics, got %v", diags)
-				}
 			}
 		})
 	}
@@ -933,12 +761,6 @@ func TestUnifiedTypeSystem(t *testing.T) {
 		errorSubstr string
 	}{
 		{
-			"primitive in input type",
-			`input x { type = int }`,
-			false,
-			"",
-		},
-		{
 			"string literal matches str field",
 			`model m { provider = "openai" model_name = "gpt-4o" }`,
 			false,
@@ -948,7 +770,7 @@ func TestUnifiedTypeSystem(t *testing.T) {
 			"int literal does not match str field",
 			`model m { provider = 42 model_name = "gpt-4o" }`,
 			true,
-			"expects type str, got int",
+			"expects type str, got number",
 		},
 		{
 			"float literal matches float field",
@@ -958,33 +780,29 @@ func TestUnifiedTypeSystem(t *testing.T) {
 		},
 		{
 			"bool literal matches bool field",
-			`input x { type = str sensitive = true }`,
+			`schema flags { flag = bool }
+			flags f { flag = true }`,
 			false,
 			"",
 		},
 		{
 			"string literal does not match bool field",
-			`input x { type = str sensitive = "yes" }`,
+			`schema flags { flag = bool }
+			flags f { flag = "yes" }`,
 			true,
 			"expects type bool, got str",
 		},
 		{
-			"null literal in default",
-			`input x { type = str default = null }`,
-			false,
-			"",
-		},
-		{
-			"user schema in input type",
+			"user schema block instance",
 			`schema my_type { name = str }
-			input x { type = my_type }`,
+			my_type x { name = "a" }`,
 			false,
 			"",
 		},
 		{
 			"user schema member access works like primitive",
 			`schema config { host = str }
-			input cfg { type = config }
+			config cfg { host = "h" }
 			workflow w { name = cfg.host }`,
 			false,
 			"",
@@ -992,50 +810,27 @@ func TestUnifiedTypeSystem(t *testing.T) {
 		{
 			"user schema rejects unknown member",
 			`schema config { host = str }
-			input cfg { type = config }
+			config cfg { host = "h" }
 			workflow w { name = cfg.nonexistent }`,
 			true,
 			`has no field "nonexistent"`,
 		},
 		{
-			"inline schema in input type",
-			`input cfg {
-				type = schema {
-					host = str
-					port = int
-				}
+			"nested user schema member access",
+			`schema keys_t { openai = str google = str }
+			schema models_t { gpt4o = str gemini25 = str }
+			schema user_inp { keys = keys_t models = models_t }
+			keys_t keys_blk {
+				openai = "a"
+				google = "b"
 			}
-			workflow w { name = cfg.host }`,
-			false,
-			"",
-		},
-		{
-			"inline schema rejects unknown member",
-			`input cfg {
-				type = schema {
-					host = str
-				}
+			models_t models_blk {
+				gpt4o = "x"
+				gemini25 = "y"
 			}
-			workflow w { name = cfg.nonexistent }`,
-			true,
-			`has no field "nonexistent"`,
-		},
-		{
-			"nested inline schema with member access",
-			`input user_input {
-				type = schema {
-					@desc("A list of keys")
-					keys = schema {
-						openai = str
-						google = str
-					}
-
-					@desc("A list of models")
-					models = schema {
-						gpt4o = str
-						gemini25 = str
-					}
-				}
+			user_inp user_input {
+				keys = keys_blk
+				models = models_blk
 			}
 			model gpt5 {
 				provider   = user_input.keys.openai
@@ -1045,13 +840,14 @@ func TestUnifiedTypeSystem(t *testing.T) {
 			"",
 		},
 		{
-			"nested inline schema rejects unknown nested member",
-			`input user_input {
-				type = schema {
-					keys = schema {
-						openai = str
-					}
-				}
+			"nested user schema rejects unknown nested member",
+			`schema keys_t { openai = str }
+			schema user_inp { keys = keys_t }
+			keys_t keys_blk {
+				openai = "a"
+			}
+			user_inp user_input {
+				keys = keys_blk
 			}
 			model gpt5 {
 				provider   = user_input.keys.nonexistent
@@ -1121,8 +917,8 @@ func TestAnalyzeListSubscriptRequiresInt(t *testing.T) {
 			`schema user_defined_thing {
 				some_map = map[list[int]]
 			}
-			input user_input {
-				type = user_defined_thing
+			user_defined_thing user_input {
+				some_map = { "": [1, 2] }
 			}
 			model gpt5 {
 				provider   = "openai"
@@ -1290,8 +1086,9 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 	}{
 		{
 			"expression in non-workflow block",
-			`agent A { model = gpt4 }
-			 model gpt4 { provider = "openai" A }`,
+			`agent A { model = gpt4 persona = "hi" }
+			 @only_assignments
+			 model gpt4 { provider = "openai" model_name = "gpt" A }`,
 			true,
 			"unexpected expression in model block",
 		},

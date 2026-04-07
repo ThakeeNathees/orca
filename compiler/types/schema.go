@@ -67,35 +67,16 @@ func NewBlockSchema(
 // @desc("...") for descriptions. Required is inferred: if the type
 // contains null in a union, the field is optional; otherwise required.
 func NewFieldSchema(assign *ast.Assignment, symtab *SymbolTable) FieldSchema {
-	typ := ExprType(assign.Value, symtab)
-
-	var fs FieldSchema
+	typ := BlockSchemaTypeOfExpr(assign.Value, symtab)
+	fs := FieldSchema{Required: true, Type: typ}
 
 	// If the type is a union containing null, the field is optional.
-	// Strip null from the stored type — it's just an optionality marker.
 	if typ.Kind == Union {
-		var nonNull []Type
 		for _, m := range typ.Members {
 			if m.IsNull() {
-				continue
+				fs.Required = false
 			}
-			nonNull = append(nonNull, m)
 		}
-		if len(nonNull) < len(typ.Members) {
-			// Had null member — field is optional.
-			fs.Required = false
-			if len(nonNull) == 1 {
-				fs.Type = nonNull[0]
-			} else {
-				fs.Type = NewUnionType(nonNull...)
-			}
-		} else {
-			fs.Required = true
-			fs.Type = typ
-		}
-	} else {
-		fs.Required = true
-		fs.Type = typ
 	}
 
 	// Extract metadata from annotations.

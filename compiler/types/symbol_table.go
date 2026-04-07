@@ -16,8 +16,8 @@ type SymbolTable struct {
 }
 
 // NewSymbolTable creates an empty symbol table.
-func NewSymbolTable() *SymbolTable {
-	return &SymbolTable{symbols: make(map[string]Symbol)}
+func NewSymbolTable() SymbolTable {
+	return SymbolTable{symbols: make(map[string]Symbol)}
 }
 
 // Define adds a symbol to the table with its definition token.
@@ -37,4 +37,9 @@ func (st *SymbolTable) Lookup(name string) (Type, bool) {
 func (st *SymbolTable) LookupSymbol(name string) (Symbol, bool) {
 	sym, ok := st.symbols[name]
 	return sym, ok
+}
+
+// GetSymbols returns all the symbols in the symbol table.
+func (st *SymbolTable) GetSymbols() map[string]Symbol {
+	return st.symbols
 }

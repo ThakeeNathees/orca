@@ -258,7 +258,7 @@ func TestPredecessors(t *testing.T) {
 	block := &ast.BlockStatement{
 		Name: "pipeline",
 		BlockBody: ast.BlockBody{
-			Kind: types.BlockKindWorkflow,
+			Kind: "workflow",
 			Expressions: []ast.Expression{
 				arrow(arrow(ident("cron"), ident("A")), ident("B")),
 				arrow(ident("A"), ident("C")),
@@ -302,7 +302,7 @@ func TestPredecessorsNoTrigger(t *testing.T) {
 	block := &ast.BlockStatement{
 		Name: "simple",
 		BlockBody: ast.BlockBody{
-			Kind: types.BlockKindWorkflow,
+			Kind: "workflow",
 			Expressions: []ast.Expression{
 				arrow(ident("A"), ident("B")),
 			},

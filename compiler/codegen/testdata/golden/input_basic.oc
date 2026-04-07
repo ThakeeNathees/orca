@@ -1,6 +1,0 @@
-input apikey {
-  type        = str
-  desc        = "the api key"
-  default     = "sk-xxx"
-  sensitive   = true
-}

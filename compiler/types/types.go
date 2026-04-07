@@ -92,6 +92,7 @@ func NewBlockRefType(blockName string, block *BlockSchema) Type {
 	return Type{Kind: BlockRef, BlockName: blockName, Block: block}
 }
 
+// FIXME: I dont like null/any being some special thing and hardcoded, fix it.
 // IsAny returns true if this type is the "any" type (matches everything).
 func (t Type) IsAny() bool {
 	if t.Kind != BlockRef {
@@ -171,6 +172,47 @@ func IsCompatible(got Type, expected Type) bool {
 		}
 	}
 
+	// We're expecting type `exp` (kind should be schema), and got value `vgot` of kind `kgot`.
+	// And they are defined as:
+	//
+	//   schema exp {...}
+	//   schema kgot {...}
+	//   kgot vgot {...}
+	//
+	// And consider a scnario:
+	//   schema some_s {
+	//     some_field = exp
+	//   }
+	//   some_s some_v {
+	//     some_field = vgot  // <-- We need to validate got is compatible with exp
+	//   }
+	//
+	// ExprType(vgot) -> Type(BlockRef(schema kgot {...}))
+	// NOTE: kgot is the `got` of this function.
+	//
+	// Now for them to be compatible: kgot == exp
+	// i.e. block `schema kgot {...}`'s Schema should be `schema exp {...}`
+	//
+	if expected.Kind == BlockRef && expected.Block != nil {
+
+		// First things first, if exp kind is not schema, bail out.
+		if expected.Block.Ast.Kind != BlockKindSchema {
+			// TODO: Maybe warn that the expected is not a schema.
+			return false
+		}
+
+		if got.Kind != BlockRef || got.Block == nil {
+			return false
+		}
+
+		// Validate: block `schema kgot {...}`'s Schema should be `schema exp {...}`
+		if got.Block == expected.Block {
+			return true
+		}
+
+		return false
+	}
+
 	// If expected is a union, got must be compatible with at least one member.
 	if expected.Kind == Union {
 		for _, m := range expected.Members {
@@ -220,44 +262,6 @@ func IsCompatible(got Type, expected Type) bool {
 			return IsCompatible(*got.ValueType, *expected.ValueType)
 		}
 		return true
-	}
-
-	// We're expecting type `exp` (kind should be schema), and got value `vgot` of kind `kgot`.
-	// And they are defined as:
-	//
-	//   schema exp {...}
-	//   kgot vgot {...}
-	//
-	// And consider a scnario:
-	//   schema some_s {
-	//     some_field = exp
-	//   }
-	//   some_s some_v {
-	//     some_field = vgot  // <-- We need to validate got is compatible with exp
-	//   }
-	//
-	// Now for them to be compatible: kgot == exp
-	// i.e. block `kgot vgot {...}`'s Schema should be `schema exp {...}`
-	//
-
-	if expected.Kind == BlockRef && expected.Block != nil {
-
-		// First things first, if exp kind is not schema, bail out.
-		if expected.Block.Ast.Kind != BlockKindSchema {
-			// TODO: Maybe warn that the expected is not a schema.
-			return false
-		}
-
-		if got.Kind != BlockRef || got.Block == nil {
-			return false
-		}
-
-		// Validate: block `kgot vgot {...}`'s Schema should be `schema exp {...}`
-		if got.Block.Schema == expected.Block {
-			return true
-		}
-
-		return false
 	}
 
 	// Unreachable code.

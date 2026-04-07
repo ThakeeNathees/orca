@@ -1,7 +1,9 @@
 package analyzer
 
 const (
-	BlockKindInput     = "input"
+	BlockKindNumber = "number"
+	BlockKindString = "string"
+
 	BlockKindLet       = "let"
 	BlockKindWorkflow  = "workflow"
 	BlockKindTool      = "tool"

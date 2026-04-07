@@ -5,6 +5,8 @@
 package cursor
 
 import (
+	"sync"
+
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
@@ -55,7 +57,7 @@ func Resolve(program *ast.Program, line, col int) Context {
 			Block:     block,
 			BlockKind: block.Kind,
 		}
-		ctx.Schema = resolveBlockSchema(block.Kind, block.Name)
+		ctx.Schema = resolveBlockSchema(block.Kind, block.Name, program)
 
 		// Check if the cursor is within an existing assignment's range.
 		// Uses token EndLine/EndCol for multi-line tokens (strings).
@@ -63,7 +65,7 @@ func Resolve(program *ast.Program, line, col int) Context {
 			if posInAssignment(assign, line, col) {
 				// Check if the value is an inline block and cursor is inside it.
 				if be, ok := assign.Value.(*ast.BlockExpression); ok {
-					if inlineCtx, found := resolveInlineBlock(be, block, line, col); found {
+					if inlineCtx, found := resolveInlineBlock(program, be, block, line, col); found {
 						return inlineCtx
 					}
 				}
@@ -82,7 +84,7 @@ func Resolve(program *ast.Program, line, col int) Context {
 // resolveInlineBlock checks if the cursor is inside a BlockExpression's body
 // and returns the appropriate context. Returns (ctx, true) if inside, or
 // (Context{}, false) if the cursor is not within the inline block body.
-func resolveInlineBlock(be *ast.BlockExpression, parent *ast.BlockStatement, line, col int) (Context, bool) {
+func resolveInlineBlock(program *ast.Program, be *ast.BlockExpression, parent *ast.BlockStatement, line, col int) (Context, bool) {
 	// Check if cursor is within the inline block's braces.
 	startLine := be.TokenStart.Line
 	startCol := be.TokenStart.Column
@@ -100,7 +102,7 @@ func resolveInlineBlock(be *ast.BlockExpression, parent *ast.BlockStatement, lin
 	}
 	// Inline schemas are anonymous — pass empty name so resolveBlockSchema
 	// skips the named-schema lookup and returns nil.
-	ctx.Schema = resolveBlockSchema(be.Kind, "")
+	ctx.Schema = resolveBlockSchema(be.Kind, "", program)
 
 	// Check if cursor is within an assignment inside the inline block.
 	for _, assign := range be.Assignments {
@@ -114,19 +116,68 @@ func resolveInlineBlock(be *ast.BlockExpression, parent *ast.BlockStatement, lin
 	return ctx, true
 }
 
+// Actually calling bootstrap script multiple times is not a problem, because
+// Its pure functional with no side effects, we just do Once to cache it.
+var bootstrapSym *types.SymbolTable
+var bootstrapOnce sync.Once
+
+// BootstrapSymbolTable returns the symbol table built from the embedded
+// bootstrap.oc file. The result is cached; safe for concurrent use.
+func bootstrapSymbolTable() *types.SymbolTable {
+	bootstrapOnce.Do(func() {
+		res := types.Bootstrap(types.BootstrapSource)
+		bootstrapSym = res.Symtab
+	})
+	return bootstrapSym
+}
+
+// LookupBootstrapSchema returns the block schema for a name defined in
+// bootstrap.oc (e.g. "model", "agent", "str"). This is the replacement
+// for a global schema registry: the schema lives on the BlockRef type in
+// the bootstrap symbol table.
+func LookupBootstrapSchema(name string) (*types.BlockSchema, bool) {
+	ty, ok := bootstrapSymbolTable().Lookup(name)
+	if !ok || ty.Kind != types.BlockRef || ty.Block == nil {
+		return nil, false
+	}
+	return ty.Block, true
+}
+
 // resolveBlockSchema returns the schema for a block kind. For user-defined
 // schema blocks, uses the block name as the lookup key (e.g. "vpc_data_t");
 // for all other kinds, uses the kind string (e.g. "model"). Returns nil when
 // no schema is registered (e.g. anonymous inline schemas with empty name).
-func resolveBlockSchema(kind string, name string) *types.BlockSchema {
+func resolveBlockSchema(kind string, name string, program *ast.Program) *types.BlockSchema {
 	var schemaName string
 	if kind == types.BlockKindSchema && name != "" {
 		schemaName = name
 	} else {
 		schemaName = kind
 	}
-	if schema, ok := types.GetSchema(schemaName); ok {
-		return &schema
+	if schemaName == "" {
+		return nil
+	}
+	if schema, ok := LookupBootstrapSchema(schemaName); ok {
+		return schema
+	}
+	return schemaFromProgram(schemaName, program)
+}
+
+// schemaFromProgram builds a BlockSchema from a top-level `schema <name> { ... }`
+// in the current program (user-defined types not present in bootstrap.oc).
+func schemaFromProgram(schemaName string, program *ast.Program) *types.BlockSchema {
+	if program == nil {
+		return nil
+	}
+	// FIXME: Not sure if this is the correct approach.
+	sym := bootstrapSymbolTable()
+	for _, stmt := range program.Statements {
+		block, ok := stmt.(*ast.BlockStatement)
+		if !ok || block.Kind != types.BlockKindSchema || block.Name != schemaName {
+			continue
+		}
+		s := types.NewBlockSchema(block.Annotations, block.Name, &block.BlockBody, sym)
+		return &s
 	}
 	return nil
 }

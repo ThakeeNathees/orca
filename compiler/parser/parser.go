@@ -198,6 +198,7 @@ func (p *Parser) parseAssignment(blockKind string, blockName string) *ast.Assign
 	a := &ast.Assignment{}
 	a.Annotations = annotations
 	a.TokenStart = p.curToken // the key identifier
+	a.NameToken = p.curToken
 	a.Name = p.curToken.Literal
 	key := p.curToken.Literal
 

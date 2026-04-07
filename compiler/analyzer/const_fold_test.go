@@ -23,18 +23,13 @@ func TestConstFoldLiterals(t *testing.T) {
 		},
 		{
 			name: "int",
-			expr: &ast.IntegerLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.INT, Literal: "42"}), Value: 42},
-			want: ConstValue{Kind: ConstInt, Int: 42},
+			expr: &ast.NumberLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "42"}), Value: 42},
+			want: ConstValue{Kind: ConstNumber, Number: 42},
 		},
 		{
 			name: "float",
-			expr: &ast.FloatLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.FLOAT, Literal: "0.5"}), Value: 0.5},
-			want: ConstValue{Kind: ConstFloat, Float: 0.5},
-		},
-		{
-			name: "bool true",
-			expr: &ast.BooleanLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "true"}), Value: true},
-			want: ConstValue{Kind: ConstBool, Bool: true},
+			expr: &ast.NumberLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "0.5"}), Value: 0.5},
+			want: ConstValue{Kind: ConstNumber, Number: 0.5},
 		},
 		{
 			name: "null",
@@ -59,8 +54,8 @@ func TestConstFoldListAndMap(t *testing.T) {
 	str := func(s string) *ast.StringLiteral {
 		return &ast.StringLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.STRING, Literal: `"x"`}), Value: s}
 	}
-	i := func(n int64) *ast.IntegerLiteral {
-		return &ast.IntegerLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.INT, Literal: "0"}), Value: n}
+	i := func(n float64) *ast.NumberLiteral {
+		return &ast.NumberLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "0"}), Value: n}
 	}
 	id := func(name string) *ast.Identifier {
 		return &ast.Identifier{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: name}), Value: name}
@@ -79,13 +74,13 @@ func TestConstFoldListAndMap(t *testing.T) {
 		{
 			name: "list of ints",
 			expr: &ast.ListLiteral{Elements: []ast.Expression{i(1), i(2)}},
-			want: ConstValue{Kind: ConstList, List: []ConstValue{{Kind: ConstInt, Int: 1}, {Kind: ConstInt, Int: 2}}},
+			want: ConstValue{Kind: ConstList, List: []ConstValue{{Kind: ConstNumber, Number: 1}, {Kind: ConstNumber, Number: 2}}},
 		},
 		{
 			name: "list with ref fails",
 			expr: &ast.ListLiteral{Elements: []ast.Expression{i(1), id("x")}},
 			// Unresolved identifiers fold to ConstUnknown per element; the list is still ConstList with Partial set.
-			want: ConstValue{Kind: ConstList, List: []ConstValue{{Kind: ConstInt, Int: 1}, {Kind: ConstUnknown}}, Partial: true},
+			want: ConstValue{Kind: ConstList, List: []ConstValue{{Kind: ConstNumber, Number: 1}, {Kind: ConstUnknown}}, Partial: true},
 		},
 		{
 			name: "empty map",
@@ -99,7 +94,7 @@ func TestConstFoldListAndMap(t *testing.T) {
 				{Key: str("b"), Value: str("z")},
 			}},
 			want: ConstValue{Kind: ConstMap, KeyValue: map[string]ConstValue{
-				"a": {Kind: ConstInt, Int: 1},
+				"a": {Kind: ConstNumber, Number: 1},
 				"b": {Kind: ConstString, Str: "z"},
 			}},
 		},
@@ -109,7 +104,7 @@ func TestConstFoldListAndMap(t *testing.T) {
 				{Key: id("k"), Value: i(7)},
 			}},
 			// Identifier keys are not ConstString; storage uses keyValue.Str (empty for non-string kinds).
-			want: ConstValue{Kind: ConstMap, KeyValue: map[string]ConstValue{"": {Kind: ConstInt, Int: 7}}, Partial: true},
+			want: ConstValue{Kind: ConstMap, KeyValue: map[string]ConstValue{"": {Kind: ConstNumber, Number: 7}}, Partial: true},
 		},
 		{
 			name: "map int key",
@@ -131,19 +126,19 @@ func TestConstFoldListAndMap(t *testing.T) {
 }
 
 func TestConstFoldMapNonStringKeyDiagnostic(t *testing.T) {
-	boolKey := &ast.BooleanLiteral{
-		BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "true", Line: 5, Column: 3}),
-		Value:    true,
+	numKey := &ast.NumberLiteral{
+		BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "3.14", Line: 5, Column: 3}),
+		Value:    3.14,
 	}
 	str := &ast.StringLiteral{
 		BaseNode: ast.NewTerminal(token.Token{Type: token.STRING, Literal: `"v"`}),
 		Value:    "v",
 	}
 	expr := &ast.MapLiteral{Entries: []ast.MapEntry{
-		{Key: boolKey, Value: str},
+		{Key: numKey, Value: str},
 	}}
 	got, diags := ConstFold(expr, AnalyzedProgram{})
-	// Non-string keys still produce ConstMap; the key is stored under keyValue.Str (empty for bool).
+	// Non-string keys still produce ConstMap; the key is stored under keyValue.Str (empty for number).
 	if got.Kind != ConstMap || !reflect.DeepEqual(got.KeyValue, map[string]ConstValue{"": {Kind: ConstString, Str: "v"}}) {
 		t.Errorf("expected ConstMap with empty-string key, got %#v", got)
 	}
@@ -227,8 +222,8 @@ func TestConstFoldMemberAccess(t *testing.T) {
 	str := func(s string) *ast.StringLiteral {
 		return &ast.StringLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.STRING, Literal: `"x"`}), Value: s}
 	}
-	i := func(n int64) *ast.IntegerLiteral {
-		return &ast.IntegerLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.INT, Literal: "0"}), Value: n}
+	i := func(n float64) *ast.NumberLiteral {
+		return &ast.NumberLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "0"}), Value: n}
 	}
 
 	tests := []struct {
@@ -278,7 +273,7 @@ func TestConstFoldMemberAccess(t *testing.T) {
 					},
 				},
 			}, "inner"), "temperature"),
-			want: ConstValue{Kind: ConstInt, Int: 2},
+			want: ConstValue{Kind: ConstNumber, Number: 2},
 		},
 		{
 			name: "string_object_not_folded_member",
@@ -307,8 +302,8 @@ func TestConstFoldMemberAccess(t *testing.T) {
 			name: "block_ref_identifier_then_member",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("gpt", types.NewBlockRefType("model", "gpt"), token.Token{Type: token.IDENT, Literal: "gpt"})
-				return st
+				st.Define("gpt", types.NewBlockRefType("gpt", nil), token.Token{Type: token.IDENT, Literal: "gpt"})
+				return &st
 			}(),
 			program: &ast.Program{
 				Statements: []ast.Statement{
@@ -343,8 +338,8 @@ func TestConstFoldSubscription(t *testing.T) {
 	str := func(s string) *ast.StringLiteral {
 		return &ast.StringLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.STRING, Literal: `"x"`}), Value: s}
 	}
-	i := func(n int64) *ast.IntegerLiteral {
-		return &ast.IntegerLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.INT, Literal: "0"}), Value: n}
+	i := func(n float64) *ast.NumberLiteral {
+		return &ast.NumberLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "0"}), Value: n}
 	}
 
 	tests := []struct {
@@ -361,12 +356,12 @@ func TestConstFoldSubscription(t *testing.T) {
 				&ast.ListLiteral{Elements: []ast.Expression{i(10), i(20), i(30)}},
 				i(1),
 			),
-			want: ConstValue{Kind: ConstInt, Int: 20},
+			want: ConstValue{Kind: ConstNumber, Number: 20},
 		},
 		{
 			name: "list_literal_index_first",
 			expr: subExpr(&ast.ListLiteral{Elements: []ast.Expression{i(7)}}, i(0)),
-			want: ConstValue{Kind: ConstInt, Int: 7},
+			want: ConstValue{Kind: ConstNumber, Number: 7},
 		},
 		{
 			name:         "list_index_out_of_range_high",
@@ -479,11 +474,11 @@ func assertConstFoldDiagCodes(t *testing.T, diags []diagnostic.Diagnostic, exp [
 }
 
 func TestConstFoldBinary(t *testing.T) {
-	i := func(n int64) *ast.IntegerLiteral {
-		return &ast.IntegerLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.INT, Literal: "0"}), Value: n}
+	i := func(n float64) *ast.NumberLiteral {
+		return &ast.NumberLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "0"}), Value: n}
 	}
-	f := func(x float64) *ast.FloatLiteral {
-		return &ast.FloatLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.FLOAT, Literal: "0"}), Value: x}
+	f := func(x float64) *ast.NumberLiteral {
+		return &ast.NumberLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "0"}), Value: x}
 	}
 	s := func(t string) *ast.StringLiteral {
 		return &ast.StringLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.STRING, Literal: `"x"`}), Value: t}
@@ -501,13 +496,13 @@ func TestConstFoldBinary(t *testing.T) {
 		expr ast.Expression
 		want ConstValue
 	}{
-		{name: "int add", expr: bin(token.PLUS, i(2), i(3)), want: ConstValue{Kind: ConstInt, Int: 5}},
-		{name: "int sub", expr: bin(token.MINUS, i(10), i(4)), want: ConstValue{Kind: ConstInt, Int: 6}},
-		{name: "int mul", expr: bin(token.STAR, i(6), i(7)), want: ConstValue{Kind: ConstInt, Int: 42}},
-		{name: "int div", expr: bin(token.SLASH, i(7), i(2)), want: ConstValue{Kind: ConstInt, Int: 3}},
+		{name: "int add", expr: bin(token.PLUS, i(2), i(3)), want: ConstValue{Kind: ConstNumber, Number: 5}},
+		{name: "int sub", expr: bin(token.MINUS, i(10), i(4)), want: ConstValue{Kind: ConstNumber, Number: 6}},
+		{name: "int mul", expr: bin(token.STAR, i(6), i(7)), want: ConstValue{Kind: ConstNumber, Number: 42}},
+		{name: "div", expr: bin(token.SLASH, i(7), i(2)), want: ConstValue{Kind: ConstNumber, Number: 3.5}},
 		{name: "int div by zero", expr: bin(token.SLASH, i(1), i(0)), want: ConstValue{Kind: ConstUnknown}},
-		{name: "float add", expr: bin(token.PLUS, f(1.5), f(2.5)), want: ConstValue{Kind: ConstFloat, Float: 4}},
-		{name: "mixed int float", expr: bin(token.PLUS, i(1), f(2.5)), want: ConstValue{Kind: ConstFloat, Float: 3.5}},
+		{name: "float add", expr: bin(token.PLUS, f(1.5), f(2.5)), want: ConstValue{Kind: ConstNumber, Number: 4}},
+		{name: "mixed int float", expr: bin(token.PLUS, i(1), f(2.5)), want: ConstValue{Kind: ConstNumber, Number: 3.5}},
 		{name: "string concat", expr: bin(token.PLUS, s("a"), s("b")), want: ConstValue{Kind: ConstString, Str: "ab"}},
 		{name: "arrow not folded", expr: bin(token.ARROW, idExpr("a"), idExpr("b")), want: ConstValue{Kind: ConstUnknown}},
 	}
@@ -544,9 +539,12 @@ func TestConstFoldIdentifier(t *testing.T) {
 			want:    ConstValue{Kind: ConstUnknown},
 		},
 		{
-			name:    "symbol_not_in_table",
-			id:      "missing",
-			symbols: types.NewSymbolTable(),
+			name: "symbol_not_in_table",
+			id:   "missing",
+			symbols: func() *types.SymbolTable {
+				st := types.NewSymbolTable()
+				return &st
+			}(),
 			program: nil,
 			want:    ConstValue{Kind: ConstUnknown},
 		},
@@ -555,8 +553,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "xs",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("xs", types.NewListType(types.Int()), token.Token{Type: token.IDENT, Literal: "xs"})
-				return st
+				st.Define("xs", types.NewListType(types.NewBlockRefType("number", nil)), token.Token{Type: token.IDENT, Literal: "xs"})
+				return &st
 			}(),
 			program: nil,
 			want:    ConstValue{Kind: ConstUnknown},
@@ -566,8 +564,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "m",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("m", types.NewBlockRefType("model", "m"), token.Token{Type: token.IDENT, Literal: "m"})
-				return st
+				st.Define("m", types.NewBlockRefType("m", nil), token.Token{Type: token.IDENT, Literal: "m"})
+				return &st
 			}(),
 			program: nil,
 			want:    ConstValue{Kind: ConstUnknown},
@@ -577,8 +575,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "m",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("m", types.NewBlockRefType("model", "m"), token.Token{Type: token.IDENT, Literal: "m"})
-				return st
+				st.Define("m", types.NewBlockRefType("m", nil), token.Token{Type: token.IDENT, Literal: "m"})
+				return &st
 			}(),
 			program: &ast.Program{},
 			want:    ConstValue{Kind: ConstUnknown},
@@ -588,8 +586,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "wanted",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("wanted", types.NewBlockRefType("model", "wanted"), token.Token{Type: token.IDENT, Literal: "wanted"})
-				return st
+				st.Define("wanted", types.NewBlockRefType("wanted", nil), token.Token{Type: token.IDENT, Literal: "wanted"})
+				return &st
 			}(),
 			program: &ast.Program{
 				Statements: []ast.Statement{
@@ -603,8 +601,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "gpt",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("gpt", types.NewBlockRefType("model", "gpt"), token.Token{Type: token.IDENT, Literal: "gpt"})
-				return st
+				st.Define("gpt", types.NewBlockRefType("gpt", nil), token.Token{Type: token.IDENT, Literal: "gpt"})
+				return &st
 			}(),
 			program: &ast.Program{
 				Statements: []ast.Statement{
@@ -612,8 +610,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 						BlockBody: ast.BlockBody{
 							Assignments: []*ast.Assignment{
 								{Name: "provider", Value: str("openai")},
-								{Name: "temperature", Value: &ast.FloatLiteral{
-									BaseNode: ast.NewTerminal(token.Token{Type: token.FLOAT, Literal: "0.5"}),
+								{Name: "temperature", Value: &ast.NumberLiteral{
+									BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "0.5"}),
 									Value:    0.5,
 								}},
 							},
@@ -626,7 +624,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 				Kind: ConstBlock,
 				KeyValue: map[string]ConstValue{
 					"provider":    {Kind: ConstString, Str: "openai"},
-					"temperature": {Kind: ConstFloat, Float: 0.5},
+					"temperature": {Kind: ConstNumber, Number: 0.5},
 				},
 			},
 		},
@@ -635,8 +633,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 			id:   "wf",
 			symbols: func() *types.SymbolTable {
 				st := types.NewSymbolTable()
-				st.Define("wf", types.NewBlockRefType(BlockKindWorkflow, "wf"), token.Token{Type: token.IDENT, Literal: "wf"})
-				return st
+				st.Define("wf", types.NewBlockRefType("wf", nil), token.Token{Type: token.IDENT, Literal: "wf"})
+				return &st
 			}(),
 			program: &ast.Program{
 				Statements: []ast.Statement{
@@ -670,6 +668,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 // TestConstFoldLetBoundProviderMember verifies named let block member access
 // folds correctly: config.defaults.provider resolves through the let block body
 // then through the inline model block to the string "openai".
+// TestConstFoldLetBoundProviderMember is an integration test: it fails until Analyze() accepts the let/model
+// program without spurious type-mismatch diagnostics on str fields.
 func TestConstFoldLetBoundProviderMember(t *testing.T) {
 	input := `let vars {
   defaults = model {

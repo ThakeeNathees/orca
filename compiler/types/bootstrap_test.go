@@ -2,6 +2,7 @@ package types
 
 import (
 	_ "embed"
+	"strings"
 	"testing"
 
 	"github.com/thakee/orca/compiler/ast"
@@ -30,6 +31,7 @@ func TestLoadSchemas(t *testing.T) {
 		blockType string
 		numFields int
 	}{
+		{"schema", BlockKindSchema, 0},
 		{"str", "str", 0},
 		{"number", "number", 0},
 		{"bool", "bool", 0},
@@ -42,7 +44,8 @@ func TestLoadSchemas(t *testing.T) {
 		{"tool", "tool", 4},
 		{"knowledge", "knowledge", 1},
 		{"workflow", "workflow", 2},
-		{"input", "input", 4},
+		{"cron", "cron", 2},
+		{"webhook", "webhook", 2},
 	}
 
 	for _, tt := range tests {
@@ -67,7 +70,9 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		schemas[s.BlockName] = s
 	}
 
-	// wantString is the canonical Orca type string Type.String() should produce (lazy refs must print their name, not <type:blockref>).
+	// wantString is the canonical Orca type string Type.String() should produce for each
+	// field per bootstrap.oc (str, model, number, schema, … — not the meta-type name "schema"
+	// unless the field is literally typed as `schema`).
 	tests := []struct {
 		name     string
 		block    string
@@ -76,19 +81,15 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		required bool
 		wantStr  string
 	}{
-		{"model.provider", "model", "provider", BlockRef, true, "str"},
-		{"model.model_name", "model", "model_name", Union, true, "str | model"},
-		{"model.temperature", "model", "temperature", BlockRef, false, "float"},
+		{"agent.tools", "agent", "tools", Union, false, "list[tool] | null"},
+		{"model.model_name", "model", "model_name", BlockRef, true, "str"},
 		{"agent.model", "agent", "model", Union, true, "str | model"},
+		{"model.provider", "model", "provider", BlockRef, true, "str"},
+		{"model.temperature", "model", "temperature", Union, false, "number | null"},
 		{"agent.persona", "agent", "persona", BlockRef, true, "str"},
-		{"agent.tools", "agent", "tools", List, false, "list[tool]"},
-		{"tool.desc", "tool", "desc", BlockRef, false, "str"},
+		{"tool.desc", "tool", "desc", Union, false, "str | null"},
 		{"tool.invoke", "tool", "invoke", BlockRef, true, "str"},
-		{"workflow.name", "workflow", "name", BlockRef, false, "str"},
-		{"input.type", "input", "type", BlockRef, true, "schema"},
-		{"input.desc", "input", "desc", BlockRef, false, "str"},
-		{"input.default", "input", "default", BlockRef, false, "any"},
-		{"input.sensitive", "input", "sensitive", BlockRef, false, "bool"},
+		{"workflow.name", "workflow", "name", Union, false, "str | null"},
 	}
 
 	for _, tt := range tests {
@@ -144,63 +145,75 @@ func TestLoadSchemasDescriptions(t *testing.T) {
 	}
 }
 
-// TestResolveIdentAsType verifies that ExprType on an identifier (bootstrap mode)
-// maps every name to a BlockRef via NewBlockRefType — the same path as identType.
+// TestResolveIdentAsType verifies that BlockSchemaTypeOfExpr on an identifier
+// with a bootstrapped symbol table resolves each name to the corresponding
+// schema block (or `any` when the name is unknown).
 func TestResolveIdentAsType(t *testing.T) {
+	res := Bootstrap(testBootstrapSource)
+	st := res.Symtab
+
 	tests := []struct {
-		name     string
-		input    string
-		expected Type
+		name  string
+		input string
 	}{
-		{"primitive str", "str", NewBlockRefType("str", nil)},
-		{"primitive number", "number", NewBlockRefType("number", nil)},
-		{"primitive bool", "bool", NewBlockRefType("bool", nil)},
-		{"primitive any", "any", NewBlockRefType("any", nil)},
-		{"block type model", "model", NewBlockRefType("model", nil)},
-		{"block type agent", "agent", NewBlockRefType("agent", nil)},
-		{"block type cron", "cron", NewBlockRefType("cron", nil)},
-		{"block type webhook", "webhook", NewBlockRefType("webhook", nil)},
-		{"block type schema", "schema", NewBlockRefType("schema", nil)},
-		{"user schema name", "vpc_data_t", NewBlockRefType("vpc_data_t", nil)},
+		{"primitive str", "str"},
+		{"primitive number", "number"},
+		{"primitive bool", "bool"},
+		{"primitive any", "any"},
+		{"block type model", "model"},
+		{"block type agent", "agent"},
+		{"block type cron", "cron"},
+		{"block type webhook", "webhook"},
+		{"block type schema", "schema"},
+		{"unknown name falls back to any", "vpc_data_t"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typ := ExprType(&ast.Identifier{Value: tt.input}, nil)
+			typ := BlockSchemaTypeOfExpr(&ast.Identifier{Value: tt.input}, st)
+			var want Type
+			if tt.input == "vpc_data_t" {
+				want, _ = st.Lookup("any")
+			} else {
+				want, _ = st.Lookup(tt.input)
+			}
 			if typ.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", typ.Kind)
 			}
-			if !typ.Equals(tt.expected) {
-				t.Errorf("ExprType(ident %q) = %s, want %s", tt.input, typ.String(), tt.expected.String())
+			if !typ.Equals(want) {
+				t.Errorf("BlockSchemaTypeOfExpr(ident %q) = %s, want %s", tt.input, typ.String(), want.String())
 			}
 		})
 	}
 }
 
-// TestExprTypeBootstrap verifies that ExprType with nil symbols (bootstrap
-// mode) handles all type expression forms correctly.
-func TestExprTypeBootstrap(t *testing.T) {
-	anyTyp := IdentType("any", nil)
+// TestBlockSchemaTypeOfExprBootstrap verifies BlockSchemaTypeOfExpr with a
+// bootstrapped symbol table handles type expression forms correctly.
+func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
+	st := bootstrapSymtab(t)
+
+	anyTyp := IdentType(0, "any", st)
 	tests := []struct {
-		name    string
-		expr    ast.Expression
-		kind    TypeKind
-		expType *Type // expected type to check with Equals (nil to skip)
+		name       string
+		expr       ast.Expression
+		kind       TypeKind
+		expType    *Type  // expected via Equals when set (nil to skip)
+		wantLookup string // if set, expected type is st.Lookup(wantLookup) (same Block pointer as ExprType)
 	}{
 		{
 			"null literal resolves to null type",
 			&ast.NullLiteral{},
-			BlockRef, typePtr(IdentType("null", nil)),
+			BlockRef, typePtr(IdentType(0, "null", st)), "",
 		},
 		{
 			"identifier str resolves to str",
 			&ast.Identifier{Value: "str"},
-			BlockRef, typePtr(NewBlockRefType("str", nil)),
+			BlockRef, nil, "str",
 		},
 		{
 			"identifier model resolves to model ref",
 			&ast.Identifier{Value: "model"},
-			BlockRef, typePtr(NewBlockRefType("model", nil)),
+			BlockRef, nil, "model",
 		},
 		{
 			"subscription list[str] resolves to list type",
@@ -208,15 +221,15 @@ func TestExprTypeBootstrap(t *testing.T) {
 				Object: &ast.Identifier{Value: "list"},
 				Index:  &ast.Identifier{Value: "str"},
 			},
-			List, nil,
+			List, nil, "",
 		},
 		{
-			"subscription map[int] resolves to map type",
+			"subscription map[number] resolves to map type",
 			&ast.Subscription{
 				Object: &ast.Identifier{Value: "map"},
-				Index:  &ast.Identifier{Value: "int"},
+				Index:  &ast.Identifier{Value: "number"},
 			},
-			Map, nil,
+			Map, nil, "",
 		},
 		{
 			"unsupported parameterized type returns any",
@@ -224,49 +237,60 @@ func TestExprTypeBootstrap(t *testing.T) {
 				Object: &ast.Identifier{Value: "set"},
 				Index:  &ast.Identifier{Value: "str"},
 			},
-			BlockRef, typePtr(anyTyp),
+			BlockRef, typePtr(anyTyp), "",
 		},
 		{
 			"union via binary pipe expression",
 			&ast.BinaryExpression{
 				Left:     &ast.Identifier{Value: "str"},
 				Operator: token.Token{Type: token.PIPE},
-				Right:    &ast.Identifier{Value: "int"},
+				Right:    &ast.Identifier{Value: "number"},
 			},
-			Union, nil,
+			Union, nil, "",
 		},
 		{
 			"binary expression with non-pipe operator returns any",
 			&ast.BinaryExpression{
 				Left:     &ast.Identifier{Value: "str"},
 				Operator: token.Token{Type: token.PLUS, Literal: "+"},
-				Right:    &ast.Identifier{Value: "int"},
+				Right:    &ast.Identifier{Value: "number"},
 			},
-			BlockRef, typePtr(anyTyp),
+			BlockRef, typePtr(anyTyp), "",
 		},
 		{
 			"number literal returns number",
 			&ast.NumberLiteral{Value: 42},
-			BlockRef, typePtr(IdentType("number", nil)),
+			BlockRef, typePtr(IdentType(0, "number", st)), "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typ := ExprType(tt.expr, nil)
+			typ := BlockSchemaTypeOfExpr(tt.expr, st)
 			if typ.Kind != tt.kind {
 				t.Errorf("Kind = %v, want %v", typ.Kind, tt.kind)
 			}
-			if tt.expType != nil && !typ.Equals(*tt.expType) {
+			switch {
+			case tt.wantLookup != "":
+				want, ok := st.Lookup(tt.wantLookup)
+				if !ok {
+					t.Fatalf("lookup %q not found", tt.wantLookup)
+				}
+				if !typ.Equals(want) {
+					t.Errorf("Type = %s, want %s", typ.String(), want.String())
+				}
+			case tt.expType != nil && !typ.Equals(*tt.expType):
 				t.Errorf("Type = %s, want %s", typ.String(), tt.expType.String())
 			}
 		})
 	}
 }
 
-// TestExprTypeInlineSchema verifies that inline schema expressions
-// are resolved and registered with a synthetic name.
-func TestExprTypeInlineSchema(t *testing.T) {
+// TestBlockSchemaTypeOfExprInlineSchema verifies that inline schema expressions
+// register a synthetic name in the symbol table; the expression's type is the
+// schema kind with a nil Block pointer (see blockExprType).
+func TestBlockSchemaTypeOfExprInlineSchema(t *testing.T) {
+	st := bootstrapSymtab(t)
 	expr := &ast.BlockExpression{
 		BlockBody: ast.BlockBody{
 			Kind: BlockKindSchema,
@@ -279,50 +303,61 @@ func TestExprTypeInlineSchema(t *testing.T) {
 		},
 	}
 
-	typ := ExprType(expr, nil)
+	typ := BlockSchemaTypeOfExpr(expr, st)
 	if typ.Kind != BlockRef {
 		t.Errorf("Kind = %v, want BlockRef", typ.Kind)
 	}
-	if typ.Block == nil {
-		t.Fatal("expected Block to be set for inline schema")
+	if typ.BlockName != BlockKindSchema {
+		t.Errorf("BlockName = %q, want %q", typ.BlockName, BlockKindSchema)
 	}
-	if typ.Block.Ast == nil || typ.Block.Ast.Kind != BlockKindSchema {
-		t.Errorf("Ast.Kind = %v, want %q", typ.Block.Ast.Kind, BlockKindSchema)
-	}
-	if typ.BlockName == "" {
-		t.Error("expected non-empty BlockName for inline schema")
+	if typ.Block != nil {
+		t.Errorf("Block = %v, want nil (return uses schema kind only)", typ.Block)
 	}
 
-	if _, hasHost := typ.Block.Fields["host"]; !hasHost {
-		t.Error("expected inline schema to have field 'host'")
+	var inline *BlockSchema
+	for name, sym := range st.GetSymbols() {
+		if strings.HasPrefix(name, "__anon_") && sym.Type.Block != nil {
+			if _, ok := sym.Type.Block.Fields["host"]; ok {
+				inline = sym.Type.Block
+				break
+			}
+		}
+	}
+	if inline == nil {
+		t.Fatal("expected symtab to register anon inline schema with field host")
+	}
+	if inline.Ast == nil || inline.Ast.Kind != BlockKindSchema {
+		t.Errorf("Ast.Kind = %v, want %q", inline.Ast.Kind, BlockKindSchema)
 	}
 }
 
-// TestNullStrippingInUnion verifies NewFieldSchema strips | null using Type.IsNull()
-// (including lazy identifier "null") and marks the field optional.
-func TestNullStrippingInUnion(t *testing.T) {
+// TestFieldSchemaOptionalNullInUnion verifies NewFieldSchema marks a field optional
+// when the type is a union that contains null (via Type.IsNull()), but keeps the full
+// union on FieldSchema.Type — null is only an optionality marker, not removed from the type.
+func TestFieldSchemaOptionalNullInUnion(t *testing.T) {
+	st := Bootstrap(testBootstrapSource).Symtab
 	tests := []struct {
 		name        string
 		input       string
 		required    bool
 		resultKind  TypeKind
-		expType     *Type // expected type to check with Equals (nil to skip)
+		wantStr     string
 		memberCount int
 	}{
 		{
-			"str | null strips to str, optional",
+			"str | null optional, union retains null",
 			"schema test_strip {\n  @suppress(\"duplicate-block\")\n  field = str | null\n}",
-			false, BlockRef, typePtr(NewBlockRefType("str", nil)), 0,
+			false, Union, "str | null", 2,
 		},
 		{
-			"str | model | null strips null, two-member union",
+			"str | model | null optional, full union",
 			"schema test_strip2 {\n  @suppress(\"duplicate-block\")\n  field = str | model | null\n}",
-			false, Union, nil, 2,
+			false, Union, "str | model | null", 3,
 		},
 		{
 			"str (no union) is required BlockRef",
 			"schema test_strip3 {\n  @suppress(\"duplicate-block\")\n  field = str\n}",
-			true, BlockRef, typePtr(NewBlockRefType("str", nil)), 0,
+			true, BlockRef, "str", 0,
 		},
 	}
 
@@ -336,15 +371,15 @@ func TestNullStrippingInUnion(t *testing.T) {
 			}
 			block := program.Statements[0].(*ast.BlockStatement)
 			assign := block.Assignments[0]
-			fs := NewFieldSchema(assign, nil)
+			fs := NewFieldSchema(assign, st)
 			if fs.Required != tt.required {
 				t.Errorf("Required = %v, want %v", fs.Required, tt.required)
 			}
 			if fs.Type.Kind != tt.resultKind {
 				t.Errorf("Kind = %v, want %v", fs.Type.Kind, tt.resultKind)
 			}
-			if tt.expType != nil && !fs.Type.Equals(*tt.expType) {
-				t.Errorf("Type = %s, want %s", fs.Type.String(), tt.expType.String())
+			if got := fs.Type.String(); got != tt.wantStr {
+				t.Errorf("Type.String() = %q, want %q", got, tt.wantStr)
 			}
 			if tt.memberCount > 0 && len(fs.Type.Members) != tt.memberCount {
 				t.Errorf("Members = %d, want %d", len(fs.Type.Members), tt.memberCount)

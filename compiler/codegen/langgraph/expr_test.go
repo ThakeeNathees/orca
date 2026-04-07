@@ -416,12 +416,12 @@ func TestWrapWithMetaIfNeeded(t *testing.T) {
 		},
 		{
 			name:        "single block-level style annotation",
-			inner:       `__orca_input(type=str,)`,
+			inner:       `__orca_model(provider="openai",model_name="gpt-4o",)`,
 			anns:        []*ast.Annotation{{Name: "sensitive"}},
 			argIndent:   "    ",
 			closeIndent: "",
 			want: "__orca_with_meta(\n" +
-				"    __orca_input(type=str,),\n" +
+				"    __orca_model(provider=\"openai\",model_name=\"gpt-4o\",),\n" +
 				"    [\n" +
 				"        __orca_meta(\"sensitive\"),\n" +
 				"    ],\n" +
@@ -472,14 +472,15 @@ func TestWrapWithMetaIfNeeded(t *testing.T) {
 // TestTopLevelBlockSource verifies block-level annotations wrap the whole __orca_* call.
 func TestTopLevelBlockSource(t *testing.T) {
 	block := &ast.BlockStatement{
-		Name: "apikey",
+		Name: "gpt4",
 		Annotations: []*ast.Annotation{
 			{Name: "sensitive"},
 		},
 		BlockBody: ast.BlockBody{
-			Kind: analyzer.BlockKindInput,
+			Kind: analyzer.BlockKindModel,
 			Assignments: []*ast.Assignment{
-				{Name: "type", Value: &ast.Identifier{Value: "str"}},
+				{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}},
+				{Name: "model_name", Value: &ast.StringLiteral{Value: "gpt-4o"}},
 			},
 		},
 	}
@@ -487,16 +488,17 @@ func TestTopLevelBlockSource(t *testing.T) {
 	if !strings.Contains(got, `__orca_with_meta(`) || !strings.Contains(got, `__orca_meta("sensitive")`) {
 		t.Fatalf("expected with_meta and sensitive meta, got:\n%s", got)
 	}
-	if !strings.Contains(got, `__orca_input(`) {
-		t.Fatalf("expected inner __orca_input call, got:\n%s", got)
+	if !strings.Contains(got, `__orca_model(`) {
+		t.Fatalf("expected inner __orca_model call, got:\n%s", got)
 	}
 
 	plain := &ast.BlockStatement{
 		Name: "x",
 		BlockBody: ast.BlockBody{
-			Kind: analyzer.BlockKindInput,
+			Kind: analyzer.BlockKindModel,
 			Assignments: []*ast.Assignment{
-				{Name: "type", Value: &ast.Identifier{Value: "str"}},
+				{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}},
+				{Name: "model_name", Value: &ast.StringLiteral{Value: "gpt-4o"}},
 			},
 		},
 	}
