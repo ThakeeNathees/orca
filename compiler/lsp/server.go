@@ -430,6 +430,13 @@ func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol
 
 	if block, ok := target.(*ast.BlockStatement); ok {
 		if _, ok := lookupSchemaField(doc.Symbols, block.Kind, ma.Member); ok {
+			// Prefer the field's definition in a user `schema <kind>` block in this
+			// program. If the schema only exists in bootstrap (e.g. model), keep
+			// jumping to the instance block name (e.g. gpt4) — see
+			// TestDefinitionMemberUnassignedField.
+			if loc, ok := findSchemaFieldAssignmentInProgram(doc.Program, block.Kind, ma.Member); ok {
+				return loc, true
+			}
 			return protocol.Location{Range: tokenToRange(block.NameToken)}, true
 		}
 	}
@@ -464,7 +471,8 @@ func assignmentsOf(node ast.Node) []*ast.Assignment {
 // members. Returns a *ast.BlockStatement for block references (e.g. gpt4),
 // or a *ast.BlockExpression for inline blocks (e.g. output = schema { ... }).
 // For chained access (a.b), recursively resolves the parent then finds the
-// member's value within it.
+// member's value within it. For list[index].field, subscription unwraps to the
+// element schema (homogeneous lists).
 func resolveObjectTarget(doc *documentState, expr ast.Expression) ast.Node {
 	switch e := expr.(type) {
 	case *ast.Identifier:
@@ -474,6 +482,13 @@ func resolveObjectTarget(doc *documentState, expr ast.Expression) ast.Node {
 		// Resolve the parent object first.
 		parent := resolveObjectTarget(doc, e.Object)
 		return findMemberValue(parent, e.Member, doc)
+
+	case *ast.Subscription:
+		base := resolveObjectTarget(doc, e.Object)
+		if be, ok := base.(*ast.BlockExpression); ok {
+			return be
+		}
+		return nil
 	}
 	return nil
 }
@@ -481,31 +496,111 @@ func resolveObjectTarget(doc *documentState, expr ast.Expression) ast.Node {
 // findMemberValue finds the assignment named `member` within a target node
 // (BlockStatement or BlockExpression) and returns what it resolves to.
 // For identifier values, follows the reference to the block. For block
-// expression values, returns the expression itself. Returns nil if not found.
+// expression values, returns the expression itself. If the instance block has
+// no assignment for the field, falls back to the type's `schema <kind> { ... }`
+// definition (user program or symbol table). Returns nil if not found.
 func findMemberValue(target ast.Node, member string, doc *documentState) ast.Node {
 	if result := resolveAssignmentValue(assignmentsOf(target), member, doc); result != nil {
 		return result
+	}
+	if block, ok := target.(*ast.BlockStatement); ok {
+		return resolveAssignmentValue(schemaKindAssignments(doc, block.Kind), member, doc)
 	}
 	return nil
 }
 
 // resolveAssignmentValue finds the assignment named `member` in the given
 // assignments and resolves its value: identifiers follow to blocks, inline
-// blocks return the expression itself.
+// blocks return the expression itself, and list [ schema { ... } ] unwraps to
+// the inner schema block expression.
 func resolveAssignmentValue(assignments []*ast.Assignment, member string, doc *documentState) ast.Node {
 	for _, assign := range assignments {
 		if assign.Name != member {
 			continue
 		}
-		switch v := assign.Value.(type) {
-		case *ast.Identifier:
-			return findBlock(doc.Program, v.Value)
-		case *ast.BlockExpression:
-			return v
-		}
-		return nil
+		return resolveExprValue(assign.Value, doc)
 	}
 	return nil
+}
+
+// resolveExprValue maps a field value expression to the AST used for further
+// member resolution (block ref, inline schema, or list element schema).
+func resolveExprValue(expr ast.Expression, doc *documentState) ast.Node {
+	if expr == nil {
+		return nil
+	}
+	switch v := expr.(type) {
+	case *ast.Identifier:
+		return findBlock(doc.Program, v.Value)
+	case *ast.BlockExpression:
+		return v
+	case *ast.Subscription:
+		return resolveListSchemaElement(v)
+	default:
+		return nil
+	}
+}
+
+// resolveListSchemaElement returns the inner schema block for `list [ schema { ... } ]`.
+func resolveListSchemaElement(s *ast.Subscription) ast.Node {
+	if id, ok := s.Object.(*ast.Identifier); ok && id.Value == "list" {
+		if inner, ok := s.Index.(*ast.BlockExpression); ok {
+			return inner
+		}
+	}
+	return nil
+}
+
+// findSchemaBlockStatement returns the top-level `schema typeName { ... }` block
+// in the program, or nil if this file does not define that schema.
+func findSchemaBlockStatement(program *ast.Program, typeName string) *ast.BlockStatement {
+	if program == nil {
+		return nil
+	}
+	for _, stmt := range program.Statements {
+		b, ok := stmt.(*ast.BlockStatement)
+		if !ok {
+			continue
+		}
+		if b.Kind == "schema" && b.Name == typeName {
+			return b
+		}
+	}
+	return nil
+}
+
+// findSchemaFieldAssignmentInProgram returns the definition location for a field
+// declared in a user-visible `schema <kind>` block in this program.
+func findSchemaFieldAssignmentInProgram(program *ast.Program, kindName, fieldName string) (protocol.Location, bool) {
+	sb := findSchemaBlockStatement(program, kindName)
+	if sb == nil {
+		return protocol.Location{}, false
+	}
+	for _, assign := range sb.Assignments {
+		if assign.Name == fieldName {
+			return protocol.Location{Range: tokenToRange(assign.Start())}, true
+		}
+	}
+	return protocol.Location{}, false
+}
+
+// schemaKindAssignments returns assignments from the schema that defines kindName:
+// first from a `schema kindName` block in the program, otherwise from the
+// analyzed symbol table (bootstrap / merged definitions).
+func schemaKindAssignments(doc *documentState, kindName string) []*ast.Assignment {
+	if doc.Program != nil {
+		if sb := findSchemaBlockStatement(doc.Program, kindName); sb != nil {
+			return sb.Assignments
+		}
+	}
+	if doc.Symbols == nil {
+		return nil
+	}
+	ty, ok := doc.Symbols.Lookup(kindName)
+	if !ok || ty.Block == nil || ty.Block.Ast == nil {
+		return nil
+	}
+	return ty.Block.Ast.Assignments
 }
 
 // findTypeSchema returns the BlockExpression from the "type" field of a block,
