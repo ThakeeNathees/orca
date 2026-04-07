@@ -71,10 +71,9 @@ func TestOrcaTypeToPythonTypeName(t *testing.T) {
 
 // TestSchemaBlockToSource verifies full Pydantic class generation from schema blocks.
 //
-// SchemaBlockToSource calls BlockSchemaTypeOfExpr(expr, nil). With a nil symbol table,
-// types.IdentType falls back to any for almost every identifier, so generated annotations
-// use Any heavily. When codegen supplies bootstrap or analyzer symbols, update these
-// expectations to match str/int/… and optional null handling.
+// SchemaBlockToSource calls BlockSchemaTypeOfExpr(expr, nil). Without a symbol table,
+// identifiers in schema type expressions still resolve as named type references, so
+// generated Python annotations match Orca primitives and schema names.
 func TestSchemaBlockToSource(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -93,10 +92,9 @@ func TestSchemaBlockToSource(t *testing.T) {
 					},
 				},
 			},
-			// Nil symbol table: identifiers resolve to any (see types.IdentType).
 			expected: "class article(BaseModel):\n" +
-				"    title: Any\n" +
-				"    count: Any\n",
+				"    title: str\n" +
+				"    count: int\n",
 		},
 		{
 			name: "all primitive types",
@@ -113,10 +111,10 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class config(BaseModel):\n" +
-				"    name: Any\n" +
-				"    count: Any\n" +
-				"    rate: Any\n" +
-				"    enabled: Any\n",
+				"    name: str\n" +
+				"    count: int\n" +
+				"    rate: float\n" +
+				"    enabled: bool\n",
 		},
 		{
 			name: "any type field",
@@ -150,7 +148,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class article(BaseModel):\n" +
-				"    title: Any = Field(description=\"The article title\")\n",
+				"    title: str = Field(description=\"The article title\")\n",
 		},
 		{
 			name: "desc with special characters",
@@ -170,7 +168,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class article(BaseModel):\n" +
-				"    body: Any = Field(description=\"Contains \\\"quotes\\\" and \\\\backslash\")\n",
+				"    body: str = Field(description=\"Contains \\\"quotes\\\" and \\\\backslash\")\n",
 		},
 		{
 			name: "optional field without desc (null identifier union)",
@@ -191,7 +189,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class article(BaseModel):\n" +
-				"    score: Any | Any\n",
+				"    score: float | None = None\n",
 		},
 		{
 			name: "optional field without desc (null identifier)",
@@ -212,7 +210,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class article(BaseModel):\n" +
-				"    score: Any | Any\n",
+				"    score: float | None = None\n",
 		},
 		{
 			name: "optional field with desc",
@@ -236,7 +234,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class article(BaseModel):\n" +
-				"    score: Any | Any = Field(description=\"Confidence score\")\n",
+				"    score: float | None = Field(default=None, description=\"Confidence score\")\n",
 		},
 		{
 			name: "multi-member union with null",
@@ -261,7 +259,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class result(BaseModel):\n" +
-				"    value: Any | Any | Any\n",
+				"    value: str | int | None = None\n",
 		},
 		{
 			name: "non-optional union",
@@ -282,7 +280,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class result(BaseModel):\n" +
-				"    value: Any | Any\n",
+				"    value: str | int\n",
 		},
 		{
 			name: "nested schema reference",
@@ -297,8 +295,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class person(BaseModel):\n" +
-				"    name: Any\n" +
-				"    home: Any\n",
+				"    name: str\n" +
+				"    home: address\n",
 		},
 		{
 			name: "optional schema reference",
@@ -319,7 +317,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class person(BaseModel):\n" +
-				"    backup: Any | Any\n",
+				"    backup: address | None = None\n",
 		},
 		{
 			name: "list[str] field",
@@ -339,7 +337,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class article(BaseModel):\n" +
-				"    tags: list[Any]\n",
+				"    tags: list[str]\n",
 		},
 		{
 			name: "list[schema_ref] with desc",
@@ -362,7 +360,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class article(BaseModel):\n" +
-				"    items: list[Any] = Field(description=\"All addresses\")\n",
+				"    items: list[address] = Field(description=\"All addresses\")\n",
 		},
 		{
 			name: "map[str] field",
@@ -382,7 +380,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class config(BaseModel):\n" +
-				"    metadata: dict[str, Any]\n",
+				"    metadata: dict[str, str]\n",
 		},
 		{
 			name: "inline schema field",
@@ -440,7 +438,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class article(BaseModel):\n" +
-				"    region: Any = Field(description=\"Region code\")\n",
+				"    region: str = Field(description=\"Region code\")\n",
 		},
 		{
 			name: "mixed required and optional fields",
@@ -479,10 +477,10 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class report(BaseModel):\n" +
-				"    title: Any = Field(description=\"Report title\")\n" +
-				"    body: Any\n" +
-				"    rating: Any | Any = Field(description=\"Optional rating\")\n" +
-				"    tags: list[Any]\n",
+				"    title: str = Field(description=\"Report title\")\n" +
+				"    body: str\n" +
+				"    rating: int | None = Field(default=None, description=\"Optional rating\")\n" +
+				"    tags: list[str]\n",
 		},
 		{
 			name: "only optional fields",
@@ -511,8 +509,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 				},
 			},
 			expected: "class opts(BaseModel):\n" +
-				"    a: Any | Any\n" +
-				"    b: Any | Any\n",
+				"    a: str | None = None\n" +
+				"    b: int | None = None\n",
 		},
 	}
 

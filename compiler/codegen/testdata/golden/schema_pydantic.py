@@ -162,9 +162,9 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class research_report(BaseModel):
-    topic: Any = Field(description="The research topic")
-    findings: list[Any] = Field(description="Key findings from research")
-    score: Any | Any = Field(description="Confidence score")
+    topic: str = Field(description="The research topic")
+    findings: list[str] = Field(description="Key findings from research")
+    score: float | None = Field(default=None, description="Confidence score")
 
 # --- Agents ---
 

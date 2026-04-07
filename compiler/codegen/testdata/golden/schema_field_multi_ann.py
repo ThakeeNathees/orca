@@ -161,4 +161,4 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class cfg(BaseModel):
-    region: Any = Field(description="Region code")
+    region: str = Field(description="Region code")

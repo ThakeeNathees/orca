@@ -265,6 +265,14 @@ func identType(depth int, name string, symtab *SymbolTable) (Type, bool) {
 			return NewBlockRefType(newSchemaName, &blockSchema), true
 		}
 	}
+
+	// This (negative depth) is only for testability.
+	// Without a symbol table, schema type expressions at depth ≤ 0 treat identifiers as
+	// named type references (user schema names) for codegen, bootstrap tests.
+	if symtab == nil && depth <= 0 {
+		return NewBlockRefType(name, nil), true
+	}
+
 	return Type{}, false
 }
 

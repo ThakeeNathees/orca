@@ -163,8 +163,8 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class report(BaseModel):
-    content: Any = Field(description="The report content")
-    score: Any = Field(description="Quality score")
+    content: str = Field(description="The report content")
+    score: int = Field(description="Quality score")
 
 # --- Agents ---
 
