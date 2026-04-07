@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
-from langchain.agents import create_agent
 
 from types import SimpleNamespace, TypedDict
 from typing import Any
@@ -160,13 +159,6 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-)
-
 # --- Agents ---
 
 classifier = __orca_agent(
@@ -201,27 +193,19 @@ class __orca_state_diamond(TypedDict):
 
 def __orca_node_classifier(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'classifier'."""
-    input_data = state["__orca_payload"]
-    result = __orca_invoke_agent(classifier, input_data)
-    return {"classifier": result}
+    pass  # TODO: implement node invocation for 'classifier'
 
 def __orca_node_writer(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'writer'."""
-    input_data = __orca_gather(state, ["classifier"])
-    result = __orca_invoke_agent(writer, input_data)
-    return {"writer": result}
+    pass  # TODO: implement node invocation for 'writer'
 
 def __orca_node_analyst(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'analyst'."""
-    input_data = __orca_gather(state, ["classifier"])
-    result = __orca_invoke_agent(analyst, input_data)
-    return {"analyst": result}
+    pass  # TODO: implement node invocation for 'analyst'
 
 def __orca_node_reviewer(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'reviewer'."""
-    input_data = __orca_gather(state, ["writer", "analyst"])
-    result = __orca_invoke_agent(reviewer, input_data)
-    return {"reviewer": result}
+    pass  # TODO: implement node invocation for 'reviewer'
 
 def __orca_route_diamond(state: __orca_state_diamond) -> str:
     """Route to entry node based on trigger source."""

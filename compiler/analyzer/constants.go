@@ -3,6 +3,7 @@ package analyzer
 const (
 	BlockKindNumber = "number"
 	BlockKindString = "string"
+	BlockKindNull   = "null"
 
 	BlockKindLet       = "let"
 	BlockKindWorkflow  = "workflow"

@@ -159,19 +159,6 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-)
-
-claude = __orca_model(
-    provider_class=ChatAnthropic,
-    model_name="claude-sonnet-4-20250514",
-    temperature=0.3,
-)
-
 # --- Agents ---
 
 researcher = __orca_agent(

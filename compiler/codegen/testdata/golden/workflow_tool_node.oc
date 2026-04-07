@@ -10,7 +10,10 @@ agent drafter {
 
 tool validate {
   desc   = "Validate report against style guide"
-  invoke = "tools.validation.check_style"
+  invoke = ```py
+def validate(report: str) -> str:
+    return report
+```
 }
 
 agent reviewer {

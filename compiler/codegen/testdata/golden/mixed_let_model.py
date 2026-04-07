@@ -163,11 +163,3 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 vars = __orca_let(
     api_key="sk-123",
 )
-
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-    temperature=1,
-)

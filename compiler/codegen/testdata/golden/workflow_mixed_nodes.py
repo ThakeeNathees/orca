@@ -8,9 +8,7 @@ All public names are prefixed with __orca_ to avoid collisions with user code.
 from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
-from tools.validate import check
 from langgraph.graph import StateGraph, START, END
-from langchain.agents import create_agent
 from pydantic import BaseModel, Field
 
 from types import SimpleNamespace, TypedDict
@@ -165,19 +163,15 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class report(BaseModel):
-    content: str
-
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-)
+    content: Any
 
 # --- Tools ---
 
+def validate__invoke_verbatim(report: str) -> str:
+    return report
+
 validate = __orca_tool(
-    invoke=check,
+    invoke=validate__invoke_verbatim,
 )
 
 # --- Agents ---
@@ -204,21 +198,15 @@ class __orca_state_pipeline(TypedDict):
 
 def __orca_node_researcher(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'researcher'."""
-    input_data = state["__orca_payload"]
-    result = __orca_invoke_agent(researcher, input_data)
-    return {"researcher": result}
+    pass  # TODO: implement node invocation for 'researcher'
 
 def __orca_node_writer(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'writer'."""
-    input_data = __orca_gather(state, ["researcher"])
-    result = __orca_invoke_agent(writer, input_data)
-    return {"writer": result}
+    pass  # TODO: implement node invocation for 'writer'
 
 def __orca_node_validate(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'validate'."""
-    input_data = __orca_gather(state, ["writer"])
-    result = __orca_invoke_tool(validate, input_data)
-    return {"validate": result}
+    pass  # TODO: implement node invocation for 'validate'
 
 def __orca_route_pipeline(state: __orca_state_pipeline) -> str:
     """Route to entry node based on trigger source."""

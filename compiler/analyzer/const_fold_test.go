@@ -33,7 +33,7 @@ func TestConstFoldLiterals(t *testing.T) {
 		},
 		{
 			name: "null",
-			expr: &ast.NullLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"})},
+			expr: &ast.Identifier{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"}), Value: BlockKindNull},
 			want: ConstValue{Kind: ConstNull},
 		},
 	}
@@ -282,8 +282,9 @@ func TestConstFoldMemberAccess(t *testing.T) {
 		},
 		{
 			name: "null_object_not_folded_member",
-			expr: memberAccess(&ast.NullLiteral{
+			expr: memberAccess(&ast.Identifier{
 				BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"}),
+				Value:    BlockKindNull,
 			}, "x"),
 			want:         ConstValue{Kind: ConstUnknown},
 			expDiagCodes: []string{diagnostic.CodeUnexpectedExpr},

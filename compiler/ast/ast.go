@@ -267,14 +267,6 @@ type BlockExpression struct {
 
 func (be *BlockExpression) expressionNode() {}
 
-// NullLiteral represents the null keyword.
-// Terminal node — start == end.
-type NullLiteral struct {
-	BaseNode
-}
-
-func (nl *NullLiteral) expressionNode() {}
-
 // Visitor is invoked for each AST node in pre-order (parent before descendants).
 // Return true to continue into that node's children; return false to skip the
 // subtree rooted at the current node (the node itself has already been visited).

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
-from langchain.agents import create_agent
 
 from types import SimpleNamespace, TypedDict
 from typing import Any
@@ -160,13 +159,6 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-)
-
 # --- Agents ---
 
 researcher = __orca_agent(
@@ -195,40 +187,39 @@ daily = __orca_cron(
 class __orca_state_pipeline(TypedDict):
     __orca_trigger: str | None
     __orca_payload: dict | None
+    daily: Any
     researcher: Any
     analyst: Any
     writer: Any
 
+def __orca_node_daily(state: __orca_state_pipeline) -> dict:
+    """Workflow node wrapping 'daily'."""
+    pass  # TODO: implement node invocation for 'daily'
+
 def __orca_node_researcher(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'researcher'."""
-    input_data = state["__orca_payload"]
-    result = __orca_invoke_agent(researcher, input_data)
-    return {"researcher": result}
+    pass  # TODO: implement node invocation for 'researcher'
 
 def __orca_node_analyst(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'analyst'."""
-    input_data = state["__orca_payload"]
-    result = __orca_invoke_agent(analyst, input_data)
-    return {"analyst": result}
+    pass  # TODO: implement node invocation for 'analyst'
 
 def __orca_node_writer(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'writer'."""
-    input_data = __orca_gather(state, ["researcher", "analyst"])
-    result = __orca_invoke_agent(writer, input_data)
-    return {"writer": result}
+    pass  # TODO: implement node invocation for 'writer'
 
-def __orca_route_pipeline(state: __orca_state_pipeline) -> list[str]:
+def __orca_route_pipeline(state: __orca_state_pipeline) -> str:
     """Route to entry node based on trigger source."""
-    trigger = state.get("__orca_trigger")
-    if trigger == "daily":
-        return ["researcher", "analyst"]
-    raise ValueError(f"unknown trigger: {trigger!r}")
+    return "daily"
 
 pipeline = StateGraph(__orca_state_pipeline)
+pipeline.add_node("daily", __orca_node_daily)
 pipeline.add_node("researcher", __orca_node_researcher)
 pipeline.add_node("analyst", __orca_node_analyst)
 pipeline.add_node("writer", __orca_node_writer)
 pipeline.add_conditional_edges(START, __orca_route_pipeline)
+pipeline.add_edge("daily", "researcher")
+pipeline.add_edge("daily", "analyst")
 pipeline.add_edge("researcher", "writer")
 pipeline.add_edge("analyst", "writer")
 pipeline.add_edge("writer", END)

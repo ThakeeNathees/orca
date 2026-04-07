@@ -21,16 +21,15 @@ func (b *LangGraphBackend) collectWorkflows() []*ast.BlockStatement {
 // triggerPredicate returns a function that checks if a node name is a trigger
 // block kind, using the program's symbol table.
 func (b *LangGraphBackend) triggerPredicate() func(string) bool {
-	return func(kind string) bool {
-		sym, ok := b.Program.SymbolTable.LookupSymbol(kind)
+	return func(blockName string) bool {
+		typ, ok := b.Program.SymbolTable.Lookup(blockName)
 		if !ok {
 			return false
 		}
-		schema, ok := types.LookupBlockSchema(sym.Type)
-		if !ok {
+		if typ.Block == nil {
 			return false
 		}
-		return helper.HasAnnotation(schema.Annotations, analyzer.AnnotationTriggerNode)
+		return helper.HasAnnotation(typ.Block.Annotations, analyzer.AnnotationTriggerNode)
 	}
 }
 
@@ -138,9 +137,7 @@ func (b *LangGraphBackend) nodeFieldType(nodeName string) string {
 
 	// Check for output_schema field.
 	if schemaExpr, ok := block.GetFieldExpression("output_schema"); ok {
-		// Use bootstrap mode (nil symbol table) to resolve the schema name
-		// as a type, since the symbol table stores schemas without names.
-		schemaType := types.ExprType(schemaExpr, nil)
+		schemaType := types.BlockSchemaTypeOfExpr(schemaExpr, b.Program.SymbolTable)
 		typeName := python.OrcaTypeToPythonTypeName(schemaType)
 		return typeName + " | None"
 	}

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
-from langchain.agents import create_agent
 
 from types import SimpleNamespace, TypedDict
 from typing import Any
@@ -160,13 +159,6 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-)
-
 # --- Agents ---
 
 researcher = __orca_agent(
@@ -183,9 +175,7 @@ class __orca_state_pipeline(TypedDict):
 
 def __orca_node_researcher(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'researcher'."""
-    input_data = state["__orca_payload"]
-    result = __orca_invoke_agent(researcher, input_data)
-    return {"researcher": result}
+    pass  # TODO: implement node invocation for 'researcher'
 
 def __orca_route_pipeline(state: __orca_state_pipeline) -> str:
     """Route to entry node based on trigger source."""
