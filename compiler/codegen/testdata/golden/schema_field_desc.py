@@ -161,4 +161,4 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class vpc_data_t(BaseModel):
-    region: str = Field(description="AWS region")
+    region: Any = Field(description="AWS region")

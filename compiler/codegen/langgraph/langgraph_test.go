@@ -186,13 +186,13 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 	}
 }
 
-// TestWriteImports verifies that provider imports are written correctly.
+// TestWriteImports verifies that provider (and other codegen) imports are written correctly.
+// TypedDict lives in the embedded runtime, not here — writeImports only emits python.PythonImport lines.
 func TestWriteImports(t *testing.T) {
-	const typedDictImport = "from typing import TypedDict"
 	tests := []struct {
 		name     string
 		imports  []python.PythonImport
-		expected []string // substrings after the always-present TypedDict import
+		expected []string
 	}{
 		{
 			name:     "no providers",
@@ -233,9 +233,6 @@ func TestWriteImports(t *testing.T) {
 			var s strings.Builder
 			b.writeImports(&s, tt.imports)
 			result := s.String()
-			if !strings.Contains(result, typedDictImport) {
-				t.Errorf("expected %q in output:\n%s", typedDictImport, result)
-			}
 			for _, exp := range tt.expected {
 				if !strings.Contains(result, exp) {
 					t.Errorf("expected import %q in output:\n%s", exp, result)
@@ -717,7 +714,7 @@ func TestGenerateProviderConstFold(t *testing.T) {
 			wantDeps:       []string{"langchain-core"},
 			wantDiagCount:  1,
 			wantDiagCode:   diagnostic.CodeTypeMismatch,
-			wantDiagSubstr: `field "provider" expects type str, got int`,
+			wantDiagSubstr: `field "provider" expects type str, got number`,
 		},
 	}
 
@@ -858,7 +855,7 @@ func modelBlockWithTemp(name, provider, modelName string, temp float64) *ast.Blo
 	block := modelBlock(name, provider, modelName)
 	block.Assignments = append(block.Assignments, &ast.Assignment{
 		Name:  "temperature",
-		Value: &ast.FloatLiteral{Value: temp},
+		Value: &ast.NumberLiteral{Value: temp},
 	})
 	return block
 }
@@ -868,7 +865,7 @@ func modelBlockWithIntTemp(name, provider, modelName string, temp int64) *ast.Bl
 	block := modelBlock(name, provider, modelName)
 	block.Assignments = append(block.Assignments, &ast.Assignment{
 		Name:  "temperature",
-		Value: &ast.IntegerLiteral{Value: temp},
+		Value: &ast.NumberLiteral{Value: float64(temp)},
 	})
 	return block
 }

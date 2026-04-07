@@ -19,7 +19,10 @@ agent writer {
 }
 
 tool validate {
-  invoke = "tools.validate.check"
+  invoke = ```py
+def validate(report: str) -> str:
+    return report
+```
 }
 
 workflow pipeline {

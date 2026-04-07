@@ -84,8 +84,6 @@ func schemaFromExprWithDepth(depth int, expr ast.Expression, symbols *SymbolTabl
 		return IdentType(depth-1, "str", symbols)
 	case *ast.NumberLiteral:
 		return IdentType(depth-1, "number", symbols)
-	case *ast.NullLiteral:
-		return IdentType(depth-1, "null", symbols)
 
 	case *ast.ListLiteral:
 		return listLiteralType(depth, e, symbols)

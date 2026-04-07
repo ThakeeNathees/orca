@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
-from langchain.agents import create_agent
 
 from types import SimpleNamespace, TypedDict
 from typing import Any
@@ -160,13 +159,6 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-)
-
 # --- Agents ---
 
 researcher = __orca_agent(
@@ -196,34 +188,39 @@ hooks_in = __orca_webhook(
 class __orca_state_pipeline(TypedDict):
     __orca_trigger: str | None
     __orca_payload: dict | None
+    daily: Any
     researcher: Any
     writer: Any
+    hooks_in: Any
+
+def __orca_node_daily(state: __orca_state_pipeline) -> dict:
+    """Workflow node wrapping 'daily'."""
+    pass  # TODO: implement node invocation for 'daily'
 
 def __orca_node_researcher(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'researcher'."""
-    input_data = state["__orca_payload"]
-    result = __orca_invoke_agent(researcher, input_data)
-    return {"researcher": result}
+    pass  # TODO: implement node invocation for 'researcher'
 
 def __orca_node_writer(state: __orca_state_pipeline) -> dict:
     """Workflow node wrapping 'writer'."""
-    input_data = __orca_gather(state, ["researcher"])
-    result = __orca_invoke_agent(writer, input_data)
-    return {"writer": result}
+    pass  # TODO: implement node invocation for 'writer'
+
+def __orca_node_hooks_in(state: __orca_state_pipeline) -> dict:
+    """Workflow node wrapping 'hooks_in'."""
+    pass  # TODO: implement node invocation for 'hooks_in'
 
 def __orca_route_pipeline(state: __orca_state_pipeline) -> str:
     """Route to entry node based on trigger source."""
-    trigger = state.get("__orca_trigger")
-    if trigger == "daily":
-        return "researcher"
-    if trigger == "hooks_in":
-        return "researcher"
-    raise ValueError(f"unknown trigger: {trigger!r}")
+    return ["daily", "hooks_in"]
 
 pipeline = StateGraph(__orca_state_pipeline)
+pipeline.add_node("daily", __orca_node_daily)
 pipeline.add_node("researcher", __orca_node_researcher)
 pipeline.add_node("writer", __orca_node_writer)
+pipeline.add_node("hooks_in", __orca_node_hooks_in)
 pipeline.add_conditional_edges(START, __orca_route_pipeline)
+pipeline.add_edge("daily", "researcher")
 pipeline.add_edge("researcher", "writer")
+pipeline.add_edge("hooks_in", "researcher")
 pipeline.add_edge("writer", END)
 pipeline = pipeline.compile()

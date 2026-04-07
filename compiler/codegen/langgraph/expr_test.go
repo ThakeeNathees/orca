@@ -39,47 +39,47 @@ func TestExprToSource(t *testing.T) {
 		},
 		{
 			name:     "integer literal",
-			expr:     &ast.IntegerLiteral{Value: 42},
+			expr:     &ast.NumberLiteral{Value: 42},
 			expected: "42",
 		},
 		{
 			name:     "zero integer",
-			expr:     &ast.IntegerLiteral{Value: 0},
+			expr:     &ast.NumberLiteral{Value: 0},
 			expected: "0",
 		},
 		{
 			name:     "negative integer",
-			expr:     &ast.IntegerLiteral{Value: -1},
+			expr:     &ast.NumberLiteral{Value: -1},
 			expected: "-1",
 		},
 		{
 			name:     "float literal",
-			expr:     &ast.FloatLiteral{Value: 3.14},
+			expr:     &ast.NumberLiteral{Value: 3.14},
 			expected: "3.14",
 		},
 		{
 			name:     "float whole number",
-			expr:     &ast.FloatLiteral{Value: 1.0},
-			expected: "1.0",
+			expr:     &ast.NumberLiteral{Value: 1.0},
+			expected: "1",
 		},
 		{
 			name:     "float zero",
-			expr:     &ast.FloatLiteral{Value: 0.0},
-			expected: "0.0",
+			expr:     &ast.NumberLiteral{Value: 0.0},
+			expected: "0",
 		},
 		{
 			name:     "boolean true",
-			expr:     &ast.BooleanLiteral{Value: true},
+			expr:     &ast.Identifier{Value: "true"},
 			expected: "True",
 		},
 		{
 			name:     "boolean false",
-			expr:     &ast.BooleanLiteral{Value: false},
+			expr:     &ast.Identifier{Value: "false"},
 			expected: "False",
 		},
 		{
-			name:     "null literal",
-			expr:     &ast.NullLiteral{},
+			name:     "null identifier",
+			expr:     &ast.Identifier{Value: "null"},
 			expected: "None",
 		},
 		{
@@ -110,7 +110,7 @@ func TestExprToSource(t *testing.T) {
 			name: "subscription with integer",
 			expr: &ast.Subscription{
 				Object: &ast.Identifier{Value: "items"},
-				Index:  &ast.IntegerLiteral{Value: 0},
+				Index:  &ast.NumberLiteral{Value: 0},
 			},
 			expected: "items[0]",
 		},
@@ -131,9 +131,9 @@ func TestExprToSource(t *testing.T) {
 			name: "list with elements",
 			expr: &ast.ListLiteral{
 				Elements: []ast.Expression{
-					&ast.IntegerLiteral{Value: 1},
-					&ast.IntegerLiteral{Value: 2},
-					&ast.IntegerLiteral{Value: 3},
+					&ast.NumberLiteral{Value: 1},
+					&ast.NumberLiteral{Value: 2},
+					&ast.NumberLiteral{Value: 3},
 				},
 			},
 			expected: "[1, 2, 3]",
@@ -143,8 +143,8 @@ func TestExprToSource(t *testing.T) {
 			expr: &ast.ListLiteral{
 				Elements: []ast.Expression{
 					&ast.StringLiteral{Value: "a"},
-					&ast.IntegerLiteral{Value: 1},
-					&ast.BooleanLiteral{Value: true},
+					&ast.NumberLiteral{Value: 1},
+					&ast.Identifier{Value: "true"},
 				},
 			},
 			expected: `["a", 1, True]`,
@@ -159,7 +159,7 @@ func TestExprToSource(t *testing.T) {
 			expr: &ast.MapLiteral{
 				Entries: []ast.MapEntry{
 					{Key: &ast.StringLiteral{Value: "name"}, Value: &ast.StringLiteral{Value: "orca"}},
-					{Key: &ast.StringLiteral{Value: "version"}, Value: &ast.IntegerLiteral{Value: 1}},
+					{Key: &ast.StringLiteral{Value: "version"}, Value: &ast.NumberLiteral{Value: 1}},
 				},
 			},
 			expected: `{"name": "orca", "version": 1}`,
@@ -167,9 +167,9 @@ func TestExprToSource(t *testing.T) {
 		{
 			name: "binary expression",
 			expr: &ast.BinaryExpression{
-				Left:     &ast.IntegerLiteral{Value: 1},
+				Left:     &ast.NumberLiteral{Value: 1},
 				Operator: token.Token{Literal: "+"},
-				Right:    &ast.IntegerLiteral{Value: 2},
+				Right:    &ast.NumberLiteral{Value: 2},
 			},
 			expected: "1 + 2",
 		},
@@ -195,8 +195,8 @@ func TestExprToSource(t *testing.T) {
 			expr: &ast.CallExpression{
 				Callee: &ast.Identifier{Value: "max"},
 				Arguments: []ast.Expression{
-					&ast.IntegerLiteral{Value: 1},
-					&ast.IntegerLiteral{Value: 2},
+					&ast.NumberLiteral{Value: 1},
+					&ast.NumberLiteral{Value: 2},
 				},
 			},
 			expected: "max(1, 2)",
@@ -222,8 +222,8 @@ func TestExprToSource(t *testing.T) {
 						Key: &ast.StringLiteral{Value: "items"},
 						Value: &ast.ListLiteral{
 							Elements: []ast.Expression{
-								&ast.IntegerLiteral{Value: 1},
-								&ast.IntegerLiteral{Value: 2},
+								&ast.NumberLiteral{Value: 1},
+								&ast.NumberLiteral{Value: 2},
 							},
 						},
 					},
@@ -319,15 +319,13 @@ func TestExprToSourceExhaustiveKinds(t *testing.T) {
 		expr ast.Expression
 	}{
 		{"StringLiteral", &ast.StringLiteral{Value: "x"}},
-		{"IntegerLiteral", &ast.IntegerLiteral{Value: 1}},
-		{"FloatLiteral", &ast.FloatLiteral{Value: 1.0}},
-		{"BooleanLiteral", &ast.BooleanLiteral{Value: true}},
-		{"NullLiteral", &ast.NullLiteral{}},
+		{"NumberLiteral", &ast.NumberLiteral{Value: 1}},
+		{"Identifier_null", &ast.Identifier{Value: "null"}},
 		{"Identifier", &ast.Identifier{Value: "id"}},
 		{"MemberAccess", &ast.MemberAccess{Object: &ast.Identifier{Value: "a"}, Member: "b"}},
-		{"Subscription", &ast.Subscription{Object: &ast.Identifier{Value: "a"}, Index: &ast.IntegerLiteral{Value: 0}}},
-		{"ListLiteral", &ast.ListLiteral{Elements: []ast.Expression{&ast.IntegerLiteral{Value: 1}}}},
-		{"MapLiteral", &ast.MapLiteral{Entries: []ast.MapEntry{{Key: &ast.StringLiteral{Value: "k"}, Value: &ast.IntegerLiteral{Value: 1}}}}},
+		{"Subscription", &ast.Subscription{Object: &ast.Identifier{Value: "a"}, Index: &ast.NumberLiteral{Value: 0}}},
+		{"ListLiteral", &ast.ListLiteral{Elements: []ast.Expression{&ast.NumberLiteral{Value: 1}}}},
+		{"MapLiteral", &ast.MapLiteral{Entries: []ast.MapEntry{{Key: &ast.StringLiteral{Value: "k"}, Value: &ast.NumberLiteral{Value: 1}}}}},
 		{"BinaryExpression", &ast.BinaryExpression{Left: &ast.Identifier{Value: "a"}, Operator: token.Token{Literal: "->"}, Right: &ast.Identifier{Value: "b"}}},
 		{"CallExpression", &ast.CallExpression{Callee: &ast.Identifier{Value: "f"}, Arguments: []ast.Expression{}}},
 		{"BlockExpression", &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: analyzer.BlockKindModel, Assignments: []*ast.Assignment{{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}}}}}},
@@ -431,7 +429,7 @@ func TestWrapWithMetaIfNeeded(t *testing.T) {
 			name:  "multiple annotations list",
 			inner: `__orca_bar()`,
 			anns: []*ast.Annotation{
-				{Name: "a", Arguments: []ast.Expression{&ast.IntegerLiteral{Value: 1}}},
+				{Name: "a", Arguments: []ast.Expression{&ast.NumberLiteral{Value: 1}}},
 				{Name: "b"},
 			},
 			argIndent:   "    ",
@@ -515,13 +513,13 @@ func TestFormatFloat(t *testing.T) {
 		input    float64
 		expected string
 	}{
-		{"zero", 0.0, "0.0"},
-		{"whole number", 1.0, "1.0"},
+		{"zero", 0.0, "0"},
+		{"whole number", 1.0, "1"},
 		{"decimal", 3.14, "3.14"},
 		{"small decimal", 0.001, "0.001"},
-		{"large number", 1000000.0, "1e+06"},
+		{"large number", 1000000.0, "1000000"},
 		{"negative", -2.5, "-2.5"},
-		{"negative whole", -1.0, "-1.0"},
+		{"negative whole", -1.0, "-1"},
 		{"half", 0.5, "0.5"},
 		{"very small", 0.0001, "0.0001"},
 	}

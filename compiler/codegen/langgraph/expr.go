@@ -2,6 +2,7 @@ package langgraph
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/thakee/orca/compiler/ast"
@@ -19,9 +20,7 @@ func exprToSource(expr ast.Expression) string {
 		return "None"
 	case *ast.StringLiteral:
 		return fmt.Sprintf("%q", e.Value)
-	case *ast.IntegerLiteral:
-		return fmt.Sprintf("%d", e.Value)
-	case *ast.FloatLiteral:
+	case *ast.NumberLiteral:
 		return formatFloat(e.Value)
 	case *ast.Identifier:
 		switch e.Value {
@@ -201,12 +200,14 @@ func blockCallSource(body *ast.BlockBody, indent string) string {
 	return sb.String()
 }
 
-// formatFloat formats a float without unnecessary trailing zeros,
-// ensuring a decimal point for valid Python syntax.
+// formatFloat formats numbers for Python source. Whole values use integer
+// literals (no ".0"); fractional values use %g.
 func formatFloat(f float64) string {
-	s := fmt.Sprintf("%g", f)
-	if !strings.Contains(s, ".") && !strings.Contains(s, "e") {
-		s += ".0"
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return fmt.Sprintf("%g", f)
 	}
-	return s
+	if f == math.Trunc(f) {
+		return fmt.Sprintf("%.0f", f)
+	}
+	return fmt.Sprintf("%g", f)
 }

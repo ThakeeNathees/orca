@@ -33,8 +33,8 @@ func SchemaBlockToSource(block *ast.BlockStatement) string {
 	}
 
 	for _, assign := range block.Assignments {
-		resolved := types.ExprType(assign.Value, nil)
-		isOptional := resolved.Contains(types.Null())
+		resolved := types.BlockSchemaTypeOfExpr(assign.Value, nil)
+		isOptional := isOptional(resolved)
 		desc := extractDesc(assign.Annotations)
 
 		typeStr := orcaTypeToPythonTypeName(resolved)
@@ -63,6 +63,17 @@ func SchemaBlockToSource(block *ast.BlockStatement) string {
 // Exported for use by other codegen packages (e.g. workflow state generation).
 func OrcaTypeToPythonTypeName(t types.Type) string {
 	return orcaTypeToPythonTypeName(t)
+}
+
+func isOptional(t types.Type) bool {
+	if t.Kind == types.Union {
+		for _, m := range t.Members {
+			if m.IsNull() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // orcaTypeToPythonTypeName converts a resolved types.Type to a Python type annotation string.

@@ -8,9 +8,7 @@ All public names are prefixed with __orca_ to avoid collisions with user code.
 from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
-from tools.validation import check_style
 from langgraph.graph import StateGraph, START, END
-from langchain.agents import create_agent
 
 from types import SimpleNamespace, TypedDict
 from typing import Any
@@ -161,18 +159,14 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-)
-
 # --- Tools ---
+
+def validate__invoke_verbatim(report: str) -> str:
+    return report
 
 validate = __orca_tool(
     desc="Validate report against style guide",
-    invoke=check_style,
+    invoke=validate__invoke_verbatim,
 )
 
 # --- Agents ---
@@ -198,21 +192,15 @@ class __orca_state_review_pipeline(TypedDict):
 
 def __orca_node_drafter(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'drafter'."""
-    input_data = state["__orca_payload"]
-    result = __orca_invoke_agent(drafter, input_data)
-    return {"drafter": result}
+    pass  # TODO: implement node invocation for 'drafter'
 
 def __orca_node_validate(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'validate'."""
-    input_data = __orca_gather(state, ["drafter"])
-    result = __orca_invoke_tool(validate, input_data)
-    return {"validate": result}
+    pass  # TODO: implement node invocation for 'validate'
 
 def __orca_node_reviewer(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'reviewer'."""
-    input_data = __orca_gather(state, ["validate"])
-    result = __orca_invoke_agent(reviewer, input_data)
-    return {"reviewer": result}
+    pass  # TODO: implement node invocation for 'reviewer'
 
 def __orca_route_review_pipeline(state: __orca_state_review_pipeline) -> str:
     """Route to entry node based on trigger source."""

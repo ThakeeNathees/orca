@@ -74,7 +74,6 @@ func (b *LangGraphBackend) generateMain() string {
 	s.WriteString("\n")
 
 	b.writeSchemaSection(&s, schemaBlocks)
-	b.writeOrcaBlockSection(&s, "Inputs", analyzer.BlockKindInput)
 	b.writeOrcaBlockSection(&s, "Variables", analyzer.BlockKindLet)
 	b.writeModelSection(&s)
 	b.writeOrcaBlockSection(&s, "Knowledge", analyzer.BlockKindKnowledge)

@@ -201,11 +201,6 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 		wantLookup string // if set, expected type is st.Lookup(wantLookup) (same Block pointer as ExprType)
 	}{
 		{
-			"null literal resolves to null type",
-			&ast.NullLiteral{},
-			BlockRef, typePtr(IdentType(0, "null", st)), "",
-		},
-		{
 			"identifier str resolves to str",
 			&ast.Identifier{Value: "str"},
 			BlockRef, nil, "str",

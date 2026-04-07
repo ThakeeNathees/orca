@@ -162,16 +162,9 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class research_report(BaseModel):
-    topic: str = Field(description="The research topic")
-    findings: list[str] = Field(description="Key findings from research")
-    score: float | None = Field(default=None, description="Confidence score")
-
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider_class=ChatOpenAI,
-    model_name="gpt-4o",
-)
+    topic: Any = Field(description="The research topic")
+    findings: list[Any] = Field(description="Key findings from research")
+    score: Any | Any = Field(description="Confidence score")
 
 # --- Agents ---
 

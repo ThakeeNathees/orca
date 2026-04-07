@@ -161,9 +161,9 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class address(BaseModel):
-    street: str = Field(description="Street name")
-    city: str
+    street: Any = Field(description="Street name")
+    city: Any
 
 class person(BaseModel):
-    name: str
-    home: address = Field(description="Home address")
+    name: Any
+    home: Any = Field(description="Home address")

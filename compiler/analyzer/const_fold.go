@@ -56,8 +56,6 @@ func ConstFold(expr ast.Expression, ap AnalyzedProgram) (ConstValue, []diagnosti
 		return ConstValue{Kind: ConstString, Str: e.Value}, diags
 	case *ast.NumberLiteral:
 		return ConstValue{Kind: ConstNumber, Number: e.Value}, diags
-	case *ast.NullLiteral:
-		return ConstValue{Kind: ConstNull}, diags
 	case *ast.BinaryExpression:
 		return foldBinary(e, ap)
 	case *ast.MemberAccess:
@@ -228,6 +226,10 @@ func constAsNumber(v ConstValue) (float64, bool) {
 // foldIdentifier folds named blocks (including let blocks) by re-folding
 // their body. Symbols without a matching block yield ConstUnknown.
 func foldIdentifier(e *ast.Identifier, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
+	// Parsed as an identifier; does not require symbol resolution for folding.
+	if e.Value == BlockKindNull {
+		return ConstValue{Kind: ConstNull}, nil
+	}
 	if ap.SymbolTable == nil {
 		return ConstValue{Kind: ConstUnknown}, nil
 	}
