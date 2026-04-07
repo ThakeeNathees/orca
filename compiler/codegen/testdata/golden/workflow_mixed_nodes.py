@@ -163,7 +163,7 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class report(BaseModel):
-    content: Any
+    content: str
 
 # --- Tools ---
 

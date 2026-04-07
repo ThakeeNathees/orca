@@ -161,5 +161,5 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Schemas ---
 
 class vpc_data_t(BaseModel):
-    region: Any
-    instance_count: Any
+    region: str
+    instance_count: int
