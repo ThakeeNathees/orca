@@ -277,21 +277,17 @@ func TestCompleteMemberAccessNoResults(t *testing.T) {
 	}
 }
 
-// TestCompleteMemberAccessPrimitiveInput verifies that dot-completing on an input
-// block with a primitive type (e.g. str) returns no completions instead of
-// falling through to the enclosing block's field suggestions.
-func TestCompleteMemberAccessPrimitiveInput(t *testing.T) {
-	// "dev_vars." with a following field causes the parser to recover a
-	// MemberAccess node, matching the real editing scenario.
-	text := "input dev_vars {\n  type = str\n}\n\nmodel my_model {\n  provider = dev_vars.\n  model_name = \"gpt-4o\"\n}"
-	doc := updateDocument("test://dotcomp_input.oc", text)
+// TestCompleteMemberAccessPrimitiveStr verifies that dot-completing after a
+// member that resolves to str (e.g. gpt4.provider) returns no completions
+// instead of falling through to the enclosing block's field suggestions.
+func TestCompleteMemberAccessPrimitiveStr(t *testing.T) {
+	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\n\nmodel my_model {\n  provider = gpt4.provider.\n  model_name = \"gpt-4o\"\n}"
+	doc := updateDocument("test://dotcomp_str.oc", text)
 
-	// "dev_vars." — the dot is recovered as a MemberAccess.
-	// completeMemberFields should return nil (str has no schema fields),
-	// and we must NOT fall through to model block body completions.
-	items := findMemberCompletion(doc, 5, 22)
+	// "gpt4.provider." — str has no schema fields; must not suggest model fields.
+	items := findMemberCompletion(doc, 6, 25)
 	if len(items) != 0 {
-		t.Errorf("expected no completions for primitive-typed input dot-access, got %d", len(items))
+		t.Errorf("expected no completions after str-typed member access, got %d", len(items))
 		for _, item := range items {
 			t.Errorf("  unexpected: %s", item.Label)
 		}
@@ -519,62 +515,6 @@ func TestDefinitionSchemaUnknownField(t *testing.T) {
 	}
 }
 
-// TestDefinitionInputBlock verifies that go-to-definition on an input block
-// reference jumps to the input block definition.
-func TestDefinitionInputBlock(t *testing.T) {
-	text := "input topic {\n  type = schema {\n    name = str\n  }\n  desc = \"The topic\"\n}\nagent researcher {\n  persona = topic\n}"
-	doc := updateDocument("test://input-def.oc", text)
-
-	// "topic" on line 8, col 13.
-	loc, found := resolveDefinition(doc, 8, 13)
-	if !found {
-		t.Fatal("expected definition for topic reference")
-	}
-	// "input topic" — name token at line 1, col 7 → LSP: line 0, char 6.
-	if loc.Range.Start.Line != 0 || loc.Range.Start.Character != 6 {
-		t.Errorf("definition at (%d, %d), want (0, 6)",
-			loc.Range.Start.Line, loc.Range.Start.Character)
-	}
-}
-
-// TestDefinitionInputSchemaField verifies that go-to-definition on a member
-// of an input block's type schema jumps to the field inside the schema.
-func TestDefinitionInputSchemaField(t *testing.T) {
-	text := "input topic {\n  type = schema {\n    name = str\n    tags = list\n  }\n  desc = \"The topic\"\n}\nagent researcher {\n  persona = topic.type.name\n}"
-	doc := updateDocument("test://input-schema-def.oc", text)
-
-	// "name" in "topic.type.name" on line 9.
-	loc, found := resolveDefinition(doc, 9, 24)
-	if !found {
-		t.Fatal("expected definition for topic.type.name")
-	}
-	// "name = str" at line 3, col 5 → LSP: line 2, char 4.
-	if loc.Range.Start.Line != 2 || loc.Range.Start.Character != 4 {
-		t.Errorf("definition at (%d, %d), want (2, 4)",
-			loc.Range.Start.Line, loc.Range.Start.Character)
-	}
-}
-
-// TestDefinitionInputDirectMember verifies that go-to-definition on a direct
-// member of an input block resolves through the input's type schema.
-// e.g. some_input.model_name → type = schema { model_name = str }.
-func TestDefinitionInputDirectMember(t *testing.T) {
-	text := "input some_input {\n  type = schema {\n    model_name = str\n  }\n}\nmodel some_model {\n  model_name = some_input.model_name\n  provider = \"openai\"\n}"
-	doc := updateDocument("test://input-direct.oc", text)
-
-	// "model_name" in "some_input.model_name" on line 7.
-	// some_input ends at col 25, dot at 26, model_name starts at col 27.
-	loc, found := resolveDefinition(doc, 7, 27)
-	if !found {
-		t.Fatal("expected definition for some_input.model_name")
-	}
-	// "model_name = str" at line 3, col 5 → LSP: line 2, char 4.
-	if loc.Range.Start.Line != 2 || loc.Range.Start.Character != 4 {
-		t.Errorf("definition at (%d, %d), want (2, 4)",
-			loc.Range.Start.Line, loc.Range.Start.Character)
-	}
-}
-
 // TestDefinitionNoSymbols verifies graceful handling when symbols are nil
 // (e.g. parse errors prevent analysis).
 func TestDefinitionNoSymbols(t *testing.T) {
@@ -761,8 +701,7 @@ func findNodeAtDoc(doc *documentState, line, char int) cursor.NodeAt {
 }
 
 // TestCrossFileReferenceResolution verifies that symbols defined in sibling
-// .oc files are visible during analysis. An input block in inputs.oc should
-// resolve when referenced from main.oc.
+// .oc files are visible during analysis.
 func TestCrossFileReferenceResolution(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -771,24 +710,24 @@ func TestCrossFileReferenceResolution(t *testing.T) {
 		wantErr  bool              // expect undefined-ref errors in main
 	}{
 		{
-			name:     "cross-file input reference resolves",
-			mainText: "model llm {\n  provider = provider\n  model_name = \"gpt-4o\"\n}",
+			name:     "cross-file model reference resolves",
+			mainText: "agent a {\n  model = gpt4\n  persona = \"hi\"\n}",
 			siblings: map[string]string{
-				"inputs.oc": "input provider {\n  type = str\n  desc = \"LLM provider\"\n}",
+				"models.oc": "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}",
 			},
 			wantErr: false,
 		},
 		{
 			name:     "undefined ref without sibling file",
-			mainText: "model llm {\n  provider = provider\n  model_name = \"gpt-4o\"\n}",
+			mainText: "agent a {\n  model = gpt4\n  persona = \"hi\"\n}",
 			siblings: map[string]string{},
 			wantErr:  true,
 		},
 		{
 			name:     "multiple cross-file refs",
-			mainText: "model llm {\n  provider = prov\n  model_name = mname\n}",
+			mainText: "agent a {\n  model = gpt4\n  persona = \"x\"\n}\nagent b {\n  model = claude\n  persona = \"y\"\n}",
 			siblings: map[string]string{
-				"inputs.oc": "input prov {\n  type = str\n  desc = \"p\"\n}\ninput mname {\n  type = str\n  desc = \"m\"\n}",
+				"models.oc": "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt\"\n}\nmodel claude {\n  provider = \"anthropic\"\n  model_name = \"opus\"\n}",
 			},
 			wantErr: false,
 		},
@@ -835,21 +774,21 @@ func TestCrossFileReferenceResolution(t *testing.T) {
 func TestCrossFileGoToDefinition(t *testing.T) {
 	dir := t.TempDir()
 
-	sibContent := "input provider {\n  type = str\n  desc = \"LLM provider\"\n}"
-	sibPath := filepath.Join(dir, "inputs.oc")
+	sibContent := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}"
+	sibPath := filepath.Join(dir, "models.oc")
 	if err := os.WriteFile(sibPath, []byte(sibContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	// "provider" reference is at line 2, col 15 (1-based).
-	mainText := "model llm {\n  provider = provider\n  model_name = \"gpt-4o\"\n}"
+	mainText := "agent a {\n  model = gpt4\n  persona = \"hi\"\n}"
 	mainPath := filepath.Join(dir, "main.oc")
 	mainURI := "file://" + mainPath
 
 	doc := updateDocument(mainURI, mainText)
 
-	// Resolve definition for "provider" identifier at 0-based line 1, char 15.
-	loc, found := resolveDefinition(doc, 2, 15)
+	// Resolve definition for "gpt4" on line 2, col 11 (1-based; same coords as
+	// TestDefinitionJumpsToBlock — FindNodeAt/resolveDefinition use 1-based positions).
+	loc, found := resolveDefinition(doc, 2, 11)
 	if !found {
 		t.Fatal("expected to find definition for cross-file reference")
 	}
@@ -858,7 +797,7 @@ func TestCrossFileGoToDefinition(t *testing.T) {
 	if loc.URI != expectedURI {
 		t.Errorf("go-to-definition URI = %q, want %q", loc.URI, expectedURI)
 	}
-	// The "provider" name token is on line 1, col 7 (0-based: line 0, char 6).
+	// "model gpt4" — name token at line 1, col 7 → LSP: line 0, char 6.
 	if loc.Range.Start.Line != 0 || loc.Range.Start.Character != 6 {
 		t.Errorf("go-to-definition range start = (%d,%d), want (0,6)",
 			loc.Range.Start.Line, loc.Range.Start.Character)

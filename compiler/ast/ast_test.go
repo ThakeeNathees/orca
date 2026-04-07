@@ -141,3 +141,115 @@ func TestBlockStatementFieldExpression(t *testing.T) {
 		})
 	}
 }
+
+func TestWalk(t *testing.T) {
+	prov := &StringLiteral{BaseNode: NewTerminal(token.Token{Type: token.STRING, Literal: `"openai"`}), Value: "openai"}
+	idGPT := &Identifier{BaseNode: NewTerminal(token.Token{Type: token.IDENT, Literal: "gpt4"}), Value: "gpt4"}
+
+	tests := []struct {
+		name      string
+		root      Node
+		wantCount int
+	}{
+		{
+			name:      "nil root is no-op",
+			root:      nil,
+			wantCount: 0,
+		},
+		{
+			name:      "empty program",
+			root:      &Program{},
+			wantCount: 1,
+		},
+		{
+			name: "block with two assignments",
+			root: &Program{Statements: []Statement{
+				&BlockStatement{
+					BlockBody: BlockBody{
+						Assignments: []*Assignment{
+							{Name: "provider", Value: prov},
+							{Name: "model", Value: idGPT},
+						},
+					},
+				},
+			}},
+			wantCount: 6,
+		},
+		{
+			name: "binary expression",
+			root: &BinaryExpression{
+				Left:  idGPT,
+				Right: prov,
+			},
+			wantCount: 3,
+		},
+		{
+			name: "nested inline block expression",
+			root: &Program{Statements: []Statement{
+				&BlockStatement{
+					BlockBody: BlockBody{
+						Assignments: []*Assignment{
+							{
+								Name: "m",
+								Value: &BlockExpression{
+									BlockBody: BlockBody{
+										Assignments: []*Assignment{
+											{Name: "provider", Value: prov},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}},
+			wantCount: 6,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var count int
+			Walk(tt.root, func(Node) bool {
+				count++
+				return true
+			})
+			if count != tt.wantCount {
+				t.Errorf("Walk count = %d, want %d", count, tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestWalk_pruneSkipsSubtree(t *testing.T) {
+	inner := &StringLiteral{BaseNode: NewTerminal(token.Token{Type: token.STRING, Literal: `"x"`}), Value: "x"}
+	block := &BlockStatement{
+		BlockBody: BlockBody{
+			Assignments: []*Assignment{
+				{Name: "k", Value: inner},
+			},
+		},
+	}
+	prog := &Program{Statements: []Statement{block}}
+
+	var sawInner bool
+	Walk(prog, func(n Node) bool {
+		if _, ok := n.(*BlockStatement); ok {
+			return false
+		}
+		if n == inner {
+			sawInner = true
+		}
+		return true
+	})
+	if sawInner {
+		t.Error("expected inner literal not visited when BlockStatement pruned")
+	}
+}
+
+func TestWalk_nilVisitor(t *testing.T) {
+	prog := &Program{Statements: []Statement{
+		&BlockStatement{BlockBody: BlockBody{}},
+	}}
+	Walk(prog, nil) // must not panic
+}

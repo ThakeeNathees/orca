@@ -24,6 +24,12 @@
 // Also adding schema let {} with annotation indicating that it
 // can have any assignments.
 
+
+
+@suppress("duplicate-block")
+@only_assignments
+schema schema {}
+
 // Primitive type schemas — these define the built-in types.
 @suppress("duplicate-block")
 @only_assignments
@@ -36,6 +42,12 @@ schema number {}
 @suppress("duplicate-block")
 @only_assignments
 schema bool {}
+
+@suppress("duplicate-block")
+bool true {}
+
+@suppress("duplicate-block")
+bool false {}
 
 @suppress("duplicate-block")
 @only_assignments
@@ -54,22 +66,6 @@ schema any {}
 schema null {}
 
 @suppress("duplicate-block")
-@only_assignments
-schema input {
-  @desc("The type of this input (e.g. str, number, or a user-defined schema).")
-  type = schema
-
-  @desc("A human-readable description of what this input is for.")
-  desc = str | null
-
-  @desc("The default value if no value is provided at runtime.")
-  default = any | null
-
-  @desc("Whether this input contains sensitive data that should be masked.")
-  sensitive = bool | null
-}
-
-@suppress("duplicate-block")
 schema workflow {
   @desc("The name of the workflow.")
   name = str | null
@@ -85,7 +81,7 @@ schema model {
   provider = str
 
   @desc("The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash).")
-  model_name = str | model
+  model_name = str
 
   @desc("The API key to use for this model.")
   api_key = str | null
@@ -94,24 +90,7 @@ schema model {
   base_url = str | null
 
   @desc("Sampling temperature between 0 and 1.")
-  temperature = float | null
-}
-
-@suppress("duplicate-block")
-@only_assignments
-@workflow_node
-schema agent {
-  @desc("The model to use. Can be a reference to a model block or a string.")
-  model = str | model
-
-  @desc("The persona of the agent.")
-  persona = str
-
-  @desc("The tools to use for this agent.")
-  tools = list[tool] | null
-
-  @desc("The structured output schema for this agent.")
-  output_schema = schema | null
+  temperature = number | null
 }
 
 @suppress("duplicate-block")
@@ -129,6 +108,23 @@ schema tool {
 
   @desc("The function to invoke for the tool. Either a dotted import path or an inline raw string.")
   invoke = str
+}
+
+@suppress("duplicate-block")
+@only_assignments
+@workflow_node
+schema agent {
+  @desc("The model to use. Can be a reference to a model block or a string.")
+  model = str | model
+
+  @desc("The persona of the agent.")
+  persona = str
+
+  @desc("The tools to use for this agent.")
+  tools = list[tool] | null
+
+  @desc("The structured output schema for this agent.")
+  output_schema = schema | null
 }
 
 @suppress("duplicate-block")

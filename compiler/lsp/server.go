@@ -248,16 +248,16 @@ func completeMemberFields(doc *documentState, ma *ast.MemberAccess) []protocol.C
 	}
 
 	// Resolve the object expression's type through the AST.
-	objType := types.ExprType(ma.Object, doc.Symbols)
+	objType := types.SchemaTypeFromExpr(ma.Object, doc.Symbols)
 	if objType.Kind != types.BlockRef {
 		return nil
 	}
 
 	// Get the schema for that block type.
-	schema, ok := types.LookupBlockSchema(objType)
-	if !ok {
+	if objType.Kind != types.BlockRef || objType.Block == nil {
 		return nil
 	}
+	schema := objType.Block
 
 	var items []protocol.CompletionItem
 	for name, field := range schema.Fields {
@@ -321,7 +321,7 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 		if doc.Symbols == nil {
 			return nil, nil
 		}
-		objType := types.ExprType(node.MemberAccess.Object, doc.Symbols)
+		objType := types.SchemaTypeFromExpr(node.MemberAccess.Object, doc.Symbols)
 		if objType.Kind != types.BlockRef {
 			return nil, nil
 		}
@@ -332,7 +332,7 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 		return fieldHover(node.MemberAccess.Member, field), nil
 
 	case cursor.FieldNameNode:
-		field, found := types.GetFieldSchema(node.Block.Kind, node.Assignment.Name)
+		field, found := lookupSchemaField(doc.Symbols, node.Block.Kind, node.Assignment.Name)
 		if !found {
 			return nil, nil
 		}
@@ -340,6 +340,19 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 	}
 
 	return nil, nil
+}
+
+// lookupSchemaField returns the field schema for blockKind.fieldName using the
+// analyzed symbol table (block kind → type → schema fields).
+func lookupSchemaField(sym *types.SymbolTable, blockKind, fieldName string) (types.FieldSchema, bool) {
+	if sym == nil {
+		return types.FieldSchema{}, false
+	}
+	ty, ok := sym.Lookup(blockKind)
+	if !ok {
+		return types.FieldSchema{}, false
+	}
+	return types.LookupFieldSchema(ty, fieldName)
 }
 
 // fieldHover builds a hover response for a field with its type and description.
@@ -415,19 +428,8 @@ func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol
 		return loc, true
 	}
 
-	// For input blocks, members access the value schema (the "type" field),
-	// not the input block's own fields.
 	if block, ok := target.(*ast.BlockStatement); ok {
-		if block.Kind == analyzer.BlockKindInput {
-			if schema := findTypeSchema(block); schema != nil {
-				if loc, ok := findAssignmentLocation(schema, ma.Member); ok {
-					return loc, true
-				}
-			}
-		}
-		// Field not assigned — fall back to the block name token so the user
-		// still navigates to the block that owns the schema field.
-		if _, ok := types.GetFieldSchema(block.Kind, ma.Member); ok {
+		if _, ok := lookupSchemaField(doc.Symbols, block.Kind, ma.Member); ok {
 			return protocol.Location{Range: tokenToRange(block.NameToken)}, true
 		}
 	}
@@ -484,16 +486,6 @@ func findMemberValue(target ast.Node, member string, doc *documentState) ast.Nod
 	if result := resolveAssignmentValue(assignmentsOf(target), member, doc); result != nil {
 		return result
 	}
-
-	// For input blocks, members access the value schema (the "type" field).
-	if block, ok := target.(*ast.BlockStatement); ok && block.Kind == analyzer.BlockKindInput {
-		if schema := findTypeSchema(block); schema != nil {
-			if result := resolveAssignmentValue(schema.Assignments, member, doc); result != nil {
-				return result
-			}
-		}
-	}
-
 	return nil
 }
 

@@ -1,4 +1,0 @@
-@sensitive
-input apikey {
-  type = str
-}

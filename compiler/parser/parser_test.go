@@ -568,8 +568,15 @@ func TestParseKeywordAsAssignmentKey(t *testing.T) {
 	if len(block.Assignments) != 1 {
 		t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
 	}
-	if block.Assignments[0].Name != "model" {
-		t.Errorf("expected key 'model', got %q", block.Assignments[0].Name)
+	a := block.Assignments[0]
+	if a.Name != "model" {
+		t.Errorf("expected key 'model', got %q", a.Name)
+	}
+	if a.NameToken.Literal != "model" || a.NameToken.Type != token.IDENT {
+		t.Errorf("NameToken = %#v, want IDENT \"model\"", a.NameToken)
+	}
+	if a.NameToken != a.TokenStart {
+		t.Errorf("NameToken should equal TokenStart for the assignment key")
 	}
 }
 
@@ -621,11 +628,6 @@ func exprString(expr ast.Expression) string {
 		return strconv.FormatFloat(e.Value, 'f', -1, 64)
 	case *ast.StringLiteral:
 		return fmt.Sprintf("%q", e.Value)
-	case *ast.BooleanLiteral:
-		if e.Value {
-			return "true"
-		}
-		return "false"
 	case *ast.BinaryExpression:
 		return fmt.Sprintf("(%s %s %s)", exprString(e.Left), e.Operator.Literal, exprString(e.Right))
 	case *ast.MemberAccess:
@@ -1279,17 +1281,17 @@ func TestInvalidFiles(t *testing.T) {
 
 // TestParseNullLiteral verifies that null is lexed as IDENT and parsed as an identifier.
 func TestParseNullLiteral(t *testing.T) {
-	input := `input x { default = null }`
+	input := `model m { provider = "openai" model_name = "gpt" api_key = null }`
 	program := parseOrFail(t, input)
 	assertBlockCount(t, program, 1)
-	block := assertBlock(t, program.Statements[0], "input", "x")
-	if len(block.Assignments) != 1 {
-		t.Fatalf("expected 1 assignment, got %d", len(block.Assignments))
+	block := assertBlock(t, program.Statements[0], "model", "m")
+	if len(block.Assignments) != 3 {
+		t.Fatalf("expected 3 assignments, got %d", len(block.Assignments))
 	}
 	// Lexer emits null as IDENT; parser yields Identifier until analysis.
-	id, ok := block.Assignments[0].Value.(*ast.Identifier)
+	id, ok := block.Assignments[2].Value.(*ast.Identifier)
 	if !ok {
-		t.Errorf("expected Identifier, got %T", block.Assignments[0].Value)
+		t.Errorf("expected Identifier, got %T", block.Assignments[2].Value)
 	} else if id.Value != "null" {
 		t.Errorf("expected null identifier, got %q", id.Value)
 	}
@@ -1387,9 +1389,9 @@ func TestParseMultipleAnnotations(t *testing.T) {
 // TestParseBlockAnnotation verifies that annotations before a block keyword
 // are attached to the BlockStatement.
 func TestParseBlockAnnotation(t *testing.T) {
-	input := "@sensitive\ninput apikey {\n  type = str\n}"
+	input := "@sensitive\nmodel apikey {\n  provider = \"openai\"\n  model_name = \"gpt\"\n}"
 	program := parseOrFail(t, input)
-	block := assertBlock(t, program.Statements[0], "input", "apikey")
+	block := assertBlock(t, program.Statements[0], "model", "apikey")
 	if len(block.Annotations) != 1 {
 		t.Fatalf("expected 1 block annotation, got %d", len(block.Annotations))
 	}
@@ -1422,19 +1424,25 @@ func TestParseSchemaExpression(t *testing.T) {
 	}{
 		{
 			"inline schema with two fields",
-			`input x {
-				type = schema {
+			`tool x {
+				desc = null
+				input_schema = schema {
 					key   = str
 					model = str
 				}
+				output_schema = null
+				invoke = "x"
 			}`,
 			2,
 			[]string{"key", "model"},
 		},
 		{
 			"empty inline schema",
-			`input x {
-				type = schema {}
+			`tool x {
+				desc = null
+				input_schema = schema {}
+				output_schema = null
+				invoke = "x"
 			}`,
 			0,
 			nil,
@@ -1455,8 +1463,11 @@ func TestParseSchemaExpression(t *testing.T) {
 		},
 		{
 			"schema keyword without brace is identifier",
-			`input x {
-				type = schema
+			`tool x {
+				desc = null
+				input_schema = schema
+				output_schema = null
+				invoke = "x"
 			}`,
 			-1, // not a schema expression, just an identifier
 			nil,
@@ -1471,7 +1482,7 @@ func TestParseSchemaExpression(t *testing.T) {
 			// Find the assignment with the schema expression.
 			var target *ast.Assignment
 			for _, a := range block.Assignments {
-				if a.Name == "type" || a.Name == "output" {
+				if a.Name == "type" || a.Name == "output" || a.Name == "output_schema" || a.Name == "input_schema" {
 					target = a
 					break
 				}
@@ -1515,11 +1526,11 @@ func TestParseSchemaExpressionErrors(t *testing.T) {
 	}{
 		{
 			"missing closing brace",
-			`input x { type = schema { key = str }`,
+			`tool x { desc = null input_schema = schema { key = str } output_schema = null invoke = "x"`,
 		},
 		{
 			"missing value after equals",
-			`input x { type = schema { key = } }`,
+			`tool x { desc = null input_schema = schema { key = } output_schema = null invoke = "x" }`,
 		},
 	}
 
@@ -1590,15 +1601,6 @@ func TestParseBlockExpression(t *testing.T) {
 			[]string{"entry"},
 		},
 		{
-			"inline input",
-			`agent a {
-				input = input { type = str }
-			}`,
-			"input",
-			1,
-			[]string{"type"},
-		},
-		{
 			"inline cron",
 			`let t {
 				c = cron { schedule = "0 * * * *" }
@@ -1652,7 +1654,7 @@ func TestParseBlockExpression(t *testing.T) {
 				}
 				if a.Name == "model" || a.Name == "agent" ||
 					a.Name == "knowledge" || a.Name == "workflow" ||
-					a.Name == "input" || a.Name == "c" || a.Name == "w" {
+					a.Name == "c" || a.Name == "w" {
 					targetExpr = a.Value
 					break
 				}
@@ -1970,7 +1972,7 @@ func TestSourceFileOnBlocks(t *testing.T) {
 			name: "nested inline blocks get source file",
 			input: `agent a {
 				model = model { provider = "openai" }
-				input = input { type = str }
+				knowledge = knowledge { desc = "docs" }
 			}`,
 			sourceFile:         "deep.oc",
 			wantBlockStmtFile:  "deep.oc",

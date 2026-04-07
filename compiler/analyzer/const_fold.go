@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
@@ -18,8 +19,7 @@ const (
 	// the folded shape is not represented by ConstValue.
 	ConstUnknown ConstKind = iota
 	ConstString
-	ConstInt
-	ConstFloat
+	ConstNumber
 	ConstBool
 	ConstNull
 	ConstList
@@ -30,11 +30,9 @@ const (
 // ConstValue holds a single folded constant. Only the field that matches
 // Kind is defined; other fields are zero.
 type ConstValue struct {
-	Kind  ConstKind
-	Str   string
-	Int   int64
-	Float float64
-	Bool  bool
+	Kind   ConstKind
+	Str    string
+	Number float64
 
 	List     []ConstValue
 	KeyValue map[string]ConstValue // Used for maps and blocks
@@ -56,12 +54,8 @@ func ConstFold(expr ast.Expression, ap AnalyzedProgram) (ConstValue, []diagnosti
 		return foldIdentifier(e, ap)
 	case *ast.StringLiteral:
 		return ConstValue{Kind: ConstString, Str: e.Value}, diags
-	case *ast.IntegerLiteral:
-		return ConstValue{Kind: ConstInt, Int: e.Value}, diags
-	case *ast.FloatLiteral:
-		return ConstValue{Kind: ConstFloat, Float: e.Value}, diags
-	case *ast.BooleanLiteral:
-		return ConstValue{Kind: ConstBool, Bool: e.Value}, diags
+	case *ast.NumberLiteral:
+		return ConstValue{Kind: ConstNumber, Number: e.Value}, diags
 	case *ast.NullLiteral:
 		return ConstValue{Kind: ConstNull}, diags
 	case *ast.BinaryExpression:
@@ -179,66 +173,53 @@ func foldBinary(e *ast.BinaryExpression, ap AnalyzedProgram) (ConstValue, []diag
 	}
 }
 
-// foldNumericBinary applies arithmetic when both operands are int or float.
-// Mixed int/float promotes to float. Integer division truncates toward zero.
+// foldNumericBinary applies arithmetic when both operands fold to ConstNumber.
+// Values are float64; division uses floating-point / (no separate integer division).
 func foldNumericBinary(op token.TokenType, left, right ConstValue, diags []diagnostic.Diagnostic) (ConstValue, []diagnostic.Diagnostic) {
-	li, lok := constAsInt(left)
-	ri, rok := constAsInt(right)
-	lf, lfok := constAsFloat(left)
-	rf, rfok := constAsFloat(right)
+	lhs, lok := constAsNumber(left)
+	rhs, rok := constAsNumber(right)
 
 	if lok && rok {
 		switch op {
 		case token.PLUS:
-			return ConstValue{Kind: ConstInt, Int: li + ri}, diags
+			return ConstValue{Kind: ConstNumber, Number: lhs + rhs}, diags
 		case token.MINUS:
-			return ConstValue{Kind: ConstInt, Int: li - ri}, diags
+			return ConstValue{Kind: ConstNumber, Number: lhs - rhs}, diags
 		case token.STAR:
-			return ConstValue{Kind: ConstInt, Int: li * ri}, diags
+			return ConstValue{Kind: ConstNumber, Number: lhs * rhs}, diags
 		case token.SLASH:
-			if ri == 0 {
+			if rhs == 0 {
 				return ConstValue{Kind: ConstUnknown}, diags
 			}
-			return ConstValue{Kind: ConstInt, Int: li / ri}, diags
+			return ConstValue{Kind: ConstNumber, Number: lhs / rhs}, diags
 		}
 	}
 
-	if !lfok || !rfok {
+	if !lok || !rok {
 		return ConstValue{Kind: ConstUnknown}, diags
 	}
-	// Float path (includes mixed int/float via constAsFloat).
 	switch op {
 	case token.PLUS:
-		return ConstValue{Kind: ConstFloat, Float: lf + rf}, diags
+		return ConstValue{Kind: ConstNumber, Number: lhs + rhs}, diags
 	case token.MINUS:
-		return ConstValue{Kind: ConstFloat, Float: lf - rf}, diags
+		return ConstValue{Kind: ConstNumber, Number: lhs - rhs}, diags
 	case token.STAR:
-		return ConstValue{Kind: ConstFloat, Float: lf * rf}, diags
+		return ConstValue{Kind: ConstNumber, Number: lhs * rhs}, diags
 	case token.SLASH:
-		if rf == 0 {
+		if rhs == 0 {
 			return ConstValue{Kind: ConstUnknown}, diags
 		}
-		return ConstValue{Kind: ConstFloat, Float: lf / rf}, diags
+		return ConstValue{Kind: ConstNumber, Number: lhs / rhs}, diags
 	default:
 		return ConstValue{Kind: ConstUnknown}, diags
 	}
 }
 
-// constAsInt reports whether v is a folded integer.
-func constAsInt(v ConstValue) (int64, bool) {
-	if v.Kind == ConstInt {
-		return v.Int, true
-	}
-	return 0, false
-}
-
 // constAsFloat returns a float64 for int or float folded values.
-func constAsFloat(v ConstValue) (float64, bool) {
+func constAsNumber(v ConstValue) (float64, bool) {
 	switch v.Kind {
-	case ConstInt:
-		return float64(v.Int), true
-	case ConstFloat:
-		return v.Float, true
+	case ConstNumber:
+		return v.Number, true
 	default:
 		return 0, false
 	}
@@ -277,7 +258,7 @@ func foldMemberAccess(e *ast.MemberAccess, ap AnalyzedProgram) (ConstValue, []di
 	diags = append(diags, d1...)
 
 	switch left.Kind {
-	case ConstString, ConstInt, ConstFloat, ConstBool:
+	case ConstString, ConstNumber, ConstBool:
 		// TODO: optional pseudo-members on literals (e.g. string length) if modeled.
 		return ConstValue{Kind: ConstUnknown}, diags
 
@@ -348,7 +329,7 @@ func foldSubscription(e *ast.Subscription, ap AnalyzedProgram) (ConstValue, []di
 		}
 		return value, diags
 	case ConstList:
-		if index.Kind != ConstInt {
+		if (index.Kind != ConstNumber) || (index.Number != math.Floor(index.Number)) {
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity: diagnostic.Error,
 				Code:     diagnostic.CodeInvalidSubscript,
@@ -361,7 +342,7 @@ func foldSubscription(e *ast.Subscription, ap AnalyzedProgram) (ConstValue, []di
 			})
 			return ConstValue{Kind: ConstUnknown}, diags
 		}
-		idx := index.Int
+		idx := int64(index.Number)
 		n := int64(len(left.List))
 		if idx < 0 || idx >= n {
 			diags = append(diags, diagnostic.Diagnostic{
@@ -387,10 +368,8 @@ func constKindLabel(k ConstKind) string {
 	switch k {
 	case ConstString:
 		return "string"
-	case ConstInt:
-		return "int"
-	case ConstFloat:
-		return "float"
+	case ConstNumber:
+		return "number"
 	case ConstBool:
 		return "bool"
 	case ConstNull:
@@ -403,43 +382,5 @@ func constKindLabel(k ConstKind) string {
 		return "block"
 	default:
 		return "unknown"
-	}
-}
-
-// primitiveToSchemaType returns the schema of a primitive type.
-func primitiveToSchemaType(kind ConstKind) (types.BlockSchema, bool) {
-	switch kind {
-	case ConstString:
-		schema, ok := types.GetSchema("str")
-		if !ok {
-			return types.BlockSchema{}, false
-		}
-		return schema, true
-	case ConstInt:
-		schema, ok := types.GetSchema("int")
-		if !ok {
-			return types.BlockSchema{}, false
-		}
-		return schema, true
-	case ConstFloat:
-		schema, ok := types.GetSchema("float")
-		if !ok {
-			return types.BlockSchema{}, false
-		}
-		return schema, true
-	case ConstBool:
-		schema, ok := types.GetSchema("bool")
-		if !ok {
-			return types.BlockSchema{}, false
-		}
-		return schema, true
-	case ConstNull:
-		schema, ok := types.GetSchema("null")
-		if !ok {
-			return types.BlockSchema{}, false
-		}
-		return schema, true
-	default:
-		return types.BlockSchema{}, false
 	}
 }

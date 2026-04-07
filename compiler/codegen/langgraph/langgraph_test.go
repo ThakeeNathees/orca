@@ -70,7 +70,7 @@ func TestCollectBlocksByKind(t *testing.T) {
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindAgent}, Name: "a1"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindModel}, Name: "m2"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindLet}, Name: "vars"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindInput}, Name: "user_query"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindCron}, Name: "daily"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindSchema}, Name: "cfg"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindKnowledge}, Name: "kb"},
 		},
@@ -84,7 +84,7 @@ func TestCollectBlocksByKind(t *testing.T) {
 		{"models", analyzer.BlockKindModel, 2},
 		{"agents", analyzer.BlockKindAgent, 1},
 		{"lets", analyzer.BlockKindLet, 1},
-		{"inputs", analyzer.BlockKindInput, 1},
+		{"crons", analyzer.BlockKindCron, 1},
 		{"schemas", types.BlockKindSchema, 1},
 		{"knowledge", analyzer.BlockKindKnowledge, 1},
 	}
@@ -432,58 +432,6 @@ func TestWriteAgent(t *testing.T) {
 			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
 			result := s.String()
 
-			for _, want := range tt.contains {
-				if !strings.Contains(result, want) {
-					t.Errorf("expected output to contain %q, got:\n%s", want, result)
-				}
-			}
-		})
-	}
-}
-
-// TestWriteInput verifies Python input declaration generation via __orca_input().
-func TestWriteInput(t *testing.T) {
-	tests := []struct {
-		name     string
-		block    *ast.BlockStatement
-		contains []string
-	}{
-		{
-			name:  "primitive type only",
-			block: inputBlock("apikey", "str"),
-			contains: []string{
-				"apikey = __orca_input(\n",
-				"    type=str,\n",
-				")\n",
-			},
-		},
-		{
-			name:  "all common fields",
-			block: inputBlockFull("apikey", "str", "the api key", "sk-xxx", true),
-			contains: []string{
-				"apikey = __orca_input(\n",
-				"    type=str,\n",
-				`    desc="the api key",`,
-				`    default="sk-xxx",`,
-				"    sensitive=True,\n",
-				")\n",
-			},
-		},
-		{
-			name:  "schema reference type",
-			block: inputBlock("vpc_data", "vpc_data_t"),
-			contains: []string{
-				"vpc_data = __orca_input(\n",
-				"    type=vpc_data_t,\n",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var s strings.Builder
-			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
-			result := s.String()
 			for _, want := range tt.contains {
 				if !strings.Contains(result, want) {
 					t.Errorf("expected output to contain %q, got:\n%s", want, result)
@@ -989,31 +937,6 @@ func knowledgeBlock(blockName, descValue string) *ast.BlockStatement {
 		},
 		Name: blockName,
 	}
-}
-
-// inputBlock creates an input block with a type reference (identifier or schema name).
-func inputBlock(name, typeName string) *ast.BlockStatement {
-	return &ast.BlockStatement{
-		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "input"}},
-		BlockBody: ast.BlockBody{
-			Kind: analyzer.BlockKindInput,
-			Assignments: []*ast.Assignment{
-				{Name: "type", Value: &ast.Identifier{Value: typeName}},
-			},
-		},
-		Name: name,
-	}
-}
-
-// inputBlockFull creates an input block with type, description, default, and sensitive flag.
-func inputBlockFull(name, typeName, desc, defaultVal string, sensitive bool) *ast.BlockStatement {
-	block := inputBlock(name, typeName)
-	block.Assignments = append(block.Assignments,
-		&ast.Assignment{Name: "desc", Value: &ast.StringLiteral{Value: desc}},
-		&ast.Assignment{Name: "default", Value: &ast.StringLiteral{Value: defaultVal}},
-		&ast.Assignment{Name: "sensitive", Value: &ast.BooleanLiteral{Value: sensitive}},
-	)
-	return block
 }
 
 // agentBlockWithTools creates an agent block with model, persona, and tools.

@@ -14,7 +14,7 @@ import (
 var inlineCounter atomic.Int64
 
 //go:embed bootstrap.oc
-var bootstrapSource string
+var BootstrapSource string
 
 type BootstrapResult struct {
 	Schemas []BlockSchema
@@ -47,13 +47,13 @@ func Bootstrap(bootstrapSource string) BootstrapResult {
 		if !ok {
 			continue
 		}
-		schema := NewBlockSchema(block.Annotations, block.Name, &block.BlockBody, symtab)
-		schemas = append(schemas, schema)
+		schema := NewBlockSchema(block.Annotations, block.Name, &block.BlockBody, &symtab)
 		symtab.Define(block.Name, NewBlockRefType(block.Name, &schema), block.NameToken)
+		schemas = append(schemas, schema)
 	}
 
 	return BootstrapResult{
 		Schemas: schemas,
-		Symtab:  symtab,
+		Symtab:  &symtab,
 	}
 }

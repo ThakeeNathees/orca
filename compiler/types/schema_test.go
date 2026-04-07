@@ -17,9 +17,15 @@ func bootstrapSchemaPointers(t *testing.T) map[string]*BlockSchema {
 	return m
 }
 
+// bootstrapSymtab returns the symbol table produced alongside bootstrap schemas.
+func bootstrapSymtab(t *testing.T) *SymbolTable {
+	t.Helper()
+	return Bootstrap(testBootstrapSource).Symtab
+}
+
 // fieldFromBootstrap returns a field schema from bootstrapped block definitions.
-func fieldFromBootstrap(schemas map[string]*BlockSchema, blockKind, field string) (FieldSchema, bool) {
-	s, ok := schemas[blockKind]
+func fieldFromBootstrap(schemas map[string]*BlockSchema, blockName, field string) (FieldSchema, bool) {
+	s, ok := schemas[blockName]
 	if !ok {
 		return FieldSchema{}, false
 	}
@@ -33,7 +39,7 @@ func TestGetBlockSchema(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		blockKind string
+		blockName string
 		ok        bool
 		numFields int
 	}{
@@ -44,13 +50,12 @@ func TestGetBlockSchema(t *testing.T) {
 		{"workflow schema exists", "workflow", true, 2},
 		{"cron schema exists", "cron", true, 2},
 		{"webhook schema exists", "webhook", true, 2},
-		{"input schema exists", "input", true, 4},
-		{"schema kind has no builtin schema", BlockKindSchema, false, 0},
+		{"schema meta-schema exists (bootstrap schema schema {})", BlockKindSchema, true, 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, ok := schemas[tt.blockKind]
+			s, ok := schemas[tt.blockName]
 			if ok != tt.ok {
 				t.Errorf("ok = %v, want %v", ok, tt.ok)
 			}
@@ -88,10 +93,11 @@ func TestGetSchemaByName(t *testing.T) {
 // TestGetSchemaUserDefined verifies a manually constructed BlockSchema holds fields
 // and works with LookupFieldSchema when attached to a type.
 func TestGetSchemaUserDefined(t *testing.T) {
+	st := bootstrapSymtab(t)
 	user := BlockSchema{
 		BlockName: "test_user_schema",
 		Fields: map[string]FieldSchema{
-			"name": {Type: IdentType("str", nil), Required: true},
+			"name": {Type: IdentType(0, "str", st), Required: true},
 		},
 	}
 	typ := NewBlockRefType("test_user_schema", &user)
@@ -99,7 +105,7 @@ func TestGetSchemaUserDefined(t *testing.T) {
 	if !ok {
 		t.Fatal("expected field 'name' on user schema")
 	}
-	if !field.Type.Equals(IdentType("str", nil)) {
+	if !field.Type.Equals(IdentType(0, "str", st)) {
 		t.Errorf("Type = %s, want str", field.Type.String())
 	}
 	if len(user.Fields) != 1 {
@@ -136,11 +142,12 @@ func TestLookupBlockSchemaBuiltin(t *testing.T) {
 // TestLookupBlockSchemaUserSchema verifies LookupFieldSchema resolves fields
 // through user-defined schemas attached to the type.
 func TestLookupBlockSchemaUserSchema(t *testing.T) {
+	st := bootstrapSymtab(t)
 	user := BlockSchema{
 		BlockName: "test_lookup_schema",
 		Fields: map[string]FieldSchema{
-			"host": {Type: IdentType("str", nil), Required: true},
-			"port": {Type: IdentType("number", nil), Required: false},
+			"host": {Type: IdentType(0, "str", st), Required: true},
+			"port": {Type: IdentType(0, "number", st), Required: false},
 		},
 	}
 
@@ -149,7 +156,7 @@ func TestLookupBlockSchemaUserSchema(t *testing.T) {
 	if !ok {
 		t.Fatal("expected user schema field 'host' to be found via LookupFieldSchema")
 	}
-	if !field.Type.Equals(IdentType("str", nil)) {
+	if !field.Type.Equals(IdentType(0, "str", st)) {
 		t.Errorf("Type = %s, want str", field.Type.String())
 	}
 	if len(user.Fields) != 2 {
@@ -183,10 +190,11 @@ func TestLookupFieldSchemaBuiltin(t *testing.T) {
 // TestLookupFieldSchemaUserSchema verifies LookupFieldSchema resolves fields
 // through user-defined schemas.
 func TestLookupFieldSchemaUserSchema(t *testing.T) {
+	st := bootstrapSymtab(t)
 	user := BlockSchema{
 		BlockName: "test_field_lookup",
 		Fields: map[string]FieldSchema{
-			"region": {Type: IdentType("str", nil), Required: true},
+			"region": {Type: IdentType(0, "str", st), Required: true},
 		},
 	}
 
@@ -195,7 +203,7 @@ func TestLookupFieldSchemaUserSchema(t *testing.T) {
 	if !ok {
 		t.Fatal("expected field 'region' to be found")
 	}
-	if !field.Type.Equals(IdentType("str", nil)) {
+	if !field.Type.Equals(IdentType(0, "str", st)) {
 		t.Errorf("Type = %s, want str", field.Type.String())
 	}
 
@@ -234,6 +242,7 @@ func TestBuiltinSchemaNames(t *testing.T) {
 // TestRegisterSchemaAndGetSchema verifies a locally built BlockSchema retains
 // its fields and works with LookupFieldSchema (no global registry).
 func TestRegisterSchemaAndGetSchema(t *testing.T) {
+	st := bootstrapSymtab(t)
 	tests := []struct {
 		name      string
 		schemaKey string
@@ -243,15 +252,15 @@ func TestRegisterSchemaAndGetSchema(t *testing.T) {
 			"register single-field schema",
 			"test_reg_schema_1",
 			map[string]FieldSchema{
-				"url": {Type: IdentType("str", nil), Required: true},
+				"url": {Type: IdentType(0, "str", st), Required: true},
 			},
 		},
 		{
 			"register multi-field schema",
 			"test_reg_schema_2",
 			map[string]FieldSchema{
-				"host": {Type: IdentType("str", nil), Required: true},
-				"port": {Type: IdentType("number", nil), Required: false},
+				"host": {Type: IdentType(0, "str", st), Required: true},
+				"port": {Type: IdentType(0, "number", st), Required: false},
 			},
 		},
 	}
@@ -279,21 +288,21 @@ func TestRegisterSchemaAndGetSchema(t *testing.T) {
 	}
 }
 
-// Coverage: field lookup for an unknown block kind in bootstrap data.
+// Coverage: field lookup for an unknown block name in bootstrap data.
 func TestGetFieldSchemaUnknownBlock(t *testing.T) {
 	schemas := bootstrapSchemaPointers(t)
 	tests := []struct {
 		name      string
-		blockKind string
+		blockName string
 		field     string
 		ok        bool
 	}{
-		{"unknown block kind", "unknown", "anything", false},
+		{"unknown block name", "unknown", "anything", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, ok := fieldFromBootstrap(schemas, tt.blockKind, tt.field)
+			_, ok := fieldFromBootstrap(schemas, tt.blockName, tt.field)
 			if ok != tt.ok {
 				t.Errorf("ok = %v, want %v", ok, tt.ok)
 			}
@@ -328,7 +337,7 @@ func TestGetFieldSchema(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		blockKind string
+		blockName string
 		field     string
 		ok        bool
 		kind      TypeKind
@@ -336,17 +345,17 @@ func TestGetFieldSchema(t *testing.T) {
 		required  bool
 	}{
 		{"model provider", "model", "provider", true, BlockRef, "str", true},
-		{"model model_name", "model", "model_name", true, Union, "str | model", true},
-		{"model temperature", "model", "temperature", true, BlockRef, "float", false},
+		{"model model_name", "model", "model_name", true, BlockRef, "str", true},
+		{"model temperature", "model", "temperature", true, Union, "number | null", false},
 		{"agent model union", "agent", "model", true, Union, "str | model", true},
 		{"agent persona", "agent", "persona", true, BlockRef, "str", true},
-		{"agent tools list", "agent", "tools", true, List, "list[tool]", false},
+		{"agent tools list", "agent", "tools", true, Union, "list[tool] | null", false},
 		{"unknown field", "model", "nonexistent", false, BlockRef, "", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field, ok := fieldFromBootstrap(schemas, tt.blockKind, tt.field)
+			field, ok := fieldFromBootstrap(schemas, tt.blockName, tt.field)
 			if ok != tt.ok {
 				t.Errorf("ok = %v, want %v", ok, tt.ok)
 			}

@@ -87,6 +87,7 @@ type Annotation struct {
 // blocks) and BlockExpression (inline anonymous blocks) embed this so
 // that analyzer, codegen, and tooling can operate on a single type.
 type BlockBody struct {
+	BaseNode
 	Kind        string        // the block type (model, agent, tool, …)
 	Assignments []*Assignment // key = value pairs inside the block body
 	Expressions []Expression  // workflow edge expressions (A -> B -> C)
@@ -163,15 +164,6 @@ type NumberLiteral struct {
 }
 
 func (nl *NumberLiteral) expressionNode() {}
-
-// BooleanLiteral represents true or false.
-// Terminal node — start == end.
-type BooleanLiteral struct {
-	BaseNode
-	Value bool
-}
-
-func (bl *BooleanLiteral) expressionNode() {}
 
 // BinaryExpression represents a binary operation: left op right.
 // Examples: `a + b`, `1 * 2`, `researcher -> writer`.
@@ -250,6 +242,7 @@ func (ll *ListLiteral) expressionNode() {}
 type Assignment struct {
 	BaseNode
 	Name        string        // the key (left-hand side)
+	NameToken   token.Token   // the key token, used for diagnostic ranges
 	Value       Expression    // the value (right-hand side)
 	Annotations []*Annotation // decorators before the key (@desc("..."), etc.)
 }
@@ -263,6 +256,13 @@ func (a *Assignment) statementNode() {}
 type BlockExpression struct {
 	BaseNode
 	BlockBody
+
+	// FIXME: Once the Block name is removed, we can use this everywhere but right now
+	// It's fragmented so not a single source of truth.
+	//
+	// TODO: Remove the BlockName from the BlockStatement and use this BlockName (rename)
+	// so we'll have the name here, so all blocks even inline have a name (__anon_<id>).
+	BlockNameAnon string // the name of the anonymous block, if any
 }
 
 func (be *BlockExpression) expressionNode() {}
@@ -274,3 +274,79 @@ type NullLiteral struct {
 }
 
 func (nl *NullLiteral) expressionNode() {}
+
+// Visitor is invoked for each AST node in pre-order (parent before descendants).
+// Return true to continue into that node's children; return false to skip the
+// subtree rooted at the current node (the node itself has already been visited).
+type Visitor func(n Node) bool
+
+// Walk traverses the AST rooted at root in pre-order, calling v for each
+// non-nil node. If root is nil or v is nil, Walk does nothing.
+func Walk(root Node, v Visitor) {
+	if root == nil || v == nil {
+		return
+	}
+	if !v(root) {
+		return
+	}
+	switch n := root.(type) {
+	case *Program:
+		for _, s := range n.Statements {
+			Walk(s, v)
+		}
+	case *BlockStatement:
+		for _, ann := range n.Annotations {
+			Walk(ann, v)
+		}
+		walkBlockBody(&n.BlockBody, v)
+	case *Assignment:
+		for _, ann := range n.Annotations {
+			Walk(ann, v)
+		}
+		Walk(n.Value, v)
+	case *Annotation:
+		for _, arg := range n.Arguments {
+			Walk(arg, v)
+		}
+	case *BinaryExpression:
+		Walk(n.Left, v)
+		Walk(n.Right, v)
+	case *MemberAccess:
+		Walk(n.Object, v)
+	case *Subscription:
+		Walk(n.Object, v)
+		Walk(n.Index, v)
+	case *CallExpression:
+		Walk(n.Callee, v)
+		for _, arg := range n.Arguments {
+			Walk(arg, v)
+		}
+	case *MapLiteral:
+		for _, ent := range n.Entries {
+			Walk(ent.Key, v)
+			Walk(ent.Value, v)
+		}
+	case *ListLiteral:
+		for _, el := range n.Elements {
+			Walk(el, v)
+		}
+	case *BlockExpression:
+		walkBlockBody(&n.BlockBody, v)
+	default:
+		// Terminals (Identifier, literals, etc.) have no child nodes.
+	}
+}
+
+// walkBlockBody traverses assignments and workflow expressions inside a block.
+// BlockBody is not itself a Node, so it is not passed to the visitor.
+func walkBlockBody(body *BlockBody, v Visitor) {
+	if body == nil {
+		return
+	}
+	for _, a := range body.Assignments {
+		Walk(a, v)
+	}
+	for _, e := range body.Expressions {
+		Walk(e, v)
+	}
+}

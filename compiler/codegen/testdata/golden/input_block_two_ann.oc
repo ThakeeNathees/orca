@@ -1,5 +1,0 @@
-@desc("User API key")
-@sensitive
-input apikey {
-  type = str
-}
