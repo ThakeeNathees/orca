@@ -553,9 +553,9 @@ agent prompt_analyst {
     ```
   output = schema {
     @desc("The decomposed steps")
-    steps = list[str] | null
+    steps = list[string] | null
     @desc("Error if prompt is ambiguous")
-    error = str | null
+    error = string | null
   }
 }
 

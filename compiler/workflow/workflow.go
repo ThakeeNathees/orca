@@ -49,7 +49,7 @@ func (rw *ResolvedWorkflow) Predecessors(node string) []string {
 	return preds
 }
 
-// TODO: Consider the workflow router is always returns list[str] and if there
+// TODO: Consider the workflow router is always returns list[string] and if there
 // is a single entry node, the length will be 1.
 //
 // IsFanOut returns true if any trigger connects to multiple entry nodes.

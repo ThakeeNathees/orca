@@ -3,7 +3,7 @@ schema my_t {
   v = schema {
     ls = list [
       schema {
-        item = str
+        item = string
       }
     ]
   }

@@ -76,7 +76,7 @@ func TestListType(t *testing.T) {
 		name    string
 		element Type
 	}{
-		{"list of strings", ident("str")},
+		{"list of strings", ident("string")},
 		{"list of numbers", ident("number")},
 		{"list of any", ident("any")},
 	}
@@ -104,9 +104,9 @@ func TestMapType(t *testing.T) {
 		key   Type
 		value Type
 	}{
-		{"map str to str", ident("str"), ident("str")},
-		{"map str to number", ident("str"), ident("number")},
-		{"map str to any", ident("str"), ident("any")},
+		{"map string to string", ident("string"), ident("string")},
+		{"map string to number", ident("string"), ident("number")},
+		{"map string to any", ident("string"), ident("any")},
 	}
 
 	for _, tt := range tests {
@@ -155,7 +155,7 @@ func TestBlockRefType(t *testing.T) {
 
 // TestTypeEquals verifies type equality comparison.
 func TestTypeEquals(t *testing.T) {
-	str := ident("str")
+	str := ident("string")
 	num := ident("number")
 	num2 := ident("number")
 
@@ -192,7 +192,7 @@ func TestTypeEquals(t *testing.T) {
 
 // TestUnionType verifies union type construction and member access.
 func TestUnionType(t *testing.T) {
-	str := ident("str")
+	str := ident("string")
 	num := ident("number")
 
 	tests := []struct {
@@ -226,7 +226,7 @@ func TestUnionType(t *testing.T) {
 
 // TestUnionTypeContains verifies unionContains checks membership correctly.
 func TestUnionTypeContains(t *testing.T) {
-	str := ident("str")
+	str := ident("string")
 	union := NewUnionType(str, NewBlockRefType("model", nil))
 
 	tests := []struct {
@@ -257,7 +257,7 @@ func TestIsAny(t *testing.T) {
 	if !ident("any").IsAny() {
 		t.Error("lazy any identifier.IsAny() should be true")
 	}
-	if ident("str").IsAny() {
+	if ident("string").IsAny() {
 		t.Error("lazy str.IsAny() should be false")
 	}
 }
@@ -270,7 +270,7 @@ func TestIsNull(t *testing.T) {
 	if !ident("null").IsNull() {
 		t.Error("lazy null identifier.IsNull() should be true")
 	}
-	if ident("str").IsNull() {
+	if ident("string").IsNull() {
 		t.Error("lazy str.IsNull() should be false")
 	}
 }
@@ -278,7 +278,7 @@ func TestIsNull(t *testing.T) {
 // TestTypeOfUserDefinedSchema verifies lazy user schema refs vs str.
 func TestTypeOfUserDefinedSchema(t *testing.T) {
 	vpc := ident("vpc_data_t")
-	str := ident("str")
+	str := ident("string")
 
 	if vpc.Kind != str.Kind {
 		t.Errorf("vpc Kind = %v, str Kind = %v — should be equal", vpc.Kind, str.Kind)
@@ -385,7 +385,7 @@ func TestSchemaTypeString(t *testing.T) {
 
 // TestTypeStringRendering verifies that Type.String() matches types.go formatting.
 func TestTypeStringRendering(t *testing.T) {
-	str := schemaNamed("str")
+	str := schemaNamed("string")
 	num := schemaNamed("number")
 	nul := schemaNamed("null")
 	anyT := anyResolved()
@@ -395,18 +395,18 @@ func TestTypeStringRendering(t *testing.T) {
 		typ      Type
 		expected string
 	}{
-		{"str resolved", str, "str"},
+		{"string resolved", str, "string"},
 		{"number resolved", num, "number"},
 		{"null resolved", nul, "null"},
 		{"any resolved", anyT, "any"},
 		{"model lazy", ident("m"), "m"},
 		{"user schema resolved", schemaNamed("vpc_data_t"), "vpc_data_t"},
 		{"list", Type{Kind: List}, "list"},
-		{"list[str]", NewListType(str), "list[str]"},
+		{"list[string]", NewListType(str), "list[string]"},
 		{"map", Type{Kind: Map}, "map"},
-		{"map[number]", NewMapType(ident("str"), num), "map[number]"},
-		{"union str | number", NewUnionType(str, num), "str | number"},
-		{"union str | model | null", NewUnionType(str, schemaNamed("model"), nul), "str | model | null"},
+		{"map[number]", NewMapType(ident("string"), num), "map[number]"},
+		{"union string | number", NewUnionType(str, num), "string | number"},
+		{"union string | model | null", NewUnionType(str, schemaNamed("model"), nul), "string | model | null"},
 	}
 
 	for _, tt := range tests {
@@ -421,14 +421,14 @@ func TestTypeStringRendering(t *testing.T) {
 // TestPrimitivesInUnion verifies primitives in unions behave like block refs for Contains.
 func TestPrimitivesInUnion(t *testing.T) {
 	nul := nullResolved()
-	union := NewUnionType(ident("str"), ident("number"), nul)
+	union := NewUnionType(ident("string"), ident("number"), nul)
 
 	tests := []struct {
 		name     string
 		check    Type
 		expected bool
 	}{
-		{"contains str", ident("str"), true},
+		{"contains string", ident("string"), true},
 		{"contains number", ident("number"), true},
 		{"contains null resolved", nul, true},
 		{"does not contain float", ident("float"), false},
@@ -446,7 +446,7 @@ func TestPrimitivesInUnion(t *testing.T) {
 
 // TestPrimitiveAndBlockRefEquality verifies lazy ref equality.
 func TestPrimitiveAndBlockRefEquality(t *testing.T) {
-	str := ident("str")
+	str := ident("string")
 	num := ident("number")
 
 	tests := []struct {
@@ -495,7 +495,7 @@ func TestTypeKindStringUnknown(t *testing.T) {
 
 // TestIsCompatible verifies IsCompatible for any, unions, lists, and lazy refs.
 func TestIsCompatible(t *testing.T) {
-	str := ident("str")
+	str := ident("string")
 	num := ident("number")
 	boolT := ident("bool")
 	anyT := anyResolved()

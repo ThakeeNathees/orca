@@ -142,7 +142,7 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 		},
 		{
 			name:         "schema block",
-			program:      &ast.Program{Statements: []ast.Statement{schemaBlock("vpc_data_t", schemaField{"region", "str"}, schemaField{"count", "int"})}},
+			program:      &ast.Program{Statements: []ast.Statement{schemaBlock("vpc_data_t", schemaField{"region", "string"}, schemaField{"count", "int"})}},
 			sectionTitle: "Schemas",
 			kind:         types.BlockKindSchema,
 			wantSubstrings: []string{
@@ -448,7 +448,7 @@ func TestWriteSchema(t *testing.T) {
 		{
 			name: "primitive field types",
 			block: schemaBlock("vpc_data_t",
-				schemaField{"region", "str"},
+				schemaField{"region", "string"},
 				schemaField{"instance_count", "int"},
 			),
 			contains: []string{
@@ -714,7 +714,7 @@ func TestGenerateProviderConstFold(t *testing.T) {
 			wantDeps:       []string{"langchain-core"},
 			wantDiagCount:  1,
 			wantDiagCode:   diagnostic.CodeTypeMismatch,
-			wantDiagSubstr: `field "provider" expects type str, got number`,
+			wantDiagSubstr: `field "provider" expects type string, got number`,
 		},
 	}
 

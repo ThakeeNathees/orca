@@ -33,7 +33,7 @@ type BlockSchema struct {
 	// +------------------+------------------+
 	// | foo bar {}       | schema foo {}    |
 	// | agent writer {}  | schema agent {}  |
-	// | schema str {}    | schema schema {} |
+	// | schema string {} | schema schema {} |
 	// | schema schema {} | schema schema {} |  <-- schema's schema is the schema itself.
 	// +------------------+------------------+
 	Schema *BlockSchema
@@ -63,7 +63,7 @@ func NewBlockSchema(
 
 // NewFieldSchema extracts a FieldSchema from an assignment using the
 // annotation-based format. The assignment value is the type expression
-// (e.g. str, str | model | null). Annotations provide metadata:
+// (e.g. string, string | model | null). Annotations provide metadata:
 // @desc("...") for descriptions. Required is inferred: if the type
 // contains null in a union, the field is optional; otherwise required.
 func NewFieldSchema(assign *ast.Assignment, symtab *SymbolTable) FieldSchema {

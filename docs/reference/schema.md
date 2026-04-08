@@ -17,9 +17,9 @@ Each field is assigned a type. Use `| null` to make a field optional:
 
 ```orca
 schema report {
-  title    = str           // required
-  summary  = str           // required
-  sources  = list[str]     // required
+  title    = string           // required
+  summary  = string           // required
+  sources  = list[string]     // required
   word_count = int | null  // optional
 }
 ```
@@ -31,13 +31,13 @@ Use the `@desc` annotation to document fields:
 ```orca
 schema report {
   @desc("The report title")
-  title = str
+  title = string
 
   @desc("Executive summary, max 200 words")
-  summary = str
+  summary = string
 
   @desc("List of source URLs")
-  sources = list[str]
+  sources = list[string]
 }
 ```
 
@@ -47,9 +47,9 @@ schema report {
 
 ```orca
 schema analysis {
-  sentiment  = str
+  sentiment  = string
   confidence = float
-  keywords   = list[str]
+  keywords   = list[string]
 }
 
 agent analyst {
@@ -63,14 +63,14 @@ agent analyst {
 
 ```orca
 schema address {
-  street = str
-  city   = str
-  zip    = str
+  street = string
+  city   = string
+  zip    = string
 }
 
 schema customer {
-  name    = str
-  email   = str
+  name    = string
+  email   = string
   address = address
 }
 ```
@@ -79,8 +79,8 @@ schema customer {
 
 ```orca
 schema search_results {
-  query   = str
-  results = list[str]
-  metadata = map[str]
+  query   = string
+  results = list[string]
+  metadata = map[string]
 }
 ```

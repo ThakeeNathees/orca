@@ -257,7 +257,7 @@ func TestExprToSource(t *testing.T) {
 						Annotations: []*ast.Annotation{
 							{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "AWS region"}}},
 						},
-						Value: &ast.Identifier{Value: "str"},
+						Value: &ast.Identifier{Value: "string"},
 					},
 				},
 			}},
@@ -279,7 +279,7 @@ func TestExprToSource(t *testing.T) {
 							{Name: "required"},
 							{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "r"}}},
 						},
-						Value: &ast.Identifier{Value: "str"},
+						Value: &ast.Identifier{Value: "string"},
 					},
 				},
 			}},

@@ -16,7 +16,7 @@ func TestBlockSchemaTypeOfExpr(t *testing.T) {
 		expr     ast.Expression
 		expected Type
 	}{
-		{"string literal", &ast.StringLiteral{Value: "hello"}, IdentType(0, "str", st)},
+		{"string literal", &ast.StringLiteral{Value: "hello"}, IdentType(0, "string", st)},
 		{"integer literal", &ast.NumberLiteral{Value: 42}, IdentType(0, "number", st)},
 		{"float literal", &ast.NumberLiteral{Value: 0.5}, IdentType(0, "number", st)},
 		{"undefined identifier resolves via any", &ast.Identifier{Value: "gpt4"}, IdentType(0, "any", st)},
@@ -109,8 +109,8 @@ func TestBlockSchemaTypeOfExprMapLiteral(t *testing.T) {
 				if !got.ValueType.Equals(tt.valTyp) {
 					t.Errorf("ValueType = %s, want %s", got.ValueType.String(), tt.valTyp.String())
 				}
-				if got.KeyType == nil || !got.KeyType.Equals(IdentType(0, "str", st)) {
-					t.Error("KeyType should be str")
+				if got.KeyType == nil || !got.KeyType.Equals(IdentType(0, "string", st)) {
+					t.Error("KeyType should be string (Orca primitive)")
 				}
 			} else if got.ValueType != nil {
 				t.Error("ValueType should be nil for untyped map")
@@ -127,7 +127,7 @@ func TestBlockSchemaTypeOfExprIdentWithSymbolTable(t *testing.T) {
 	st.Define("any", NewBlockRefType("any", nil), token.Token{})
 	st.Define("gpt4", NewBlockRefType("gpt4", nil), token.Token{})
 	st.Define("researcher", NewBlockRefType("researcher", nil), token.Token{})
-	st.Define("str", NewBlockRefType("str", nil), token.Token{})
+	st.Define("string", NewBlockRefType("string", nil), token.Token{})
 
 	tests := []struct {
 		name     string
@@ -136,7 +136,7 @@ func TestBlockSchemaTypeOfExprIdentWithSymbolTable(t *testing.T) {
 	}{
 		{"defined model", "gpt4", NewBlockRefType("gpt4", nil)},
 		{"defined agent", "researcher", NewBlockRefType("researcher", nil)},
-		{"builtin schema str", "str", NewBlockRefType("str", nil)},
+		{"builtin schema string", "string", NewBlockRefType("string", nil)},
 		{"undefined resolves to any", "unknown", IdentType(0, "any", &st)},
 	}
 
@@ -295,7 +295,7 @@ func TestBlockSchemaTypeOfExprBinaryArithmetic(t *testing.T) {
 	numLit := func(v float64) ast.Expression { return &ast.NumberLiteral{Value: v} }
 	strLit := func(v string) ast.Expression { return &ast.StringLiteral{Value: v} }
 
-	strTyp := IdentType(0, "str", st)
+	strTyp := IdentType(0, "string", st)
 	numTyp := IdentType(0, "number", st)
 	anyTyp := IdentType(0, "any", st)
 

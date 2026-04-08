@@ -1,8 +1,8 @@
 schema research_report {
   @desc("The research topic")
-  topic    = str
+  topic    = string
   @desc("Key findings from research")
-  findings = list[str]
+  findings = list[string]
   @desc("Confidence score")
   score    = float | null
 }

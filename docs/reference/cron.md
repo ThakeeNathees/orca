@@ -15,8 +15,8 @@ cron <name> {
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `schedule` | `str` | Yes | Cron expression (e.g. `"0 9 * * 1-5"`) |
-| `timezone` | `str \| null` | No | IANA timezone (e.g. `"America/New_York"`). Defaults to UTC when unset |
+| `schedule` | `string` | Yes | Cron expression (e.g. `"0 9 * * 1-5"`) |
+| `timezone` | `string \| null` | No | IANA timezone (e.g. `"America/New_York"`). Defaults to UTC when unset |
 
 ## Workflow usage
 

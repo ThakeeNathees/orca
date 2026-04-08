@@ -33,7 +33,7 @@ schema schema {}
 // Primitive type schemas — these define the built-in types.
 @suppress("duplicate-block")
 @only_assignments
-schema str {}
+schema string {}
 
 @suppress("duplicate-block")
 @only_assignments
@@ -68,26 +68,26 @@ schema null {}
 @suppress("duplicate-block")
 schema workflow {
   @desc("The name of the workflow.")
-  name = str | null
+  name = string | null
 
   @desc("The description of the workflow.")
-  desc = str | null
+  desc = string | null
 }
 
 @suppress("duplicate-block")
 @only_assignments
 schema model {
   @desc("The LLM provider to use (e.g. openai, anthropic).")
-  provider = str
+  provider = string
 
   @desc("The model to use for this agent. (e.g. gpt-5.2, gemini-2.5-flash).")
-  model_name = str
+  model_name = string
 
   @desc("The API key to use for this model.")
-  api_key = str | null
+  api_key = string | null
 
   @desc("The base URL to use for this model.")
-  base_url = str | null
+  base_url = string | null
 
   @desc("Sampling temperature between 0 and 1.")
   temperature = number | null
@@ -98,7 +98,7 @@ schema model {
 @workflow_node
 schema tool {
   @desc("The description of the tool.")
-  desc = str | null
+  desc = string | null
 
   @desc("The input schema for the tool.")
   input_schema = schema | null
@@ -107,7 +107,7 @@ schema tool {
   output_schema = schema | null
 
   @desc("The function to invoke for the tool. Either a dotted import path or an inline raw string.")
-  invoke = str
+  invoke = string
 }
 
 @suppress("duplicate-block")
@@ -115,10 +115,10 @@ schema tool {
 @workflow_node
 schema agent {
   @desc("The model to use. Can be a reference to a model block or a string.")
-  model = str | model
+  model = string | model
 
   @desc("The persona of the agent.")
-  persona = str
+  persona = string
 
   @desc("The tools to use for this agent.")
   tools = list[tool] | null
@@ -131,7 +131,7 @@ schema agent {
 @only_assignments
 schema knowledge {
   @desc("The description of the knowledge source.")
-  desc = str | null
+  desc = string | null
 }
 
 @suppress("duplicate-block")
@@ -140,10 +140,10 @@ schema knowledge {
 @trigger_node
 schema cron {
   @desc("Cron schedule expression (e.g. \"0 9 * * 1-5\").")
-  schedule = str
+  schedule = string
 
   @desc("IANA timezone name (e.g. \"America/New_York\"). Defaults to UTC when unset.")
-  timezone = str | null
+  timezone = string | null
 }
 
 @suppress("duplicate-block")
@@ -152,8 +152,8 @@ schema cron {
 @trigger_node
 schema webhook {
   @desc("URL path for this webhook (e.g. \"/hooks/job\").")
-  path = str
+  path = string
 
   @desc("HTTP method (e.g. \"POST\").")
-  method = str | null
+  method = string | null
 }

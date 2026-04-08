@@ -1,19 +1,19 @@
 
 // Runtime-supplied LLM provider for every block that uses `llm`.
 input provider {
-    type = str
+    type = string
     desc = "LLM provider (e.g. openai, anthropic)."
 }
 
 // Runtime-supplied model id for that provider.
 input model_name {
-    type = str
+    type = string
     desc = "Model name (e.g. gpt-4o, claude-sonnet-4-20250514)."
 }
 
 // Runtime-supplied API key for the model.
 input api_key {
-    type = str
+    type = string
     desc = "API key for the model."
     sensitive = true
 }

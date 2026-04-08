@@ -1,7 +1,7 @@
 // Schema definitions using annotation-based format.
 
 @suppress("duplicate-block")
-schema str {}
+schema string {}
 
 @suppress("duplicate-block")
 schema int {}
@@ -18,17 +18,17 @@ schema null {}
 @suppress("duplicate-block")
 schema model {
   @desc("The LLM provider.")
-  provider = str
+  provider = string
 
-  model_name = str | model | null
+  model_name = string | model | null
   temperature = float | null
 }
 
 @suppress("duplicate-block")
 schema agent {
   @desc("The model to use.")
-  model = str | model
+  model = string | model
 
-  persona = str
+  persona = string
   tools = list[tool] | null
 }

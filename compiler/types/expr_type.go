@@ -68,7 +68,7 @@ func schemaFromExprWithDepth(depth int, expr ast.Expression, symbols *SymbolTabl
 	// in the bootstrap.oc file. as `bool true {}` and `bool false {}`
 	//
 	// Ideally we want the string, number to be the same like
-	// `str "foo"` and `number 42` to be the same (consecptually), so
+	// `string "foo"` and `number 42` to be the same (consecptually), so
 	// instead of doing the (depth-1) + search. That is
 	//
 	// number 42 {}
@@ -79,9 +79,9 @@ func schemaFromExprWithDepth(depth int, expr ast.Expression, symbols *SymbolTabl
 	// sense, however in theory it should work, so we dynamically define something
 	// like this (maybe not but it's paper worthy to point out). `number 42 {}`
 	//
-	// FIXME: Move the "str", "number", "null" to constants.go file.
+	// FIXME: Move the "number", "null" to constants.go file.
 	case *ast.StringLiteral:
-		return IdentType(depth-1, "str", symbols)
+		return IdentType(depth-1, "string", symbols)
 	case *ast.NumberLiteral:
 		return IdentType(depth-1, "number", symbols)
 
@@ -127,9 +127,9 @@ func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type 
 	//
 	// That means
 	//
-	//	 schema str {}
-	//	 str "bar" {}
-	//	 ExprType("bar") -> `schema str {}` and not `str "bar" {}`
+	//	 schema string {}
+	//	 string "bar" {}
+	//	 ExprType("bar") -> `schema string {}` and not `string "bar" {}`
 	//
 	//   schema agent {}
 	//   agent writer {}
@@ -155,13 +155,13 @@ func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type 
 }
 
 // binaryExprType resolves the type of a binary expression. Pipe operators
-// produce union types (e.g. str | null). Arithmetic operators (+, -, *, /)
+// produce union types (e.g. string | null). Arithmetic operators (+, -, *, /)
 // apply numeric promotion rules and string concatenation. Other operators
 // return any.
 func binaryExprType(depth int, e *ast.BinaryExpression, symbols *SymbolTable) Type {
 	switch e.Operator.Type {
 	case token.PIPE:
-		// When both operands are schema types, | constructs a union type (e.g. str | null).
+		// When both operands are schema types, | constructs a union type (e.g. string | null).
 		// TODO: when both operands are numeric (int | int, int | float, etc.), | should be
 		// treated as bitwise OR — this is not yet implemented.
 		members := flattenUnionTypes(depth, e, symbols)
@@ -178,7 +178,7 @@ func binaryExprType(depth int, e *ast.BinaryExpression, symbols *SymbolTable) Ty
 
 // arithmeticResultType infers the result type of an arithmetic binary expression.
 // Rules:
-//   - str + str → str  (string concatenation, PLUS only)
+//   - string + string → string  (string concatenation, PLUS only)
 //   - int op int → int
 //   - float op float → float
 //   - int op float / float op int → float  (numeric widening)
@@ -187,11 +187,11 @@ func arithmeticResultType(depth int, e *ast.BinaryExpression, symbols *SymbolTab
 	left := schemaFromExprWithDepth(depth, e.Left, symbols)
 	right := schemaFromExprWithDepth(depth, e.Right, symbols)
 
-	// String concatenation: str + str → str.
-	isLeftStr := IsCompatible(left, IdentType(0, "str", symbols))
-	isRightStr := IsCompatible(right, IdentType(0, "str", symbols))
+	// String concatenation: string + string → string.
+	isLeftStr := IsCompatible(left, IdentType(0, "string", symbols))
+	isRightStr := IsCompatible(right, IdentType(0, "string", symbols))
 	if e.Operator.Type == token.PLUS && isLeftStr && isRightStr {
-		return IdentType(0, "str", symbols)
+		return IdentType(0, "string", symbols)
 	}
 
 	// <number> op <number> → <number>.
@@ -278,19 +278,19 @@ func identType(depth int, name string, symtab *SymbolTable) (Type, bool) {
 
 // subscriptionType returns the type of a subscription expression.
 // In bootstrap mode (symbols == nil), first tries to resolve parameterized
-// types like list[tool] or map[str], then falls back to subscript result
+// types like list[tool] or map[string], then falls back to subscript result
 // type inference. With symbols, always infers from the object type.
 func subscriptionType(depth int, e *ast.Subscription, symtab *SymbolTable) Type {
-	// Bootstrap: try parameterized type like list[tool] or map[str].
+	// Bootstrap: try parameterized type like list[tool] or map[string].
 	if baseIdent, ok := e.Object.(*ast.Identifier); ok {
 		elemType := schemaFromExprWithDepth(depth, e.Index, symtab)
 		switch baseIdent.Value {
 		case "list":
 			return NewListType(elemType)
 		case "map":
-			// NOTE: Map keys are always "str" but we set anyways maybe
+			// NOTE: Map keys are always string (Orca primitive) but we set anyways maybe
 			// in the future we support other key types.
-			return NewMapType(IdentType(0, "str", symtab), elemType)
+			return NewMapType(IdentType(0, "string", symtab), elemType)
 		}
 	}
 	return subscriptResultType(depth, schemaFromExprWithDepth(depth, e.Object, symtab), symtab)
@@ -376,7 +376,7 @@ func mapLiteralType(depth int, m *ast.MapLiteral, symtab *SymbolTable) Type {
 	// for _, entry := range m.Entries[1:] {
 	// }
 
-	return NewMapType(IdentType(0, "str", symtab), anyType(symtab))
+	return NewMapType(IdentType(0, "string", symtab), anyType(symtab))
 }
 
 // listLiteralType infers the type of a list literal. If all elements

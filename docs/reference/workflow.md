@@ -16,8 +16,8 @@ workflow <name> {
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | `str \| null` | No | Display name for the workflow |
-| `desc` | `str \| null` | No | A description of what the workflow does |
+| `name` | `string \| null` | No | Display name for the workflow |
+| `desc` | `string \| null` | No | A description of what the workflow does |
 
 ## Arrow syntax
 

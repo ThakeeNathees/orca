@@ -15,8 +15,8 @@ knowledge <name> {
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | `str` | Yes | The identifier for this knowledge source |
-| `desc` | `str \| null` | No | A description of what the knowledge source contains |
+| `name` | `string` | Yes | The identifier for this knowledge source |
+| `desc` | `string \| null` | No | A description of what the knowledge source contains |
 
 ## Examples
 

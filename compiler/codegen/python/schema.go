@@ -14,7 +14,7 @@ import (
 //
 //	schema research_report {
 //	  @desc("The topic")
-//	  topic = str
+//	  topic = string
 //	  score = float | null
 //	}
 //
@@ -113,7 +113,9 @@ func orcaSchemaToPythonTypeName(t types.Type) string {
 		return "Any"
 	}
 	switch t.BlockName {
-	case "str", "int", "float", "bool":
+	case "string":
+		return "str"
+	case "int", "float", "bool":
 		return t.BlockName
 	case "any":
 		return "Any"
