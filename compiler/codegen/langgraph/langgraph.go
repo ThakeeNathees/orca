@@ -78,6 +78,7 @@ func (b *LangGraphBackend) generateMain() string {
 	b.writeModelSection(&s)
 	b.writeOrcaBlockSection(&s, "Knowledge", analyzer.BlockKindKnowledge)
 	b.writeToolSection(&s)
+	b.writeOrcaBlockSection(&s, "Models", analyzer.BlockKindModel)
 	b.writeOrcaBlockSection(&s, "Agents", analyzer.BlockKindAgent)
 	b.writeOrcaBlockSection(&s, "Cron", analyzer.BlockKindCron)
 	b.writeOrcaBlockSection(&s, "Webhooks", analyzer.BlockKindWebhook)

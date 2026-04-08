@@ -10,8 +10,8 @@ from __future__ import annotations
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 
-from types import SimpleNamespace, TypedDict
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, TypedDict
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -109,9 +109,12 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
 def __orca_gather(state: dict, predecessors: list[str]) -> Any:
     """Collect predecessor outputs from workflow state.
 
+    No predecessors (entry nodes) use the __orca_payload field as input.
     Single predecessor returns its value directly.
     Multiple predecessors returns a dict keyed by predecessor name.
     """
+    if len(predecessors) == 0:
+        return state.get("__orca_payload")
     if len(predecessors) == 1:
         return state.get(predecessors[0])
     return {k: state.get(k) for k in predecessors}
@@ -159,6 +162,13 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
+# --- Models ---
+
+gpt4 = __orca_model(
+    provider="openai",
+    model_name="gpt-4o",
+)
+
 # --- Agents ---
 
 classifier = __orca_agent(
@@ -193,19 +203,31 @@ class __orca_state_diamond(TypedDict):
 
 def __orca_node_classifier(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'classifier'."""
-    pass  # TODO: implement node invocation for 'classifier'
+    _predecessors = []
+    _input = __orca_gather(state, _predecessors)
+    _out = __orca_invoke_agent(classifier, _input)
+    return {"classifier": _out}
 
 def __orca_node_writer(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'writer'."""
-    pass  # TODO: implement node invocation for 'writer'
+    _predecessors = ["classifier"]
+    _input = __orca_gather(state, _predecessors)
+    _out = __orca_invoke_agent(writer, _input)
+    return {"writer": _out}
 
 def __orca_node_analyst(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'analyst'."""
-    pass  # TODO: implement node invocation for 'analyst'
+    _predecessors = ["classifier"]
+    _input = __orca_gather(state, _predecessors)
+    _out = __orca_invoke_agent(analyst, _input)
+    return {"analyst": _out}
 
 def __orca_node_reviewer(state: __orca_state_diamond) -> dict:
     """Workflow node wrapping 'reviewer'."""
-    pass  # TODO: implement node invocation for 'reviewer'
+    _predecessors = ["writer", "analyst"]
+    _input = __orca_gather(state, _predecessors)
+    _out = __orca_invoke_agent(reviewer, _input)
+    return {"reviewer": _out}
 
 def __orca_route_diamond(state: __orca_state_diamond) -> str:
     """Route to entry node based on trigger source."""

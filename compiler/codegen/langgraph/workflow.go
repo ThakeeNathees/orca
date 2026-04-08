@@ -79,10 +79,7 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 
 	// Node wrapper functions (processing nodes only, not triggers).
 	for _, node := range rw.Nodes {
-		s.WriteString("\n")
-		fmt.Fprintf(s, "def %s(state: %s) -> dict:\n", nodeFuncName(node), stateName)
-		fmt.Fprintf(s, "    \"\"\"Workflow node wrapping '%s'.\"\"\"\n", node)
-		fmt.Fprintf(s, "    pass  # TODO: implement node invocation for '%s'\n", node)
+		b.writeWorkflowNode(s, rw, stateName, node)
 	}
 
 	// Router function.
@@ -197,6 +194,48 @@ func edgeEndpoint(name string) string {
 		return name
 	}
 	return fmt.Sprintf("%q", name)
+}
+
+// pythonStringListLiteral formats ss as a Python list of string literals, e.g. ["a", "b"].
+func pythonStringListLiteral(ss []string) string {
+	if len(ss) == 0 {
+		return "[]"
+	}
+	quoted := make([]string, len(ss))
+	for i, s := range ss {
+		quoted[i] = fmt.Sprintf("%q", s)
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
+}
+
+// writeWorkflowNode emits a full Python workflow node function: signature,
+// docstring, and body that gathers upstream inputs (or trigger payload for
+// entry nodes), invokes the agent or tool block, and returns the partial
+// state update for this node's output field.
+func (b *LangGraphBackend) writeWorkflowNode(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName, node string) {
+	s.WriteString("\n")
+	fmt.Fprintf(s, "def %s(state: %s) -> dict:\n", nodeFuncName(node), stateName)
+	fmt.Fprintf(s, "    \"\"\"Workflow node wrapping '%s'.\"\"\"\n", node)
+
+	preds := rw.Predecessors(node)
+	fmt.Fprintf(s, "    _predecessors = %s\n", pythonStringListLiteral(preds))
+	fmt.Fprintf(s, "    _input = %s(state, _predecessors)\n", orcaGatherFunc)
+
+	block := b.Program.Ast.FindBlockWithName(node)
+	if block == nil {
+		fmt.Fprintf(s, "    raise RuntimeError(\"workflow node %q: no block definition found\")\n", node)
+		return
+	}
+
+	switch block.Kind {
+	case analyzer.BlockKindAgent:
+		fmt.Fprintf(s, "    _out = %s(%s, _input)\n", orcaInvokeAgentFunc, node)
+	case analyzer.BlockKindTool:
+		fmt.Fprintf(s, "    _out = %s(%s, _input)\n", orcaInvokeToolFunc, node)
+	default:
+		fmt.Fprintf(s, "    raise NotImplementedError(\"workflow node %q: block kind %q is not supported in workflows yet\")\n", node, block.Kind)
+	}
+	fmt.Fprintf(s, "    return {%q: _out}\n", node)
 }
 
 // workflowImports returns the Python imports required by the given workflow blocks.

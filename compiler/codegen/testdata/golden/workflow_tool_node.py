@@ -10,8 +10,8 @@ from __future__ import annotations
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 
-from types import SimpleNamespace, TypedDict
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, TypedDict
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -109,9 +109,12 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
 def __orca_gather(state: dict, predecessors: list[str]) -> Any:
     """Collect predecessor outputs from workflow state.
 
+    No predecessors (entry nodes) use the __orca_payload field as input.
     Single predecessor returns its value directly.
     Multiple predecessors returns a dict keyed by predecessor name.
     """
+    if len(predecessors) == 0:
+        return state.get("__orca_payload")
     if len(predecessors) == 1:
         return state.get(predecessors[0])
     return {k: state.get(k) for k in predecessors}
@@ -169,6 +172,13 @@ validate = __orca_tool(
     invoke=validate__invoke_verbatim,
 )
 
+# --- Models ---
+
+gpt4 = __orca_model(
+    provider="openai",
+    model_name="gpt-4o",
+)
+
 # --- Agents ---
 
 drafter = __orca_agent(
@@ -192,15 +202,24 @@ class __orca_state_review_pipeline(TypedDict):
 
 def __orca_node_drafter(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'drafter'."""
-    pass  # TODO: implement node invocation for 'drafter'
+    _predecessors = []
+    _input = __orca_gather(state, _predecessors)
+    _out = __orca_invoke_agent(drafter, _input)
+    return {"drafter": _out}
 
 def __orca_node_validate(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'validate'."""
-    pass  # TODO: implement node invocation for 'validate'
+    _predecessors = ["drafter"]
+    _input = __orca_gather(state, _predecessors)
+    _out = __orca_invoke_tool(validate, _input)
+    return {"validate": _out}
 
 def __orca_node_reviewer(state: __orca_state_review_pipeline) -> dict:
     """Workflow node wrapping 'reviewer'."""
-    pass  # TODO: implement node invocation for 'reviewer'
+    _predecessors = ["validate"]
+    _input = __orca_gather(state, _predecessors)
+    _out = __orca_invoke_agent(reviewer, _input)
+    return {"reviewer": _out}
 
 def __orca_route_review_pipeline(state: __orca_state_review_pipeline) -> str:
     """Route to entry node based on trigger source."""

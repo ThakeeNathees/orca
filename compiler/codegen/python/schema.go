@@ -115,8 +115,10 @@ func orcaSchemaToPythonTypeName(t types.Type) string {
 	switch t.BlockName {
 	case "string":
 		return "str"
-	case "int", "float", "bool":
-		return t.BlockName
+	case "number":
+		return "float"
+	case "bool":
+		return "bool"
 	case "any":
 		return "Any"
 	case "null":
