@@ -1,5 +1,5 @@
-from types import SimpleNamespace, TypedDict
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, TypedDict
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -97,9 +97,12 @@ def __orca_let(**kwargs: Any) -> SimpleNamespace:
 def __orca_gather(state: dict, predecessors: list[str]) -> Any:
     """Collect predecessor outputs from workflow state.
 
+    No predecessors (entry nodes) use the __orca_payload field as input.
     Single predecessor returns its value directly.
     Multiple predecessors returns a dict keyed by predecessor name.
     """
+    if len(predecessors) == 0:
+        return state.get("__orca_payload")
     if len(predecessors) == 1:
         return state.get(predecessors[0])
     return {k: state.get(k) for k in predecessors}
