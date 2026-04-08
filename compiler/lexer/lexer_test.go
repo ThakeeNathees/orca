@@ -234,7 +234,7 @@ func TestNextTokenBooleans(t *testing.T) {
 }
 
 func TestNextTokenOperators(t *testing.T) {
-	input := "+-*/-> a->b | str|int"
+	input := "+-*/-> a->b | string|int"
 
 	tests := []struct {
 		expectedType    token.TokenType
@@ -249,7 +249,7 @@ func TestNextTokenOperators(t *testing.T) {
 		{token.ARROW, "->"},
 		{token.IDENT, "b"},
 		{token.PIPE, "|"},
-		{token.IDENT, "str"},
+		{token.IDENT, "string"},
 		{token.PIPE, "|"},
 		{token.IDENT, "int"},
 		{token.EOF, ""},

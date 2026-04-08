@@ -1,7 +1,7 @@
 // A tool with desc, input/output schemas, and a dotted path invoke.
 tool slack {
   desc = "Send messages to Slack"
-  input_schema = schema { channel = str message = str }
+  input_schema = schema { channel = string message = string }
   output_schema = schema { ok = bool }
   invoke = "integrations.slack.send_message"
 }

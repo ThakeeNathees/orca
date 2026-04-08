@@ -1,6 +1,6 @@
 schema report {
   @desc("The report content")
-  content = str
+  content = string
   @desc("Quality score")
   score   = int
 }

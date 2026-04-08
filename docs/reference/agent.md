@@ -17,8 +17,8 @@ agent <name> {
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `model` | `str \| model` | Yes | Reference to a model block or a model string |
-| `persona` | `str` | Yes | The agent's system prompt / behavior description |
+| `model` | `string \| model` | Yes | Reference to a model block or a model string |
+| `persona` | `string` | Yes | The agent's system prompt / behavior description |
 | `tools` | `list[tool] \| null` | No | List of tool references the agent can use |
 | `output_schema` | `schema \| null` | No | Structured output schema for the agent's response |
 
@@ -63,9 +63,9 @@ agent researcher {
 
 ```orca
 schema report {
-  title   = str
-  summary = str
-  sources = list[str]
+  title   = string
+  summary = string
+  sources = list[string]
 }
 
 agent analyst {

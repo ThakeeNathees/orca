@@ -34,10 +34,10 @@ agent prompt_analyst {
 
     output_schema = schema {
         @desc("Implementation-ready re-prompt: structured spec another AI uses to build or run the workflow; null if error is set")
-        refined_instruction = str | null
+        refined_instruction = string | null
         @desc("Concrete gaps or questions still blocking a confident implementation; empty list if none")
-        ambiguities = list[str]
+        ambiguities = list[string]
         @desc("When refined_instruction cannot be produced usefully; otherwise null")
-        error = str | null
+        error = string | null
     }
 }

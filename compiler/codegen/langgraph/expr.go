@@ -30,6 +30,10 @@ func exprToSource(expr ast.Expression) string {
 			return "True"
 		case "false":
 			return "False"
+		case "string":
+			return "str"
+		case "number":
+			return "float"
 		default:
 			return e.Value
 		}

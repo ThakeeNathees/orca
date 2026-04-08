@@ -48,22 +48,20 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 	resolveBlockSchemaReferences(&ap)
 
 	for _, stmt := range program.Statements {
+		// We dont have any other statement than BlockStatement, maybe
+		// we can just remove Statement and use BlockStatement directly.
 		block, ok := stmt.(*ast.BlockStatement)
 		if !ok {
 			continue
 		}
 
+		// Analyze and get the non-suppressed diagnostics for the block.
 		var blockDiags []diagnostic.Diagnostic
 		blockDiags = analyzeBlock(block, ap.SymbolTable)
-
-		// Apply block-level @suppress annotations.
 		codes, all := suppressedCodes(block.Annotations)
 		blockDiags = filterSuppressed(blockDiags, codes, all)
 
-		// Tag diagnostics with the source file for multi-file compilation.
-		for i := range blockDiags {
-			blockDiags[i].File = block.SourceFile
-		}
+		// Add the block diagnostics to the program diagnostics.
 		ap.Diagnostics = append(ap.Diagnostics, blockDiags...)
 	}
 
@@ -164,24 +162,10 @@ func resolveBlockSchemaReferences(ap *AnalyzedProgram) {
 	}
 }
 
-// inputDeclaredType resolves the type from an input block's type field.
-// Handles all type expressions: simple identifiers (str), parameterized
-// types (list[str], map[str]), inline schemas (schema { ... }), and
-// union types (str | null). Returns the resolved Type and true if found.
-func inputDeclaredType(block *ast.BlockStatement, symtab *types.SymbolTable) (types.Type, bool) {
-	for _, assign := range block.Assignments {
-		if assign.Name == "type" {
-			typ := types.BlockSchemaTypeOfExpr(assign.Value, symtab)
-			return typ, true
-		}
-	}
-	return types.Type{}, false
-}
-
 // analyzeBlock validates a top-level block statement by delegating to
 // analyzeBlockBody for the core body validation.
 func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
-	return analyzeBlockBody(
+	diags := analyzeBlockBody(
 		&block.BlockBody,
 		block.Annotations,
 		block.Name,
@@ -189,6 +173,11 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 		block.TokenEnd,
 		symbols,
 	)
+	// Tag diagnostics with the source file for multi-file compilation.
+	for i := range diags {
+		diags[i].File = block.SourceFile
+	}
+	return diags
 }
 
 // analyzeBlockBody performs all validation checks on a block body: duplicate
@@ -262,7 +251,7 @@ func analyzeBlockBody(
 	//
 	// ex: schema foo { a = bar b = baz }
 	//
-	// bar and baz should be schemas `schema bar {}` and `schema baz {}` (ex: schema str {}).
+	// bar and baz should be schemas `schema bar {}` and `schema baz {}` (ex: schema string {}).
 	if blockSchema.Schema != nil && blockSchema.Ast.Kind != types.BlockKindSchema {
 		// Validate the field types in assignments.
 		for _, assign := range body.Assignments {

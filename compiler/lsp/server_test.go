@@ -278,13 +278,13 @@ func TestCompleteMemberAccessNoResults(t *testing.T) {
 }
 
 // TestCompleteMemberAccessPrimitiveStr verifies that dot-completing after a
-// member that resolves to str (e.g. gpt4.provider) returns no completions
+// member that resolves to string (e.g. gpt4.provider) returns no completions
 // instead of falling through to the enclosing block's field suggestions.
 func TestCompleteMemberAccessPrimitiveStr(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\n\nmodel my_model {\n  provider = gpt4.provider.\n  model_name = \"gpt-4o\"\n}"
 	doc := updateDocument("test://dotcomp_str.oc", text)
 
-	// "gpt4.provider." — str has no schema fields; must not suggest model fields.
+	// "gpt4.provider." — string has no schema fields; must not suggest model fields.
 	items := findMemberCompletion(doc, 6, 25)
 	if len(items) != 0 {
 		t.Errorf("expected no completions after str-typed member access, got %d", len(items))
@@ -468,9 +468,9 @@ func TestDefinitionMemberChained(t *testing.T) {
 
 // TestDefinitionSchemaField verifies that go-to-definition on a member of an
 // inline schema expression jumps to the field assignment inside the schema.
-// e.g. cursor on "draft" in "researcher.output.draft" → schema { draft = str }.
+// e.g. cursor on "draft" in "researcher.output.draft" → schema { draft = string }.
 func TestDefinitionSchemaField(t *testing.T) {
-	text := "agent researcher {\n  persona = \"hi\"\n  output_schema = schema {\n    draft = str\n    score = int\n  }\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  persona = researcher.output_schema.draft\n  model = \"x\"\n}"
+	text := "agent researcher {\n  persona = \"hi\"\n  output_schema = schema {\n    draft = string\n    score = int\n  }\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  persona = researcher.output_schema.draft\n  model = \"x\"\n}"
 	doc := updateDocument("test://schema-def.oc", text)
 
 	// "draft" in "researcher.output_schema.draft" on line 10, col 38 (1-based).
@@ -478,7 +478,7 @@ func TestDefinitionSchemaField(t *testing.T) {
 	if !found {
 		t.Fatal("expected definition for researcher.output_schema.draft")
 	}
-	// "draft = str" is at line 4, col 5 → LSP: line 3, char 4.
+	// "draft = string" is at line 4, col 5 → LSP: line 3, char 4.
 	if loc.Range.Start.Line != 3 || loc.Range.Start.Character != 4 {
 		t.Errorf("definition at (%d, %d), want (3, 4)",
 			loc.Range.Start.Line, loc.Range.Start.Character)
@@ -488,7 +488,7 @@ func TestDefinitionSchemaField(t *testing.T) {
 // TestDefinitionSchemaFieldScore verifies go-to-definition on a second field
 // in an inline schema to make sure it's not always matching the first field.
 func TestDefinitionSchemaFieldScore(t *testing.T) {
-	text := "agent researcher {\n  persona = \"hi\"\n  output_schema = schema {\n    draft = str\n    score = int\n  }\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  persona = researcher.output_schema.score\n  model = \"x\"\n}"
+	text := "agent researcher {\n  persona = \"hi\"\n  output_schema = schema {\n    draft = string\n    score = int\n  }\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  persona = researcher.output_schema.score\n  model = \"x\"\n}"
 	doc := updateDocument("test://schema-def2.oc", text)
 
 	// "score" in "researcher.output_schema.score" on line 10, col 38 (1-based).
@@ -506,7 +506,7 @@ func TestDefinitionSchemaFieldScore(t *testing.T) {
 // TestDefinitionSchemaUnknownField verifies that go-to-definition returns
 // nothing for a member that doesn't exist in the inline schema.
 func TestDefinitionSchemaUnknownField(t *testing.T) {
-	text := "agent researcher {\n  persona = \"hi\"\n  output = schema {\n    draft = str\n  }\n}\ntask t1 {\n  agent = researcher\n  prompt = researcher.output.missing\n}"
+	text := "agent researcher {\n  persona = \"hi\"\n  output = schema {\n    draft = string\n  }\n}\ntask t1 {\n  agent = researcher\n  prompt = researcher.output.missing\n}"
 	doc := updateDocument("test://schema-def3.oc", text)
 
 	_, found := resolveDefinition(doc, 9, 30)

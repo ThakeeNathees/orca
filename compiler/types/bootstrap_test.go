@@ -32,7 +32,7 @@ func TestLoadSchemas(t *testing.T) {
 		numFields int
 	}{
 		{"schema", BlockKindSchema, 0},
-		{"str", "str", 0},
+		{"string", "string", 0},
 		{"number", "number", 0},
 		{"bool", "bool", 0},
 		{"list", "list", 0},
@@ -71,7 +71,7 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 	}
 
 	// wantString is the canonical Orca type string Type.String() should produce for each
-	// field per bootstrap.oc (str, model, number, schema, … — not the meta-type name "schema"
+	// field per bootstrap.oc (string, model, number, schema, … — not the meta-type name "schema"
 	// unless the field is literally typed as `schema`).
 	tests := []struct {
 		name     string
@@ -82,14 +82,14 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		wantStr  string
 	}{
 		{"agent.tools", "agent", "tools", Union, false, "list[tool] | null"},
-		{"model.model_name", "model", "model_name", BlockRef, true, "str"},
-		{"agent.model", "agent", "model", Union, true, "str | model"},
-		{"model.provider", "model", "provider", BlockRef, true, "str"},
+		{"model.model_name", "model", "model_name", BlockRef, true, "string"},
+		{"agent.model", "agent", "model", Union, true, "string | model"},
+		{"model.provider", "model", "provider", BlockRef, true, "string"},
 		{"model.temperature", "model", "temperature", Union, false, "number | null"},
-		{"agent.persona", "agent", "persona", BlockRef, true, "str"},
-		{"tool.desc", "tool", "desc", Union, false, "str | null"},
-		{"tool.invoke", "tool", "invoke", BlockRef, true, "str"},
-		{"workflow.name", "workflow", "name", Union, false, "str | null"},
+		{"agent.persona", "agent", "persona", BlockRef, true, "string"},
+		{"tool.desc", "tool", "desc", Union, false, "string | null"},
+		{"tool.invoke", "tool", "invoke", BlockRef, true, "string"},
+		{"workflow.name", "workflow", "name", Union, false, "string | null"},
 	}
 
 	for _, tt := range tests {
@@ -156,7 +156,7 @@ func TestResolveIdentAsType(t *testing.T) {
 		name  string
 		input string
 	}{
-		{"primitive str", "str"},
+		{"primitive string", "string"},
 		{"primitive number", "number"},
 		{"primitive bool", "bool"},
 		{"primitive any", "any"},
@@ -201,9 +201,9 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 		wantLookup string // if set, expected type is st.Lookup(wantLookup) (same Block pointer as ExprType)
 	}{
 		{
-			"identifier str resolves to str",
-			&ast.Identifier{Value: "str"},
-			BlockRef, nil, "str",
+			"identifier string resolves to string",
+			&ast.Identifier{Value: "string"},
+			BlockRef, nil, "string",
 		},
 		{
 			"identifier model resolves to model ref",
@@ -211,10 +211,10 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 			BlockRef, nil, "model",
 		},
 		{
-			"subscription list[str] resolves to list type",
+			"subscription list[string] resolves to list type",
 			&ast.Subscription{
 				Object: &ast.Identifier{Value: "list"},
-				Index:  &ast.Identifier{Value: "str"},
+				Index:  &ast.Identifier{Value: "string"},
 			},
 			List, nil, "",
 		},
@@ -230,14 +230,14 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 			"unsupported parameterized type returns any",
 			&ast.Subscription{
 				Object: &ast.Identifier{Value: "set"},
-				Index:  &ast.Identifier{Value: "str"},
+				Index:  &ast.Identifier{Value: "string"},
 			},
 			BlockRef, typePtr(anyTyp), "",
 		},
 		{
 			"union via binary pipe expression",
 			&ast.BinaryExpression{
-				Left:     &ast.Identifier{Value: "str"},
+				Left:     &ast.Identifier{Value: "string"},
 				Operator: token.Token{Type: token.PIPE},
 				Right:    &ast.Identifier{Value: "number"},
 			},
@@ -246,7 +246,7 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 		{
 			"binary expression with non-pipe operator returns any",
 			&ast.BinaryExpression{
-				Left:     &ast.Identifier{Value: "str"},
+				Left:     &ast.Identifier{Value: "string"},
 				Operator: token.Token{Type: token.PLUS, Literal: "+"},
 				Right:    &ast.Identifier{Value: "number"},
 			},
@@ -292,7 +292,7 @@ func TestBlockSchemaTypeOfExprInlineSchema(t *testing.T) {
 			Assignments: []*ast.Assignment{
 				{
 					Name:  "host",
-					Value: &ast.Identifier{Value: "str"},
+					Value: &ast.Identifier{Value: "string"},
 				},
 			},
 		},
@@ -340,19 +340,19 @@ func TestFieldSchemaOptionalNullInUnion(t *testing.T) {
 		memberCount int
 	}{
 		{
-			"str | null optional, union retains null",
-			"schema test_strip {\n  @suppress(\"duplicate-block\")\n  field = str | null\n}",
-			false, Union, "str | null", 2,
+			"string | null optional, union retains null",
+			"schema test_strip {\n  @suppress(\"duplicate-block\")\n  field = string | null\n}",
+			false, Union, "string | null", 2,
 		},
 		{
-			"str | model | null optional, full union",
-			"schema test_strip2 {\n  @suppress(\"duplicate-block\")\n  field = str | model | null\n}",
-			false, Union, "str | model | null", 3,
+			"string | model | null optional, full union",
+			"schema test_strip2 {\n  @suppress(\"duplicate-block\")\n  field = string | model | null\n}",
+			false, Union, "string | model | null", 3,
 		},
 		{
-			"str (no union) is required BlockRef",
-			"schema test_strip3 {\n  @suppress(\"duplicate-block\")\n  field = str\n}",
-			true, BlockRef, "str", 0,
+			"string (no union) is required BlockRef",
+			"schema test_strip3 {\n  @suppress(\"duplicate-block\")\n  field = string\n}",
+			true, BlockRef, "string", 0,
 		},
 	}
 

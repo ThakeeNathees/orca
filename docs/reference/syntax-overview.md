@@ -30,7 +30,7 @@ model gpt4 {
 
 | Type | Description |
 |------|-------------|
-| `str` | String |
+| `string` | String |
 | `int` | Integer |
 | `float` | Floating-point number |
 | `bool` | Boolean (`true` / `false`) |
@@ -58,7 +58,7 @@ headers = {
 Use the pipe operator `|` to allow multiple types:
 
 ```orca
-model_name = str | model    // accepts a string or a model reference
+model_name = stringing | model    // accepts a string or a model reference
 temperature = float | null  // optional field (null means it can be omitted)
 ```
 
@@ -156,7 +156,7 @@ Adds a description to a field (used in schema definitions):
 ```orca
 schema report {
   @desc("The report title")
-  title = str
+  title = string
 
   @desc("Word count limit")
   max_words = int | null

@@ -417,7 +417,7 @@ type kinds:
 
 \begin{enumerate}[leftmargin=*]
   \item \textbf{BlockRef}: Named types encompassing both primitives
-        (\texttt{str}, \texttt{int}, \texttt{float}, \texttt{bool},
+        (\texttt{string}, \texttt{int}, \texttt{number}, \texttt{bool},
         \texttt{null}) and block references (\texttt{model}, \texttt{agent},
         \texttt{tool}, etc.). Every user-defined \texttt{schema} block
         also becomes a \texttt{BlockRef} type.
@@ -426,7 +426,7 @@ type kinds:
   \item \textbf{Map}: Key-value collections with string keys, e.g.,
         \texttt{map[str]}.
   \item \textbf{Union}: Disjunctive types using the pipe operator, e.g.,
-        \texttt{str | model} or \texttt{float | null}.
+        \texttt{string | model} or \texttt{number | null}.
 \end{enumerate}
 
 A key design decision is the \emph{unification of primitives and block
@@ -469,10 +469,10 @@ embedded \texttt{builtins.oc} file, parsed at compiler initialization:
 \begin{lstlisting}
 schema agent {
   @desc("The model to use.")
-  model = str | model
+  model = string | model
 
   @desc("The persona of the agent.")
-  persona = str
+  persona = string
 
   @desc("The tools available to this agent.")
   tools = list[tool] | null
@@ -488,8 +488,8 @@ Users can define custom schemas using the \texttt{schema} block:
 
 \begin{lstlisting}
 schema vpc_data_t {
-  region      = str
-  cidr_blocks = list[str]
+  region      = string
+  cidr_blocks = list[string]
 }
 
 input vpc {
@@ -638,7 +638,7 @@ The analyzer performs two passes over the AST:
 \noindent\textbf{Pass 1: Symbol table construction.} The analyzer walks
 all block statements and registers each block's name in a symbol table,
 mapping names to their \texttt{BlockRefType}. Built-in type names
-(\texttt{str}, \texttt{int}, \texttt{float}, etc.) are pre-seeded. This
+(\texttt{string}, \texttt{number}, etc.) are pre-seeded. This
 pass also detects duplicate block names.
 
 \noindent\textbf{Pass 2: Block validation.} For each block, the analyzer

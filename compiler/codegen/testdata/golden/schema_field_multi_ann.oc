@@ -1,5 +1,5 @@
 schema cfg {
   @required
   @desc("Region code")
-  region = str
+  region = string
 }

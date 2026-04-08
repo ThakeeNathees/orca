@@ -761,16 +761,16 @@ func TestUnifiedTypeSystem(t *testing.T) {
 		errorSubstr string
 	}{
 		{
-			"string literal matches str field",
+			"string literal matches string field",
 			`model m { provider = "openai" model_name = "gpt-4o" }`,
 			false,
 			"",
 		},
 		{
-			"int literal does not match str field",
+			"int literal does not match string field",
 			`model m { provider = 42 model_name = "gpt-4o" }`,
 			true,
-			"expects type str, got number",
+			"expects type string, got number",
 		},
 		{
 			"float literal matches float field",
@@ -790,18 +790,18 @@ func TestUnifiedTypeSystem(t *testing.T) {
 			`schema flags { flag = bool }
 			flags f { flag = "yes" }`,
 			true,
-			"expects type bool, got str",
+			"expects type bool, got string",
 		},
 		{
 			"user schema block instance",
-			`schema my_type { name = str }
+			`schema my_type { name = string }
 			my_type x { name = "a" }`,
 			false,
 			"",
 		},
 		{
 			"user schema member access works like primitive",
-			`schema config { host = str }
+			`schema config { host = string }
 			config cfg { host = "h" }
 			workflow w { name = cfg.host }`,
 			false,
@@ -809,7 +809,7 @@ func TestUnifiedTypeSystem(t *testing.T) {
 		},
 		{
 			"user schema rejects unknown member",
-			`schema config { host = str }
+			`schema config { host = string }
 			config cfg { host = "h" }
 			workflow w { name = cfg.nonexistent }`,
 			true,
@@ -817,8 +817,8 @@ func TestUnifiedTypeSystem(t *testing.T) {
 		},
 		{
 			"nested user schema member access",
-			`schema keys_t { openai = str google = str }
-			schema models_t { gpt4o = str gemini25 = str }
+			`schema keys_t { openai = string google = string }
+			schema models_t { gpt4o = string gemini25 = string }
 			schema user_inp { keys = keys_t models = models_t }
 			keys_t keys_blk {
 				openai = "a"
@@ -841,7 +841,7 @@ func TestUnifiedTypeSystem(t *testing.T) {
 		},
 		{
 			"nested user schema rejects unknown nested member",
-			`schema keys_t { openai = str }
+			`schema keys_t { openai = string }
 			schema user_inp { keys = keys_t }
 			keys_t keys_blk {
 				openai = "a"
@@ -901,7 +901,7 @@ func TestAnalyzeListSubscriptRequiresInt(t *testing.T) {
 				model_name = ["a", "b"]["key"]
 			}`,
 			true,
-			"list subscript requires an integer index, got str",
+			"list subscript requires an integer index, got string",
 		},
 		{
 			"bool subscript on list literal is invalid",
@@ -925,7 +925,7 @@ func TestAnalyzeListSubscriptRequiresInt(t *testing.T) {
 				model_name = user_input.some_map[""][""]
 			}`,
 			true,
-			"list subscript requires an integer index, got str",
+			"list subscript requires an integer index, got string",
 		},
 	}
 

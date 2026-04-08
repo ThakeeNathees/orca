@@ -18,7 +18,7 @@ input <name> {
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | `schema` | Yes | The type of the input (primitive, schema reference, or inline schema) |
-| `desc` | `str \| null` | No | Description of the input |
+| `desc` | `string \| null` | No | Description of the input |
 | `default` | `any \| null` | No | Default value if not provided at runtime |
 | `sensitive` | `bool \| null` | No | Whether this input contains sensitive data (e.g., API keys) |
 
@@ -28,7 +28,7 @@ input <name> {
 
 ```orca
 input api_key {
-  type      = str
+  type      = string
   desc      = "OpenAI API key"
   sensitive = true
 }
@@ -38,8 +38,8 @@ input api_key {
 
 ```orca
 schema vpc_config {
-  region = str
-  cidr   = str
+  region = string
+  cidr   = string
 }
 
 input network {
@@ -53,7 +53,7 @@ input network {
 ```orca
 input config {
   type = schema {
-    region   = str
+    region   = string
     replicas = int
     debug    = bool | null
   }

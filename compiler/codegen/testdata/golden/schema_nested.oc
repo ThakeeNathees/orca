@@ -1,11 +1,11 @@
 schema address {
   @desc("Street name")
-  street = str
-  city   = str
+  street = string
+  city   = string
 }
 
 schema person {
-  name = str
+  name = string
   @desc("Home address")
   home = address
 }

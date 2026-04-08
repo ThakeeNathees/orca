@@ -1297,9 +1297,9 @@ func TestParseNullLiteral(t *testing.T) {
 	}
 }
 
-// TestParseNullInUnion verifies that str | null parses as a BinaryExpression.
+// TestParseNullInUnion verifies that string | null parses as a BinaryExpression.
 func TestParseNullInUnion(t *testing.T) {
-	input := `schema s { field = str | null }`
+	input := `schema s { field = string | null }`
 	program := parseOrFail(t, input)
 	block := assertBlock(t, program.Statements[0], "schema", "s")
 	binExpr, ok := block.Assignments[0].Value.(*ast.BinaryExpression)
@@ -1329,14 +1329,14 @@ func TestParseFieldAnnotation(t *testing.T) {
 	}{
 		{
 			"bare annotation",
-			"schema s {\n  @required\n  region = str\n}",
+			"schema s {\n  @required\n  region = string\n}",
 			"required",
 			0,
 			"region",
 		},
 		{
 			"annotation with string arg",
-			"schema s {\n  @desc(\"AWS region\")\n  region = str\n}",
+			"schema s {\n  @desc(\"AWS region\")\n  region = string\n}",
 			"desc",
 			1,
 			"region",
@@ -1371,7 +1371,7 @@ func TestParseFieldAnnotation(t *testing.T) {
 // TestParseMultipleAnnotations verifies that multiple annotations
 // on a single field are collected correctly.
 func TestParseMultipleAnnotations(t *testing.T) {
-	input := "schema s {\n  @required\n  @desc(\"region\")\n  region = str\n}"
+	input := "schema s {\n  @required\n  @desc(\"region\")\n  region = string\n}"
 	program := parseOrFail(t, input)
 	block := assertBlock(t, program.Statements[0], "schema", "s")
 	assign := block.Assignments[0]
@@ -1427,8 +1427,8 @@ func TestParseSchemaExpression(t *testing.T) {
 			`tool x {
 				desc = null
 				input_schema = schema {
-					key   = str
-					model = str
+					key   = string
+					model = string
 				}
 				output_schema = null
 				invoke = "x"
@@ -1453,9 +1453,9 @@ func TestParseSchemaExpression(t *testing.T) {
 				model   = "gpt4"
 				persona = "test"
 				output = schema {
-					draft    = str
+					draft    = string
 					revision = int
-					tags     = list[str]
+					tags     = list[string]
 				}
 			}`,
 			3,
@@ -1526,7 +1526,7 @@ func TestParseSchemaExpressionErrors(t *testing.T) {
 	}{
 		{
 			"missing closing brace",
-			`tool x { desc = null input_schema = schema { key = str } output_schema = null invoke = "x"`,
+			`tool x { desc = null input_schema = schema { key = string } output_schema = null invoke = "x"`,
 		},
 		{
 			"missing value after equals",

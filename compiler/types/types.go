@@ -1,7 +1,7 @@
 // Package types defines the Orca type system used for semantic analysis.
 // Block types (model, agent, etc.) are represented as BlockRef with a BlockKind enum.
-// Primitive types (str, int, float, bool, any, null) are schemas defined in
-// builtins.oc and represented as SchemaTypeOf("str"), etc. Structural types
+// Primitive types (string, number, bool, any, null) are schemas defined in
+// bootstrap.oc and represented as SchemaTypeOf("string"), etc. Structural types
 // (List, Map, Union) are separate kinds.
 package types
 
@@ -40,7 +40,7 @@ func (k TypeKind) String() string {
 
 // Type represents a concrete type in the Orca type system.
 // Block types (model, agent) use Kind=BlockRef with BlockKind set.
-// Schema types (str, int, user schemas) use Kind=BlockRef with
+// Schema types (string, int, user schemas) use Kind=BlockRef with
 // BlockKind=BlockSchema and SchemaName set.
 // Structural types use Kind=List, Map, or Union.
 type Type struct {
@@ -49,8 +49,8 @@ type Type struct {
 	// +------------+---------------------+-------------------------------------------------+
 	// | Expression | Block               | Meaning                                         |
 	// +------------+---------------------+-------------------------------------------------+
-	// | str        | schema str {}       | str (identifier) points to block schema str {}  |
-	// | "foo"      | str "foo" {}        | "foo" (literal) consecptually points to str "foo" {} block
+	// | string     | schema string {}    | string (identifier) points to block schema string {} |
+	// | "foo"      | string "foo" {}     | "foo" (literal) consecptually points to string "foo" {} block
 	// |            |                     |                                                 |
 	// | bool       | schema bool {}      | bool (identifier) points to block schema bool {}
 	// | true       | bool true {}        | true (identifier) points to bool true {} block  |
@@ -164,7 +164,7 @@ func IsCompatible(got Type, expected Type) bool {
 	}
 
 	// Unresolved block refs with the same name are the same type (literals, IdentType in
-	// bootstrap mode). Without this, IsCompatible never succeeds for lazy str/str or
+	// bootstrap mode). Without this, IsCompatible never succeeds for lazy string/string or
 	// number/number, and arithmeticResultType falls through to any.
 	if got.Kind == BlockRef && expected.Kind == BlockRef {
 		if got.Block == nil && expected.Block == nil && got.BlockName == expected.BlockName {
@@ -195,9 +195,18 @@ func IsCompatible(got Type, expected Type) bool {
 	//
 	if expected.Kind == BlockRef && expected.Block != nil {
 
-		// First things first, if exp kind is not schema, bail out.
+		// First things first, if exp kind is not schema we just check they are the same.
+		// example:
+		//   schema model {
+		//       provider = "openai" | "anthropic" | "google"
+		//   }
+		//
+		//   moddel mymodel {
+		//       provider = "openapi"  <-- Not compatible with "openai"
+		//   }
 		if expected.Block.Ast.Kind != BlockKindSchema {
-			// TODO: Maybe warn that the expected is not a schema.
+			// TODO: Figureout this (maybe attach the literal value
+			// to type or literals are its own type like python).
 			return false
 		}
 

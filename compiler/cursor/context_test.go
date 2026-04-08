@@ -504,7 +504,7 @@ func TestResolveNilProgram(t *testing.T) {
 // TestResolveUserSchemaBlock verifies that Resolve inside a user-defined
 // schema block looks up the schema by block name.
 func TestResolveUserSchemaBlock(t *testing.T) {
-	input := "schema vpc_data_t {\n  region = str\n  count = int\n\n}"
+	input := "schema vpc_data_t {\n  region = string\n  count = int\n\n}"
 	program := parseProgram(t, input)
 
 	// Line 4 is a blank line inside the block — BlockBody position.
@@ -564,7 +564,7 @@ func TestResolveInlineBlockBody(t *testing.T) {
 
 // TestResolveInlineSchemaBody verifies completions inside inline schema blocks.
 func TestResolveInlineSchemaBody(t *testing.T) {
-	input := "agent researcher {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n  output = schema {\n    name = str\n\n  }\n}"
+	input := "agent researcher {\n  model = \"gpt-4o\"\n  persona = \"hi\"\n  output = schema {\n    name = string\n\n  }\n}"
 	program := parseProgram(t, input)
 
 	// Line 6 is blank inside the inline schema block.

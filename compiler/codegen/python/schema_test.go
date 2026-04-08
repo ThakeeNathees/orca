@@ -21,7 +21,7 @@ func TestOrcaTypeToPythonTypeName(t *testing.T) {
 		expected string
 	}{
 		// Primitives (lazy block refs by name).
-		{"str", lazyRef("str"), "str"},
+		{"string", lazyRef("string"), "str"},
 		{"int", lazyRef("int"), "int"},
 		{"float", lazyRef("float"), "float"},
 		{"bool", lazyRef("bool"), "bool"},
@@ -33,25 +33,25 @@ func TestOrcaTypeToPythonTypeName(t *testing.T) {
 		{"user schema snake_case", lazyRef("vpc_data_t"), "vpc_data_t"},
 
 		// List types.
-		{"list[str]", types.NewListType(lazyRef("str")), "list[str]"},
+		{"list[str]", types.NewListType(lazyRef("string")), "list[str]"},
 		{"list[int]", types.NewListType(lazyRef("int")), "list[int]"},
 		{"list[article]", types.NewListType(lazyRef("article")), "list[article]"},
-		{"list[list[str]]", types.NewListType(types.NewListType(lazyRef("str"))), "list[list[str]]"},
+		{"list[list[str]]", types.NewListType(types.NewListType(lazyRef("string"))), "list[list[str]]"},
 		{"untyped list", types.Type{Kind: types.List}, "list"},
 
 		// Map types.
-		{"dict[str, int]", types.NewMapType(lazyRef("str"), lazyRef("int")), "dict[str, int]"},
-		{"dict[str, article]", types.NewMapType(lazyRef("str"), lazyRef("article")), "dict[str, article]"},
-		{"dict[str, list[str]]", types.NewMapType(lazyRef("str"), types.NewListType(lazyRef("str"))), "dict[str, list[str]]"},
+		{"dict[str, int]", types.NewMapType(lazyRef("string"), lazyRef("int")), "dict[str, int]"},
+		{"dict[str, article]", types.NewMapType(lazyRef("string"), lazyRef("article")), "dict[str, article]"},
+		{"dict[str, list[str]]", types.NewMapType(lazyRef("string"), types.NewListType(lazyRef("string"))), "dict[str, list[str]]"},
 		{"untyped dict", types.Type{Kind: types.Map}, "dict"},
 
 		// Union types.
-		{"str | None", types.NewUnionType(lazyRef("str"), lazyRef("null")), "str | None"},
-		{"str | int", types.NewUnionType(lazyRef("str"), lazyRef("int")), "str | int"},
+		{"str | None", types.NewUnionType(lazyRef("string"), lazyRef("null")), "str | None"},
+		{"str | int", types.NewUnionType(lazyRef("string"), lazyRef("int")), "str | int"},
 		{"float | None", types.NewUnionType(lazyRef("float"), lazyRef("null")), "float | None"},
-		{"str | int | None", types.NewUnionType(lazyRef("str"), lazyRef("int"), lazyRef("null")), "str | int | None"},
-		{"str | int | float", types.NewUnionType(lazyRef("str"), lazyRef("int"), lazyRef("float")), "str | int | float"},
-		{"list[str] | None", types.NewUnionType(types.NewListType(lazyRef("str")), lazyRef("null")), "list[str] | None"},
+		{"str | int | None", types.NewUnionType(lazyRef("string"), lazyRef("int"), lazyRef("null")), "str | int | None"},
+		{"str | int | float", types.NewUnionType(lazyRef("string"), lazyRef("int"), lazyRef("float")), "str | int | float"},
+		{"list[str] | None", types.NewUnionType(types.NewListType(lazyRef("string")), lazyRef("null")), "list[str] | None"},
 		{"article | None", types.NewUnionType(lazyRef("article"), lazyRef("null")), "article | None"},
 
 		// Unresolved block refs with concrete names pass through as annotations (not empty → Any).
@@ -81,13 +81,13 @@ func TestSchemaBlockToSource(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "basic str and int fields",
+			name: "basic string and int fields",
 			block: &ast.BlockStatement{
 				Name: "article",
 				BlockBody: ast.BlockBody{
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
-						{Name: "title", Value: &ast.Identifier{Value: "str"}},
+						{Name: "title", Value: &ast.Identifier{Value: "string"}},
 						{Name: "count", Value: &ast.Identifier{Value: "int"}},
 					},
 				},
@@ -103,7 +103,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				BlockBody: ast.BlockBody{
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
-						{Name: "name", Value: &ast.Identifier{Value: "str"}},
+						{Name: "name", Value: &ast.Identifier{Value: "string"}},
 						{Name: "count", Value: &ast.Identifier{Value: "int"}},
 						{Name: "rate", Value: &ast.Identifier{Value: "float"}},
 						{Name: "enabled", Value: &ast.Identifier{Value: "bool"}},
@@ -139,7 +139,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 					Assignments: []*ast.Assignment{
 						{
 							Name:  "title",
-							Value: &ast.Identifier{Value: "str"},
+							Value: &ast.Identifier{Value: "string"},
 							Annotations: []*ast.Annotation{
 								{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "The article title"}}},
 							},
@@ -159,7 +159,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 					Assignments: []*ast.Assignment{
 						{
 							Name:  "body",
-							Value: &ast.Identifier{Value: "str"},
+							Value: &ast.Identifier{Value: "string"},
 							Annotations: []*ast.Annotation{
 								{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: `Contains "quotes" and \backslash`}}},
 							},
@@ -247,7 +247,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Name: "value",
 							Value: &ast.BinaryExpression{
 								Left: &ast.BinaryExpression{
-									Left:     &ast.Identifier{Value: "str"},
+									Left:     &ast.Identifier{Value: "string"},
 									Operator: token.Token{Type: token.PIPE, Literal: "|"},
 									Right:    &ast.Identifier{Value: "int"},
 								},
@@ -271,7 +271,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 						{
 							Name: "value",
 							Value: &ast.BinaryExpression{
-								Left:     &ast.Identifier{Value: "str"},
+								Left:     &ast.Identifier{Value: "string"},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
 								Right:    &ast.Identifier{Value: "int"},
 							},
@@ -289,7 +289,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				BlockBody: ast.BlockBody{
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
-						{Name: "name", Value: &ast.Identifier{Value: "str"}},
+						{Name: "name", Value: &ast.Identifier{Value: "string"}},
 						{Name: "home", Value: &ast.Identifier{Value: "address"}},
 					},
 				},
@@ -330,7 +330,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Name: "tags",
 							Value: &ast.Subscription{
 								Object: &ast.Identifier{Value: "list"},
-								Index:  &ast.Identifier{Value: "str"},
+								Index:  &ast.Identifier{Value: "string"},
 							},
 						},
 					},
@@ -373,7 +373,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Name: "metadata",
 							Value: &ast.Subscription{
 								Object: &ast.Identifier{Value: "map"},
-								Index:  &ast.Identifier{Value: "str"},
+								Index:  &ast.Identifier{Value: "string"},
 							},
 						},
 					},
@@ -395,7 +395,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 								BlockBody: ast.BlockBody{
 									Kind: types.BlockKindSchema,
 									Assignments: []*ast.Assignment{
-										{Name: "text", Value: &ast.Identifier{Value: "str"}},
+										{Name: "text", Value: &ast.Identifier{Value: "string"}},
 										{Name: "score", Value: &ast.Identifier{Value: "int"}},
 									},
 								},
@@ -428,7 +428,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 					Assignments: []*ast.Assignment{
 						{
 							Name:  "region",
-							Value: &ast.Identifier{Value: "str"},
+							Value: &ast.Identifier{Value: "string"},
 							Annotations: []*ast.Annotation{
 								{Name: "required"},
 								{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "Region code"}}},
@@ -449,12 +449,12 @@ func TestSchemaBlockToSource(t *testing.T) {
 					Assignments: []*ast.Assignment{
 						{
 							Name:  "title",
-							Value: &ast.Identifier{Value: "str"},
+							Value: &ast.Identifier{Value: "string"},
 							Annotations: []*ast.Annotation{
 								{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "Report title"}}},
 							},
 						},
-						{Name: "body", Value: &ast.Identifier{Value: "str"}},
+						{Name: "body", Value: &ast.Identifier{Value: "string"}},
 						{
 							Name: "rating",
 							Value: &ast.BinaryExpression{
@@ -470,7 +470,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Name: "tags",
 							Value: &ast.Subscription{
 								Object: &ast.Identifier{Value: "list"},
-								Index:  &ast.Identifier{Value: "str"},
+								Index:  &ast.Identifier{Value: "string"},
 							},
 						},
 					},
@@ -492,7 +492,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 						{
 							Name: "a",
 							Value: &ast.BinaryExpression{
-								Left:     &ast.Identifier{Value: "str"},
+								Left:     &ast.Identifier{Value: "string"},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
 								Right:    &ast.Identifier{Value: "null"},
 							},

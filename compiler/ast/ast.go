@@ -251,7 +251,7 @@ func (a *Assignment) statementNode() {}
 
 // BlockExpression represents an inline block definition: model { provider = "openai" ... }.
 // Used for anonymous block instances in expressions like `model = model { provider = "openai" }`
-// and inline schemas like `output = schema { draft = str }`.
+// and inline schemas like `output = schema { draft = string }`.
 // Works for all block types except let. BaseNode covers from the block keyword to the closing '}'.
 type BlockExpression struct {
 	BaseNode

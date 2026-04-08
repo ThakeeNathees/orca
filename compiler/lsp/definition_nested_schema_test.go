@@ -32,7 +32,7 @@ func TestDefinitionNestedSchemaChain(t *testing.T) {
 		{"v", 16, 11, 2, 2},
 		// ls → ls = list [ ... ]
 		{"ls", 16, 13, 3, 4},
-		// item → item = str in nested schema
+		// item → item = string in nested schema
 		{"item", 16, 19, 5, 8},
 	}
 

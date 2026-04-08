@@ -132,7 +132,7 @@ func bootstrapSymbolTable() *types.SymbolTable {
 }
 
 // LookupBootstrapSchema returns the block schema for a name defined in
-// bootstrap.oc (e.g. "model", "agent", "str"). This is the replacement
+// bootstrap.oc (e.g. "model", "agent", "string"). This is the replacement
 // for a global schema registry: the schema lives on the BlockRef type in
 // the bootstrap symbol table.
 func LookupBootstrapSchema(name string) (*types.BlockSchema, bool) {

@@ -198,7 +198,7 @@
     "keyword": {
       "patterns": [
         {
-          "match": "\\b(str|number|nul|null|bool|list|map|any|true|false)\\b",
+          "match": "\\b(string|number|nul|null|bool|list|map|any|true|false)\\b",
           "name": "keyword.language.primitive.orca"
         },
         {

@@ -76,7 +76,7 @@ func TestGetSchemaByName(t *testing.T) {
 		ok     bool
 	}{
 		{"builtin model", "model", true},
-		{"builtin str", "str", true},
+		{"builtin string", "string", true},
 		{"unknown", "foobar", false},
 	}
 
@@ -97,7 +97,7 @@ func TestGetSchemaUserDefined(t *testing.T) {
 	user := BlockSchema{
 		BlockName: "test_user_schema",
 		Fields: map[string]FieldSchema{
-			"name": {Type: IdentType(0, "str", st), Required: true},
+			"name": {Type: IdentType(0, "string", st), Required: true},
 		},
 	}
 	typ := NewBlockRefType("test_user_schema", &user)
@@ -105,8 +105,8 @@ func TestGetSchemaUserDefined(t *testing.T) {
 	if !ok {
 		t.Fatal("expected field 'name' on user schema")
 	}
-	if !field.Type.Equals(IdentType(0, "str", st)) {
-		t.Errorf("Type = %s, want str", field.Type.String())
+	if !field.Type.Equals(IdentType(0, "string", st)) {
+		t.Errorf("Type = %s, want string", field.Type.String())
 	}
 	if len(user.Fields) != 1 {
 		t.Errorf("num fields = %d, want 1", len(user.Fields))
@@ -126,7 +126,7 @@ func TestLookupBlockSchemaBuiltin(t *testing.T) {
 	}{
 		{"model type", NewBlockRefType("model", schemas["model"]), "provider", true},
 		{"agent type", NewBlockRefType("agent", schemas["agent"]), "persona", true},
-		{"str type (no fields)", NewBlockRefType("str", schemas["str"]), "x", false},
+		{"string type (no fields)", NewBlockRefType("string", schemas["string"]), "x", false},
 	}
 
 	for _, tt := range tests {
@@ -146,7 +146,7 @@ func TestLookupBlockSchemaUserSchema(t *testing.T) {
 	user := BlockSchema{
 		BlockName: "test_lookup_schema",
 		Fields: map[string]FieldSchema{
-			"host": {Type: IdentType(0, "str", st), Required: true},
+			"host": {Type: IdentType(0, "string", st), Required: true},
 			"port": {Type: IdentType(0, "number", st), Required: false},
 		},
 	}
@@ -156,8 +156,8 @@ func TestLookupBlockSchemaUserSchema(t *testing.T) {
 	if !ok {
 		t.Fatal("expected user schema field 'host' to be found via LookupFieldSchema")
 	}
-	if !field.Type.Equals(IdentType(0, "str", st)) {
-		t.Errorf("Type = %s, want str", field.Type.String())
+	if !field.Type.Equals(IdentType(0, "string", st)) {
+		t.Errorf("Type = %s, want string", field.Type.String())
 	}
 	if len(user.Fields) != 2 {
 		t.Errorf("num fields = %d, want 2", len(user.Fields))
@@ -182,8 +182,8 @@ func TestLookupFieldSchemaBuiltin(t *testing.T) {
 	if !ok {
 		t.Fatal("expected model.provider to be found")
 	}
-	if field.Type.String() != "str" || field.Type.Kind != BlockRef {
-		t.Errorf("Type = %s (Kind=%v), want BlockRef str", field.Type.String(), field.Type.Kind)
+	if field.Type.String() != "string" || field.Type.Kind != BlockRef {
+		t.Errorf("Type = %s (Kind=%v), want BlockRef %s", field.Type.String(), field.Type.Kind, "string")
 	}
 }
 
@@ -194,7 +194,7 @@ func TestLookupFieldSchemaUserSchema(t *testing.T) {
 	user := BlockSchema{
 		BlockName: "test_field_lookup",
 		Fields: map[string]FieldSchema{
-			"region": {Type: IdentType(0, "str", st), Required: true},
+			"region": {Type: IdentType(0, "string", st), Required: true},
 		},
 	}
 
@@ -203,8 +203,8 @@ func TestLookupFieldSchemaUserSchema(t *testing.T) {
 	if !ok {
 		t.Fatal("expected field 'region' to be found")
 	}
-	if !field.Type.Equals(IdentType(0, "str", st)) {
-		t.Errorf("Type = %s, want str", field.Type.String())
+	if !field.Type.Equals(IdentType(0, "string", st)) {
+		t.Errorf("Type = %s, want string", field.Type.String())
 	}
 
 	// Unknown field returns false.
@@ -227,7 +227,7 @@ func TestBuiltinSchemaNames(t *testing.T) {
 	}{
 		{"model is builtin", "model"},
 		{"agent is builtin", "agent"},
-		{"str is builtin", "str"},
+		{"string is builtin", "string"},
 	}
 
 	for _, tt := range tests {
@@ -252,14 +252,14 @@ func TestRegisterSchemaAndGetSchema(t *testing.T) {
 			"register single-field schema",
 			"test_reg_schema_1",
 			map[string]FieldSchema{
-				"url": {Type: IdentType(0, "str", st), Required: true},
+				"url": {Type: IdentType(0, "string", st), Required: true},
 			},
 		},
 		{
 			"register multi-field schema",
 			"test_reg_schema_2",
 			map[string]FieldSchema{
-				"host": {Type: IdentType(0, "str", st), Required: true},
+				"host": {Type: IdentType(0, "string", st), Required: true},
 				"port": {Type: IdentType(0, "number", st), Required: false},
 			},
 		},
@@ -344,11 +344,11 @@ func TestGetFieldSchema(t *testing.T) {
 		wantStr   string
 		required  bool
 	}{
-		{"model provider", "model", "provider", true, BlockRef, "str", true},
-		{"model model_name", "model", "model_name", true, BlockRef, "str", true},
+		{"model provider", "model", "provider", true, BlockRef, "string", true},
+		{"model model_name", "model", "model_name", true, BlockRef, "string", true},
 		{"model temperature", "model", "temperature", true, Union, "number | null", false},
-		{"agent model union", "agent", "model", true, Union, "str | model", true},
-		{"agent persona", "agent", "persona", true, BlockRef, "str", true},
+		{"agent model union", "agent", "model", true, Union, "string | model", true},
+		{"agent persona", "agent", "persona", true, BlockRef, "string", true},
 		{"agent tools list", "agent", "tools", true, Union, "list[tool] | null", false},
 		{"unknown field", "model", "nonexistent", false, BlockRef, "", false},
 	}
