@@ -69,10 +69,7 @@ type resolvedProviders struct {
 func dependenciesFromProviders(resolvedProviders resolvedProviders, hasWorkflows bool) []codegen.Dependency {
 	deps := []codegen.Dependency{{Name: "langchain-core"}}
 	if hasWorkflows {
-		deps = append(deps,
-			codegen.Dependency{Name: "langchain"},
-			codegen.Dependency{Name: "langgraph"},
-		)
+		deps = append(deps, codegen.Dependency{Name: "langchain"})
 	}
 	seen := make(map[string]bool)
 	var pipPkgs []string
@@ -85,6 +82,9 @@ func dependenciesFromProviders(resolvedProviders resolvedProviders, hasWorkflows
 	sort.Strings(pipPkgs)
 	for _, pkg := range pipPkgs {
 		deps = append(deps, codegen.Dependency{Name: pkg})
+	}
+	if hasWorkflows {
+		deps = append(deps, codegen.Dependency{Name: "langgraph"})
 	}
 	return deps
 }
@@ -140,7 +140,7 @@ func (b *LangGraphBackend) resolveProviders() {
 // resolved LangChain class reference. Instead of provider="openai", emits
 // provider_class=ChatOpenAI so the runtime can instantiate directly.
 func (b *LangGraphBackend) writeModelSection(s *strings.Builder) {
-	models := b.CollectBlocksByKind(analyzer.AnnotationTriggerNode)
+	models := b.CollectBlocksByKind(analyzer.BlockKindModel)
 	if len(models) == 0 {
 		return
 	}

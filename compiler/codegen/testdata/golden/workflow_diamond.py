@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
+import sys
 
 from types import SimpleNamespace
 from typing import Any, TypedDict
+
+from langchain.agents import create_agent
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -165,7 +168,7 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Models ---
 
 gpt4 = __orca_model(
-    provider="openai",
+    provider_class=ChatOpenAI,
     model_name="gpt-4o",
 )
 
@@ -245,3 +248,16 @@ diamond.add_edge("writer", "reviewer")
 diamond.add_edge("analyst", "reviewer")
 diamond.add_edge("reviewer", END)
 diamond = diamond.compile()
+
+if __name__ == "__main__":
+    payload = sys.argv[1] if len(sys.argv) >= 2 else ""
+    initial_state: __orca_state_diamond = {
+        "__orca_trigger": "",
+        "__orca_payload": payload,
+        "classifier": "",
+        "writer": "",
+        "analyst": "",
+        "reviewer": "",
+    }
+    final_state = diamond.invoke(initial_state)
+    print(final_state)

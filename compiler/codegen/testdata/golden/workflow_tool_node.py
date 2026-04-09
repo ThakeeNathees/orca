@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
+import sys
 
 from types import SimpleNamespace
 from typing import Any, TypedDict
+
+from langchain.agents import create_agent
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -162,6 +165,13 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
+# --- Models ---
+
+gpt4 = __orca_model(
+    provider_class=ChatOpenAI,
+    model_name="gpt-4o",
+)
+
 # --- Tools ---
 
 def validate__invoke_verbatim(report: str) -> str:
@@ -170,13 +180,6 @@ def validate__invoke_verbatim(report: str) -> str:
 validate = __orca_tool(
     desc="Validate report against style guide",
     invoke=validate__invoke_verbatim,
-)
-
-# --- Models ---
-
-gpt4 = __orca_model(
-    provider="openai",
-    model_name="gpt-4o",
 )
 
 # --- Agents ---
@@ -234,3 +237,15 @@ review_pipeline.add_edge("drafter", "validate")
 review_pipeline.add_edge("validate", "reviewer")
 review_pipeline.add_edge("reviewer", END)
 review_pipeline = review_pipeline.compile()
+
+if __name__ == "__main__":
+    payload = sys.argv[1] if len(sys.argv) >= 2 else ""
+    initial_state: __orca_state_review_pipeline = {
+        "__orca_trigger": "",
+        "__orca_payload": payload,
+        "drafter": "",
+        "validate": "",
+        "reviewer": "",
+    }
+    final_state = review_pipeline.invoke(initial_state)
+    print(final_state)

@@ -9,10 +9,13 @@ from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
+import sys
 from pydantic import BaseModel, Field
 
 from types import SimpleNamespace
 from typing import Any, TypedDict
+
+from langchain.agents import create_agent
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -172,7 +175,7 @@ class report(BaseModel):
 # --- Models ---
 
 gpt4 = __orca_model(
-    provider="openai",
+    provider_class=ChatOpenAI,
     model_name="gpt-4o",
 )
 
@@ -222,3 +225,14 @@ pipeline.add_conditional_edges(START, __orca_route_pipeline)
 pipeline.add_edge("researcher", "writer")
 pipeline.add_edge("writer", END)
 pipeline = pipeline.compile()
+
+if __name__ == "__main__":
+    payload = sys.argv[1] if len(sys.argv) >= 2 else ""
+    initial_state: __orca_state_pipeline = {
+        "__orca_trigger": "",
+        "__orca_payload": payload,
+        "researcher": "",
+        "writer": "",
+    }
+    final_state = pipeline.invoke(initial_state)
+    print(final_state)

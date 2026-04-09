@@ -50,7 +50,8 @@ func fileMap(dir codegen.OutputDirectory) map[string]string {
 
 // goldenExtensions maps golden file extensions to output file names.
 var goldenExtensions = map[string]string{
-	".py": "main.py",
+	".py":   "main.py",
+	".toml": "pyproject.toml",
 }
 
 // TestGoldenFiles runs golden file tests for codegen. Each test case

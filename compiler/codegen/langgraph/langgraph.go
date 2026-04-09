@@ -10,6 +10,7 @@ import (
 	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/types"
+	"github.com/thakee/orca/compiler/workflow"
 )
 
 //go:embed runtime.py
@@ -19,7 +20,8 @@ var embeddedRuntime string
 type LangGraphBackend struct {
 	codegen.BaseBackend
 	resolvedProviders resolvedProviders
-	resolvedTools     map[string]resolvedToolInvoke // keyed by tool block name
+	resolvedTools     map[string]resolvedToolInvoke        // keyed by tool block name
+	resolvedWorkflows map[string]workflow.ResolvedWorkflow // keyed by workflow block name
 }
 
 // New creates a new LangGraph codegen backend for the given analyzed AST.
@@ -32,9 +34,11 @@ func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
 
 	b.resolveProviders()
 	b.resolveToolInvokes()
+	b.resolveWorkflows()
 
 	workflows := b.collectWorkflows()
 	hasWorkflows := len(workflows) > 0
+	deps := dependenciesFromProviders(b.resolvedProviders, hasWorkflows)
 
 	return codegen.CodegenOutput{
 		BackendType: codegen.BackendLangGraph,
@@ -42,9 +46,10 @@ func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
 			Name: "build",
 			Files: []codegen.OutputFile{
 				{Name: "main.py", Content: b.generateMain()},
+				{Name: "pyproject.toml", Content: pyprojectToml(deps)},
 			},
 		},
-		Dependencies: dependenciesFromProviders(b.resolvedProviders, hasWorkflows),
+		Dependencies: deps,
 		Diagnostics:  b.Program.Diagnostics,
 	}
 }
@@ -63,6 +68,8 @@ func (b *LangGraphBackend) generateMain() string {
 	schemaBlocks := b.CollectBlocksByKind(types.BlockKindSchema)
 	allImports := append(b.resolvedProviders.providerImports, b.toolImports()...)
 	allImports = append(allImports, workflowImports(workflows)...)
+	allImports = append(allImports, python.PythonImport{Module: "sys"})
+
 	if len(schemaBlocks) > 0 {
 		allImports = append(allImports, python.SchemaImport())
 	}
@@ -78,11 +85,12 @@ func (b *LangGraphBackend) generateMain() string {
 	b.writeModelSection(&s)
 	b.writeOrcaBlockSection(&s, "Knowledge", analyzer.BlockKindKnowledge)
 	b.writeToolSection(&s)
-	b.writeOrcaBlockSection(&s, "Models", analyzer.BlockKindModel)
 	b.writeOrcaBlockSection(&s, "Agents", analyzer.BlockKindAgent)
 	b.writeOrcaBlockSection(&s, "Cron", analyzer.BlockKindCron)
 	b.writeOrcaBlockSection(&s, "Webhooks", analyzer.BlockKindWebhook)
 	b.writeWorkflowSection(&s, workflows)
+
+	b.writeWorkflowEntrypoint(&s)
 
 	return s.String()
 }

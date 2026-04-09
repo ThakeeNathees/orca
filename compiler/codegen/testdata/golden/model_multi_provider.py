@@ -10,9 +10,12 @@ from __future__ import annotations
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+import sys
 
 from types import SimpleNamespace
 from typing import Any, TypedDict
+
+from langchain.agents import create_agent
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -166,18 +169,18 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Models ---
 
 gpt4 = __orca_model(
-    provider="openai",
+    provider_class=ChatOpenAI,
     model_name="gpt-4o",
     temperature=0.7,
 )
 
 claude = __orca_model(
-    provider="anthropic",
+    provider_class=ChatAnthropic,
     model_name="claude-sonnet-4-20250514",
     temperature=0,
 )
 
 gemini = __orca_model(
-    provider="google",
+    provider_class=ChatGoogleGenerativeAI,
     model_name="gemini-pro",
 )

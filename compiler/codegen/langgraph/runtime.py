@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from typing import Any, TypedDict
 
+from langchain.agents import create_agent
+
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
     """Create a block instance with the given kind and keyword fields."""

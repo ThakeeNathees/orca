@@ -8,9 +8,12 @@ All public names are prefixed with __orca_ to avoid collisions with user code.
 from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
+import sys
 
 from types import SimpleNamespace
 from typing import Any, TypedDict
+
+from langchain.agents import create_agent
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -164,7 +167,7 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 # --- Models ---
 
 gpt4 = __orca_model(
-    provider="openai",
+    provider_class=ChatOpenAI,
     model_name="gpt-4o",
 )
 

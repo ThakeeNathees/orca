@@ -8,6 +8,7 @@ import (
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen/python"
+	"github.com/thakee/orca/compiler/workflow"
 )
 
 // defNameRe matches `def <name>` at the start of a Python function definition
@@ -49,6 +50,18 @@ func (b *LangGraphBackend) resolveToolInvokes() {
 		} else {
 			b.resolveDottedPathInvoke(tool, str)
 		}
+	}
+}
+
+func (b *LangGraphBackend) resolveWorkflows() {
+	wfs := b.collectWorkflows()
+	if len(wfs) == 0 {
+		return
+	}
+	b.resolvedWorkflows = make(map[string]workflow.ResolvedWorkflow, len(wfs))
+	for _, wf := range wfs {
+		rw := workflow.Resolve(wf, b.triggerPredicate())
+		b.resolvedWorkflows[wf.Name] = rw
 	}
 }
 
