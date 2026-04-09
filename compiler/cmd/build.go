@@ -23,19 +23,36 @@ var buildCmd = &cobra.Command{
 	RunE:  runBuild,
 }
 
+type compileResult struct {
+	FileCount int
+	OutputDir string
+}
+
 func init() {
 	rootCmd.AddCommand(buildCmd)
 }
 
 // runBuild is the entry point for `orca build`.
 func runBuild(cmd *cobra.Command, args []string) error {
+	result, err := compileCurrentDir()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("compiled %d .oc file(s) → %s/\n", result.FileCount, result.OutputDir)
+	return nil
+}
+
+// compileCurrentDir compiles all .oc files in the current directory and writes
+// generated output to disk.
+func compileCurrentDir() (compileResult, error) {
 	files, err := filepath.Glob("*.oc")
 	if err != nil {
-		return fmt.Errorf("failed to find .oc files: %w", err)
+		return compileResult{}, fmt.Errorf("failed to find .oc files: %w", err)
 	}
 
 	if len(files) == 0 {
-		return fmt.Errorf("no .oc files found in current directory")
+		return compileResult{}, fmt.Errorf("no .oc files found in current directory")
 	}
 
 	// Parse each file separately to preserve per-file line numbers.
@@ -43,7 +60,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	for _, file := range files {
 		data, err := os.ReadFile(file)
 		if err != nil {
-			return fmt.Errorf("failed to read %s: %w", file, err)
+			return compileResult{}, fmt.Errorf("failed to read %s: %w", file, err)
 		}
 
 		l := lexer.New(string(data), file)
@@ -54,7 +71,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 			for _, d := range p.Diagnostics() {
 				fmt.Fprintf(os.Stderr, "%s:%s\n", file, d.Error())
 			}
-			return fmt.Errorf("compilation failed with parse errors")
+			return compileResult{}, fmt.Errorf("compilation failed with parse errors")
 		}
 
 		program.Statements = append(program.Statements, fileProg.Statements...)
@@ -71,7 +88,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if hasError {
-			return fmt.Errorf("compilation failed with analysis errors")
+			return compileResult{}, fmt.Errorf("compilation failed with analysis errors")
 		}
 	}
 
@@ -89,17 +106,19 @@ func runBuild(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if hasError {
-			return fmt.Errorf("compilation failed with codegen errors")
+			return compileResult{}, fmt.Errorf("compilation failed with codegen errors")
 		}
 	}
 
 	// Write output tree to disk.
 	if err := writeOutputDir(".", output.RootDir); err != nil {
-		return err
+		return compileResult{}, err
 	}
 
-	fmt.Printf("compiled %d .oc file(s) → %s/\n", len(files), output.RootDir.Name)
-	return nil
+	return compileResult{
+		FileCount: len(files),
+		OutputDir: output.RootDir.Name,
+	}, nil
 }
 
 // writeOutputDir recursively writes an OutputDirectory tree to disk under parent.

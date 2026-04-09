@@ -44,7 +44,7 @@ func TestGetBlockSchema(t *testing.T) {
 		numFields int
 	}{
 		{"model schema exists", "model", true, 5},
-		{"agent schema exists", "agent", true, 4},
+		{"agent schema exists", "agent", true, 5},
 		{"tool schema exists", "tool", true, 4},
 		{"knowledge schema exists", "knowledge", true, 1},
 		{"workflow schema exists", "workflow", true, 2},

@@ -40,7 +40,7 @@ func TestLoadSchemas(t *testing.T) {
 		{"any", "any", 0},
 		{"null", "null", 0},
 		{"model", "model", 5},
-		{"agent", "agent", 4},
+		{"agent", "agent", 5},
 		{"tool", "tool", 4},
 		{"knowledge", "knowledge", 1},
 		{"workflow", "workflow", 2},
