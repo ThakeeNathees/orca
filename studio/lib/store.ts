@@ -44,6 +44,7 @@ interface StudioState {
 
   createWorkflow: () => Promise<void>;
   openWorkflow: (id: string) => Promise<void>;
+  renameWorkflow: (id: string, name: string) => Promise<void>;
   deleteWorkflow: (id: string) => Promise<void>;
   goToDashboard: () => void;
 
@@ -119,7 +120,7 @@ const TOP_X = [40, 340, 640, 940];
 // Bottom row: memory, shared model, web_search — staggered under the agents.
 const BOTTOM_X = [220, 490, 760];
 
-function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
+export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
   const nodes: BlockNode[] = [
     {
       id: "seed-webhook",
@@ -439,6 +440,22 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       edges: seed.edges,
       selectedNodeId: null,
     });
+  },
+
+  renameWorkflow: async (id, name) => {
+    // Optimistic local update — the top bar's input commits immediately.
+    set({
+      workflows: get().workflows.map((w) =>
+        w.id === id ? { ...w, name } : w
+      ),
+    });
+    // Persist via saveWorkflow so the change survives reload. We need the
+    // full WorkflowData payload, so load the current graph from storage
+    // first and rewrite the name on top of it.
+    const adapter = getStorageAdapter();
+    const existing = await adapter.getWorkflow(id);
+    if (!existing) return;
+    await adapter.saveWorkflow({ ...existing, name });
   },
 
   deleteWorkflow: async (id) => {

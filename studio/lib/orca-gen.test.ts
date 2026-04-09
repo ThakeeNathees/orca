@@ -1,0 +1,232 @@
+import { describe, it, expect } from "vitest";
+import { generateOrcaSource, sanitizeIdent } from "./orca-gen";
+import { buildSeedGraph } from "./store";
+import type { BlockNode, BlockEdge } from "./types";
+
+/**
+ * Tiny node constructor — keeps the tests readable by hiding the fields
+ * we don't care about (position, React Flow node `type`, etc.).
+ */
+function n(
+  id: string,
+  kind: BlockNode["data"]["kind"],
+  label: string,
+  fields: Record<string, string | number> = {}
+): BlockNode {
+  return {
+    id,
+    type: kind,
+    position: { x: 0, y: 0 },
+    data: { kind, label, fields },
+  };
+}
+
+function e(
+  id: string,
+  source: string,
+  target: string,
+  sourceHandle: string,
+  targetHandle: string
+): BlockEdge {
+  return { id, source, target, sourceHandle, targetHandle, data: {} };
+}
+
+describe("sanitizeIdent", () => {
+  it("lowercases and snake_cases labels", () => {
+    expect(sanitizeIdent("My GPT 4")).toBe("my_gpt_4");
+  });
+
+  it("collapses repeated and trailing underscores", () => {
+    expect(sanitizeIdent("  foo -- bar  ")).toBe("foo_bar");
+  });
+
+  it("prefixes digit-leading names with an underscore", () => {
+    expect(sanitizeIdent("4o")).toBe("_4o");
+  });
+
+  it("falls back to 'unnamed' for empty input", () => {
+    expect(sanitizeIdent("")).toBe("unnamed");
+    expect(sanitizeIdent("!!!")).toBe("unnamed");
+  });
+});
+
+describe("generateOrcaSource", () => {
+  it("returns empty string for an empty graph", () => {
+    expect(generateOrcaSource([], [])).toBe("");
+  });
+
+  it("emits a single model block with aligned `=`", () => {
+    const nodes = [
+      n("m1", "model", "gpt4", {
+        provider: "openai",
+        model_name: "gpt-4o",
+        temperature: 0.7,
+      }),
+    ];
+    // Keys: provider(8), model_name(10), temperature(11) → pad to 11.
+    const expected = `model gpt4 {
+  provider    = "openai"
+  model_name  = "gpt-4o"
+  temperature = 0.7
+}
+`;
+    expect(generateOrcaSource(nodes, [])).toBe(expected);
+  });
+
+  it("skips empty-string field values", () => {
+    const nodes = [
+      n("m1", "model", "gpt4", {
+        provider: "openai",
+        model_name: "gpt-4o",
+        api_key: "", // empty password → not emitted
+      }),
+    ];
+    const out = generateOrcaSource(nodes, []);
+    expect(out).not.toContain("api_key");
+    expect(out).toContain('provider   = "openai"');
+  });
+
+  it("resolves an agent's model reference from a model-out→model-in edge", () => {
+    const nodes = [
+      n("m1", "model", "gpt4", { provider: "openai" }),
+      n("a1", "agent", "researcher", { persona: "You research." }),
+    ];
+    const edges = [e("e1", "m1", "a1", "model-out", "model-in")];
+    const out = generateOrcaSource(nodes, edges);
+    expect(out).toContain("model   = gpt4");
+    expect(out).toContain('persona = "You research."');
+  });
+
+  it("collects tools referenced via the tool-out→tools-in handle into a list", () => {
+    const nodes = [
+      n("m1", "model", "gpt4", { provider: "openai" }),
+      n("a1", "agent", "researcher", { persona: "p" }),
+      n("t1", "web_search", "Web Search", { provider: "tavily" }),
+      n("t2", "code_exec", "Code Interp", { sandbox: "docker" }),
+    ];
+    const edges = [
+      e("e1", "m1", "a1", "model-out", "model-in"),
+      e("e2", "t1", "a1", "tool-out", "tools-in"),
+      e("e3", "t2", "a1", "tool-out", "tools-in"),
+    ];
+    const out = generateOrcaSource(nodes, edges);
+    expect(out).toContain("tools   = [web_search, code_interp]");
+  });
+
+  it("resolves memory references from memory-out→memory-in edges", () => {
+    const nodes = [
+      n("m1", "model", "gpt4", { provider: "openai" }),
+      n("a1", "agent", "researcher", { persona: "p" }),
+      n("mem1", "memory", "Session memory", { name: "s" }),
+    ];
+    const edges = [
+      e("e1", "m1", "a1", "model-out", "model-in"),
+      e("e2", "mem1", "a1", "memory-out", "memory-in"),
+    ];
+    const out = generateOrcaSource(nodes, edges);
+    expect(out).toContain("memory  = session_memory");
+  });
+
+  it("synthesizes workflow main from trigger and agent-flow edges", () => {
+    const nodes = [
+      n("w1", "webhook", "hooks_in", { path: "/x" }),
+      n("a1", "agent", "researcher", { persona: "p" }),
+      n("a2", "agent", "writer", { persona: "p" }),
+    ];
+    const edges = [
+      e("e1", "w1", "a1", "trigger-out", "agent-in"),
+      e("e2", "a1", "a2", "agent-out", "agent-in"),
+    ];
+    const out = generateOrcaSource(nodes, edges);
+    expect(out).toContain("workflow main {");
+    expect(out).toContain("  hooks_in -> researcher");
+    expect(out).toContain("  researcher -> writer");
+  });
+
+  it("treats an agent→tool edge via agent handles as a flow edge, not a tool ref", () => {
+    // "writer → sql via purple handles" — should appear in workflow main,
+    // NOT in writer's `tools = [...]` list.
+    const nodes = [
+      n("a1", "agent", "writer", { persona: "p" }),
+      n("sql", "sql_query", "Articles DB", { dialect: "postgresql" }),
+    ];
+    const edges = [e("e1", "a1", "sql", "agent-out", "agent-in")];
+    const out = generateOrcaSource(nodes, edges);
+    expect(out).not.toContain("tools");
+    expect(out).toContain("workflow main {");
+    expect(out).toContain("  writer -> articles_db");
+  });
+
+  it("dedupes colliding identifiers with numeric suffixes", () => {
+    const nodes = [
+      n("a", "model", "GPT", { provider: "openai" }),
+      n("b", "model", "GPT", { provider: "anthropic" }),
+      n("c", "model", "GPT", { provider: "google" }),
+    ];
+    const out = generateOrcaSource(nodes, []);
+    expect(out).toContain("model gpt {");
+    expect(out).toContain("model gpt_1 {");
+    expect(out).toContain("model gpt_2 {");
+  });
+
+  it("suffixes idents that collide with reserved keywords", () => {
+    const nodes = [
+      n("w1", "webhook", "webhook", { path: "/x" }),
+    ];
+    const out = generateOrcaSource(nodes, []);
+    // "webhook" is a reserved keyword, so the ident becomes "webhook_1".
+    expect(out).toContain("webhook webhook_1 {");
+  });
+
+  it("emits the full seed graph in the expected canonical form", () => {
+    const seed = buildSeedGraph();
+    const out = generateOrcaSource(seed.nodes, seed.edges);
+
+    const expected = `model gpt4 {
+  provider    = "openai"
+  model_name  = "gpt-4o"
+  temperature = 0.7
+}
+
+tool web_search {
+  provider    = "tavily"
+  max_results = 5
+}
+
+tool articles_db {
+  connection = "postgresql://user:pass@host/db"
+  dialect    = "postgresql"
+  max_rows   = 100
+}
+
+memory session_memory {
+  name = "session_store"
+  desc = "Conversation and tool-call history"
+}
+
+agent researcher {
+  model   = gpt4
+  persona = "You find and summarize information."
+  memory  = session_memory
+  tools   = [web_search]
+}
+
+agent writer {
+  model   = gpt4
+  persona = "You turn research notes into a polished article, then store it."
+}
+
+webhook webhook_1 {
+  path   = "/api/research"
+  method = "POST"
+}
+
+workflow main {
+  webhook_1 -> researcher
+  researcher -> writer
+  writer -> articles_db
+}
+`;
+    expect(out).toBe(expected);
+  });
+});

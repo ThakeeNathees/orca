@@ -13,36 +13,42 @@ export function TopBar() {
   const currentView = useStudioStore((s) => s.currentView);
   const goToDashboard = useStudioStore((s) => s.goToDashboard);
   const createWorkflow = useStudioStore((s) => s.createWorkflow);
+  const renameWorkflow = useStudioStore((s) => s.renameWorkflow);
   const activeWorkflowId = useStudioStore((s) => s.activeWorkflowId);
   const workflows = useStudioStore((s) => s.workflows);
   const isEditor = currentView === "editor";
 
   const activeWorkflow = workflows.find((w) => w.id === activeWorkflowId);
-  const initialName = activeWorkflow?.name ?? DEFAULT_WORKFLOW_NAME;
+  const activeName = activeWorkflow?.name ?? DEFAULT_WORKFLOW_NAME;
+  // Pastel accent — matches the swatch on the dashboard card so the icon
+  // stays visually tied to its workflow across pages.
+  const accentColor = activeWorkflow?.color ?? "#86efac";
 
-  const [workflowName, setWorkflowName] = useState(initialName);
-  const [draft, setDraft] = useState(initialName);
+  const [draft, setDraft] = useState(activeName);
   const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync when switching workflows
+  // Keep the local draft in sync when the active workflow (or its name)
+  // changes from elsewhere — e.g. switching workflows on the dashboard.
   useEffect(() => {
-    setWorkflowName(initialName);
-    setDraft(initialName);
-  }, [initialName]);
+    setDraft(activeName);
+  }, [activeName]);
 
   const commit = useCallback(() => {
     const t = draft.trim();
     const next = t.length > 0 ? t : DEFAULT_WORKFLOW_NAME;
-    setWorkflowName(next);
     setDraft(next);
     setEditing(false);
-  }, [draft]);
+    // Only persist if something actually changed and we have a workflow.
+    if (activeWorkflowId && next !== activeName) {
+      void renameWorkflow(activeWorkflowId, next);
+    }
+  }, [draft, activeWorkflowId, activeName, renameWorkflow]);
 
   const cancel = useCallback(() => {
-    setDraft(workflowName);
+    setDraft(activeName);
     setEditing(false);
-  }, [workflowName]);
+  }, [activeName]);
 
   useEffect(() => {
     if (!editing) return;
@@ -74,7 +80,8 @@ export function TopBar() {
       {isEditor && (
         <div className="flex shrink-0 items-center gap-2">
           <div
-            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-green-300 shadow-sm dark:bg-green-300"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md shadow-sm"
+            style={{ backgroundColor: accentColor }}
             aria-hidden
           >
             <Workflow
@@ -109,13 +116,13 @@ export function TopBar() {
             <button
               type="button"
               onClick={() => {
-                setDraft(workflowName);
+                setDraft(activeName);
                 setEditing(true);
               }}
               className="max-w-[min(24rem,calc(100vw-12rem))] truncate rounded-md px-1.5 py-0.5 text-left text-base font-semibold tracking-tight text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               title="Click to rename"
             >
-              {workflowName}
+              {activeName}
             </button>
           )}
         </div>
