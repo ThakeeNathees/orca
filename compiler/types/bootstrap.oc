@@ -123,6 +123,9 @@ schema agent {
   @desc("The tools to use for this agent.")
   tools = list[tool] | null
 
+  @desc("Whether to use chain of thought for the agent.")
+  chain_of_thought = bool | null
+
   @desc("The structured output schema for this agent.")
   output_schema = schema | null
 }

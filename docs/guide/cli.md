@@ -43,6 +43,14 @@ Builds and runs the generated Python code.
 orca run
 ```
 
-::: warning
-This command is not yet implemented.
-:::
+**Behavior:**
+- Runs the same compile pipeline as `orca build`.
+- Runs `uv sync` in the generated `build/` directory.
+- Runs `uv run main.py` in the `build/` directory.
+- Passes runtime arguments through to `uv run main.py`.
+
+**Examples:**
+```bash
+orca run p1 p2 p3
+orca run -- --foo bar
+```

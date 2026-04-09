@@ -156,15 +156,25 @@ make build
 Create a file called `main.oc`:
 
 ```hcl
-model gpt4 {
-  provider    = "openai"
-  model_name  = "gpt-4o"
-  temperature = 0.7
+model gemini {
+  provider    = "google"
+  model_name  = "gemini-2.5-flash"
 }
 
-agent assistant {
-  model  = gpt4
-  persona = "You are a helpful assistant."
+agent math_expr_generator {
+  model = gemini
+  persona = "Generate a simple math expression"
+}
+
+agent math_expr_solver {
+  model = gemini
+  persona = "Solve the given math expression"
+  chain_of_thought = true
+  output_schema = number
+}
+
+workflow flow {
+  math_expr_generator -> math_expr_solver
 }
 ```
 
