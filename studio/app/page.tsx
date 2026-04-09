@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { TopBar } from "@/components/top-bar";
 import { Palette } from "@/components/palette";
@@ -78,6 +78,25 @@ function WorkflowEditor() {
 
 export default function Home() {
   const currentView = useStudioStore((s) => s.currentView);
+  const hydrated = useStudioStore((s) => s.hydrated);
+  const hydrate = useStudioStore((s) => s.hydrate);
+
+  // Kick off storage hydration once on mount. Runs on the client only
+  // (this is a client component), so IndexedDB is guaranteed available.
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
+
+  // Avoid rendering dashboard/editor with empty placeholder state before
+  // the adapter has loaded. This also sidesteps SSR hydration mismatches
+  // since the server renders an empty shell and the client fills it in.
+  if (!hydrated) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Loading studio…
+      </div>
+    );
+  }
 
   return (
     <ReactFlowProvider>

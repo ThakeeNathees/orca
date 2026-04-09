@@ -1,24 +1,66 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useStudioStore } from "./store";
+import { __resetStorageAdapterForTests } from "./storage";
 
 // Mock @xyflow/react — store imports applyNodeChanges/applyEdgeChanges
 vi.mock("@xyflow/react", () => ({
-  applyNodeChanges: (changes: unknown[], nodes: unknown[]) => nodes,
-  applyEdgeChanges: (changes: unknown[], edges: unknown[]) => edges,
+  applyNodeChanges: (_changes: unknown[], nodes: unknown[]) => nodes,
+  applyEdgeChanges: (_changes: unknown[], edges: unknown[]) => edges,
 }));
 
 function getState() {
   return useStudioStore.getState();
 }
 
+/**
+ * Reset the whole studio singleton (store + memoised adapter) and run
+ * hydrate() so each test starts from a deterministic state: one seeded
+ * "My Project" with one "Getting Started" workflow. jsdom does not
+ * provide `indexedDB`, so the factory hands back a fresh MemoryAdapter.
+ */
+async function resetAndHydrate() {
+  __resetStorageAdapterForTests();
+  useStudioStore.setState({
+    hydrated: false,
+    projects: [],
+    workflows: [],
+    activeProjectId: "",
+    currentView: "dashboard",
+    activeWorkflowId: null,
+    nodes: [],
+    edges: [],
+    selectedNodeId: null,
+  });
+  await getState().hydrate();
+}
+
 describe("Store", () => {
-  beforeEach(() => {
-    // Reset to initial state by re-importing would be ideal, but Zustand
-    // stores are singletons. We'll work with the state as-is and clean up.
+  beforeEach(async () => {
+    await resetAndHydrate();
+  });
+
+  describe("hydrate", () => {
+    it("seeds a project and workflow on first visit", () => {
+      expect(getState().projects).toHaveLength(1);
+      expect(getState().projects[0].name).toBe("My Project");
+      expect(getState().workflows).toHaveLength(1);
+      expect(getState().workflows[0].name).toBe("Getting Started");
+      expect(getState().hydrated).toBe(true);
+    });
+
+    it("is idempotent", async () => {
+      const countBefore = getState().projects.length;
+      await getState().hydrate();
+      expect(getState().projects.length).toBe(countBefore);
+    });
   });
 
   describe("addNode", () => {
-    it("creates a node with correct kind and default fields", () => {
+    it("creates a node with correct kind and default fields", async () => {
+      // Open the seeded workflow so the editor has an active graph.
+      const wfId = getState().workflows[0].id;
+      await getState().openWorkflow(wfId);
+
       const before = getState().nodes.length;
       getState().addNode("model", { x: 100, y: 200 });
       const nodes = getState().nodes;
@@ -32,14 +74,15 @@ describe("Store", () => {
   });
 
   describe("removeNode", () => {
-    it("removes the node and its connected edges", () => {
-      // Add a node, then remove it
+    it("removes the node and its connected edges", async () => {
+      const wfId = getState().workflows[0].id;
+      await getState().openWorkflow(wfId);
+
       getState().addNode("agent", { x: 0, y: 0 });
       const nodes = getState().nodes;
       const added = nodes[nodes.length - 1];
       const nodeId = added.id;
 
-      // Add an edge connected to it
       useStudioStore.setState({
         edges: [
           ...getState().edges,
@@ -57,7 +100,10 @@ describe("Store", () => {
       expect(getState().edges.find((e) => e.id === "test-edge")).toBeUndefined();
     });
 
-    it("clears selectedNodeId if removed node was selected", () => {
+    it("clears selectedNodeId if removed node was selected", async () => {
+      const wfId = getState().workflows[0].id;
+      await getState().openWorkflow(wfId);
+
       getState().addNode("model", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
       getState().setSelectedNodeId(nodeId);
@@ -69,7 +115,10 @@ describe("Store", () => {
   });
 
   describe("updateNodeData", () => {
-    it("merges field data correctly", () => {
+    it("merges field data correctly", async () => {
+      const wfId = getState().workflows[0].id;
+      await getState().openWorkflow(wfId);
+
       getState().addNode("model", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
 
@@ -83,7 +132,10 @@ describe("Store", () => {
   });
 
   describe("updateNodeLabel", () => {
-    it("updates the label", () => {
+    it("updates the label", async () => {
+      const wfId = getState().workflows[0].id;
+      await getState().openWorkflow(wfId);
+
       getState().addNode("model", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
 
@@ -94,49 +146,62 @@ describe("Store", () => {
   });
 
   describe("onConnect", () => {
-    it("creates an edge between nodes", () => {
+    it("creates an edge between nodes", async () => {
+      const wfId = getState().workflows[0].id;
+      await getState().openWorkflow(wfId);
+
       const before = getState().edges.length;
       getState().onConnect({
-        source: "sample-agent",
-        target: "sample-model",
+        source: "seed-researcher",
+        target: "seed-writer",
         sourceHandle: "agent-out",
         targetHandle: "agent-in",
       });
 
       expect(getState().edges.length).toBe(before + 1);
       const edge = getState().edges[getState().edges.length - 1];
-      expect(edge.source).toBe("sample-agent");
-      expect(edge.target).toBe("sample-model");
+      expect(edge.source).toBe("seed-researcher");
+      expect(edge.target).toBe("seed-writer");
     });
   });
 
   describe("createWorkflow", () => {
-    it("creates a workflow and switches to editor", () => {
+    it("creates a workflow and switches to editor", async () => {
       const before = getState().workflows.length;
-      getState().createWorkflow();
+      await getState().createWorkflow();
 
       expect(getState().workflows.length).toBe(before + 1);
       expect(getState().currentView).toBe("editor");
       expect(getState().activeWorkflowId).toBeTruthy();
     });
+
+    it("persists the new workflow through the adapter", async () => {
+      await getState().createWorkflow();
+      const id = getState().activeWorkflowId!;
+
+      // Re-hydrate from storage; the workflow should still be there.
+      useStudioStore.setState({ hydrated: false });
+      await getState().hydrate();
+      expect(getState().workflows.find((w) => w.id === id)).toBeTruthy();
+    });
   });
 
   describe("deleteWorkflow", () => {
-    it("removes the workflow", () => {
-      getState().createWorkflow();
-      const wfId = getState().workflows[0].id;
+    it("removes the workflow", async () => {
+      await getState().createWorkflow();
+      const wfId = getState().activeWorkflowId!;
       const before = getState().workflows.length;
 
-      getState().deleteWorkflow(wfId);
+      await getState().deleteWorkflow(wfId);
       expect(getState().workflows.length).toBe(before - 1);
       expect(getState().workflows.find((w) => w.id === wfId)).toBeUndefined();
     });
   });
 
   describe("createProject", () => {
-    it("creates a project and sets it active", () => {
+    it("creates a project and sets it active", async () => {
       const before = getState().projects.length;
-      getState().createProject();
+      await getState().createProject();
 
       expect(getState().projects.length).toBe(before + 1);
       const newest = getState().projects[getState().projects.length - 1];
@@ -145,10 +210,10 @@ describe("Store", () => {
   });
 
   describe("renameProject", () => {
-    it("renames the project", () => {
-      getState().createProject();
+    it("renames the project", async () => {
+      await getState().createProject();
       const proj = getState().projects[getState().projects.length - 1];
-      getState().renameProject(proj.id, "Renamed");
+      await getState().renameProject(proj.id, "Renamed");
 
       const updated = getState().projects.find((p) => p.id === proj.id)!;
       expect(updated.name).toBe("Renamed");
@@ -156,51 +221,66 @@ describe("Store", () => {
   });
 
   describe("deleteProject", () => {
-    it("deletes the project and its workflows", () => {
-      getState().createProject();
+    it("deletes the project and its workflows", async () => {
+      await getState().createProject();
       const proj = getState().projects[getState().projects.length - 1];
-      // Create a workflow in this project
       getState().setActiveProject(proj.id);
-      getState().createWorkflow();
+      await getState().createWorkflow();
       const wfId = getState().workflows.find(
         (w) => w.projectId === proj.id
       )!.id;
 
-      getState().deleteProject(proj.id);
+      await getState().deleteProject(proj.id);
       expect(getState().projects.find((p) => p.id === proj.id)).toBeUndefined();
       expect(getState().workflows.find((w) => w.id === wfId)).toBeUndefined();
     });
 
-    it("falls back active project when deleting the active one", () => {
-      getState().createProject();
+    it("falls back active project when deleting the active one", async () => {
+      await getState().createProject();
       const proj = getState().projects[getState().projects.length - 1];
       getState().setActiveProject(proj.id);
       expect(getState().activeProjectId).toBe(proj.id);
 
-      getState().deleteProject(proj.id);
+      await getState().deleteProject(proj.id);
       expect(getState().activeProjectId).not.toBe(proj.id);
       expect(getState().projects.length).toBeGreaterThan(0);
     });
 
-    it("does not delete the last project", () => {
-      // Delete all but one
+    it("does not delete the last project", async () => {
       while (getState().projects.length > 1) {
-        getState().deleteProject(getState().projects[getState().projects.length - 1].id);
+        await getState().deleteProject(
+          getState().projects[getState().projects.length - 1].id
+        );
       }
       const lastId = getState().projects[0].id;
-      getState().deleteProject(lastId);
+      await getState().deleteProject(lastId);
       expect(getState().projects.length).toBe(1);
     });
   });
 
   describe("goToDashboard", () => {
-    it("switches to dashboard view", () => {
-      getState().openWorkflow("wf-1");
+    it("switches to dashboard view", async () => {
+      const wfId = getState().workflows[0].id;
+      await getState().openWorkflow(wfId);
       expect(getState().currentView).toBe("editor");
 
       getState().goToDashboard();
       expect(getState().currentView).toBe("dashboard");
       expect(getState().activeWorkflowId).toBeNull();
+    });
+  });
+
+  describe("openWorkflow", () => {
+    it("loads the workflow's graph from storage", async () => {
+      const wfId = getState().workflows[0].id;
+      await getState().openWorkflow(wfId);
+
+      expect(getState().activeWorkflowId).toBe(wfId);
+      expect(getState().currentView).toBe("editor");
+      // Seed graph: webhook, researcher, writer, sql, memory, model, web_search.
+      expect(getState().nodes.length).toBe(7);
+      // Edges: trigger + 2 agent-flow + 2 model fanout + memory + tool = 7.
+      expect(getState().edges.length).toBe(7);
     });
   });
 });
