@@ -64,13 +64,28 @@ describe("generateOrcaSource", () => {
       }),
     ];
     // Keys: provider(8), model_name(10), temperature(11) → pad to 11.
-    const expected = `model gpt4 {
+    // Default position from the `n()` helper is (0, 0).
+    const expected = `@ui(0, 0)
+model gpt4 {
   provider    = "openai"
   model_name  = "gpt-4o"
   temperature = 0.7
 }
 `;
     expect(generateOrcaSource(nodes, [])).toBe(expected);
+  });
+
+  it("prepends @ui(x, y) annotations using rounded node positions", () => {
+    const nodes: BlockNode[] = [
+      {
+        id: "m1",
+        type: "model",
+        position: { x: 340.3, y: 120.9 },
+        data: { kind: "model", label: "gpt4", fields: { provider: "openai" } },
+      },
+    ];
+    const out = generateOrcaSource(nodes, []);
+    expect(out.startsWith("@ui(340, 121)\nmodel gpt4 {")).toBe(true);
   });
 
   it("skips empty-string field values", () => {
@@ -182,28 +197,33 @@ describe("generateOrcaSource", () => {
     const seed = buildSeedGraph();
     const out = generateOrcaSource(seed.nodes, seed.edges);
 
-    const expected = `model gpt4 {
+    const expected = `@ui(490, 340)
+model gpt4 {
   provider    = "openai"
   model_name  = "gpt-4o"
   temperature = 0.7
 }
 
+@ui(760, 340)
 tool web_search {
   provider    = "tavily"
   max_results = 5
 }
 
+@ui(940, 48)
 tool articles_db {
   connection = "postgresql://user:pass@host/db"
   dialect    = "postgresql"
   max_rows   = 100
 }
 
+@ui(220, 340)
 memory session_memory {
   name = "session_store"
   desc = "Conversation and tool-call history"
 }
 
+@ui(340, 48)
 agent researcher {
   model   = gpt4
   persona = "You find and summarize information."
@@ -211,11 +231,13 @@ agent researcher {
   tools   = [web_search]
 }
 
+@ui(640, 48)
 agent writer {
   model   = gpt4
   persona = "You turn research notes into a polished article, then store it."
 }
 
+@ui(40, 48)
 webhook webhook_1 {
   path   = "/api/research"
   method = "POST"
