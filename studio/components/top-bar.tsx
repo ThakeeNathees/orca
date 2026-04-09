@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useStudioStore } from "@/lib/store";
+import { generateOrcaSource, sanitizeIdent } from "@/lib/orca-gen";
 
 const DEFAULT_WORKFLOW_NAME = "My Workflow";
 
@@ -16,6 +17,8 @@ export function TopBar() {
   const renameWorkflow = useStudioStore((s) => s.renameWorkflow);
   const activeWorkflowId = useStudioStore((s) => s.activeWorkflowId);
   const workflows = useStudioStore((s) => s.workflows);
+  const nodes = useStudioStore((s) => s.nodes);
+  const edges = useStudioStore((s) => s.edges);
   const isEditor = currentView === "editor";
 
   const activeWorkflow = workflows.find((w) => w.id === activeWorkflowId);
@@ -57,6 +60,38 @@ export function TopBar() {
     el.focus();
     el.select();
   }, [editing]);
+
+  // A build is only meaningful when there is something on the canvas.
+  // We also guard against the pre-hydration empty state.
+  const canBuild = isEditor && nodes.length > 0;
+
+  const handleBuild = useCallback(() => {
+    if (!canBuild) return;
+    const source = generateOrcaSource(nodes, edges);
+
+    // Derive a safe filename from the workflow name. sanitizeIdent already
+    // enforces snake_case / no weird characters — exactly what we want for
+    // a cross-platform download name.
+    const base = sanitizeIdent(activeName) || "workflow";
+    const filename = `${base}.oc`;
+
+    // Browser download dance: Blob → object URL → hidden anchor click →
+    // revoke. No backend, no IndexedDB round-trip — the source is
+    // regenerated on the spot from current store state.
+    const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    // Keep the element off-layout but still click-dispatchable.
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    // Deferred revoke — some browsers need the URL alive briefly past the
+    // click for the download to register.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }, [canBuild, nodes, edges, activeName]);
 
   return (
     <header className="flex h-12 shrink-0 items-center border-b border-border bg-sidebar px-4 text-sidebar-foreground">
@@ -131,20 +166,31 @@ export function TopBar() {
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
         {isEditor ? (
           <>
-            <div
-              className="flex cursor-default items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-sidebar-foreground"
-              title="Coming soon"
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBuild}
+              disabled={!canBuild}
+              className="gap-1.5 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent disabled:cursor-not-allowed disabled:opacity-50"
+              title={
+                canBuild
+                  ? "Download .oc source"
+                  : "Add nodes to the canvas to build"
+              }
             >
               <Hammer className="h-3.5 w-3.5 shrink-0" />
               Build
-            </div>
-            <div
-              className="flex cursor-default items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-sidebar-foreground"
-              title="Coming soon"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled
+              className="gap-1.5 cursor-not-allowed text-sidebar-foreground disabled:opacity-50"
+              title="Download and run with `orca run` on your machine."
             >
               <Play className="h-3.5 w-3.5 shrink-0" />
               Run
-            </div>
+            </Button>
             <a
               href="https://github.com/ThakeeNathees/orca"
               target="_blank"
