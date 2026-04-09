@@ -606,6 +606,63 @@ func TestGenerateMainHeader(t *testing.T) {
 	}
 }
 
+func TestGenerateWorkflowEntrypoint(t *testing.T) {
+	tests := []struct {
+		name        string
+		program     analyzer.AnalyzedProgram
+		contains    []string
+		notContains []string
+	}{
+		{
+			name:    "no workflow emits no entrypoint",
+			program: analyzedProgram(programWithModels(modelBlock("m1", "openai", "gpt-4o"))),
+			notContains: []string{
+				`if __name__ == "__main__":`,
+			},
+		},
+		{
+			name: "single workflow emits entrypoint and sys import",
+			program: analyzedProgramFromSource(t, `
+model gpt {
+  provider = "openai"
+  model_name = "gpt-4o"
+}
+
+agent researcher {
+  model = gpt
+  persona = "You research topics thoroughly."
+}
+
+workflow pipeline {
+  researcher
+}
+`),
+			contains: []string{
+				"import sys",
+				`if __name__ == "__main__":`,
+				"final_state = pipeline.invoke(initial_state)",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: tt.program}}
+			mainPy := findFile(b, "main.py")
+			for _, sub := range tt.contains {
+				if !strings.Contains(mainPy, sub) {
+					t.Errorf("expected main.py to contain %q, got:\n%s", sub, mainPy)
+				}
+			}
+			for _, sub := range tt.notContains {
+				if strings.Contains(mainPy, sub) {
+					t.Errorf("expected main.py to not contain %q, got:\n%s", sub, mainPy)
+				}
+			}
+		})
+	}
+}
+
 // TestGenerateOutputStructure verifies the tree-based output structure.
 func TestGenerateOutputStructure(t *testing.T) {
 	b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(&ast.Program{})}}
@@ -614,11 +671,14 @@ func TestGenerateOutputStructure(t *testing.T) {
 	if output.RootDir.Name != "build" {
 		t.Errorf("expected root dir name %q, got %q", "build", output.RootDir.Name)
 	}
-	if len(output.RootDir.Files) != 1 {
-		t.Fatalf("expected 1 file, got %d", len(output.RootDir.Files))
+	if len(output.RootDir.Files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(output.RootDir.Files))
 	}
 	if output.RootDir.Files[0].Name != "main.py" {
 		t.Errorf("expected file %q, got %q", "main.py", output.RootDir.Files[0].Name)
+	}
+	if output.RootDir.Files[1].Name != "pyproject.toml" {
+		t.Errorf("expected file %q, got %q", "pyproject.toml", output.RootDir.Files[1].Name)
 	}
 }
 

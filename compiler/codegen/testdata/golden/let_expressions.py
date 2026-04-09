@@ -7,9 +7,12 @@ All public names are prefixed with __orca_ to avoid collisions with user code.
 
 from __future__ import annotations
 
+import sys
 
 from types import SimpleNamespace
 from typing import Any, TypedDict
+
+from langchain.agents import create_agent
 
 
 def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:

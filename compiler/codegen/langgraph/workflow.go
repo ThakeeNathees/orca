@@ -60,6 +60,43 @@ func (b *LangGraphBackend) writeWorkflowSection(s *strings.Builder, blocks []*as
 	}
 }
 
+// writeWorkflowEntrypoint emits a default Python entrypoint for a single workflow.
+// This allows running the generated `main.py` directly (e.g. `python main.py "payload"`).
+// Skips when there is no workflow, multiple workflows, or the sole workflow has no
+// runnable nodes (same criterion as writeWorkflowSection).
+func (b *LangGraphBackend) writeWorkflowEntrypoint(s *strings.Builder) {
+	wfs := b.resolvedWorkflows
+
+	if len(wfs) == 0 {
+		return
+	}
+	if len(wfs) >= 2 {
+		return
+	}
+
+	var rw workflow.ResolvedWorkflow
+	for _, r := range wfs {
+		rw = r
+		break
+	}
+	if len(rw.Nodes) == 0 {
+		return
+	}
+
+	s.WriteString("\n")
+	s.WriteString("if __name__ == \"__main__\":\n")
+	s.WriteString("    payload = sys.argv[1] if len(sys.argv) >= 2 else \"\"\n")
+	fmt.Fprintf(s, "    initial_state: %s = {\n", stateClassName(rw.Name))
+	fmt.Fprintf(s, "        %q: %q,\n", orcaTriggerField, "")
+	fmt.Fprintf(s, "        %q: payload,\n", orcaPayloadField)
+	for _, node := range rw.Nodes {
+		fmt.Fprintf(s, "        %q: %q,\n", node, "")
+	}
+	s.WriteString("    }\n")
+	fmt.Fprintf(s, "    final_state = %s.invoke(initial_state)\n", rw.Name)
+	s.WriteString("    print(final_state)\n")
+}
+
 // nodeFuncName returns the Python function name for a workflow node wrapper.
 func nodeFuncName(nodeName string) string {
 	return orcaPrefix + "node_" + nodeName
