@@ -170,6 +170,19 @@ function emitBlock(
 }
 
 /**
+ * Emits the `@ui(x, y)` annotation that records a node's canvas position.
+ * Positional args (not named) keep the output compatible with the current
+ * annotation-expression parser. The x/y pair is rounded to integers since
+ * the studio's snap grid already quantises to 10px — sub-pixel drift
+ * would just produce noise in the generated source.
+ */
+function emitUiAnnotation(node: BlockNode): string {
+  const x = Math.round(node.position.x);
+  const y = Math.round(node.position.y);
+  return `@ui(${x}, ${y})`;
+}
+
+/**
  * Is this field non-empty enough to emit? Empty strings are skipped (they
  * come from placeholder password/text inputs the user hasn't filled in),
  * but numeric 0 and boolean false are preserved as legitimate values.
@@ -311,7 +324,8 @@ export function generateOrcaSource(
         }
       }
 
-      sections.push(emitBlock(keyword, name, fields));
+      const block = emitBlock(keyword, name, fields);
+      sections.push(`${emitUiAnnotation(node)}\n${block}`);
     }
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { TopBar } from "@/components/top-bar";
 import { Palette } from "@/components/palette";
@@ -15,8 +15,8 @@ import {
   type StudioViewMode,
 } from "@/components/view-mode-toggle";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { SAMPLE_ORCA_SOURCE } from "@/lib/sample-oc";
 import { useStudioStore } from "@/lib/store";
+import { generateOrcaSource } from "@/lib/orca-gen";
 
 const StudioCodeEditor = dynamic(
   () =>
@@ -33,7 +33,17 @@ const StudioCodeEditor = dynamic(
 
 function WorkflowEditor() {
   const [viewMode, setViewMode] = useState<StudioViewMode>("ui");
-  const [sourceCode, setSourceCode] = useState(SAMPLE_ORCA_SOURCE);
+  const nodes = useStudioStore((s) => s.nodes);
+  const edges = useStudioStore((s) => s.edges);
+
+  // Derive `.oc` source from the current graph on every change. The
+  // generator is pure and cheap for typical graph sizes, so memoising on
+  // the node/edge refs is enough — Zustand hands back stable references
+  // when nothing changed, so this recomputes only on real edits.
+  const sourceCode = useMemo(
+    () => generateOrcaSource(nodes, edges),
+    [nodes, edges]
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -61,7 +71,7 @@ function WorkflowEditor() {
               </ErrorBoundary>
             ) : (
               <ErrorBoundary>
-                <StudioCodeEditor value={sourceCode} onChange={setSourceCode} />
+                <StudioCodeEditor value={sourceCode} />
               </ErrorBoundary>
             )}
           </div>
