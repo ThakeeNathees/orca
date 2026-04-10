@@ -165,14 +165,10 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
 gpt4 = __orca_model(
     provider_class=ChatOpenAI,
     model_name="gpt-4o",
 )
-
-# --- Agents ---
 
 researcher = __orca_agent(
     model=gpt4,
@@ -189,19 +185,13 @@ writer = __orca_agent(
     persona="You write polished articles.",
 )
 
-# --- Cron ---
-
 daily = __orca_cron(
     schedule="0 9 * * *",
 )
 
-# --- Webhooks ---
-
 hooks_in = __orca_webhook(
     path="/hooks/in",
 )
-
-# --- Workflows ---
 
 class __orca_state_pipeline(TypedDict):
     __orca_trigger: str | None

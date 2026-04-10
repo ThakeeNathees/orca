@@ -81,14 +81,7 @@ func (b *LangGraphBackend) generateMain() string {
 	s.WriteString("\n")
 
 	b.writeSchemaSection(&s, schemaBlocks)
-	b.writeModelSection(&s)
-	b.writeOrcaBlockSection(&s, "Knowledge", analyzer.BlockKindKnowledge)
-	b.writeToolSection(&s)
-	b.writeOrcaBlockSection(&s, "Variables", analyzer.BlockKindLet)
-	b.writeOrcaBlockSection(&s, "Agents", analyzer.BlockKindAgent)
-	b.writeOrcaBlockSection(&s, "Cron", analyzer.BlockKindCron)
-	b.writeOrcaBlockSection(&s, "Webhooks", analyzer.BlockKindWebhook)
-	b.writeWorkflowSection(&s, workflows)
+	b.writeBlocksInOrder(&s)
 
 	b.writeWorkflowEntrypoint(&s)
 
@@ -103,18 +96,56 @@ func (b *LangGraphBackend) writeImports(s *strings.Builder, providerImports []py
 	}
 }
 
-// writeOrcaBlockSection emits all top-level blocks of the given kind as
-// `name = __orca_<kind>(...)` under "# --- <sectionTitle> ---". Skips the section when empty.
-func (b *LangGraphBackend) writeOrcaBlockSection(s *strings.Builder, sectionTitle string, kind string) {
-	blocks := b.CollectBlocksByKind(kind)
-	if len(blocks) == 0 {
-		return
-	}
-	s.WriteString("\n# --- " + sectionTitle + " ---\n")
-	for _, block := range blocks {
+// writeBlocksInOrder emits all user-defined blocks in topological dependency
+// order (from AnalyzedProgram.BlockOrder).
+func (b *LangGraphBackend) writeBlocksInOrder(s *strings.Builder) {
+	for _, name := range b.Program.BlockOrder {
+		block := b.BlockByName(name)
 		if block == nil {
-			panic("BUG: writeOrcaBlockSection collected nil block")
+			continue
 		}
+
+		// Skip schema blocks — they're handled separately.
+		if block.Kind == types.BlockKindSchema {
+			continue
+		}
+
+		b.writeBlock(s, block)
+	}
+}
+
+// writeBlock emits a single block, dispatching to the appropriate writer
+// based on block kind.
+func (b *LangGraphBackend) writeBlock(s *strings.Builder, block *ast.BlockStatement) {
+	switch block.Kind {
+	case analyzer.BlockKindModel:
+		s.WriteString("\n")
+		fmt.Fprintf(s, "%s = %s\n", block.Name, modelBlockSource(block))
+
+	case analyzer.BlockKindTool:
+		resolved, ok := b.resolvedTools[block.Name]
+		if !ok {
+			s.WriteString("\n")
+			fmt.Fprintf(s, "%s = %s\n", block.Name, topLevelBlockSource(block))
+			return
+		}
+		if resolved.verbatim != "" {
+			s.WriteString("\n")
+			s.WriteString(resolved.verbatim)
+			s.WriteString("\n")
+		}
+		s.WriteString("\n")
+		fmt.Fprintf(s, "%s = %s\n", block.Name, toolBlockSource(block, resolved.invokeRef))
+
+	case analyzer.BlockKindWorkflow:
+		if rw, ok := b.resolvedWorkflows[block.Name]; ok {
+			if len(rw.Nodes) > 0 {
+				b.writeWorkflow(s, rw)
+			}
+		}
+
+	default:
+		// Generic block: let, agent, knowledge, cron, webhook.
 		s.WriteString("\n")
 		fmt.Fprintf(s, "%s = %s\n", block.Name, topLevelBlockSource(block))
 	}
@@ -126,7 +157,7 @@ func (b *LangGraphBackend) writeSchemaSection(s *strings.Builder, blocks []*ast.
 	if len(blocks) == 0 {
 		return
 	}
-	s.WriteString("\n# --- Schemas ---\n")
+	s.WriteString("\n")
 	for _, block := range blocks {
 		s.WriteString("\n")
 		s.WriteString(python.SchemaBlockToSource(block))

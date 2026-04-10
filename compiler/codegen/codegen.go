@@ -77,3 +77,13 @@ func (b *BaseBackend) CollectBlocksByKind(kind string) []*ast.BlockStatement {
 func (b *BaseBackend) CollectLets() []*ast.BlockStatement {
 	return b.CollectBlocksByKind(analyzer.BlockKindLet)
 }
+
+// BlockByName returns the block statement with the given name, or nil if not found.
+func (b *BaseBackend) BlockByName(name string) *ast.BlockStatement {
+	for _, stmt := range b.Program.Ast.Statements {
+		if block, ok := stmt.(*ast.BlockStatement); ok && block.Name == name {
+			return block
+		}
+	}
+	return nil
+}

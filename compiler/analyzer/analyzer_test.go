@@ -1441,3 +1441,103 @@ func TestAnalyzeWorkflowEntryNodes(t *testing.T) {
 		})
 	}
 }
+
+// TestBlockDependencyOrder verifies that the analyzer produces a topologically
+// sorted BlockOrder where dependencies come before dependents.
+func TestBlockDependencyOrder(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedOrder []string
+	}{
+		{
+			name: "model before let that references it",
+			input: `
+				model o { provider = "openai" model_name = "gpt-4o" }
+				let vars { m = o }
+			`,
+			expectedOrder: []string{"o", "vars"},
+		},
+		{
+			name: "model before agent that references it",
+			input: `
+				agent a1 { model = gpt persona = "test" }
+				model gpt { provider = "openai" model_name = "gpt-4o" }
+			`,
+			expectedOrder: []string{"gpt", "a1"},
+		},
+		{
+			name: "let referencing model, agent referencing let",
+			input: `
+				agent a1 { model = vars.m persona = "test" }
+				let vars { m = o }
+				model o { provider = "openai" model_name = "gpt-4o" }
+			`,
+			expectedOrder: []string{"o", "vars", "a1"},
+		},
+		{
+			name: "independent blocks preserve source order",
+			input: `
+				model a { provider = "openai" model_name = "a" }
+				model b { provider = "openai" model_name = "b" }
+			`,
+			expectedOrder: []string{"a", "b"},
+		},
+		{
+			name: "workflow depends on agents",
+			input: `
+				model m { provider = "openai" model_name = "gpt-4o" }
+				agent a1 { model = m persona = "p1" }
+				agent a2 { model = m persona = "p2" }
+				workflow flow { a1 -> a2 }
+			`,
+			expectedOrder: []string{"m", "a1", "a2", "flow"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			result := Analyze(program)
+
+			for _, d := range result.Diagnostics {
+				if d.Severity == diagnostic.Error && d.Code != diagnostic.CodeMissingField {
+					t.Fatalf("unexpected error: %s", d.Message)
+				}
+			}
+
+			if len(result.BlockOrder) != len(tt.expectedOrder) {
+				t.Fatalf("BlockOrder length = %d, want %d\ngot:  %v\nwant: %v",
+					len(result.BlockOrder), len(tt.expectedOrder), result.BlockOrder, tt.expectedOrder)
+			}
+			for i, name := range result.BlockOrder {
+				if name != tt.expectedOrder[i] {
+					t.Errorf("BlockOrder[%d] = %q, want %q\nfull order: %v",
+						i, name, tt.expectedOrder[i], result.BlockOrder)
+				}
+			}
+		})
+	}
+}
+
+// TestBlockDependencyCycleError verifies that cyclic block dependencies
+// produce a diagnostic error.
+func TestBlockDependencyCycleError(t *testing.T) {
+	input := `
+		let a { x = b }
+		let b { y = a }
+	`
+	program := parseProgram(t, input)
+	result := Analyze(program)
+
+	found := false
+	for _, d := range result.Diagnostics {
+		if d.Code == diagnostic.CodeCyclicDependency {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected cyclic-dependency diagnostic, got: %v", result.Diagnostics)
+	}
+}
