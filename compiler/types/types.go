@@ -219,6 +219,12 @@ func IsCompatible(got Type, expected Type) bool {
 			return true
 		}
 
+		// When got is an instance block (e.g. `model o {}`), check if its
+		// schema matches expected (e.g. `schema model {}`).
+		if got.Block.Schema != nil && got.Block.Schema == expected.Block {
+			return true
+		}
+
 		return false
 	}
 
