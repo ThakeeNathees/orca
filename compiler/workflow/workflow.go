@@ -5,6 +5,7 @@ package workflow
 
 import (
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/graph"
 	"github.com/thakee/orca/compiler/token"
 )
 
@@ -80,58 +81,53 @@ func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWor
 		TriggerMap: make(map[string][]string),
 	}
 
-	// Collect all unique edges and nodes from arrow expressions.
-	var allEdges []Edge
-	seenEdges := make(map[[2]string]bool)
-	seenNodes := make(map[string]bool)
+	// Build a graph of all nodes and edges from arrow expressions.
+	// Triggers are tracked separately and excluded from the processing graph.
+	allGraph := graph.New[string]()
 	triggers := make(map[string]bool)
+
+	// classifyNode registers a node as either a trigger or processing node.
+	classifyNode := func(name string) {
+		if isTrigger(name) {
+			if !triggers[name] {
+				triggers[name] = true
+				rw.Triggers = append(rw.Triggers, name)
+			}
+		}
+		allGraph.AddNode(name)
+	}
 
 	for _, expr := range block.Expressions {
 		edges := EdgesFromExpr(expr)
 		if len(edges) == 0 {
 			// Standalone identifier (no arrows) — treat as a single node.
-			if name := ExprToNodeName(expr); name != "" && !seenNodes[name] {
-				seenNodes[name] = true
-				if isTrigger(name) {
-					triggers[name] = true
-					rw.Triggers = append(rw.Triggers, name)
-				} else {
-					rw.Nodes = append(rw.Nodes, name)
-				}
+			if name := ExprToNodeName(expr); name != "" {
+				classifyNode(name)
 			}
 			continue
 		}
-
 		for _, e := range edges {
-			edgeKey := [2]string{e.From, e.To}
-			if seenEdges[edgeKey] {
-				continue
-			}
-			seenEdges[edgeKey] = true
-			allEdges = append(allEdges, e)
+			classifyNode(e.From)
+			classifyNode(e.To)
+			allGraph.AddEdge(e.From, e.To)
+		}
+	}
 
-			for _, name := range []string{e.From, e.To} {
-				if !seenNodes[name] {
-					seenNodes[name] = true
-					if isTrigger(name) {
-						triggers[name] = true
-						rw.Triggers = append(rw.Triggers, name)
-					} else {
-						rw.Nodes = append(rw.Nodes, name)
-					}
-				}
-			}
+	// Separate triggers from processing nodes (preserving insertion order).
+	procGraph := graph.New[string]()
+	for _, name := range allGraph.Nodes() {
+		if !triggers[name] {
+			rw.Nodes = append(rw.Nodes, name)
+			procGraph.AddNode(name)
 		}
 	}
 
 	// Separate trigger edges from processing edges and build TriggerMap.
-	var processingEdges []Edge
-	for _, e := range allEdges {
+	for _, e := range allGraph.Edges() {
 		if triggers[e.From] {
-			// Trigger → processing node: record in TriggerMap.
 			rw.TriggerMap[e.From] = append(rw.TriggerMap[e.From], e.To)
 		} else {
-			processingEdges = append(processingEdges, e)
+			procGraph.AddEdge(e.From, e.To)
 		}
 	}
 
@@ -143,41 +139,18 @@ func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWor
 		}
 	}
 
-	// Infer END edges for processing nodes with no outgoing edges.
-	rw.Edges = inferEndEdges(rw.Nodes, processingEdges)
+	// Infer END edges for leaf processing nodes (no outgoing edges).
+	for _, e := range procGraph.Edges() {
+		rw.Edges = append(rw.Edges, Edge{From: e.From, To: e.To})
+	}
+	for _, leaf := range procGraph.LeafNodes() {
+		rw.Edges = append(rw.Edges, Edge{From: leaf, To: NodeEND})
+	}
 
-	// Compute entry nodes: processing nodes with no incoming edges
-	// from other processing nodes.
-	hasIncoming := make(map[string]bool)
-	for _, e := range processingEdges {
-		hasIncoming[e.To] = true
-	}
-	for _, node := range rw.Nodes {
-		if !hasIncoming[node] {
-			rw.EntryNodes = append(rw.EntryNodes, node)
-		}
-	}
+	// Entry nodes: processing nodes with no incoming edges.
+	rw.EntryNodes = procGraph.EntryNodes()
 
 	return rw
-}
-
-// inferEndEdges appends implicit END edges for processing nodes that have
-// no outgoing edges. START edges are never added — the router handles them.
-func inferEndEdges(nodes []string, edges []Edge) []Edge {
-	hasOutgoing := make(map[string]bool)
-	for _, e := range edges {
-		hasOutgoing[e.From] = true
-	}
-
-	result := make([]Edge, len(edges))
-	copy(result, edges)
-
-	for _, node := range nodes {
-		if !hasOutgoing[node] {
-			result = append(result, Edge{From: node, To: NodeEND})
-		}
-	}
-	return result
 }
 
 // EdgesFromExpr walks a (possibly chained) arrow expression and returns
