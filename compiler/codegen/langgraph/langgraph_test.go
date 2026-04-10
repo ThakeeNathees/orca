@@ -100,65 +100,41 @@ func TestCollectBlocksByKind(t *testing.T) {
 	}
 }
 
-// TestWriteOrcaBlockSection verifies section headers and per-block emission for a given block kind.
-func TestWriteOrcaBlockSection(t *testing.T) {
+// TestWriteBlocksInOrder verifies section headers and per-block emission
+// using topological dependency order.
+func TestWriteBlocksInOrder(t *testing.T) {
 	tests := []struct {
 		name           string
 		program        *ast.Program
-		sectionTitle   string
-		kind           string
 		wantEmpty      bool
 		wantSubstrings []string
 	}{
 		{
-			name:           "empty program emits nothing",
-			program:        &ast.Program{},
-			sectionTitle:   "Models",
-			kind:           analyzer.BlockKindModel,
-			wantEmpty:      true,
-			wantSubstrings: nil,
+			name:      "empty program emits nothing",
+			program:   &ast.Program{},
+			wantEmpty: true,
 		},
 		{
-			name:         "one model block",
-			program:      programWithModels(modelBlock("gpt4", "openai", "gpt-4o")),
-			sectionTitle: "Models",
-			kind:         analyzer.BlockKindModel,
+			name:    "one model block",
+			program: programWithModels(modelBlock("gpt4", "openai", "gpt-4o")),
 			wantSubstrings: []string{
-				"\n# --- Models ---\n",
-				"\n\ngpt4 = __orca_model(\n",
-				`    provider="openai",`,
+				"gpt4 = __orca_model(\n",
+				"provider_class=ChatOpenAI",
 			},
 		},
 		{
-			name:         "two agent blocks preserve order",
-			program:      &ast.Program{Statements: []ast.Statement{agentBlock("a1", "m", "p1"), agentBlock("a2", "m", "p2")}},
-			sectionTitle: "Agents",
-			kind:         analyzer.BlockKindAgent,
+			name:    "two agent blocks preserve order",
+			program: &ast.Program{Statements: []ast.Statement{agentBlock("a1", "m", "p1"), agentBlock("a2", "m", "p2")}},
 			wantSubstrings: []string{
-				"\n# --- Agents ---\n",
 				"a1 = __orca_agent(",
 				"a2 = __orca_agent(",
 			},
 		},
+		// Schema blocks are handled separately by writeSchemaSection, not writeBlocksInOrder.
 		{
-			name:         "schema block",
-			program:      &ast.Program{Statements: []ast.Statement{schemaBlock("vpc_data_t", schemaField{"region", "string"}, schemaField{"count", "int"})}},
-			sectionTitle: "Schemas",
-			kind:         types.BlockKindSchema,
+			name:    "knowledge block",
+			program: &ast.Program{Statements: []ast.Statement{knowledgeBlock("docs", "Company wiki")}},
 			wantSubstrings: []string{
-				"\n# --- Schemas ---\n",
-				"vpc_data_t = __orca_schema(\n",
-				"    region=str,\n",
-				"    count=int,\n",
-			},
-		},
-		{
-			name:         "knowledge block",
-			program:      &ast.Program{Statements: []ast.Statement{knowledgeBlock("docs", "Company wiki")}},
-			sectionTitle: "Knowledge",
-			kind:         analyzer.BlockKindKnowledge,
-			wantSubstrings: []string{
-				"\n# --- Knowledge ---\n",
 				"docs = __orca_knowledge(\n",
 				`    desc="Company wiki",`,
 			},
@@ -167,9 +143,11 @@ func TestWriteOrcaBlockSection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(tt.program)}}
+			ap := analyzedProgram(tt.program)
+			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: ap}}
+			b.resolveWorkflows()
 			var s strings.Builder
-			b.writeOrcaBlockSection(&s, tt.sectionTitle, tt.kind)
+			b.writeBlocksInOrder(&s)
 			got := s.String()
 			if tt.wantEmpty {
 				if got != "" {

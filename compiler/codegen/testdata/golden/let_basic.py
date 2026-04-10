@@ -163,8 +163,6 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Variables ---
-
 vars = __orca_let(
     api_url="https://api.example.com",
     max_retries=3,

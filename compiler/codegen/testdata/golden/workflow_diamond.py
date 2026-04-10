@@ -165,14 +165,10 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
 gpt4 = __orca_model(
     provider_class=ChatOpenAI,
     model_name="gpt-4o",
 )
-
-# --- Agents ---
 
 classifier = __orca_agent(
     model=gpt4,
@@ -193,8 +189,6 @@ reviewer = __orca_agent(
     model=gpt4,
     persona="You review and merge results.",
 )
-
-# --- Workflows ---
 
 class __orca_state_diamond(TypedDict):
     __orca_trigger: str | None

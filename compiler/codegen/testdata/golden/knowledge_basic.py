@@ -163,8 +163,6 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Knowledge ---
-
 docs = __orca_knowledge(
     desc="Company knowledge base",
 )

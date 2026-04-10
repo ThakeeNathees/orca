@@ -164,15 +164,11 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Models ---
-
 gpt4 = __orca_model(
     provider_class=ChatOpenAI,
     model_name="gpt-4o",
     temperature=0.5,
 )
-
-# --- Tools ---
 
 def web_search__invoke_verbatim(query: str) -> str:
     return ""
@@ -187,8 +183,6 @@ def calculator__invoke_verbatim(expr: str) -> str:
 calculator = __orca_tool(
     invoke=calculator__invoke_verbatim,
 )
-
-# --- Agents ---
 
 researcher = __orca_agent(
     model=gpt4,

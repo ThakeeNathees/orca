@@ -166,28 +166,14 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-# --- Schemas ---
 
 class report(BaseModel):
     content: str
-
-# --- Models ---
 
 gpt4 = __orca_model(
     provider_class=ChatOpenAI,
     model_name="gpt-4o",
 )
-
-# --- Tools ---
-
-def validate__invoke_verbatim(report: str) -> str:
-    return report
-
-validate = __orca_tool(
-    invoke=validate__invoke_verbatim,
-)
-
-# --- Agents ---
 
 researcher = __orca_agent(
     model=gpt4,
@@ -200,7 +186,12 @@ writer = __orca_agent(
     output_schema=report,
 )
 
-# --- Workflows ---
+def validate__invoke_verbatim(report: str) -> str:
+    return report
+
+validate = __orca_tool(
+    invoke=validate__invoke_verbatim,
+)
 
 class __orca_state_pipeline(TypedDict):
     __orca_trigger: str | None
