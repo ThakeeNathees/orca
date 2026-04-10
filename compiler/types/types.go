@@ -210,8 +210,14 @@ func IsCompatible(got Type, expected Type) bool {
 			return false
 		}
 
-		if got.Kind != BlockRef || got.Block == nil {
+		if got.Kind != BlockRef {
 			return false
+		}
+
+		// When got has an unresolved block pointer (e.g. from an inline block
+		// expression), fall back to name-based matching against the expected schema.
+		if got.Block == nil {
+			return got.BlockName == expected.BlockName
 		}
 
 		// Validate: block `schema kgot {...}`'s Schema should be `schema exp {...}`

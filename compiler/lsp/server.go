@@ -424,7 +424,16 @@ func resolveDefinition(doc *documentState, line, col int) (protocol.Location, bo
 func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol.Location, bool) {
 	target := resolveObjectTarget(doc, ma.Object)
 
+	// setURI populates the cross-file URI when the target block lives in a
+	// sibling source file.
+	setURI := func(loc *protocol.Location) {
+		if block, ok := target.(*ast.BlockStatement); ok && block.SourceFile != "" {
+			loc.URI = "file://" + block.SourceFile
+		}
+	}
+
 	if loc, ok := findAssignmentLocation(target, ma.Member); ok {
+		setURI(&loc)
 		return loc, true
 	}
 
@@ -435,9 +444,12 @@ func resolveMemberDefinition(doc *documentState, ma *ast.MemberAccess) (protocol
 			// jumping to the instance block name (e.g. gpt4) — see
 			// TestDefinitionMemberUnassignedField.
 			if loc, ok := findSchemaFieldAssignmentInProgram(doc.Program, block.Kind, ma.Member); ok {
+				setURI(&loc)
 				return loc, true
 			}
-			return protocol.Location{Range: tokenToRange(block.NameToken)}, true
+			loc := protocol.Location{Range: tokenToRange(block.NameToken)}
+			setURI(&loc)
+			return loc, true
 		}
 	}
 
