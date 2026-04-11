@@ -826,6 +826,42 @@ func TestParseTernaryExpressionError(t *testing.T) {
 	}
 }
 
+// --- comparison operators ---
+
+func TestParseComparisonOperators(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"less than", `model m { val = a < b }`, "(a < b)"},
+		{"greater than", `model m { val = a > b }`, "(a > b)"},
+		{"less than or equal", `model m { val = a <= b }`, "(a <= b)"},
+		{"greater than or equal", `model m { val = a >= b }`, "(a >= b)"},
+		{"equal", `model m { val = a == b }`, "(a == b)"},
+		{"not equal", `model m { val = a != b }`, "(a != b)"},
+		{"comparison lower precedence than sum", `model m { val = a + 1 < b + 2 }`, "((a + 1) < (b + 2))"},
+		{"comparison higher precedence than ternary", `model m { val = a < b ? 1 : 2 }`, "((a < b) ? 1 : 2)"},
+		{"comparison with lambda body", `let v { f = \(x number) -> x == 0 ? 1 : x }`, `\(x number) -> ((x == 0) ? 1 : x)`},
+		{"chained comparisons", `model m { val = a < b == c }`, "((a < b) == c)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			var block *ast.BlockBody
+			switch s := program.Statements[0].(type) {
+			case *ast.BlockStatement:
+				block = &s.BlockBody
+			}
+			got := exprString(block.Assignments[0].Value)
+			if got != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, got)
+			}
+		})
+	}
+}
+
 // --- member access ---
 
 func TestParseMemberAccess(t *testing.T) {

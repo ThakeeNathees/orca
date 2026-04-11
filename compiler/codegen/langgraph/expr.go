@@ -72,6 +72,9 @@ func exprToSource(expr ast.Expression) string {
 		for _, p := range e.Params {
 			params = append(params, p.Name.Value)
 		}
+		if len(params) == 0 {
+			return "lambda: " + exprToSource(e.Body)
+		}
 		return "lambda " + strings.Join(params, ", ") + ": " + exprToSource(e.Body)
 	case *ast.BlockExpression:
 		return blockCallSource(&e.BlockBody, "")

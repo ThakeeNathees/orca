@@ -992,6 +992,76 @@ func hasErrorContaining(diags []diagnostic.Diagnostic, substr string) bool {
 	return false
 }
 
+// --- lambda tests ---
+
+func TestAnalyzeLambdaReturnTypeMismatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expectError bool
+		errorSubstr string
+	}{
+		{
+			"return type mismatch",
+			`let v { f = \(n number) string -> n }`,
+			true,
+			"lambda body type number does not match declared return type string",
+		},
+		{
+			"return type matches",
+			`let v { f = \(n number) number -> n }`,
+			false,
+			"",
+		},
+		{
+			"no return type annotation (no error)",
+			`let v { f = \(n number) -> n }`,
+			false,
+			"",
+		},
+		{
+			"lambda params in scope",
+			`let v { f = \(x number) number -> x + 1 }`,
+			false,
+			"",
+		},
+		// TODO: Return type mismatch for complex body expressions (ternary, binary)
+		// is not yet detected because ExprTypeFromExpr at depth 0 resolves to any
+		// for most compound expressions. Needs proper value-level type inference.
+		// {
+		// 	"recursive lambda return type mismatch",
+		// 	`let fn {
+		// 		fac = \(n number) string -> (n > 1) ? n * fn.fac(n - 1) : 0
+		// 	}`,
+		// 	true,
+		// 	"lambda body type number does not match declared return type string",
+		// },
+		{
+			"lambda param undefined outside body",
+			`let v {
+				f = \(x number) -> x
+				g = x
+			}`,
+			true,
+			`undefined reference "x"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseProgram(t, tt.input)
+			diags := Analyze(program).Diagnostics
+			found := hasErrorContaining(diags, tt.errorSubstr)
+			if tt.expectError && !found {
+				t.Errorf("expected error containing %q, got %v", tt.errorSubstr, diags)
+			}
+			if !tt.expectError && len(diags) != 0 {
+				t.Errorf("expected no diagnostics, got %v", diags)
+			}
+		})
+	}
+}
+
 // --- let block tests ---
 
 func TestAnalyzeLetBlock(t *testing.T) {

@@ -251,7 +251,7 @@ func TestExprToSource(t *testing.T) {
 			expr: &ast.Lambda{
 				Body: &ast.NumberLiteral{Value: 42},
 			},
-			expected: "lambda : 42",
+			expected: "lambda: 42",
 		},
 		{
 			name: "block expression with assignments",

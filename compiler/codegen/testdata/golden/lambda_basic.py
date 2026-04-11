@@ -95,6 +95,6 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 funcs = __orca_block("let", 
     add=lambda a, b: a + b,
     double=lambda x: x * 2,
-    greet=lambda : "hello",
+    greet=lambda: "hello",
     add_k=lambda k: lambda n: k + n,
 )

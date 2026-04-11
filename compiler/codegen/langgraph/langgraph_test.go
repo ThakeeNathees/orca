@@ -508,7 +508,7 @@ func TestProviderDeps(t *testing.T) {
 	tests := []struct {
 		name             string
 		program          *ast.Program
-		wantPipAfterCore []string // pip package names after langchain-core
+		wantPipAfterCore []string // provider pip names after langchain-core and langchain
 	}{
 		{
 			name:             "no providers",
@@ -553,15 +553,18 @@ func TestProviderDeps(t *testing.T) {
 			b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzedProgram(tt.program)}}
 			b.resolveProviders()
 			deps := dependenciesFromProviders(b.resolvedProviders, false)
+			if len(deps) < 2 {
+				t.Fatalf("expected at least langchain-core and langchain, got %d deps", len(deps))
+			}
+			if deps[0].Name != "langchain-core" {
+				t.Fatalf("expected first dependency %q, got %q", "langchain-core", deps[0].Name)
+			}
+			if deps[1].Name != "langchain" {
+				t.Fatalf("expected second dependency %q, got %q", "langchain", deps[1].Name)
+			}
 			var got []string
-			for i, d := range deps {
-				if i == 0 {
-					if d.Name != "langchain-core" {
-						t.Fatalf("expected first dependency %q, got %q", "langchain-core", d.Name)
-					}
-					continue
-				}
-				got = append(got, d.Name)
+			for i := 2; i < len(deps); i++ {
+				got = append(got, deps[i].Name)
 			}
 			if len(got) != len(tt.wantPipAfterCore) {
 				t.Fatalf("expected %d provider pip deps, got %d: %v", len(tt.wantPipAfterCore), len(got), got)
@@ -668,10 +671,11 @@ func TestCollectDependencies(t *testing.T) {
 		expected []codegen.Dependency
 	}{
 		{
-			name:    "empty program has langchain-core",
+			name:    "empty program has langchain runtime deps",
 			program: &ast.Program{},
 			expected: []codegen.Dependency{
 				{Name: "langchain-core"},
+				{Name: "langchain"},
 			},
 		},
 		{
@@ -681,6 +685,7 @@ func TestCollectDependencies(t *testing.T) {
 			),
 			expected: []codegen.Dependency{
 				{Name: "langchain-core"},
+				{Name: "langchain"},
 				{Name: "langchain-openai"},
 			},
 		},
@@ -692,6 +697,7 @@ func TestCollectDependencies(t *testing.T) {
 			),
 			expected: []codegen.Dependency{
 				{Name: "langchain-core"},
+				{Name: "langchain"},
 				{Name: "langchain-anthropic"},
 				{Name: "langchain-google-genai"},
 			},
@@ -727,29 +733,29 @@ func TestGenerateProviderConstFold(t *testing.T) {
 	}{
 		{
 			fixture:    "concat_openai",
-			wantDeps:   []string{"langchain-core", "langchain-openai"},
+			wantDeps:   []string{"langchain-core", "langchain", "langchain-openai"},
 			wantImport: "from langchain_openai import ChatOpenAI",
 		},
 		{
 			fixture:    "nested_concat_anthropic",
-			wantDeps:   []string{"langchain-core", "langchain-anthropic"},
+			wantDeps:   []string{"langchain-core", "langchain", "langchain-anthropic"},
 			wantImport: "from langchain_anthropic import ChatAnthropic",
 		},
 		{
 			fixture:    "member_access_let",
-			wantDeps:   []string{"langchain-core", "langchain-openai"},
+			wantDeps:   []string{"langchain-core", "langchain", "langchain-openai"},
 			wantImport: "from langchain_openai import ChatOpenAI",
 		},
 		{
 			fixture:        "folded_unknown_provider",
-			wantDeps:       []string{"langchain-core"},
+			wantDeps:       []string{"langchain-core", "langchain"},
 			wantDiagCount:  1,
 			wantDiagCode:   diagnostic.CodeUnknownProvider,
 			wantDiagSubstr: `unknown provider "bad_provider"`,
 		},
 		{
 			fixture:        "non_string_provider",
-			wantDeps:       []string{"langchain-core"},
+			wantDeps:       []string{"langchain-core", "langchain"},
 			wantDiagCount:  1,
 			wantDiagCode:   diagnostic.CodeTypeMismatch,
 			wantDiagSubstr: `field "provider" expects type string, got number`,

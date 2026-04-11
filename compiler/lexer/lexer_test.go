@@ -268,6 +268,75 @@ func TestNextTokenOperators(t *testing.T) {
 	}
 }
 
+func TestNextTokenComparisonOperators(t *testing.T) {
+	input := `< > <= >= == != a == b a != c a < 1 a >= 2`
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.LT, "<"},
+		{token.GT, ">"},
+		{token.LTE, "<="},
+		{token.GTE, ">="},
+		{token.EQ, "=="},
+		{token.NEQ, "!="},
+		{token.IDENT, "a"},
+		{token.EQ, "=="},
+		{token.IDENT, "b"},
+		{token.IDENT, "a"},
+		{token.NEQ, "!="},
+		{token.IDENT, "c"},
+		{token.IDENT, "a"},
+		{token.LT, "<"},
+		{token.NUMBER, "1"},
+		{token.IDENT, "a"},
+		{token.GTE, ">="},
+		{token.NUMBER, "2"},
+		{token.EOF, ""},
+	}
+
+	l := New(input, "")
+	for i, tt := range tests {
+		tok := l.NextToken()
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - wrong type. expected=%q, got=%q", i, tt.expectedType, tok.Type)
+		}
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - wrong literal. expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
+func TestNextTokenBackslash(t *testing.T) {
+	input := `\(a number) -> a`
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.BACKSLASH, "\\"},
+		{token.LPAREN, "("},
+		{token.IDENT, "a"},
+		{token.IDENT, "number"},
+		{token.RPAREN, ")"},
+		{token.ARROW, "->"},
+		{token.IDENT, "a"},
+		{token.EOF, ""},
+	}
+
+	l := New(input, "")
+	for i, tt := range tests {
+		tok := l.NextToken()
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - wrong type. expected=%q, got=%q", i, tt.expectedType, tok.Type)
+		}
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - wrong literal. expected=%q, got=%q", i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
 func TestNextTokenSlashVsComment(t *testing.T) {
 	// A single / is division, but // starts a comment.
 	input := "a / b // this is ignored"

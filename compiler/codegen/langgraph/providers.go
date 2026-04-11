@@ -64,12 +64,13 @@ type resolvedProviders struct {
 }
 
 // dependenciesFromProviders builds codegen.Dependency values for the lockfile:
-// always langchain-core, then unique non-empty PyImport.Package names sorted.
-// The hasWorkflows flag adds langgraph and langchain as base framework deps.
+// always langchain-core and langchain (embedded runtime imports create_agent from
+// langchain.agents), then unique non-empty PyImport.Package names sorted.
+// The hasWorkflows flag adds langgraph for compiled workflows.
 func dependenciesFromProviders(resolvedProviders resolvedProviders, hasWorkflows bool) []codegen.Dependency {
-	deps := []codegen.Dependency{{Name: "langchain-core"}}
-	if hasWorkflows {
-		deps = append(deps, codegen.Dependency{Name: "langchain"})
+	deps := []codegen.Dependency{
+		{Name: "langchain-core"},
+		{Name: "langchain"},
 	}
 	seen := make(map[string]bool)
 	var pipPkgs []string

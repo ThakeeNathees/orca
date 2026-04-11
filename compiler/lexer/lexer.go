@@ -68,8 +68,14 @@ func (l *Lexer) NextToken() token.Token {
 
 	switch l.ch {
 	case '=':
-		tok.Type = token.ASSIGN
-		tok.Literal = "="
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok.Type = token.EQ
+			tok.Literal = "=="
+		} else {
+			tok.Type = token.ASSIGN
+			tok.Literal = "="
+		}
 	case '{':
 		tok.Type = token.LBRACE
 		tok.Literal = "{"
@@ -119,6 +125,33 @@ func (l *Lexer) NextToken() token.Token {
 	case '\\':
 		tok.Type = token.BACKSLASH
 		tok.Literal = "\\"
+	case '<':
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok.Type = token.LTE
+			tok.Literal = "<="
+		} else {
+			tok.Type = token.LT
+			tok.Literal = "<"
+		}
+	case '>':
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok.Type = token.GTE
+			tok.Literal = ">="
+		} else {
+			tok.Type = token.GT
+			tok.Literal = ">"
+		}
+	case '!':
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok.Type = token.NEQ
+			tok.Literal = "!="
+		} else {
+			tok.Type = token.ILLEGAL
+			tok.Literal = string(l.ch)
+		}
 	case '*':
 		tok.Type = token.STAR
 		tok.Literal = "*"
