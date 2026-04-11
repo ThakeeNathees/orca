@@ -21,7 +21,7 @@ func (b *LangGraphBackend) resolveWorkflows() {
 	}
 	b.resolvedWorkflows = make(map[string]workflow.ResolvedWorkflow, len(wfs))
 	for _, wf := range wfs {
-		rw := workflow.Resolve(wf, b.triggerPredicate())
+		rw := workflow.Resolve(wf, b.triggerPredicate(), nil)
 		b.resolvedWorkflows[wf.Name] = rw
 	}
 }

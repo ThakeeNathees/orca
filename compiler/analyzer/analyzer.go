@@ -848,11 +848,11 @@ func rightmostLeaf(expr ast.Expression) ast.Expression {
 func isBranchExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
 	// Fast path: inline block expression with Kind "branch".
 	if be, ok := expr.(*ast.BlockExpression); ok {
-		return be.Kind == BlockKindBranch
+		return be.Kind == workflow.BlockKindBranch
 	}
 	// Named branch reference: resolve the type and check the block kind.
 	typ := types.SchemaTypeFromExpr(expr, symbols)
-	return typ.Kind == types.BlockRef && typ.BlockName == BlockKindBranch
+	return typ.Kind == types.BlockRef && typ.BlockName == workflow.BlockKindBranch
 }
 
 // validateWorkflowLeafExpr checks a single workflow node position (not an arrow).
