@@ -105,25 +105,31 @@ gpt4 = _orca__block("model",
 
 classifier = _orca__block("agent", 
     model=gpt4,
-    persona="Classify the input as 'tech' or 'business'.",
+    persona="Classify input.",
 )
 
-tech_writer = _orca__block("agent", 
+path_a = _orca__block("agent", 
     model=gpt4,
-    persona="You write tech articles.",
+    persona="Handle path A.",
 )
 
-biz_writer = _orca__block("agent", 
+path_b = _orca__block("agent", 
     model=gpt4,
-    persona="You write business articles.",
+    persona="Handle path B.",
+)
+
+summarizer = _orca__block("agent", 
+    model=gpt4,
+    persona="Summarize results.",
 )
 
 class _orca__state_pipeline(TypedDict):
     _orca__trigger: str | None
     _orca__payload: dict | None
     classifier: Any
-    tech_writer: Any
-    biz_writer: Any
+    path_a: Any
+    summarizer: Any
+    path_b: Any
 
 def _orca__node_classifier(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'classifier'."""
@@ -132,19 +138,26 @@ def _orca__node_classifier(state: _orca__state_pipeline) -> dict:
     _out = _orca__invoke_agent(classifier, _input)
     return {"classifier": _out}
 
-def _orca__node_tech_writer(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping 'tech_writer'."""
+def _orca__node_path_a(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping 'path_a'."""
     _predecessors = ["classifier"]
     _input = _orca__gather(state, _predecessors)
-    _out = _orca__invoke_agent(tech_writer, _input)
-    return {"tech_writer": _out}
+    _out = _orca__invoke_agent(path_a, _input)
+    return {"path_a": _out}
 
-def _orca__node_biz_writer(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping 'biz_writer'."""
+def _orca__node_summarizer(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping 'summarizer'."""
+    _predecessors = ["path_a", "path_b"]
+    _input = _orca__gather(state, _predecessors)
+    _out = _orca__invoke_agent(summarizer, _input)
+    return {"summarizer": _out}
+
+def _orca__node_path_b(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping 'path_b'."""
     _predecessors = ["classifier"]
     _input = _orca__gather(state, _predecessors)
-    _out = _orca__invoke_agent(biz_writer, _input)
-    return {"biz_writer": _out}
+    _out = _orca__invoke_agent(path_b, _input)
+    return {"path_b": _out}
 
 def _orca__route_pipeline(state: _orca__state_pipeline) -> str:
     """Route to entry node based on trigger source."""
@@ -158,12 +171,14 @@ def _orca__route_pipeline_branch_0(state: _orca__state_pipeline) -> str:
 
 pipeline = StateGraph(_orca__state_pipeline)
 pipeline.add_node("classifier", _orca__node_classifier)
-pipeline.add_node("tech_writer", _orca__node_tech_writer)
-pipeline.add_node("biz_writer", _orca__node_biz_writer)
+pipeline.add_node("path_a", _orca__node_path_a)
+pipeline.add_node("summarizer", _orca__node_summarizer)
+pipeline.add_node("path_b", _orca__node_path_b)
 pipeline.add_conditional_edges(START, _orca__route_pipeline)
-pipeline.add_conditional_edges("classifier", _orca__route_pipeline_branch_0, {"tech": "tech_writer", "business": "biz_writer", "default": END})
-pipeline.add_edge("tech_writer", END)
-pipeline.add_edge("biz_writer", END)
+pipeline.add_conditional_edges("classifier", _orca__route_pipeline_branch_0, {"a": "path_a", "b": "path_b", "default": END})
+pipeline.add_edge("path_a", "summarizer")
+pipeline.add_edge("path_b", "summarizer")
+pipeline.add_edge("summarizer", END)
 pipeline = pipeline.compile()
 
 if __name__ == "__main__":
@@ -172,8 +187,9 @@ if __name__ == "__main__":
         "_orca__trigger": "",
         "_orca__payload": payload,
         "classifier": "",
-        "tech_writer": "",
-        "biz_writer": "",
+        "path_a": "",
+        "summarizer": "",
+        "path_b": "",
     }
     final_state = pipeline.invoke(initial_state)
     print(final_state)

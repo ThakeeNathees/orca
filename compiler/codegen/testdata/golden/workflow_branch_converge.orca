@@ -1,0 +1,34 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+agent classifier {
+  model   = gpt4
+  persona = "Classify input."
+}
+
+agent path_a {
+  model   = gpt4
+  persona = "Handle path A."
+}
+
+agent path_b {
+  model   = gpt4
+  persona = "Handle path B."
+}
+
+agent summarizer {
+  model   = gpt4
+  persona = "Summarize results."
+}
+
+workflow pipeline {
+  classifier -> branch {
+    transform = \(out string) -> out
+    route = {
+      "a": path_a -> summarizer,
+      "b": path_b -> summarizer,
+    }
+  }
+}
