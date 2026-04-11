@@ -118,7 +118,7 @@ func TestWriteBlocksInOrder(t *testing.T) {
 			name:    "one model block",
 			program: programWithModels(modelBlock("gpt4", "openai", "gpt-4o")),
 			wantSubstrings: []string{
-				"gpt4 = __orca_model(\n",
+				`gpt4 = __orca_block("model", `,
 				"provider_class=ChatOpenAI",
 			},
 		},
@@ -126,8 +126,8 @@ func TestWriteBlocksInOrder(t *testing.T) {
 			name:    "two agent blocks preserve order",
 			program: &ast.Program{Statements: []ast.Statement{agentBlock("a1", "m", "p1"), agentBlock("a2", "m", "p2")}},
 			wantSubstrings: []string{
-				"a1 = __orca_agent(",
-				"a2 = __orca_agent(",
+				`a1 = __orca_block("agent", `,
+				`a2 = __orca_block("agent", `,
 			},
 		},
 		// Schema blocks are handled separately by writeSchemaSection, not writeBlocksInOrder.
@@ -135,7 +135,7 @@ func TestWriteBlocksInOrder(t *testing.T) {
 			name:    "knowledge block",
 			program: &ast.Program{Statements: []ast.Statement{knowledgeBlock("docs", "Company wiki")}},
 			wantSubstrings: []string{
-				"docs = __orca_knowledge(\n",
+				`docs = __orca_block("knowledge", `,
 				`    desc="Company wiki",`,
 			},
 		},
@@ -235,7 +235,7 @@ func TestWriteModel(t *testing.T) {
 			name:  "basic openai model",
 			block: modelBlockWithTemp("gpt4", "openai", "gpt-4o", 0.7),
 			contains: []string{
-				"gpt4 = __orca_model(\n",
+				`gpt4 = __orca_block("model", ` + "\n",
 				`    provider="openai",`,
 				`    model_name="gpt-4o",`,
 				"    temperature=0.7,",
@@ -246,7 +246,7 @@ func TestWriteModel(t *testing.T) {
 			name:  "anthropic model",
 			block: modelBlockWithTemp("claude", "anthropic", "claude-sonnet-4-20250514", 0.5),
 			contains: []string{
-				"claude = __orca_model(\n",
+				`claude = __orca_block("model", ` + "\n",
 				`    provider="anthropic",`,
 				`    model_name="claude-sonnet-4-20250514",`,
 				"    temperature=0.5,",
@@ -256,7 +256,7 @@ func TestWriteModel(t *testing.T) {
 			name:  "model without temperature",
 			block: modelBlock("gemini", "google", "gemini-pro"),
 			contains: []string{
-				"gemini = __orca_model(\n",
+				`gemini = __orca_block("model", ` + "\n",
 				`    provider="google",`,
 				`    model_name="gemini-pro",`,
 			},
@@ -282,7 +282,7 @@ func TestWriteModel(t *testing.T) {
 			name:  "google provider",
 			block: modelBlock("gem", "google", "gemini-2.0-flash"),
 			contains: []string{
-				"gem = __orca_model(\n",
+				`gem = __orca_block("model", ` + "\n",
 				`    model_name="gemini-2.0-flash",`,
 			},
 		},
@@ -337,7 +337,7 @@ func TestWriteAgent(t *testing.T) {
 			name:  "basic agent without tools",
 			block: agentBlock("writer", "gpt4", "You are a helpful writer."),
 			contains: []string{
-				"writer = __orca_agent(\n",
+				`writer = __orca_block("agent", ` + "\n",
 				"    model=gpt4,\n",
 				`    persona="You are a helpful writer.",`,
 				")\n",
@@ -347,7 +347,7 @@ func TestWriteAgent(t *testing.T) {
 			name:  "agent with tools",
 			block: agentBlockWithTools("researcher", "gpt4", "You are a researcher.", []string{"search", "calculator"}),
 			contains: []string{
-				"researcher = __orca_agent(\n",
+				`researcher = __orca_block("agent", ` + "\n",
 				"    model=gpt4,\n",
 				`    persona="You are a researcher.",`,
 				"    tools=[search, calculator],\n",
@@ -357,7 +357,7 @@ func TestWriteAgent(t *testing.T) {
 			name:  "agent with single tool",
 			block: agentBlockWithTools("bot", "claude", "You help.", []string{"gmail"}),
 			contains: []string{
-				"bot = __orca_agent(\n",
+				`bot = __orca_block("agent", ` + "\n",
 				"    tools=[gmail],\n",
 			},
 		},
@@ -430,7 +430,7 @@ func TestWriteSchema(t *testing.T) {
 				schemaField{"instance_count", "int"},
 			),
 			contains: []string{
-				"vpc_data_t = __orca_schema(\n",
+				`vpc_data_t = __orca_block("schema", ` + "\n",
 				"    region=str,\n",
 				"    instance_count=int,\n",
 				")\n",
@@ -439,7 +439,7 @@ func TestWriteSchema(t *testing.T) {
 		{
 			name:     "empty body",
 			block:    schemaBlock("empty_t"),
-			contains: []string{"empty_t = __orca_schema()\n"},
+			contains: []string{"empty_t = __orca_block(\"schema\", )\n"},
 		},
 	}
 
@@ -469,7 +469,7 @@ func TestWriteKnowledge(t *testing.T) {
 			name:  "with desc",
 			block: knowledgeBlock("docs", "Company knowledge base"),
 			contains: []string{
-				"docs = __orca_knowledge(\n",
+				`docs = __orca_block("knowledge", ` + "\n",
 				`    desc="Company knowledge base",`,
 				")\n",
 			},
@@ -478,7 +478,7 @@ func TestWriteKnowledge(t *testing.T) {
 			name:  "no desc",
 			block: knowledgeBlock("refs", ""),
 			contains: []string{
-				"refs = __orca_knowledge()\n",
+				"refs = __orca_block(\"knowledge\", )\n",
 			},
 			notContains: []string{"desc="},
 		},

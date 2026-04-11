@@ -240,12 +240,12 @@ func TestExprToSource(t *testing.T) {
 					{Name: "model_name", Value: &ast.StringLiteral{Value: "gpt-4o"}},
 				},
 			}},
-			expected: `__orca_model(provider="openai", model_name="gpt-4o", )`,
+			expected: `__orca_block("model", provider="openai", model_name="gpt-4o", )`,
 		},
 		{
 			name:     "empty block expression",
 			expr:     &ast.BlockExpression{BlockBody: ast.BlockBody{Kind: analyzer.BlockKindAgent}},
-			expected: "__orca_agent()",
+			expected: `__orca_block("agent", )`,
 		},
 		{
 			name: "block expression field with one annotation",
@@ -261,7 +261,7 @@ func TestExprToSource(t *testing.T) {
 					},
 				},
 			}},
-			expected: "__orca_schema(region=__orca_with_meta(\n" +
+			expected: "__orca_block(\"schema\", region=__orca_with_meta(\n" +
 				"    str,\n" +
 				"    [\n" +
 				"        __orca_meta(\"desc\", \"AWS region\"),\n" +
@@ -283,7 +283,7 @@ func TestExprToSource(t *testing.T) {
 					},
 				},
 			}},
-			expected: "__orca_schema(region=__orca_with_meta(\n" +
+			expected: "__orca_block(\"schema\", region=__orca_with_meta(\n" +
 				"    str,\n" +
 				"    [\n" +
 				"        __orca_meta(\"required\"),\n" +
@@ -486,8 +486,8 @@ func TestTopLevelBlockSource(t *testing.T) {
 	if !strings.Contains(got, `__orca_with_meta(`) || !strings.Contains(got, `__orca_meta("sensitive")`) {
 		t.Fatalf("expected with_meta and sensitive meta, got:\n%s", got)
 	}
-	if !strings.Contains(got, `__orca_model(`) {
-		t.Fatalf("expected inner __orca_model call, got:\n%s", got)
+	if !strings.Contains(got, `__orca_block("model", `) {
+		t.Fatalf("expected inner __orca_block(\"model\", ...) call, got:\n%s", got)
 	}
 
 	plain := &ast.BlockStatement{

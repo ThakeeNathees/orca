@@ -177,9 +177,7 @@ func topLevelBlockSource(block *ast.BlockStatement) string {
 // When indent is empty, everything is on one line (used for inline blocks).
 func blockCallSource(body *ast.BlockBody, indent string) string {
 	var sb strings.Builder
-	sb.WriteString(orcaPrefix)
-	sb.WriteString(body.Kind)
-	sb.WriteString("(")
+	sb.WriteString(fmt.Sprintf("%sblock(%q, ", orcaPrefix, body.Kind))
 
 	if indent == "" {
 		for _, assign := range body.Assignments {

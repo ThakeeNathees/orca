@@ -35,77 +35,6 @@ def __orca_with_meta(value: Any, metas: list[Any]) -> SimpleNamespace:
     return SimpleNamespace(_kind="with_meta", value=value, metas=metas)
 
 
-def __orca_model(
-    provider_class: type,
-    model_name: str | SimpleNamespace,
-    api_key: str | None = None,
-    base_url: str | None = None,
-    temperature: float | None = None,
-) -> SimpleNamespace:
-    return __orca_block("model", **__orca_fields(locals()))
-
-
-def __orca_agent(
-    model: str | SimpleNamespace,
-    persona: str,
-    tools: list[SimpleNamespace] | None = None,
-    output_schema: SimpleNamespace | None = None,
-) -> SimpleNamespace:
-    return __orca_block("agent", **__orca_fields(locals()))
-
-
-def __orca_tool(
-    invoke: str | callable,
-    desc: str | None = None,
-    input_schema: SimpleNamespace | None = None,
-    output_schema: SimpleNamespace | None = None,
-) -> SimpleNamespace:
-    return __orca_block("tool", **__orca_fields(locals()))
-
-
-def __orca_knowledge(
-    desc: str | None = None,
-) -> SimpleNamespace:
-    return __orca_block("knowledge", **__orca_fields(locals()))
-
-
-def __orca_workflow(
-    name: str | None = None,
-    desc: str | None = None,
-) -> SimpleNamespace:
-    return __orca_block("workflow", **__orca_fields(locals()))
-
-
-def __orca_cron(
-    schedule: str,
-    timezone: str | None = None,
-) -> SimpleNamespace:
-    return __orca_block("cron", **__orca_fields(locals()))
-
-
-def __orca_webhook(
-    path: str,
-    method: str | None = None,
-) -> SimpleNamespace:
-    return __orca_block("webhook", **__orca_fields(locals()))
-
-
-def __orca_input(
-    type: SimpleNamespace,
-    desc: str | None = None,
-    default: Any | None = None,
-    sensitive: bool | None = None,
-) -> SimpleNamespace:
-    return __orca_block("input", **__orca_fields(locals()))
-
-
-def __orca_schema(**kwargs: Any) -> SimpleNamespace:
-    return __orca_block("schema", **kwargs)
-
-
-def __orca_let(**kwargs: Any) -> SimpleNamespace:
-    return __orca_block("let", **kwargs)
-
 
 def __orca_gather(state: dict, predecessors: list[str]) -> Any:
     """Collect predecessor outputs from workflow state.
@@ -163,7 +92,7 @@ def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     return tool.invoke(input_data)
 
 
-vars = __orca_let(
+vars = __orca_block("let", 
     name="orca",
     count=42,
     rate=3.14,

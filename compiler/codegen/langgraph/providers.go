@@ -157,7 +157,7 @@ func (b *LangGraphBackend) writeModelSection(s *strings.Builder) {
 // substituted from a string to the resolved class name.
 func modelBlockSource(model *ast.BlockStatement) string {
 	var sb strings.Builder
-	sb.WriteString(orcaPrefix + "model(")
+	sb.WriteString(fmt.Sprintf("%sblock(%q, ", orcaPrefix, "model"))
 
 	indent := "    "
 	for _, assign := range model.Assignments {
