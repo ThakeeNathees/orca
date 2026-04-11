@@ -419,6 +419,19 @@ func (p *Parser) parsePrimary() ast.Expression {
 		p.nextToken()
 		return expr
 
+	case token.LPAREN:
+		p.nextToken() // consume '('
+		expr := p.parseExpression(token.PrecLowest)
+		if expr == nil {
+			return nil
+		}
+		if p.curToken.Type != token.RPAREN {
+			p.addError(fmt.Sprintf("expected ')' to close grouped expression, got %s", token.Describe(p.curToken.Type)))
+			return nil
+		}
+		p.nextToken() // consume ')'
+		return expr
+
 	case token.LBRACKET:
 		return p.parseList()
 
