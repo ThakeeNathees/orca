@@ -67,6 +67,12 @@ func exprToSource(expr ast.Expression) string {
 		return exprToSource(e.Callee) + "(" + strings.Join(args, ", ") + ")"
 	case *ast.TernaryExpression:
 		return "(" + exprToSource(e.TrueExpr) + " if " + exprToSource(e.Condition) + " else " + exprToSource(e.FalseExpr) + ")"
+	case *ast.Lambda:
+		var params []string
+		for _, p := range e.Params {
+			params = append(params, p.Name.Value)
+		}
+		return "lambda " + strings.Join(params, ", ") + ": " + exprToSource(e.Body)
 	case *ast.BlockExpression:
 		return blockCallSource(&e.BlockBody, "")
 	default:

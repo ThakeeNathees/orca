@@ -425,9 +425,88 @@ func (p *Parser) parsePrimary() ast.Expression {
 	case token.LBRACE:
 		return p.parseMap()
 
+	case token.BACKSLASH:
+		return p.parseLambda()
+
 	default:
 		p.addError(fmt.Sprintf("expected value, got %s", token.Describe(p.curToken.Type)))
 		return nil
+	}
+}
+
+// parseLambda parses a lambda expression: \(params) return_type -> body.
+// The '\' token must be the current token.
+func (p *Parser) parseLambda() ast.Expression {
+	startToken := p.curToken
+	p.nextToken() // consume '\'
+
+	if p.curToken.Type != token.LPAREN {
+		p.addError(fmt.Sprintf("expected '(' after '\\', got %s", token.Describe(p.curToken.Type)))
+		return nil
+	}
+	p.nextToken() // consume '('
+
+	// Parse parameters: name type, name type, ...
+	var params []ast.LambdaParam
+	for p.curToken.Type != token.RPAREN && p.curToken.Type != token.EOF {
+		if p.curToken.Type != token.IDENT {
+			p.addError(fmt.Sprintf("expected parameter name, got %s", token.Describe(p.curToken.Type)))
+			return nil
+		}
+		nameIdent := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
+		p.nextToken() // consume param name
+
+		// Parse the type expression for this parameter.
+		typeExpr := p.parseExpression(token.PrecLowest)
+		if typeExpr == nil {
+			return nil
+		}
+
+		params = append(params, ast.LambdaParam{Name: nameIdent, TypeExpr: typeExpr})
+
+		if p.curToken.Type == token.COMMA {
+			p.nextToken() // consume ','
+		}
+	}
+
+	if p.curToken.Type != token.RPAREN {
+		p.addError(fmt.Sprintf("expected ')' to close lambda params, got %s", token.Describe(p.curToken.Type)))
+		return nil
+	}
+	p.nextToken() // consume ')'
+
+	// Parse optional return type: everything before '->' is the return type.
+	// If the next token is '->', there's no return type.
+	// Parse at PrecArrow so '->' stops the expression.
+	var returnType ast.Expression
+	if p.curToken.Type != token.ARROW {
+		returnType = p.parseExpression(token.PrecArrow)
+		if returnType == nil {
+			return nil
+		}
+	}
+
+	if p.curToken.Type != token.ARROW {
+		p.addError(fmt.Sprintf("expected '->' in lambda expression, got %s", token.Describe(p.curToken.Type)))
+		return nil
+	}
+	arrowToken := p.curToken
+	p.nextToken() // consume '->'
+
+	body := p.parseExpression(token.PrecLowest)
+	if body == nil {
+		return nil
+	}
+
+	return &ast.Lambda{
+		BaseNode: ast.BaseNode{
+			TokenStart: startToken,
+			TokenEnd:   body.End(),
+		},
+		Params:     params,
+		ReturnType: returnType,
+		Arrow:      arrowToken,
+		Body:       body,
 	}
 }
 

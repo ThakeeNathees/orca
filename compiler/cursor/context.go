@@ -340,6 +340,20 @@ func findInExpr(expr ast.Expression, block *ast.BlockStatement, line, col int) N
 		if node := findInExpr(e.FalseExpr, block, line, col); node.Kind != NoneNode {
 			return node
 		}
+	case *ast.Lambda:
+		for _, p := range e.Params {
+			if node := findInExpr(p.TypeExpr, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
+		if e.ReturnType != nil {
+			if node := findInExpr(e.ReturnType, block, line, col); node.Kind != NoneNode {
+				return node
+			}
+		}
+		if node := findInExpr(e.Body, block, line, col); node.Kind != NoneNode {
+			return node
+		}
 	case *ast.BinaryExpression:
 		if node := findInExpr(e.Left, block, line, col); node.Kind != NoneNode {
 			return node

@@ -103,6 +103,8 @@ func schemaFromExprWithDepth(depth int, expr ast.Expression, symbols *SymbolTabl
 		return binaryExprType(depth, e, symbols)
 	case *ast.TernaryExpression:
 		return ternaryExprType(depth, e, symbols)
+	case *ast.Lambda:
+		return lambdaExprType(depth, e, symbols)
 	case *ast.BlockExpression:
 		return blockExprType(depth, e, symbols)
 	default:
@@ -344,6 +346,24 @@ func callableTypeFromIndices(depth int, indices []ast.Expression, symtab *Symbol
 	}
 	returnType := schemaFromExprWithDepth(depth, indices[len(indices)-1], symtab)
 	return NewCallableType(paramTypes, returnType)
+}
+
+// lambdaExprType returns the Callable type of a lambda expression.
+// If a return type annotation is present, use it; otherwise infer from the body.
+func lambdaExprType(depth int, e *ast.Lambda, symtab *SymbolTable) Type {
+	paramTypes := make([]Type, len(e.Params))
+	for i, p := range e.Params {
+		paramTypes[i] = schemaFromExprWithDepth(depth, p.TypeExpr, symtab)
+	}
+	var retType Type
+	if e.ReturnType != nil {
+		retType = schemaFromExprWithDepth(depth, e.ReturnType, symtab)
+	} else {
+		// Infer return type from body. To resolve param references in the body,
+		// we'd need a child symbol table, but for now return any.
+		retType = anyType(symtab)
+	}
+	return NewCallableType(paramTypes, retType)
 }
 
 // memberAccessType resolves the type of a member access expression

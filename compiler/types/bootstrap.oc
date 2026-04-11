@@ -59,6 +59,10 @@ schema map {}
 
 @suppress("duplicate-block")
 @only_assignments
+schema callable {}
+
+@suppress("duplicate-block")
+@only_assignments
 schema any {}
 
 @suppress("duplicate-block")

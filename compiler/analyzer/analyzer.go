@@ -272,6 +272,17 @@ func collectBlockDeps(expr ast.Expression, userBlocks map[string]*ast.BlockState
 		collectBlockDeps(e.Condition, userBlocks, deps)
 		collectBlockDeps(e.TrueExpr, userBlocks, deps)
 		collectBlockDeps(e.FalseExpr, userBlocks, deps)
+	case *ast.Lambda:
+		// Lambda params shadow outer names, but the body may still reference
+		// outer blocks. We don't exclude param names from deps because
+		// param names are not block names.
+		for _, p := range e.Params {
+			collectBlockDeps(p.TypeExpr, userBlocks, deps)
+		}
+		if e.ReturnType != nil {
+			collectBlockDeps(e.ReturnType, userBlocks, deps)
+		}
+		collectBlockDeps(e.Body, userBlocks, deps)
 	case *ast.BlockExpression:
 		for _, assign := range e.BlockBody.Assignments {
 			if assign.Value != nil {
@@ -716,6 +727,37 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			return diags
 		}
 		if diags := checkReferences(e.FalseExpr, symbols); len(diags) > 0 {
+			return diags
+		}
+	case *ast.Lambda:
+		if e == nil {
+			return nil
+		}
+		// Create a child symbol table with lambda params in scope.
+		childSymbols := types.NewSymbolTable()
+		// Copy all existing symbols into child scope.
+		for name, sym := range symbols.GetSymbols() {
+			childSymbols.Define(name, sym.Type, sym.DefToken)
+		}
+		// Add lambda parameters to scope.
+		for _, p := range e.Params {
+			paramType := types.SchemaTypeFromExpr(p.TypeExpr, symbols)
+			childSymbols.Define(p.Name.Value, paramType, p.Name.Start())
+		}
+		// Check param type expressions against outer scope.
+		for _, p := range e.Params {
+			if diags := checkReferences(p.TypeExpr, symbols); len(diags) > 0 {
+				return diags
+			}
+		}
+		// Check return type against outer scope.
+		if e.ReturnType != nil {
+			if diags := checkReferences(e.ReturnType, symbols); len(diags) > 0 {
+				return diags
+			}
+		}
+		// Check body against child scope (params + outer).
+		if diags := checkReferences(e.Body, &childSymbols); len(diags) > 0 {
 			return diags
 		}
 	case *ast.BlockExpression:
