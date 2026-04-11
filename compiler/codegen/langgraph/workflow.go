@@ -172,7 +172,7 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 				if len(branch.Routes) > 0 {
 					s.WriteString(", ")
 				}
-				fmt.Fprintf(s, "%q: %q", "default", workflow.NodeEND)
+				fmt.Fprintf(s, "%q: %s", "default", workflow.NodeEND)
 			}
 			s.WriteString("})\n")
 		}
