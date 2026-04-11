@@ -549,7 +549,9 @@ The lexer recognizes 39 token types organized into categories:
         \texttt{false}, \texttt{null}.
   \item \textbf{Operators}: \texttt{=}, \texttt{.}, \texttt{->},
         \texttt{|}, \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/},
-        \texttt{@}.
+        \texttt{@}, \texttt{?}, \texttt{:}, \texttt{\textbackslash},
+        \texttt{==}, \texttt{!=}, \texttt{<}, \texttt{>},
+        \texttt{<=}, \texttt{>=}.
   \item \textbf{Delimiters}: braces, brackets, parentheses, comma, colon.
 \end{itemize}
 
@@ -607,9 +609,10 @@ subscript, and call):
 1 & \texttt{?:}             & Right \\
 2 & \texttt{->}             & Left \\
 3 & \texttt{|}              & Left \\
-4 & \texttt{+}, \texttt{-}  & Left \\
-5 & \texttt{*}, \texttt{/}  & Left \\
-6 & \texttt{.}, \texttt{[]}, \texttt{()} & Left \\
+4 & \texttt{==}, \texttt{!=}, \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=} & Left \\
+5 & \texttt{+}, \texttt{-}  & Left \\
+6 & \texttt{*}, \texttt{/}  & Left \\
+7 & \texttt{.}, \texttt{[]}, \texttt{()} & Left \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -630,6 +633,33 @@ to prevent infinite loops. Error-tolerant parsing is essential for
 editor integration: the Language Server Protocol (LSP) server
 re-parses on every keystroke, and incomplete input must not crash the
 pipeline.
+
+\noindent\textbf{Lambda expressions.} Orca supports first-class anonymous
+functions via lambda expressions. The backslash token (\texttt{\textbackslash})
+visually resembles the Greek letter $\lambda$ and introduces the parameter list:
+
+\begin{lstlisting}
+let funcs {
+  add = \(a number, b number) number -> a + b
+  double = \(x number) -> x * 2
+  greet = \() -> "hello"
+  add_k = \(k number) -> \(n number) -> k + n
+}
+\end{lstlisting}
+
+\noindent The return type annotation after the closing parenthesis is optional;
+when omitted, it is inferred from the body expression. The body is always a
+single expression following the \texttt{->} arrow. Lambdas are closures---they
+capture variables from enclosing scopes. The type of a lambda is
+\texttt{callable[P1, \ldots, Pn, R]} where $P_i$ are parameter types and $R$
+is the return type. Lambda expressions compile directly to Python
+\texttt{lambda} expressions.
+
+\noindent\textbf{Scoped symbol table.} Lambda parameters introduce a new
+lexical scope. The symbol table uses a linked chain of scopes: \texttt{PushScope}
+creates a child scope for lambda parameters, and \texttt{PopScope} restores the
+parent. Identifier lookup walks up the chain, so inner lambdas can reference
+outer parameters (closures) and outer parameters can be shadowed by inner ones.
 
 \subsection{Semantic Analysis}
 \label{sec:compiler:analyzer}

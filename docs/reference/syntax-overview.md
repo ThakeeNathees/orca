@@ -51,7 +51,8 @@ headers = {
 ```
 
 - **Lists**: `list[T]` — ordered collection of type `T` (e.g., `list[tool]`).
-- **Maps**: `map[T]` — key-value pairs where keys are strings and values are type `T`.
+- **Maps**: `map[K, V]` — key-value pairs with key type `K` and value type `V` (e.g., `map[string, number]`).
+- **Callable**: `callable[P1, P2, ..., R]` — function type with parameter types and return type as the last element (e.g., `callable[number, number, string]` is a function taking two numbers and returning a string).
 
 ### Unions
 
@@ -121,6 +122,28 @@ let vars {
 
 Supported operators: `+`, `-`, `*`, `/`.
 
+### Comparison operators
+
+```orca
+let vars {
+  is_valid = count > 0
+  is_equal = name == "admin"
+  in_range = score >= 50
+}
+```
+
+Supported operators: `==`, `!=`, `<`, `>`, `<=`, `>=`. Comparison operators have lower precedence than arithmetic but higher than ternary, so `a + 1 < b + 2` parses as `(a + 1) < (b + 2)`.
+
+### Grouped expressions
+
+Use parentheses to override precedence:
+
+```orca
+let vars {
+  result = (a + b) * c
+}
+```
+
 ### Ternary conditional expressions
 
 Use `condition ? thenExpr : elseExpr` for a conditional value. The condition is any expression; the then and else branches must both be present (a trailing `:` without a value is invalid).
@@ -143,6 +166,45 @@ If both branches have the same type, that is the expression’s type. If they di
 **Code generation**
 
 Ternary expressions compile to Python’s conditional expression form (`thenExpr if condition else falseExpr`).
+
+### Lambda expressions
+
+Lambda expressions define anonymous functions using `\` visual shorthand for λ (lambda):
+
+```orca
+let funcs {
+  // With return type annotation
+  add = \(a number, b number) number -> a + b
+
+  // Return type inferred
+  double = \(x number) -> x * 2
+
+  // Zero parameters
+  greet = \() -> "hello"
+
+  // Higher-order (currying)
+  add_k = \(k number) -> \(n number) -> k + n
+}
+```
+
+**Syntax:** `\(param type, ...) return_type -> body`
+
+- The return type is optional — omit it and the compiler infers from the body.
+- The body is always a single expression (can span multiple lines).
+- `\` is a visual shorthand for λ (lambda)
+
+**Closures:** lambdas capture variables from enclosing scopes:
+
+```orca
+let funcs {
+  add_k = \(k number) -> \(n number) -> k + n
+  add_42 = funcs.add_k(42)
+}
+```
+
+**Type:** lambda expressions have type `callable[param_types..., return_type]`. For example, `\(a number, b number) number -> a + b` has type `callable[number, number, number]`.
+
+**Code generation:** lambdas compile to Python `lambda` expressions.
 
 ### Function calls
 
