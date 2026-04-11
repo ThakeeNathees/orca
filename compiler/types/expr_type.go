@@ -18,13 +18,6 @@ import (
 // writer is agent writer {} so SchemaFromExpr(writer) will return
 // Type(BlockRef(agent writer {}))
 //
-// This is a companion function to SchemaTypeFromExpr(). where the return
-// type of this function can be `anyKind anyValue {}` but SchemaTypeFromExpr()
-// will always be `schema <something> {}`
-func BlockSchemaTypeOfExpr(expr ast.Expression, symbols *SymbolTable) Type {
-	return schemaFromExprWithDepth(0, expr, symbols)
-}
-
 // Return the schema type of the expression.
 //
 // i.e.

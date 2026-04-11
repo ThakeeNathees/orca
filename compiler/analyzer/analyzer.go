@@ -740,38 +740,42 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if e == nil {
 			return nil
 		}
-		// Create a child symbol table with lambda params in scope.
-		childSymbols := types.NewSymbolTable()
-		// Copy all existing symbols into child scope.
-		for name, sym := range symbols.GetSymbols() {
-			childSymbols.Define(name, sym.Type, sym.DefToken)
-		}
-		// Add lambda parameters to scope.
-		for _, p := range e.Params {
-			paramType := types.SchemaTypeFromExpr(p.TypeExpr, symbols)
-			childSymbols.Define(p.Name.Value, paramType, p.Name.Start())
-		}
-		// Check param type expressions against outer scope.
+		// Check param type expressions and return type against current scope
+		// (before pushing params).
 		for _, p := range e.Params {
 			if diags := checkReferences(p.TypeExpr, symbols); len(diags) > 0 {
 				return diags
 			}
 		}
-		// Check return type against outer scope.
 		if e.ReturnType != nil {
 			if diags := checkReferences(e.ReturnType, symbols); len(diags) > 0 {
 				return diags
 			}
 		}
-		// Check body against child scope (params + outer).
-		if diags := checkReferences(e.Body, &childSymbols); len(diags) > 0 {
+		// Push a child scope for lambda parameters.
+		symbols.PushScope()
+		for _, p := range e.Params {
+			// Use depth 0 to get the direct type (e.g. "number" → Type{BlockRef, "number", <schema number {}>})
+			// rather than depth 1 which walks up to the meta-schema.
+			paramType := types.ExprTypeFromExpr(p.TypeExpr, symbols)
+			// Create a synthetic block instance for the param so IdentType's
+			// depth chain resolves correctly. E.g. param `n number` gets a block
+			// with Ast.Kind="number", mirroring how `model gpt4 {}` works.
+			paramSchema := types.NewLambdaParamSchema(p.Name.Value, paramType)
+			typ := types.NewBlockRefType(p.Name.Value, &paramSchema)
+			symbols.Define(p.Name.Value, typ, p.Name.Start())
+		}
+		// Check body against scope with params visible.
+		if diags := checkReferences(e.Body, symbols); len(diags) > 0 {
+			symbols.PopScope()
 			return diags
 		}
 		// Validate body type matches declared return type.
 		if e.ReturnType != nil {
 			expected := types.ExprTypeFromExpr(e.ReturnType, symbols)
-			got := types.SchemaTypeFromExpr(e.Body, &childSymbols)
+			got := types.SchemaTypeFromExpr(e.Body, symbols)
 			if !types.IsCompatible(got, expected) {
+				symbols.PopScope()
 				return []diagnostic.Diagnostic{{
 					Severity: diagnostic.Error,
 					Code:     diagnostic.CodeTypeMismatch,
@@ -779,11 +783,16 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 						Line:   e.Body.Start().Line,
 						Column: e.Body.Start().Column,
 					},
+					EndPosition: diagnostic.Position{
+						Line:   e.Body.End().Line,
+						Column: e.Body.End().Column + len(e.Body.End().Literal),
+					},
 					Message: fmt.Sprintf("lambda body type %s does not match declared return type %s", got.String(), expected.String()),
 					Source:  "analyzer",
 				}}
 			}
 		}
+		symbols.PopScope()
 	case *ast.BlockExpression:
 		if e == nil {
 			return nil

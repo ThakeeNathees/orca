@@ -67,7 +67,7 @@ func NewBlockSchema(
 // @desc("...") for descriptions. Required is inferred: if the type
 // contains null in a union, the field is optional; otherwise required.
 func NewFieldSchema(assign *ast.Assignment, symtab *SymbolTable) FieldSchema {
-	typ := BlockSchemaTypeOfExpr(assign.Value, symtab)
+	typ := ExprTypeFromExpr(assign.Value, symtab)
 	fs := FieldSchema{Required: true, Type: typ}
 
 	// If the type is a union containing null, the field is optional.
@@ -92,6 +92,21 @@ func NewFieldSchema(assign *ast.Assignment, symtab *SymbolTable) FieldSchema {
 	}
 
 	return fs
+}
+
+// NewLambdaParamSchema creates a synthetic BlockSchema for a lambda parameter.
+// The Ast.Kind is set to the param type name (e.g. "number") so that IdentType's
+// depth chain resolves correctly: param "n" → kind "number" → schema number {}.
+func NewLambdaParamSchema(paramName string, paramType Type) BlockSchema {
+	// paramType from SchemaTypeFromExpr(depth=1) for "number" is:
+	//   Type{BlockRef, BlockName: "number", Block: <schema number {}>}
+	// We set Ast.Kind to the type name ("number") so the depth chain works:
+	//   identType(1, "n") → Ast.Kind = "number" → identType(0, "number") → schema number {}
+	return BlockSchema{
+		BlockName: paramName,
+		Ast:       &ast.BlockBody{Kind: paramType.BlockName},
+		Schema:    paramType.Block,
+	}
 }
 
 // IsEqualTo returns true if this BlockSchema is equal to the other.

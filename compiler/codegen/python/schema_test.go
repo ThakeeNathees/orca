@@ -71,7 +71,7 @@ func TestOrcaTypeToPythonTypeName(t *testing.T) {
 
 // TestSchemaBlockToSource verifies full Pydantic class generation from schema blocks.
 //
-// SchemaBlockToSource calls BlockSchemaTypeOfExpr(expr, nil). Without a symbol table,
+// SchemaBlockToSource calls ExprTypeFromExpr(expr, nil). Without a symbol table,
 // identifiers in schema type expressions still resolve as named type references, so
 // generated Python annotations match Orca primitives and schema names.
 func TestSchemaBlockToSource(t *testing.T) {

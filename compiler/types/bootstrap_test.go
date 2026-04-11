@@ -145,7 +145,7 @@ func TestLoadSchemasDescriptions(t *testing.T) {
 	}
 }
 
-// TestResolveIdentAsType verifies that BlockSchemaTypeOfExpr on an identifier
+// TestResolveIdentAsType verifies that ExprTypeFromExpr on an identifier
 // with a bootstrapped symbol table resolves each name to the corresponding
 // schema block (or `any` when the name is unknown).
 func TestResolveIdentAsType(t *testing.T) {
@@ -170,7 +170,7 @@ func TestResolveIdentAsType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typ := BlockSchemaTypeOfExpr(&ast.Identifier{Value: tt.input}, st)
+			typ := ExprTypeFromExpr(&ast.Identifier{Value: tt.input}, st)
 			var want Type
 			if tt.input == "vpc_data_t" {
 				want, _ = st.Lookup("any")
@@ -181,15 +181,15 @@ func TestResolveIdentAsType(t *testing.T) {
 				t.Errorf("Kind = %v, want BlockRef", typ.Kind)
 			}
 			if !typ.Equals(want) {
-				t.Errorf("BlockSchemaTypeOfExpr(ident %q) = %s, want %s", tt.input, typ.String(), want.String())
+				t.Errorf("ExprTypeFromExpr(ident %q) = %s, want %s", tt.input, typ.String(), want.String())
 			}
 		})
 	}
 }
 
-// TestBlockSchemaTypeOfExprBootstrap verifies BlockSchemaTypeOfExpr with a
+// TestExprTypeFromExprBootstrap verifies ExprTypeFromExpr with a
 // bootstrapped symbol table handles type expression forms correctly.
-func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
+func TestExprTypeFromExprBootstrap(t *testing.T) {
 	st := bootstrapSymtab(t)
 
 	anyTyp := IdentType(0, "any", st)
@@ -261,7 +261,7 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typ := BlockSchemaTypeOfExpr(tt.expr, st)
+			typ := ExprTypeFromExpr(tt.expr, st)
 			if typ.Kind != tt.kind {
 				t.Errorf("Kind = %v, want %v", typ.Kind, tt.kind)
 			}
@@ -281,10 +281,10 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 	}
 }
 
-// TestBlockSchemaTypeOfExprInlineSchema verifies that inline schema expressions
+// TestExprTypeFromExprInlineSchema verifies that inline schema expressions
 // register a synthetic name in the symbol table; the expression's type is the
 // schema kind with a nil Block pointer (see blockExprType).
-func TestBlockSchemaTypeOfExprInlineSchema(t *testing.T) {
+func TestExprTypeFromExprInlineSchema(t *testing.T) {
 	st := bootstrapSymtab(t)
 	expr := &ast.BlockExpression{
 		BlockBody: ast.BlockBody{
@@ -298,7 +298,7 @@ func TestBlockSchemaTypeOfExprInlineSchema(t *testing.T) {
 		},
 	}
 
-	typ := BlockSchemaTypeOfExpr(expr, st)
+	typ := ExprTypeFromExpr(expr, st)
 	if typ.Kind != BlockRef {
 		t.Errorf("Kind = %v, want BlockRef", typ.Kind)
 	}

@@ -7,9 +7,9 @@ import (
 	"github.com/thakee/orca/compiler/token"
 )
 
-// TestBlockSchemaTypeOfExpr verifies that BlockSchemaTypeOfExpr returns the
+// TestExprTypeFromExpr verifies that ExprTypeFromExpr returns the
 // correct type for literal expressions (depth-0 schema-from-expr).
-func TestBlockSchemaTypeOfExpr(t *testing.T) {
+func TestExprTypeFromExpr(t *testing.T) {
 	st := bootstrapSymtab(t)
 	tests := []struct {
 		name     string
@@ -24,21 +24,21 @@ func TestBlockSchemaTypeOfExpr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := BlockSchemaTypeOfExpr(tt.expr, st)
+			got := ExprTypeFromExpr(tt.expr, st)
 			if got.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", got.Kind)
 			}
 			if !got.Equals(tt.expected) {
-				t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), tt.expected.String())
+				t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), tt.expected.String())
 			}
 		})
 	}
 }
 
-// TestBlockSchemaTypeOfExprList verifies list literal type inference.
-func TestBlockSchemaTypeOfExprList(t *testing.T) {
+// TestExprTypeFromExprList verifies list literal type inference.
+func TestExprTypeFromExprList(t *testing.T) {
 	st := bootstrapSymtab(t)
-	got := BlockSchemaTypeOfExpr(&ast.ListLiteral{}, st)
+	got := ExprTypeFromExpr(&ast.ListLiteral{}, st)
 	if got.Kind != List {
 		t.Fatalf("Kind = %v, want List", got.Kind)
 	}
@@ -49,7 +49,7 @@ func TestBlockSchemaTypeOfExprList(t *testing.T) {
 			&ast.StringLiteral{Value: "b"},
 		},
 	}
-	got = BlockSchemaTypeOfExpr(list, st)
+	got = ExprTypeFromExpr(list, st)
 	if got.Kind != List {
 		t.Fatalf("Kind = %v, want List", got.Kind)
 	}
@@ -58,8 +58,8 @@ func TestBlockSchemaTypeOfExprList(t *testing.T) {
 	}
 }
 
-// TestBlockSchemaTypeOfExprMapLiteral verifies map literal type inference.
-func TestBlockSchemaTypeOfExprMapLiteral(t *testing.T) {
+// TestExprTypeFromExprMapLiteral verifies map literal type inference.
+func TestExprTypeFromExprMapLiteral(t *testing.T) {
 	st := bootstrapSymtab(t)
 	anyTyp := IdentType(0, "any", st)
 	tests := []struct {
@@ -98,7 +98,7 @@ func TestBlockSchemaTypeOfExprMapLiteral(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &ast.MapLiteral{Entries: tt.entries}
-			got := BlockSchemaTypeOfExpr(m, st)
+			got := ExprTypeFromExpr(m, st)
 			if got.Kind != Map {
 				t.Errorf("Kind = %v, want Map", got.Kind)
 			}
@@ -119,9 +119,9 @@ func TestBlockSchemaTypeOfExprMapLiteral(t *testing.T) {
 	}
 }
 
-// TestBlockSchemaTypeOfExprIdentWithSymbolTable verifies that identifiers resolve
+// TestExprTypeFromExprIdentWithSymbolTable verifies that identifiers resolve
 // to their block reference type when a symbol table is provided.
-func TestBlockSchemaTypeOfExprIdentWithSymbolTable(t *testing.T) {
+func TestExprTypeFromExprIdentWithSymbolTable(t *testing.T) {
 	st := NewSymbolTable()
 	// anyType() resolves to IdentType("any", …); the table must define "any" or lookups recurse.
 	st.Define("any", NewBlockRefType("any", nil), token.Token{})
@@ -143,20 +143,20 @@ func TestBlockSchemaTypeOfExprIdentWithSymbolTable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			expr := &ast.Identifier{Value: tt.ident}
-			got := BlockSchemaTypeOfExpr(expr, &st)
+			got := ExprTypeFromExpr(expr, &st)
 			if got.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", got.Kind)
 			}
 			if !got.Equals(tt.expected) {
-				t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), tt.expected.String())
+				t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), tt.expected.String())
 			}
 		})
 	}
 }
 
-// TestBlockSchemaTypeOfExprMemberAccess verifies that member access expressions resolve
+// TestExprTypeFromExprMemberAccess verifies that member access expressions resolve
 // to the field's type via the block schema.
-func TestBlockSchemaTypeOfExprMemberAccess(t *testing.T) {
+func TestExprTypeFromExprMemberAccess(t *testing.T) {
 	res := Bootstrap(testBootstrapSource)
 	schemaByName := make(map[string]*BlockSchema)
 	for i := range res.Schemas {
@@ -173,7 +173,7 @@ func TestBlockSchemaTypeOfExprMemberAccess(t *testing.T) {
 		name   string
 		object string
 		member string
-		// wantField: if non-empty, compare BlockSchemaTypeOfExpr to model.Fields[member].Type
+		// wantField: if non-empty, compare ExprTypeFromExpr to model.Fields[member].Type
 		wantField string
 	}{
 		{"model.provider", "gpt4", "provider", "provider"},
@@ -189,31 +189,31 @@ func TestBlockSchemaTypeOfExprMemberAccess(t *testing.T) {
 				Object: &ast.Identifier{Value: tt.object},
 				Member: tt.member,
 			}
-			got := BlockSchemaTypeOfExpr(expr, &st)
+			got := ExprTypeFromExpr(expr, &st)
 			switch {
 			case tt.wantField != "":
 				want := model.Fields[tt.wantField].Type
 				if !got.Equals(want) {
-					t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), want.String())
+					t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), want.String())
 				}
 			case tt.object == "unknown":
 				want := IdentType(0, "any", &st)
 				if !got.Equals(want) {
-					t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), want.String())
+					t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), want.String())
 				}
 			default:
 				want := IdentType(0, "any", &st)
 				if !got.Equals(want) {
-					t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), want.String())
+					t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), want.String())
 				}
 			}
 		})
 	}
 }
 
-// TestBlockSchemaTypeOfExprSubscription verifies that subscription expressions resolve
+// TestExprTypeFromExprSubscription verifies that subscription expressions resolve
 // to the element type for lists and the value type for maps.
-func TestBlockSchemaTypeOfExprSubscription(t *testing.T) {
+func TestExprTypeFromExprSubscription(t *testing.T) {
 	st := bootstrapSymtab(t)
 	anyTyp := IdentType(0, "any", st)
 	tests := []struct {
@@ -265,32 +265,32 @@ func TestBlockSchemaTypeOfExprSubscription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			expr := &ast.Subscription{Object: tt.object, Indices: []ast.Expression{tt.index}}
-			got := BlockSchemaTypeOfExpr(expr, st)
+			got := ExprTypeFromExpr(expr, st)
 			if !got.Equals(tt.expected) {
-				t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), tt.expected.String())
+				t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), tt.expected.String())
 			}
 		})
 	}
 }
 
-// TestBlockSchemaTypeOfExprBinaryArrow verifies that an arrow expression returns any.
-func TestBlockSchemaTypeOfExprBinaryArrow(t *testing.T) {
+// TestExprTypeFromExprBinaryArrow verifies that an arrow expression returns any.
+func TestExprTypeFromExprBinaryArrow(t *testing.T) {
 	st := bootstrapSymtab(t)
 	expr := &ast.BinaryExpression{
 		Left:     &ast.Identifier{Value: "a"},
 		Operator: token.Token{Type: token.ARROW},
 		Right:    &ast.Identifier{Value: "b"},
 	}
-	got := BlockSchemaTypeOfExpr(expr, st)
+	got := ExprTypeFromExpr(expr, st)
 	want := IdentType(0, "any", st)
 	if !got.Equals(want) {
-		t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), want.String())
+		t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), want.String())
 	}
 }
 
-// TestBlockSchemaTypeOfExprBinaryArithmetic verifies result type inference for arithmetic
+// TestExprTypeFromExprBinaryArithmetic verifies result type inference for arithmetic
 // and string binary expressions covering all operator + type combinations.
-func TestBlockSchemaTypeOfExprBinaryArithmetic(t *testing.T) {
+func TestExprTypeFromExprBinaryArithmetic(t *testing.T) {
 	st := bootstrapSymtab(t)
 	numLit := func(v float64) ast.Expression { return &ast.NumberLiteral{Value: v} }
 	strLit := func(v string) ast.Expression { return &ast.StringLiteral{Value: v} }
@@ -329,9 +329,9 @@ func TestBlockSchemaTypeOfExprBinaryArithmetic(t *testing.T) {
 				Operator: token.Token{Type: tt.op},
 				Right:    tt.right,
 			}
-			got := BlockSchemaTypeOfExpr(expr, st)
+			got := ExprTypeFromExpr(expr, st)
 			if !got.Equals(tt.expected) {
-				t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), tt.expected.String())
+				t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), tt.expected.String())
 			}
 		})
 	}
