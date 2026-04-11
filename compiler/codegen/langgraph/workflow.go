@@ -21,7 +21,7 @@ func (b *LangGraphBackend) resolveWorkflows() {
 	}
 	b.resolvedWorkflows = make(map[string]workflow.ResolvedWorkflow, len(wfs))
 	for _, wf := range wfs {
-		rw := workflow.Resolve(wf, b.triggerPredicate(), nil)
+		rw := workflow.Resolve(wf, b.triggerPredicate(), b.branchBodyLookup())
 		b.resolvedWorkflows[wf.Name] = rw
 	}
 }
@@ -44,6 +44,26 @@ func (b *LangGraphBackend) triggerPredicate() func(string) bool {
 			return false
 		}
 		return helper.HasAnnotation(typ.Block.Annotations, analyzer.AnnotationTriggerNode)
+	}
+}
+
+// branchBodyLookup returns a function that looks up a block name in the symbol
+// table and returns its BlockBody if it's a branch block, or nil otherwise.
+// Works for both named branch blocks and inline branch expressions (registered
+// by the type system as __anon_N).
+func (b *LangGraphBackend) branchBodyLookup() func(string) *ast.BlockBody {
+	return func(name string) *ast.BlockBody {
+		typ, ok := b.Program.SymbolTable.Lookup(name)
+		if !ok {
+			return nil
+		}
+		if typ.Block == nil || typ.Block.Ast == nil {
+			return nil
+		}
+		if typ.Block.Ast.Kind != workflow.BlockKindBranch {
+			return nil
+		}
+		return typ.Block.Ast
 	}
 }
 
@@ -110,6 +130,12 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 	s.WriteString("\n")
 	writeRouter(s, rw, stateName)
 
+	// Branch router functions.
+	for i, branch := range rw.Branches {
+		s.WriteString("\n")
+		writeBranchRouter(s, rw, stateName, branch, i)
+	}
+
 	// StateGraph construction.
 	s.WriteString("\n")
 	fmt.Fprintf(s, "%s = StateGraph(%s)\n", rw.Name, stateName)
@@ -120,6 +146,37 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 
 	// START → router (always conditional edges).
 	fmt.Fprintf(s, "%s.add_conditional_edges(START, %sroute_%s)\n", rw.Name, orcaPrefix, rw.Name)
+
+	// Branch conditional edges.
+	for i, branch := range rw.Branches {
+		routerName := branchRouterFuncName(rw.Name, i)
+		for _, pred := range branch.Preds {
+			fmt.Fprintf(s, "%s.add_conditional_edges(%q, %s", rw.Name, pred, routerName)
+			// Emit route map: {key: first_node, ...}
+			s.WriteString(", {")
+			for j, route := range branch.Routes {
+				if j > 0 {
+					s.WriteString(", ")
+				}
+				fmt.Fprintf(s, "%s: %q", exprToSource(route.Key), route.EntryNodes[0])
+			}
+			// Default route → END if no "default" key.
+			hasDefault := false
+			for _, route := range branch.Routes {
+				if strLit, ok := route.Key.(*ast.StringLiteral); ok && strLit.Value == "default" {
+					hasDefault = true
+					break
+				}
+			}
+			if !hasDefault {
+				if len(branch.Routes) > 0 {
+					s.WriteString(", ")
+				}
+				fmt.Fprintf(s, "%q: %q", "default", workflow.NodeEND)
+			}
+			s.WriteString("})\n")
+		}
+	}
 
 	// Processing edges + END edges.
 	for _, edge := range rw.Edges {
@@ -260,6 +317,28 @@ func (b *LangGraphBackend) writeWorkflowNode(s *strings.Builder, rw workflow.Res
 		fmt.Fprintf(s, "    raise NotImplementedError(\"workflow node '%s': block kind '%s' is not supported in workflows yet\")\n", node, block.Kind)
 	}
 	fmt.Fprintf(s, "    return {%q: _out}\n", node)
+}
+
+// branchRouterFuncName returns the Python function name for a branch router.
+func branchRouterFuncName(workflowName string, branchIndex int) string {
+	return fmt.Sprintf("%sroute_%s_branch_%d", orcaPrefix, workflowName, branchIndex)
+}
+
+// writeBranchRouter emits a Python function that routes based on the branch's
+// transform output. The function gathers predecessor input, applies the optional
+// transform lambda, and returns the result as the route key.
+func writeBranchRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string, branch workflow.Branch, branchIndex int) {
+	funcName := branchRouterFuncName(rw.Name, branchIndex)
+	fmt.Fprintf(s, "def %s(state: %s) -> str:\n", funcName, stateName)
+	fmt.Fprintf(s, "    \"\"\"Branch router.\"\"\"\n")
+	fmt.Fprintf(s, "    _predecessors = %s\n", pythonStringListLiteral(branch.Preds))
+	fmt.Fprintf(s, "    _input = %s(state, _predecessors)\n", orcaGatherFunc)
+
+	if branch.Transform != nil {
+		fmt.Fprintf(s, "    return (%s)(_input)\n", exprToSource(branch.Transform))
+	} else {
+		s.WriteString("    return _input\n")
+	}
 }
 
 // workflowImports returns the Python imports required by the given workflow blocks.

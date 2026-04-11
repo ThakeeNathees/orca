@@ -736,6 +736,9 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if e == nil {
 			return nil
 		}
+		// Resolve the type first to ensure BlockNameAnon is set and the
+		// inline block is registered in the symbol table.
+		types.SchemaTypeFromExpr(e, symbols)
 		diags := analyzeBlockBody(&e.BlockBody, nil, e.BlockNameAnon, e.TokenStart, e.TokenEnd, symbols)
 		if len(diags) > 0 {
 			return diags
@@ -878,8 +881,15 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 		}}
 	}
 
-	// Ensure the block is a workflow node.
+	// Ensure the block is a workflow node. For inline BlockExpressions,
+	// typ.Block may be nil (blockExprType returns the schema kind without
+	// the schema pointer), so fall back to looking up the schema by kind name.
 	schema := typ.Block
+	if schema == nil {
+		if schemaType, ok := symbols.Lookup(typ.BlockName); ok {
+			schema = schemaType.Block
+		}
+	}
 	if schema == nil || !helper.HasAnnotation(schema.Annotations, AnnotationWorkflowNode) {
 		return []diagnostic.Diagnostic{{
 			Severity: diagnostic.Error,
