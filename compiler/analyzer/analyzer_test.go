@@ -1025,17 +1025,26 @@ func TestAnalyzeLambdaReturnTypeMismatch(t *testing.T) {
 			false,
 			"",
 		},
-		// TODO: Return type mismatch for complex body expressions (ternary, binary)
-		// is not yet detected because ExprTypeFromExpr at depth 0 resolves to any
-		// for most compound expressions. Needs proper value-level type inference.
-		// {
-		// 	"recursive lambda return type mismatch",
-		// 	`let fn {
-		// 		fac = \(n number) string -> (n > 1) ? n * fn.fac(n - 1) : 0
-		// 	}`,
-		// 	true,
-		// 	"lambda body type number does not match declared return type string",
-		// },
+		{
+			"recursive lambda return type mismatch",
+			`let fn {
+				fac = \(n number) string -> (n > 1) ? n * fn.fac(n - 1) : 0
+			}`,
+			true,
+			"lambda body type number does not match declared return type string",
+		},
+		{
+			"nested lambda closure captures outer param",
+			`let v { f = \(x number) -> \(y number) -> x + y }`,
+			false,
+			"",
+		},
+		{
+			"nested lambda shadows outer param",
+			`let v { f = \(x number) -> \(x string) -> x }`,
+			false,
+			"",
+		},
 		{
 			"lambda param undefined outside body",
 			`let v {
