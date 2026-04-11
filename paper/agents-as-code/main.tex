@@ -591,8 +591,8 @@ structure (\texttt{keyword name \{ assignments \}}), so a single parsing
 function handles them all---the block's semantic identity is determined
 by its keyword token, not by specialized grammar rules.
 
-\noindent\textbf{Expression parsing.} The Pratt parser handles six
-precedence levels, from lowest (\texttt{->}) to highest (member access,
+\noindent\textbf{Expression parsing.} The Pratt parser handles
+precedence levels from lowest (\texttt{?:}) to highest (member access,
 subscript, and call):
 
 \begin{table}[t]
@@ -604,11 +604,12 @@ subscript, and call):
 \toprule
 \textbf{Level} & \textbf{Operators} & \textbf{Associativity} \\
 \midrule
-1 & \texttt{->}             & Left \\
-2 & \texttt{|}              & Left \\
-3 & \texttt{+}, \texttt{-}  & Left \\
-4 & \texttt{*}, \texttt{/}  & Left \\
-5 & \texttt{.}, \texttt{[]}, \texttt{()} & Left \\
+1 & \texttt{?:}             & Right \\
+2 & \texttt{->}             & Left \\
+3 & \texttt{|}              & Left \\
+4 & \texttt{+}, \texttt{-}  & Left \\
+5 & \texttt{*}, \texttt{/}  & Left \\
+6 & \texttt{.}, \texttt{[]}, \texttt{()} & Left \\
 \bottomrule
 \end{tabular}
 \end{table}

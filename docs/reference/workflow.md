@@ -29,6 +29,8 @@ workflow pipeline {
 }
 ```
 
+The `->` operator binds **tighter** than the ternary `?:` in ordinary expressions (so `a -> b ? c : d` is `(a -> b) ? c : d`). See [Syntax overview — Ternary conditional expressions](/reference/syntax-overview#ternary-conditional-expressions).
+
 This creates a sequential pipeline where:
 1. `researcher` runs first
 2. Its output passes to `writer`

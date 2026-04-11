@@ -121,6 +121,29 @@ let vars {
 
 Supported operators: `+`, `-`, `*`, `/`.
 
+### Ternary conditional expressions
+
+Use `condition ? thenExpr : elseExpr` for a conditional value. The condition is any expression; the then and else branches must both be present (a trailing `:` without a value is invalid).
+
+```orca
+let vars {
+  label = use_short ? "hi" : "hello"
+}
+```
+
+**Precedence and associativity**
+
+- **Right-associative:** nested ternaries group to the right — `a ? b ? c : d : e` means `a ? (b ? c : d) : e`.
+- **Looser than workflow arrows:** `a -> b ? c : d` is parsed as `(a -> b) ? c : d`, not `a -> (b ? c : d)`. When mixing arrows and ternaries, use parentheses if you need the other grouping.
+
+**Types**
+
+If both branches have the same type, that is the expression’s type. If they differ, the compiler forms a flattened union (for example `string | number`).
+
+**Code generation**
+
+Ternary expressions compile to Python’s conditional expression form (`thenExpr if condition else falseExpr`).
+
 ### Function calls
 
 ```orca

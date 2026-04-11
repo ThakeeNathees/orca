@@ -59,6 +59,7 @@
         { "include": "#string" },
         { "include": "#number" },
         { "include": "#assignment-key" },
+        { "include": "#ternary-operator" },
         { "include": "#arrow-operator" },
         { "include": "#pipe-operator" },
         { "include": "#operator" },
@@ -178,6 +179,10 @@
       "captures": {
         "1": { "name": "variable.other.property.orca" }
       }
+    },
+    "ternary-operator": {
+      "match": "\\?",
+      "name": "keyword.operator.ternary.orca"
     },
     "arrow-operator": {
       "match": "->",
