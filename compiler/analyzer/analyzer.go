@@ -265,8 +265,8 @@ func collectBlockDeps(expr ast.Expression, userBlocks map[string]*ast.BlockState
 		}
 	case *ast.Subscription:
 		collectBlockDeps(e.Object, userBlocks, deps)
-		if e.Index != nil {
-			collectBlockDeps(e.Index, userBlocks, deps)
+		for _, idx := range e.Indices {
+			collectBlockDeps(idx, userBlocks, deps)
 		}
 	case *ast.TernaryExpression:
 		collectBlockDeps(e.Condition, userBlocks, deps)
@@ -633,15 +633,26 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if diags := checkReferences(e.Object, symbols); len(diags) > 0 {
 			return diags
 		}
-		if e.Index == nil {
-			return nil
-		}
-		if diags := checkReferences(e.Index, symbols); len(diags) > 0 {
-			return diags
+		for _, idx := range e.Indices {
+			if diags := checkReferences(idx, symbols); len(diags) > 0 {
+				return diags
+			}
 		}
 		objType := types.SchemaTypeFromExpr(e.Object, symbols)
-		if types.IsCompatible(objType, types.Type{Kind: types.List}) {
-			idxType := types.SchemaTypeFromExpr(e.Index, symbols)
+		if types.IsCompatible(objType, types.Type{Kind: types.List}) && len(e.Indices) > 0 {
+			if len(e.Indices) > 1 {
+				return []diagnostic.Diagnostic{{
+					Severity: diagnostic.Error,
+					Code:     diagnostic.CodeInvalidSubscript,
+					Position: diagnostic.Position{
+						Line:   e.Indices[1].Start().Line,
+						Column: e.Indices[1].Start().Column,
+					},
+					Message: fmt.Sprintf("list subscript expects a single index, got %d", len(e.Indices)),
+					Source:  "analyzer",
+				}}
+			}
+			idxType := types.SchemaTypeFromExpr(e.Indices[0], symbols)
 
 			// TODO: Const fold and validate out of bounds errors.
 
@@ -650,13 +661,25 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 					Severity: diagnostic.Error,
 					Code:     diagnostic.CodeInvalidSubscript,
 					Position: diagnostic.Position{
-						Line:   e.Index.Start().Line,
-						Column: e.Index.Start().Column,
+						Line:   e.Indices[0].Start().Line,
+						Column: e.Indices[0].Start().Column,
 					},
 					Message: fmt.Sprintf("list subscript requires an integer index, got %s", idxType.String()),
 					Source:  "analyzer",
 				}}
 			}
+		}
+		if types.IsCompatible(objType, types.Type{Kind: types.Map}) && len(e.Indices) > 1 {
+			return []diagnostic.Diagnostic{{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeInvalidSubscript,
+				Position: diagnostic.Position{
+					Line:   e.Indices[1].Start().Line,
+					Column: e.Indices[1].Start().Column,
+				},
+				Message: fmt.Sprintf("map subscript expects a single index, got %d", len(e.Indices)),
+				Source:  "analyzer",
+			}}
 		}
 	case *ast.CallExpression:
 		if e == nil {

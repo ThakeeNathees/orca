@@ -330,7 +330,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Name: "tags",
 							Value: &ast.Subscription{
 								Object: &ast.Identifier{Value: "list"},
-								Index:  &ast.Identifier{Value: "string"},
+								Indices: []ast.Expression{&ast.Identifier{Value: "string"}},
 							},
 						},
 					},
@@ -350,7 +350,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Name: "items",
 							Value: &ast.Subscription{
 								Object: &ast.Identifier{Value: "list"},
-								Index:  &ast.Identifier{Value: "address"},
+								Indices: []ast.Expression{&ast.Identifier{Value: "address"}},
 							},
 							Annotations: []*ast.Annotation{
 								{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "All addresses"}}},
@@ -363,7 +363,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 				"    items: list[address] = Field(description=\"All addresses\")\n",
 		},
 		{
-			name: "map[str] field",
+			name: "map[string, string] field",
 			block: &ast.BlockStatement{
 				Name: "config",
 				BlockBody: ast.BlockBody{
@@ -372,8 +372,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 						{
 							Name: "metadata",
 							Value: &ast.Subscription{
-								Object: &ast.Identifier{Value: "map"},
-								Index:  &ast.Identifier{Value: "string"},
+								Object:  &ast.Identifier{Value: "map"},
+								Indices: []ast.Expression{&ast.Identifier{Value: "string"}, &ast.Identifier{Value: "string"}},
 							},
 						},
 					},
@@ -470,7 +470,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Name: "tags",
 							Value: &ast.Subscription{
 								Object: &ast.Identifier{Value: "list"},
-								Index:  &ast.Identifier{Value: "string"},
+								Indices: []ast.Expression{&ast.Identifier{Value: "string"}},
 							},
 						},
 					},

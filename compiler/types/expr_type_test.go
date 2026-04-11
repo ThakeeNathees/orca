@@ -264,7 +264,7 @@ func TestBlockSchemaTypeOfExprSubscription(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expr := &ast.Subscription{Object: tt.object, Index: tt.index}
+			expr := &ast.Subscription{Object: tt.object, Indices: []ast.Expression{tt.index}}
 			got := BlockSchemaTypeOfExpr(expr, st)
 			if !got.Equals(tt.expected) {
 				t.Errorf("BlockSchemaTypeOfExpr() = %s, want %s", got.String(), tt.expected.String())

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/thakee/orca/compiler/ast"
@@ -633,7 +634,11 @@ func exprString(expr ast.Expression) string {
 	case *ast.MemberAccess:
 		return fmt.Sprintf("(%s.%s)", exprString(e.Object), e.Member)
 	case *ast.Subscription:
-		return fmt.Sprintf("(%s[%s])", exprString(e.Object), exprString(e.Index))
+		var indices []string
+		for _, idx := range e.Indices {
+			indices = append(indices, exprString(idx))
+		}
+		return fmt.Sprintf("(%s[%s])", exprString(e.Object), strings.Join(indices, ", "))
 	case *ast.CallExpression:
 		args := ""
 		for i, a := range e.Arguments {
@@ -913,9 +918,12 @@ func TestParseSubscription(t *testing.T) {
 	if ident.Value != "a" {
 		t.Errorf("expected object 'a', got %q", ident.Value)
 	}
-	idx, ok := sub.Index.(*ast.NumberLiteral)
+	if len(sub.Indices) != 1 {
+		t.Fatalf("expected 1 index, got %d", len(sub.Indices))
+	}
+	idx, ok := sub.Indices[0].(*ast.NumberLiteral)
 	if !ok {
-		t.Fatalf("expected NumberLiteral as index, got %T", sub.Index)
+		t.Fatalf("expected NumberLiteral as index, got %T", sub.Indices[0])
 	}
 	if idx.Value != 0 {
 		t.Errorf("expected index 0, got %f", idx.Value)
@@ -995,6 +1003,58 @@ func TestParseSubscriptionErrors(t *testing.T) {
 			p.ParseProgram()
 			if len(p.Errors()) == 0 {
 				t.Error("expected parser errors, got none")
+			}
+		})
+	}
+}
+
+func TestParseMultiIndexSubscription(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		count    int // expected number of indices
+	}{
+		{
+			name:     "single index",
+			input:    `model m { val = a[0] }`,
+			expected: "(a[0])",
+			count:    1,
+		},
+		{
+			name:     "two indices",
+			input:    `model m { val = callable[number, string] }`,
+			expected: "(callable[number, string])",
+			count:    2,
+		},
+		{
+			name:     "three indices",
+			input:    `model m { val = callable[number, string, bool] }`,
+			expected: "(callable[number, string, bool])",
+			count:    3,
+		},
+		{
+			name:     "nested subscription in index",
+			input:    `model m { val = callable[list[number], string] }`,
+			expected: "(callable[(list[number]), string])",
+			count:    2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], "model", "m")
+			sub, ok := block.Assignments[0].Value.(*ast.Subscription)
+			if !ok {
+				t.Fatalf("expected Subscription, got %T", block.Assignments[0].Value)
+			}
+			if len(sub.Indices) != tt.count {
+				t.Errorf("expected %d indices, got %d", tt.count, len(sub.Indices))
+			}
+			got := exprString(block.Assignments[0].Value)
+			if got != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, got)
 			}
 		})
 	}

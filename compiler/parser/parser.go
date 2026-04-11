@@ -509,15 +509,16 @@ func (p *Parser) parseMemberAccess(object ast.Expression) *ast.MemberAccess {
 	return ma
 }
 
-// parseSubscription parses an index access: object[index].
-// The '[' token must be the current token. The index is any expression.
+// parseSubscription parses an index access: object[index] or object[a, b, c].
+// The '[' token must be the current token. Indices are comma-separated expressions.
 func (p *Parser) parseSubscription(object ast.Expression) *ast.Subscription {
 	openBracket := p.curToken
 	p.nextToken() // consume the [
 
-	index := p.parseExpression(token.PrecLowest)
-	if index == nil {
-		// Return a partial Subscription with nil Index so the AST is never
+	var indices []ast.Expression
+	first := p.parseExpression(token.PrecLowest)
+	if first == nil {
+		// Return a partial Subscription with empty Indices so the AST is never
 		// nil. The analyzer will skip validation for nil sub-expressions.
 		return &ast.Subscription{
 			BaseNode: ast.BaseNode{
@@ -525,21 +526,32 @@ func (p *Parser) parseSubscription(object ast.Expression) *ast.Subscription {
 				TokenEnd:   openBracket,
 			},
 			Object: object,
-			Index:  nil,
 		}
+	}
+	indices = append(indices, first)
+
+	// Parse additional comma-separated indices.
+	for p.curToken.Type == token.COMMA {
+		p.nextToken() // consume the comma
+		idx := p.parseExpression(token.PrecLowest)
+		if idx == nil {
+			break
+		}
+		indices = append(indices, idx)
 	}
 
 	if p.curToken.Type != token.RBRACKET {
 		p.addError(fmt.Sprintf("expected ']' to close subscript, got %s",
 			token.Describe(p.curToken.Type)))
 		// Return partial with what we have so far.
+		last := indices[len(indices)-1]
 		return &ast.Subscription{
 			BaseNode: ast.BaseNode{
 				TokenStart: object.Start(),
-				TokenEnd:   index.End(),
+				TokenEnd:   last.End(),
 			},
-			Object: object,
-			Index:  index,
+			Object:  object,
+			Indices: indices,
 		}
 	}
 
@@ -548,8 +560,8 @@ func (p *Parser) parseSubscription(object ast.Expression) *ast.Subscription {
 			TokenStart: object.Start(),
 			TokenEnd:   p.curToken,
 		},
-		Object: object,
-		Index:  index,
+		Object:  object,
+		Indices: indices,
 	}
 	p.nextToken() // consume the ]
 	return sub

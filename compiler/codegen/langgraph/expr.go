@@ -40,7 +40,11 @@ func exprToSource(expr ast.Expression) string {
 	case *ast.MemberAccess:
 		return exprToSource(e.Object) + "." + e.Member
 	case *ast.Subscription:
-		return exprToSource(e.Object) + "[" + exprToSource(e.Index) + "]"
+		var indices []string
+		for _, idx := range e.Indices {
+			indices = append(indices, exprToSource(idx))
+		}
+		return exprToSource(e.Object) + "[" + strings.Join(indices, ", ") + "]"
 	case *ast.ListLiteral:
 		var elems []string
 		for _, el := range e.Elements {
