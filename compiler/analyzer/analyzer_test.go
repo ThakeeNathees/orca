@@ -1197,6 +1197,56 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			true,
 			"not a valid workflow node",
 		},
+		{
+			"valid inline branch",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> branch { route = { "x": B, "y": C } } }`,
+			false,
+			"",
+		},
+		{
+			"valid named branch",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 branch router { route = { "x": B, "y": C } }
+			 workflow run { A -> router }`,
+			false,
+			"",
+		},
+		{
+			"branch with outgoing edge",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> branch { route = { "x": B } } -> C }`,
+			true,
+			"branch block cannot have outgoing edges",
+		},
+		{
+			"named branch with outgoing edge",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 branch router { route = { "x": B } }
+			 workflow run { router -> C }`,
+			true,
+			"branch block cannot have outgoing edges",
+		},
+		{
+			"standalone branch in workflow is allowed (dead code)",
+			`agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { branch { route = { "x": B } } }`,
+			false,
+			"",
+		},
 	}
 
 	for _, tt := range tests {

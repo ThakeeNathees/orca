@@ -47,33 +47,6 @@ func (b *LangGraphBackend) triggerPredicate() func(string) bool {
 	}
 }
 
-// writeWorkflowSection emits all workflow blocks as LangGraph StateGraph
-// construction code. Each workflow generates:
-//   - A per-workflow TypedDict state class with typed node fields
-//   - Node wrapper functions for each referenced agent/tool
-//   - A router function that dispatches to entry nodes based on trigger source
-//   - StateGraph instantiation with add_node/add_conditional_edges/add_edge calls
-//   - Compilation to a runnable graph
-func (b *LangGraphBackend) writeWorkflowSection(s *strings.Builder, blocks []*ast.BlockStatement) {
-	isTrigger := b.triggerPredicate()
-	var resolved []workflow.ResolvedWorkflow
-	for _, block := range blocks {
-		rw := workflow.Resolve(block, isTrigger)
-		if len(rw.Nodes) > 0 {
-			resolved = append(resolved, rw)
-		}
-	}
-	if len(resolved) == 0 {
-		return
-	}
-
-	s.WriteString("\n# --- Workflows ---\n")
-
-	for _, rw := range resolved {
-		b.writeWorkflow(s, rw)
-	}
-}
-
 // writeWorkflowEntrypoint emits a default Python entrypoint for a single workflow.
 // This allows running the generated `main.py` directly (e.g. `python main.py "payload"`).
 // Skips when there is no workflow, multiple workflows, or the sole workflow has no
@@ -284,7 +257,7 @@ func (b *LangGraphBackend) writeWorkflowNode(s *strings.Builder, rw workflow.Res
 	case analyzer.BlockKindTool:
 		fmt.Fprintf(s, "    _out = %s(%s, _input)\n", orcaInvokeToolFunc, node)
 	default:
-		fmt.Fprintf(s, "    raise NotImplementedError(\"workflow node %q: block kind %q is not supported in workflows yet\")\n", node, block.Kind)
+		fmt.Fprintf(s, "    raise NotImplementedError(\"workflow node '%s': block kind '%s' is not supported in workflows yet\")\n", node, block.Kind)
 	}
 	fmt.Fprintf(s, "    return {%q: _out}\n", node)
 }

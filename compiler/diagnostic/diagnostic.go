@@ -43,6 +43,7 @@ const (
 	CodeAmbiguousStart   = "ambiguous-start"       // multiple entry nodes without triggers to disambiguate
 	CodeDanglingEntry    = "dangling-entry"        // entry node unreachable because no trigger points to it
 	CodeCyclicDependency = "cyclic-dependency"     // blocks form a dependency cycle
+	CodeBranchOutgoing = "branch-outgoing" // branch block used on left side of arrow
 )
 
 // Diagnostic represents a single compiler message (error, warning, etc.)

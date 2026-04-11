@@ -788,7 +788,7 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 
 // validateWorkflowExpr checks that a workflow expression only uses the -> operator
 // and that each graph endpoint resolves to a workflow-capable block reference
-// (agent, tool, cron, webhook) via the type system.
+// (agent, tool, cron, webhook, branch) via the type system.
 func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	if expr == nil {
 		return nil
@@ -808,12 +808,51 @@ func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []dia
 				Source:  "analyzer",
 			})
 		}
+
+		// Branch blocks cannot be on the left side of -> (no outgoing edges allowed).
+		// In a chain like A -> branch{...} -> C, the parse tree is ((A -> branch{...}) -> C),
+		// so we check the rightmost leaf of the left subtree.
+		if isBranchExpr(rightmostLeaf(e.Left), symbols) {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeBranchOutgoing,
+				Position: diagnostic.Position{
+					Line:   e.Operator.Line,
+					Column: e.Operator.Column,
+				},
+				Message: "branch block cannot have outgoing edges; define connections in the route table instead",
+				Source:  "analyzer",
+			})
+		}
+
 		diags = append(diags, validateWorkflowExpr(e.Left, symbols)...)
 		diags = append(diags, validateWorkflowExpr(e.Right, symbols)...)
 	default:
 		diags = append(diags, validateWorkflowLeafExpr(expr, symbols)...)
 	}
 	return diags
+}
+
+// rightmostLeaf returns the rightmost non-arrow leaf of an expression tree.
+// For A -> B -> C (parsed as (A -> B) -> C), rightmostLeaf returns C.
+// For a non-binary expression, returns the expression itself.
+func rightmostLeaf(expr ast.Expression) ast.Expression {
+	if bin, ok := expr.(*ast.BinaryExpression); ok && bin.Operator.Type == token.ARROW {
+		return rightmostLeaf(bin.Right)
+	}
+	return expr
+}
+
+// isBranchExpr returns true if the expression resolves to a branch block type.
+// Works for both inline branch { ... } expressions and named branch references.
+func isBranchExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
+	// Fast path: inline block expression with Kind "branch".
+	if be, ok := expr.(*ast.BlockExpression); ok {
+		return be.Kind == BlockKindBranch
+	}
+	// Named branch reference: resolve the type and check the block kind.
+	typ := types.SchemaTypeFromExpr(expr, symbols)
+	return typ.Kind == types.BlockRef && typ.BlockName == BlockKindBranch
 }
 
 // validateWorkflowLeafExpr checks a single workflow node position (not an arrow).
