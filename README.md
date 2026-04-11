@@ -201,6 +201,7 @@ This will automatically build your `.orca` files, generate the `build/` director
 - **LangGraph backend** — generates production-ready Python code using the battle-tested LangGraph framework
 - **IDE support** — language server with go-to-definition, hover hints, autocomplete, and diagnostics
 - **Readable generated code** — Python output is clean and debuggable, with source mapping back to `.orca` files
+- **Token-efficient output** — TODO: leverage TOON (Token-Oriented Object Notation) and Caveman for compact, efficient token representations in generated code and LLM prompts
 - **Extensible** — generated code is meant to be customized and extended for your use case
 
 
@@ -262,13 +263,17 @@ Argues that the path to robust multi-agent systems is not smarter prompting but 
 
 - Omar Khattab et al. (2023) *DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines* [online] Available at https://arxiv.org/abs/2310.03714
 
+- Johann Schopplich. (2024) *Toon: Token-Oriented Object Notation* [online] Available at https://github.com/toon-format/toon
+
+- Julius Brussee. *Caveman: why use many token when few token do trick* [online] Available at https://github.com/juliusbrussee/caveman
+
 - Dawei Gao et al. (2024) *AgentScope: A Flexible yet Robust Multi-Agent Platform* [online] Available at https://arxiv.org/abs/2402.14034
 
 - Mitchell Hashimoto et al. (2014) *HCL: HashiCorp Configuration Language* [online] Available at https://github.com/hashicorp/hcl
 
 - Jieyuan Wu et al. (2023) *AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation* [online] Available at https://arxiv.org/abs/2308.08155
 
-- João Moura. (2024) *CrewAI: Framework for Orchestrating Role-Playing AI Agents* [online] Available at https://github.com/crewAIInc/crewAI
+- João Moura et al. (2024) *CrewAI: Framework for Orchestrating Role-Playing AI Agents* [online] Available at https://github.com/crewAIInc/crewAI
 
 - Alexey Kladov. (2020) *Simple but Powerful Pratt Parsing* [online] Available at https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 

@@ -146,7 +146,7 @@ func TestCompleteFieldNames(t *testing.T) {
 
 	// Line 2, col 1 — inside block body, should suggest missing fields.
 	ctx := resolveAtDocPosition(doc, 1, 0) // 0-based: line 1, char 0
-	items := completionItems(ctx)
+	items := completionItems(ctx, "")
 
 	// model has 5 fields: provider (already assigned), model_name, temperature, api_key, base_url.
 	// Should suggest all except provider.
@@ -174,7 +174,7 @@ func TestCompleteFieldNamesRequired(t *testing.T) {
 	doc := updateDocument("test://file.orca", text)
 
 	ctx := resolveAtDocPosition(doc, 0, 19) // inside empty block
-	items := completionItems(ctx)
+	items := completionItems(ctx, "")
 
 	// Check that required fields have sort text starting with "0_".
 	for _, item := range items {
@@ -201,7 +201,7 @@ func TestCompleteFieldNamesInsertText(t *testing.T) {
 	doc := updateDocument("test://file.orca", text)
 
 	ctx := resolveAtDocPosition(doc, 0, 13) // inside empty block
-	items := completionItems(ctx)
+	items := completionItems(ctx, "")
 
 	for _, item := range items {
 		if item.InsertText == nil {
@@ -629,8 +629,8 @@ func TestNoCrashCompletionOnPartialParse(t *testing.T) {
 			if node.Kind == cursor.MemberAccessNode && node.DotCompletion {
 				_ = completeMemberFields(doc, node.MemberAccess)
 			}
-			cursorCtx := cursor.Resolve(doc.Program, line, col)
-			_ = completionItems(cursorCtx)
+			cursorCtx := cursor.Resolve(doc.Program, line, col, doc.Symbols)
+			_ = completionItems(cursorCtx, "")
 		})
 	}
 }
@@ -644,8 +644,8 @@ func TestCompletionInsideInlineBlock(t *testing.T) {
 	// Line 4 (0-based: 3) is the blank line inside the inline model block.
 	line := 4
 	col := 3
-	cursorCtx := cursor.Resolve(doc.Program, line, col)
-	items := completionItems(cursorCtx)
+	cursorCtx := cursor.Resolve(doc.Program, line, col, doc.Symbols)
+	items := completionItems(cursorCtx, "")
 
 	if len(items) == 0 {
 		t.Fatal("expected completions inside inline block, got none")
@@ -668,6 +668,69 @@ func TestCompletionInsideInlineBlock(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected model_name in completions")
+	}
+}
+
+// TestCompleteSymbols verifies that symbol completions work in expression contexts.
+// When typing a symbol prefix in a field value, matching symbols should be suggested.
+func TestCompleteSymbols(t *testing.T) {
+	input := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt\n  persona = \"hi\"\n}"
+	doc := updateDocument("test://symbols.orca", input)
+
+	// Line 6 (1-based), col 14 — cursor is after "gpt" on the value side.
+	// This should trigger symbol completion with prefix "gpt".
+	line := 6
+	col := 14 // "  model = gpt" has "gpt" at positions 11-13, col=14 is after
+	word := extractWordAt(doc.Text, line, col)
+	if word != "gpt" {
+		t.Fatalf("expected prefix 'gpt', got %q", word)
+	}
+
+	cursorCtx := cursor.Resolve(doc.Program, line, col, doc.Symbols)
+	items := completeSymbols(cursorCtx, word)
+
+	if len(items) == 0 {
+		t.Fatal("expected symbol completions for 'gpt', got none")
+	}
+
+	// "gpt4" should be in the completions.
+	found := false
+	for _, item := range items {
+		if item.Label == "gpt4" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected 'gpt4' in symbol completions")
+	}
+}
+
+// TestExtractWordAt verifies that word extraction works correctly.
+// col is 1-based and represents the cursor position (before character at 0-based index col-1).
+func TestExtractWordAt(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		line     int
+		col      int // 1-based position
+		expected string
+	}{
+		{"at word start", "model = gpt", 1, 9, ""},          // col 9: before 'g', after space
+		{"mid-word", "model = gpt4", 1, 12, "gpt"},         // col 12: before '4', after 't'
+		{"after word", "model = gpt4 ", 1, 13, "gpt4"},      // col 13: before space, after '4'
+		{"after space", "model = gpt4 ", 1, 14, ""},         // col 14: after space
+		{"identifier with underscore", "model = my_model", 1, 17, "my_model"},  // col 17: after last 'l'
+		{"digit in identifier", "model = model2", 1, 15, "model2"},  // col 15: after '2'
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractWordAt(tt.text, tt.line, tt.col)
+			if result != tt.expected {
+				t.Errorf("extractWordAt(%q, %d, %d) = %q, want %q", tt.text, tt.line, tt.col, result, tt.expected)
+			}
+		})
 	}
 }
 
@@ -854,5 +917,5 @@ func resolveAtDocPosition(doc *documentState, line, char int) cursor.Context {
 	if doc.Program == nil {
 		return cursor.Context{}
 	}
-	return cursor.Resolve(doc.Program, line+1, char+1)
+	return cursor.Resolve(doc.Program, line+1, char+1, doc.Symbols)
 }

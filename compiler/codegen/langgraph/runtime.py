@@ -63,10 +63,14 @@ def _orca__invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
         llm = llm.with_structured_output(output_schema)
 
     react = create_agent(llm, tools)
-    result = react.invoke(
-        {"messages": [{"role": "system", "content": agent.persona},
-                      {"role": "user", "content": str(input_data)}]}
-    )
+    messages = [{"role": "system", "content": agent.persona}]
+    # Use input_data as user message, or default to "Proceed" if empty.
+    user_content = str(input_data).strip() if input_data else ""
+    if not user_content:
+        user_content = "Proceed with the instructions provided."
+    messages.append({"role": "user", "content": user_content})
+
+    result = react.invoke({"messages": messages})
 
     # Extract the final AI message content.
     last_msg = result["messages"][-1]

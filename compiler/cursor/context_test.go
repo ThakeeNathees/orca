@@ -38,7 +38,7 @@ func TestResolveTopLevel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := Resolve(program, tt.line, tt.col)
+			ctx := Resolve(program, tt.line, tt.col, nil)
 			if ctx.Position != tt.expect {
 				t.Errorf("Position = %v, want %v", ctx.Position, tt.expect)
 			}
@@ -69,7 +69,7 @@ func TestResolveBlockBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := Resolve(program, tt.line, tt.col)
+			ctx := Resolve(program, tt.line, tt.col, nil)
 			if ctx.Position != tt.expect {
 				t.Errorf("Position = %v, want %v", ctx.Position, tt.expect)
 			}
@@ -92,7 +92,7 @@ func TestResolveFieldValue(t *testing.T) {
 	input := "model gpt4 {\n  provider = \"openai\"\n}"
 	program := parseProgram(t, input)
 
-	ctx := Resolve(program, 2, 14)
+	ctx := Resolve(program, 2, 14, nil)
 	if ctx.Position != FieldValue {
 		t.Errorf("Position = %v, want FieldValue", ctx.Position)
 	}
@@ -121,7 +121,7 @@ func TestResolveMultipleBlocks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := Resolve(program, tt.line, tt.col)
+			ctx := Resolve(program, tt.line, tt.col, nil)
 			if ctx.Block == nil {
 				t.Fatalf("expected block, got nil")
 			}
@@ -139,7 +139,7 @@ func TestResolveInsideRawString(t *testing.T) {
 	program := parseProgram(t, input)
 
 	// Line 3 is inside the raw string value.
-	ctx := Resolve(program, 3, 5)
+	ctx := Resolve(program, 3, 5, nil)
 	if ctx.Position != FieldValue {
 		t.Errorf("Position = %v, want FieldValue (inside raw string)", ctx.Position)
 	}
@@ -158,7 +158,7 @@ func TestResolveAfterLastAssignment(t *testing.T) {
 	input := "agent researcher {\n  model = \"gpt-4o\"\n  persona = \"You are helpful.\"\n\n}"
 	program := parseProgram(t, input)
 
-	ctx := Resolve(program, 4, 1)
+	ctx := Resolve(program, 4, 1, nil)
 	if ctx.Position != BlockBody {
 		t.Errorf("Position = %v, want BlockBody (new line after last assignment)", ctx.Position)
 	}
@@ -170,7 +170,7 @@ func TestResolveSchemaPopulated(t *testing.T) {
 	input := "model gpt4 {\n  provider = \"openai\"\n}"
 	program := parseProgram(t, input)
 
-	ctx := Resolve(program, 2, 3)
+	ctx := Resolve(program, 2, 3, nil)
 	if ctx.Schema == nil {
 		t.Fatal("Schema should not be nil for model block")
 	}
@@ -529,7 +529,7 @@ func TestFindNodeAtDotCompletion(t *testing.T) {
 
 // TestResolveNilProgram verifies that Resolve handles nil program gracefully.
 func TestResolveNilProgram(t *testing.T) {
-	ctx := Resolve(nil, 1, 1)
+	ctx := Resolve(nil, 1, 1, nil)
 	if ctx.Position != TopLevel {
 		t.Errorf("Position = %v, want TopLevel for nil program", ctx.Position)
 	}
@@ -542,7 +542,7 @@ func TestResolveUserSchemaBlock(t *testing.T) {
 	program := parseProgram(t, input)
 
 	// Line 4 is a blank line inside the block — BlockBody position.
-	ctx := Resolve(program, 4, 1)
+	ctx := Resolve(program, 4, 1, nil)
 	if ctx.Position != BlockBody {
 		t.Errorf("Position = %v, want BlockBody", ctx.Position)
 	}
@@ -576,7 +576,7 @@ func TestResolveInlineBlockBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := Resolve(program, tt.line, tt.col)
+			ctx := Resolve(program, tt.line, tt.col, nil)
 			if ctx.Position != tt.expect {
 				t.Errorf("Position = %v, want %v", ctx.Position, tt.expect)
 			}
@@ -602,7 +602,7 @@ func TestResolveInlineSchemaBody(t *testing.T) {
 	program := parseProgram(t, input)
 
 	// Line 6 is blank inside the inline schema block.
-	ctx := Resolve(program, 6, 3)
+	ctx := Resolve(program, 6, 3, nil)
 	if ctx.Position != BlockBody {
 		t.Errorf("Position = %v, want BlockBody", ctx.Position)
 	}
@@ -619,7 +619,7 @@ func TestResolveEmptyBlock(t *testing.T) {
 	input := "model gpt4 {\n}"
 	program := parseProgram(t, input)
 
-	ctx := Resolve(program, 1, 14)
+	ctx := Resolve(program, 1, 14, nil)
 	if ctx.Position != BlockBody {
 		t.Errorf("Position = %v, want BlockBody", ctx.Position)
 	}

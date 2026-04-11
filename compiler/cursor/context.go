@@ -33,13 +33,15 @@ type Context struct {
 	BlockKind   string              // block kind (of the innermost block)
 	Schema      *types.BlockSchema  // schema for the block type, nil if unknown
 	Assignment  *ast.Assignment     // enclosing assignment, nil if not on a value
+	Symbols     *types.SymbolTable  // symbol table from analyzer, nil if parse errors
 }
 
 // Resolve determines the semantic context at the given 1-based line and column
-// within the program's AST.
-func Resolve(program *ast.Program, line, col int) Context {
+// within the program's AST. symtab is optional; if provided, it's stored in the
+// returned context for symbol completion.
+func Resolve(program *ast.Program, line, col int, symtab *types.SymbolTable) Context {
 	if program == nil {
-		return Context{Position: TopLevel}
+		return Context{Position: TopLevel, Symbols: symtab}
 	}
 
 	for _, stmt := range program.Statements {
@@ -56,6 +58,7 @@ func Resolve(program *ast.Program, line, col int) Context {
 			Position:  BlockBody,
 			Block:     block,
 			BlockKind: block.Kind,
+			Symbols:   symtab,
 		}
 		ctx.Schema = resolveBlockSchema(block.Kind, block.Name, program)
 
@@ -65,7 +68,7 @@ func Resolve(program *ast.Program, line, col int) Context {
 			if posInAssignment(assign, line, col) {
 				// Check if the value is an inline block and cursor is inside it.
 				if be, ok := assign.Value.(*ast.BlockExpression); ok {
-					if inlineCtx, found := resolveInlineBlock(program, be, block, line, col); found {
+					if inlineCtx, found := resolveInlineBlock(program, be, block, line, col, symtab); found {
 						return inlineCtx
 					}
 				}
@@ -78,13 +81,13 @@ func Resolve(program *ast.Program, line, col int) Context {
 		return ctx
 	}
 
-	return Context{Position: TopLevel}
+	return Context{Position: TopLevel, Symbols: symtab}
 }
 
 // resolveInlineBlock checks if the cursor is inside a BlockExpression's body
 // and returns the appropriate context. Returns (ctx, true) if inside, or
 // (Context{}, false) if the cursor is not within the inline block body.
-func resolveInlineBlock(program *ast.Program, be *ast.BlockExpression, parent *ast.BlockStatement, line, col int) (Context, bool) {
+func resolveInlineBlock(program *ast.Program, be *ast.BlockExpression, parent *ast.BlockStatement, line, col int, symtab *types.SymbolTable) (Context, bool) {
 	// Check if cursor is within the inline block's braces.
 	startLine := be.TokenStart.Line
 	startCol := be.TokenStart.Column
@@ -99,6 +102,7 @@ func resolveInlineBlock(program *ast.Program, be *ast.BlockExpression, parent *a
 		Block:       parent,
 		InlineBlock: &be.BlockBody,
 		BlockKind:   be.Kind,
+		Symbols:     symtab,
 	}
 	// Inline schemas are anonymous — pass empty name so resolveBlockSchema
 	// skips the named-schema lookup and returns nil.

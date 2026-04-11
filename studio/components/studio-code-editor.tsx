@@ -4,19 +4,19 @@ import Editor from "@monaco-editor/react";
 import { Info } from "lucide-react";
 
 type StudioCodeEditorProps = {
-  /** Generated `.oc` source derived from the current graph. */
+  /** Generated `.orca` source derived from the current graph. */
   value: string;
 };
 
 /**
- * Read-only `.oc` source view.
+ * Read-only `.orca` source view.
  *
  * The buffer is derived from the visual graph via `generateOrcaSource` in
  * the parent — there is no write path yet, so Monaco is locked in
  * read-only mode and a subtle banner reminds the user. Bidirectional code
  * editing is a future phase that requires a CST-preserving parser.
  *
- * Monaco's built-in `hcl` mode is close enough to `.oc` (HashiCorp-style
+ * Monaco's built-in `hcl` mode is close enough to `.orca` (HashiCorp-style
  * blocks, `key = value`) to give useful syntax highlighting for free.
  */
 export function StudioCodeEditor({ value }: StudioCodeEditorProps) {

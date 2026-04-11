@@ -75,7 +75,14 @@ func initialize(ctx *glsp.Context, params *protocol.InitializeParams) (any, erro
 			HoverProvider:      true,
 			DefinitionProvider: true,
 			CompletionProvider: &protocol.CompletionOptions{
-				TriggerCharacters: []string{"\n", "."},
+				TriggerCharacters: []string{
+					".", "\n",
+					"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+					"n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+					"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+					"N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+					"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "_",
+				},
 			},
 		},
 		ServerInfo: &protocol.InitializeResultServerInfo{
@@ -137,6 +144,121 @@ func textDocumentDidClose(ctx *glsp.Context, params *protocol.DidCloseTextDocume
 	return nil
 }
 
+// extractWordAt returns the partial word being typed at the given 1-based
+// line and column. Searches backward from cursor position to find the start
+// of the identifier (stops at whitespace, operators, etc.). Returns the prefix.
+// col is 1-based and represents the cursor position (before the character at 0-based index col-1).
+func extractWordAt(text string, line, col int) string {
+	lines := strings.Split(text, "\n")
+	if line < 1 || line > len(lines) {
+		return ""
+	}
+
+	// Line is 1-based; convert to 0-based for array access.
+	currentLine := lines[line-1]
+	if col < 1 {
+		return ""
+	}
+
+	// col is 1-based. In terms of 0-based string indices:
+	// col=1 means position 0 (beginning of line)
+	// col=N means position N-1 (the character at index N-1)
+	// The cursor is BEFORE the character at index col-1.
+	// So we want to include characters at indices [start, col-1).
+	pos := col - 1
+	if pos > len(currentLine) {
+		pos = len(currentLine)
+	}
+
+	// If we're not in the middle of an identifier, return empty string.
+	// Check the character immediately before pos (which is at index pos-1).
+	if pos == 0 || !isIdentifierChar(rune(currentLine[pos-1])) {
+		return ""
+	}
+
+	// Search backward from pos-1 to find the start of the identifier.
+	start := pos - 1
+	for start > 0 && isIdentifierChar(rune(currentLine[start-1])) {
+		start--
+	}
+
+	return currentLine[start:pos]
+}
+
+// isIdentifierChar reports whether r can be part of an identifier.
+func isIdentifierChar(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+		(r >= '0' && r <= '9') || r == '_'
+}
+
+// isDefiningBlockName checks if we're at a position where we're defining a new
+// block name (e.g., after "agent " or while typing "agent n"). At TopLevel, if
+// the current line has the pattern "IDENTIFIER " or "IDENTIFIER IDENTIFIER"
+// with no '{' yet, we're defining a block name.
+func isDefiningBlockName(text string, line, col int) bool {
+	lines := strings.Split(text, "\n")
+	if line < 1 || line > len(lines) {
+		return false
+	}
+
+	currentLine := lines[line-1]
+	pos := col - 1
+	if pos > len(currentLine) {
+		pos = len(currentLine)
+	}
+
+	// If there's a '{' on this line, we're not defining a block name.
+	if strings.Contains(currentLine[:pos], "{") {
+		return false
+	}
+
+	// Get the part of the line before the cursor (without trimming, to check for trailing space).
+	lineBeforeCursor := currentLine[:pos]
+	trimmed := strings.TrimSpace(lineBeforeCursor)
+	if trimmed == "" {
+		return false
+	}
+
+	// Split into words.
+	parts := strings.Fields(trimmed)
+
+	// Pattern 1: "IDENTIFIER " (with trailing space) — defining a block name
+	if len(parts) == 1 && isValidIdentifier(parts[0]) {
+		// Check if there's trailing whitespace (space after the identifier).
+		if len(lineBeforeCursor) > len(trimmed) {
+			return true
+		}
+	}
+
+	// Pattern 2: "IDENTIFIER IDENTIFIER" — block kind and name being typed
+	if len(parts) == 2 {
+		for _, part := range parts {
+			if !isValidIdentifier(part) {
+				return false
+			}
+		}
+		return true
+	}
+
+	return false
+}
+
+// isValidIdentifier checks if a string is a valid Orca identifier.
+func isValidIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if i == 0 && (r >= '0' && r <= '9') {
+			return false // Can't start with digit
+		}
+		if !isIdentifierChar(r) {
+			return false
+		}
+	}
+	return true
+}
+
 // textDocumentCompletion handles completion requests. Uses cursor.Resolve
 // to determine the context and returns appropriate completion items.
 func textDocumentCompletion(ctx *glsp.Context, params *protocol.CompletionParams) (any, error) {
@@ -156,18 +278,35 @@ func textDocumentCompletion(ctx *glsp.Context, params *protocol.CompletionParams
 		return completeMemberFields(doc, node.MemberAccess), nil
 	}
 
-	cursorCtx := cursor.Resolve(doc.Program, line, col)
-	return completionItems(cursorCtx), nil
+	// Check if we're defining a new block name (e.g., after "agent ").
+	// If so, don't suggest completions.
+	if isDefiningBlockName(doc.Text, line, col) {
+		return nil, nil
+	}
+
+	// Extract the word being typed (for symbol completion).
+	word := extractWordAt(doc.Text, line, col)
+
+	cursorCtx := cursor.Resolve(doc.Program, line, col, doc.Symbols)
+	return completionItems(cursorCtx, word), nil
 }
 
 // completionItems builds LSP completion items from a cursor context.
-func completionItems(ctx cursor.Context) []protocol.CompletionItem {
+// word is the partial identifier being typed (for symbol completion).
+func completionItems(ctx cursor.Context, word string) []protocol.CompletionItem {
 	switch ctx.Position {
+	case cursor.TopLevel:
+		// At top level, only suggest symbols if actively typing (word is not empty).
+		// Empty newlines/spaces at top level should not trigger completions.
+		if word == "" {
+			return nil
+		}
+		return completeSymbols(ctx, word)
 	case cursor.BlockBody:
 		return completeFieldNames(ctx)
 	case cursor.FieldValue:
-		// TODO: suggest values based on field type (block refs, booleans, etc.)
-		return nil
+		// Suggest symbols matching the typed prefix.
+		return completeSymbols(ctx, word)
 	default:
 		return nil
 	}
@@ -278,6 +417,34 @@ func completeMemberFields(doc *documentState, ma *ast.MemberAccess) []protocol.C
 			item.Documentation = docContent
 		}
 
+		items = append(items, item)
+	}
+
+	return items
+}
+
+// completeSymbols returns completion items for in-scope symbols matching the
+// given word prefix. Used when typing in expression contexts (field values).
+func completeSymbols(ctx cursor.Context, prefix string) []protocol.CompletionItem {
+	if ctx.Symbols == nil {
+		return nil
+	}
+
+	var items []protocol.CompletionItem
+	for name, sym := range ctx.Symbols.GetSymbols() {
+		// Filter by prefix match.
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+
+		kind := protocol.CompletionItemKindVariable
+		detail := sym.Type.String()
+
+		item := protocol.CompletionItem{
+			Label:  name,
+			Kind:   &kind,
+			Detail: &detail,
+		}
 		items = append(items, item)
 	}
 
