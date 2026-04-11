@@ -385,13 +385,20 @@ func analyzeBlockBody(
 	// ex: schema foo { a = bar b = baz }
 	//
 	// bar and baz should be schemas `schema bar {}` and `schema baz {}` (ex: schema string {}).
-	if blockSchema.Schema != nil && blockSchema.Ast.Kind != types.BlockKindSchema {
-		// Validate the field types in assignments.
+	// Validate assignments: full schema validation when a schema is available,
+	// reference-only validation for schema-less blocks (e.g. let, custom kinds).
+	// Schema blocks are skipped — their fields are type names, not value expressions.
+	if body.Kind != types.BlockKindSchema {
+		hasSchema := blockSchema.Schema != nil && blockSchema.Ast.Kind != types.BlockKindSchema
 		for _, assign := range body.Assignments {
-			fieldDiags := validateField(assign, name, body.Kind, *blockSchema.Schema, symbols)
 			fieldCodes, fieldAll := suppressedCodes(assign.Annotations)
-			fieldDiags = filterSuppressed(fieldDiags, fieldCodes, fieldAll)
-			diags = append(diags, fieldDiags...)
+			if hasSchema {
+				fieldDiags := validateField(assign, name, body.Kind, *blockSchema.Schema, symbols)
+				diags = append(diags, filterSuppressed(fieldDiags, fieldCodes, fieldAll)...)
+			} else if assign.Value != nil {
+				refDiags := checkReferences(assign.Value, symbols)
+				diags = append(diags, filterSuppressed(refDiags, fieldCodes, fieldAll)...)
+			}
 		}
 	}
 
@@ -759,6 +766,23 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		// Check body against child scope (params + outer).
 		if diags := checkReferences(e.Body, &childSymbols); len(diags) > 0 {
 			return diags
+		}
+		// Validate body type matches declared return type.
+		if e.ReturnType != nil {
+			expected := types.ExprTypeFromExpr(e.ReturnType, symbols)
+			got := types.SchemaTypeFromExpr(e.Body, &childSymbols)
+			if !types.IsCompatible(got, expected) {
+				return []diagnostic.Diagnostic{{
+					Severity: diagnostic.Error,
+					Code:     diagnostic.CodeTypeMismatch,
+					Position: diagnostic.Position{
+						Line:   e.Body.Start().Line,
+						Column: e.Body.Start().Column,
+					},
+					Message: fmt.Sprintf("lambda body type %s does not match declared return type %s", got.String(), expected.String()),
+					Source:  "analyzer",
+				}}
+			}
 		}
 	case *ast.BlockExpression:
 		if e == nil {

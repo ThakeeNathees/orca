@@ -41,6 +41,14 @@ func SchemaTypeFromExpr(expr ast.Expression, symbols *SymbolTable) Type {
 	return schemaFromExprWithDepth(1, expr, symbols)
 }
 
+// ExprTypeFromExpr resolves the type of a value expression at depth 0.
+// Unlike SchemaTypeFromExpr (depth 1), this returns the direct type of the
+// expression without walking up the schema chain. Use this for lambda params
+// and other value-level identifiers.
+func ExprTypeFromExpr(expr ast.Expression, symbols *SymbolTable) Type {
+	return schemaFromExprWithDepth(0, expr, symbols)
+}
+
 // Schema depth is how deep it needs to go and get the schema.
 //
 //	schema agent {}

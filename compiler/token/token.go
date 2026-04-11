@@ -37,17 +37,24 @@ const (
 	AT       TokenType = "@"
 	QUESTION  TokenType = "?"
 	BACKSLASH TokenType = "\\"
+	LT        TokenType = "<"
+	GT        TokenType = ">"
+	LTE       TokenType = "<="
+	GTE       TokenType = ">="
+	EQ        TokenType = "=="
+	NEQ       TokenType = "!="
 )
 
 // Operator precedence levels for Pratt parsing. Higher values bind tighter.
 const (
-	PrecLowest  int = iota
-	PrecTernary     // ?:
-	PrecArrow       // ->
-	PrecPipe        // |
-	PrecSum         // + -
-	PrecProduct     // * /
-	PrecAccess      // .
+	PrecLowest     int = iota
+	PrecTernary        // ?:
+	PrecArrow          // ->
+	PrecPipe           // |
+	PrecComparison     // == != < >
+	PrecSum            // + -
+	PrecProduct        // * /
+	PrecAccess         // .
 )
 
 // Token represents a single lexical token with its type, literal text,
@@ -117,6 +124,18 @@ func Describe(t TokenType) string {
 		return "'?'"
 	case BACKSLASH:
 		return "'\\'"
+	case LT:
+		return "'<'"
+	case GT:
+		return "'>'"
+	case LTE:
+		return "'<='"
+	case GTE:
+		return "'>='"
+	case EQ:
+		return "'=='"
+	case NEQ:
+		return "'!='"
 	default:
 		return "'" + string(t) + "'"
 	}
@@ -131,6 +150,8 @@ func Precedence(t TokenType) int {
 		return PrecArrow
 	case PIPE:
 		return PrecPipe
+	case EQ, NEQ, LT, GT, LTE, GTE:
+		return PrecComparison
 	case PLUS, MINUS:
 		return PrecSum
 	case STAR, SLASH:
