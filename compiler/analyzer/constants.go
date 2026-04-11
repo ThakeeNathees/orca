@@ -13,7 +13,6 @@ const (
 	BlockKindAgent     = "agent"
 	BlockKindCron      = "cron"
 	BlockKindWebhook   = "webhook"
-	BlockKindBranch    = "branch"
 
 	AnnotationOnlyAssignments = "only_assignments"
 	AnnotationWorkflowNode    = "workflow_node"

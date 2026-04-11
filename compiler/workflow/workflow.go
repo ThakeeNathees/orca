@@ -4,6 +4,7 @@
 package workflow
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/thakee/orca/compiler/ast"
@@ -11,11 +12,18 @@ import (
 	"github.com/thakee/orca/compiler/token"
 )
 
-// Graph terminal node names. These are virtual nodes representing the
-// start and end of a workflow graph — not user-defined blocks.
+// inlineBlockCounter generates unique synthetic names for inline block expressions
+// (e.g. inline branch, inline agent, etc.) used as workflow nodes.
+var inlineBlockCounter int64
+
 const (
+	// Graph terminal node names. These are virtual nodes representing the
+	// start and end of a workflow graph — not user-defined blocks.
 	NodeSTART = "START"
 	NodeEND   = "END"
+
+	// BlockKindBranch is the block kind for branch nodes.
+	BlockKindBranch = "branch"
 )
 
 // Edge represents a single directed edge between two named nodes
@@ -23,6 +31,27 @@ const (
 type Edge struct {
 	From string
 	To   string
+}
+
+// BranchRoute represents a single route in a branch's route table.
+// The key is a runtime expression (string, number, boolean) and the value
+// is a workflow graph expression (can be a single node or a complex subgraph).
+type BranchRoute struct {
+	Key        ast.Expression // route key expression (string, number, bool, or identifier "default")
+	EntryNodes []string       // first nodes in this route's subgraph (conditional edge targets)
+	Nodes      []string       // all processing nodes in this route's subgraph
+	Edges      []Edge         // all edges within this route's subgraph
+}
+
+// Branch represents a conditional routing point in a workflow graph.
+// It replaces a simple edge with conditional edges based on the transform
+// output matching route keys.
+type Branch struct {
+	Name      string         // synthetic name for inline branches, block name for named
+	Preds     []string       // predecessor node names (who feeds into this branch)
+	Transform ast.Expression // optional transform lambda applied to predecessor output
+	Routes    []BranchRoute  // route table entries
+	Body      *ast.BlockBody // the branch block body (for codegen access)
 }
 
 // ResolvedWorkflow holds the extracted graph structure for a single workflow block.
@@ -33,6 +62,7 @@ type ResolvedWorkflow struct {
 	EntryNodes []string            // processing nodes with no incoming edges from other processing nodes
 	Triggers   []string            // trigger node names in order of first appearance
 	TriggerMap map[string][]string // trigger name → processing entry node names it connects to
+	Branches   []Branch            // branch nodes with conditional routing
 }
 
 // HasTriggers returns true if the workflow has any trigger nodes.
@@ -67,15 +97,19 @@ func (rw *ResolvedWorkflow) IsFanOut() bool {
 
 // Resolve extracts nodes and edges from a workflow block's arrow expressions.
 // The isTrigger predicate identifies which nodes are triggers (cron, webhook).
-// Pass nil if no trigger classification is needed (all nodes are processing nodes).
+// The getBranchBody predicate identifies which named nodes are branch blocks.
+// Pass nil for either if no classification is needed.
 //
 // Triggers are separated from processing nodes: they appear in Triggers/TriggerMap
-// but not in Nodes/Edges. Processing entry nodes get no implicit START edges —
-// the caller (codegen) handles START connections via a router function.
+// but not in Nodes/Edges. Branch nodes are extracted into Branches and their
+// route tables are expanded into the processing graph.
 // Implicit END edges are added for processing nodes with no outgoing edges.
-func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWorkflow {
+func Resolve(block *ast.BlockStatement, isTrigger func(string) bool, getBranchBody func(string) *ast.BlockBody) ResolvedWorkflow {
 	if isTrigger == nil {
 		isTrigger = func(string) bool { return false }
+	}
+	if getBranchBody == nil {
+		getBranchBody = func(string) *ast.BlockBody { return nil }
 	}
 
 	rw := ResolvedWorkflow{
@@ -102,7 +136,6 @@ func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWor
 	for _, expr := range block.Expressions {
 		edges := EdgesFromExpr(expr)
 		if len(edges) == 0 {
-			// Standalone identifier (no arrows) — treat as a single node.
 			if name := ExprToNodeName(expr); name != "" {
 				classifyNode(name)
 			}
@@ -115,17 +148,94 @@ func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWor
 		}
 	}
 
-	// Separate triggers from processing nodes (preserving insertion order).
+	// Identify branch nodes and cache their bodies. Uses allGraph.Nodes()
+	// for deterministic iteration order (insertion order).
+	branchNames := make(map[string]bool)
+	branchBodies := make(map[string]*ast.BlockBody)
+	for _, name := range allGraph.Nodes() {
+		if body := getBranchBody(name); body != nil {
+			branchNames[name] = true
+			branchBodies[name] = body
+		}
+	}
+
+	// Build a predecessor map in a single pass over all edges.
+	branchPreds := make(map[string][]string)
+	for _, e := range allGraph.Edges() {
+		if branchNames[e.To] && !triggers[e.From] && !branchNames[e.From] {
+			branchPreds[e.To] = append(branchPreds[e.To], e.From)
+		}
+	}
+
+	// Extract branch metadata in deterministic order.
+	for _, branchName := range allGraph.Nodes() {
+		body, ok := branchBodies[branchName]
+		if !ok {
+			continue
+		}
+		branch := Branch{
+			Name:  branchName,
+			Body:  body,
+			Preds: branchPreds[branchName],
+		}
+
+		if transformExpr, ok := body.GetFieldExpression("transform"); ok {
+			branch.Transform = transformExpr
+		}
+
+		if routeExpr, ok := body.GetFieldExpression("route"); ok {
+			if mapLit, ok := routeExpr.(*ast.MapLiteral); ok {
+				for _, entry := range mapLit.Entries {
+					branch.Routes = append(branch.Routes, extractBranchRoute(entry))
+				}
+			}
+		}
+
+		rw.Branches = append(rw.Branches, branch)
+	}
+
+	// Separate triggers and branches from processing nodes.
 	procGraph := graph.New[string]()
 	for _, name := range allGraph.Nodes() {
-		if !triggers[name] {
+		if !triggers[name] && !branchNames[name] {
 			rw.Nodes = append(rw.Nodes, name)
 			procGraph.AddNode(name)
 		}
 	}
 
+	// Add route chain nodes and edges to the processing graph.
+	// Pred→entry edges are "conditional" — they exist in procGraph for leaf detection
+	// but are excluded from rw.Edges (codegen emits them via add_conditional_edges).
+	var conditionalEdges map[Edge]bool
+	for _, branch := range rw.Branches {
+		for _, route := range branch.Routes {
+			for _, node := range route.Nodes {
+				if !procGraph.HasNode(node) {
+					rw.Nodes = append(rw.Nodes, node)
+				}
+				procGraph.AddNode(node)
+			}
+			for _, e := range route.Edges {
+				procGraph.AddEdge(e.From, e.To)
+			}
+			for _, pred := range branch.Preds {
+				for _, entry := range route.EntryNodes {
+					if conditionalEdges == nil {
+						conditionalEdges = make(map[Edge]bool)
+					}
+					conditionalEdges[Edge{From: pred, To: entry}] = true
+					procGraph.AddEdge(pred, entry)
+				}
+			}
+		}
+	}
+
 	// Separate trigger edges from processing edges and build TriggerMap.
+	// Skip edges involving branch nodes (they're handled by conditional routing).
 	for _, e := range allGraph.Edges() {
+		if branchNames[e.From] || branchNames[e.To] {
+			continue
+		}
 		if triggers[e.From] {
 			rw.TriggerMap[e.From] = append(rw.TriggerMap[e.From], e.To)
 		} else {
@@ -142,8 +252,13 @@ func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWor
 	}
 
 	// Infer END edges for leaf processing nodes (no outgoing edges).
+	// Skip conditional edges (pred→route entry) — codegen handles those separately.
 	for _, e := range procGraph.Edges() {
-		rw.Edges = append(rw.Edges, Edge{From: e.From, To: e.To})
+		edge := Edge{From: e.From, To: e.To}
+		if conditionalEdges[edge] {
+			continue
+		}
+		rw.Edges = append(rw.Edges, edge)
 	}
 	for _, leaf := range procGraph.LeafNodes() {
 		rw.Edges = append(rw.Edges, Edge{From: leaf, To: NodeEND})
@@ -153,6 +268,43 @@ func Resolve(block *ast.BlockStatement, isTrigger func(string) bool) ResolvedWor
 	rw.EntryNodes = procGraph.EntryNodes()
 
 	return rw
+}
+
+// extractBranchRoute extracts a BranchRoute from a map entry.
+// The key is kept as an ast.Expression (can be string, number, bool, or "default").
+// The value is a workflow graph expression: a single node, a chain, or multiple
+// expressions forming a complex subgraph.
+func extractBranchRoute(entry ast.MapEntry) BranchRoute {
+	route := BranchRoute{
+		Key: entry.Key,
+	}
+
+	// Build a subgraph from the route value expression.
+	subgraph := graph.New[string]()
+	var walkExpr func(expr ast.Expression)
+	walkExpr = func(expr ast.Expression) {
+		edges := EdgesFromExpr(expr)
+		if len(edges) == 0 {
+			if name := ExprToNodeName(expr); name != "" {
+				subgraph.AddNode(name)
+			}
+			return
+		}
+		for _, e := range edges {
+			subgraph.AddNode(e.From)
+			subgraph.AddNode(e.To)
+			subgraph.AddEdge(e.From, e.To)
+		}
+	}
+	walkExpr(entry.Value)
+
+	route.Nodes = subgraph.Nodes()
+	route.EntryNodes = subgraph.EntryNodes()
+	for _, e := range subgraph.Edges() {
+		route.Edges = append(route.Edges, Edge{From: e.From, To: e.To})
+	}
+
+	return route
 }
 
 // EdgesFromExpr walks a (possibly chained) arrow expression and returns
@@ -180,6 +332,7 @@ func EdgesFromExpr(expr ast.Expression) []Edge {
 }
 
 // ExprToNodeName returns the workflow node name for an expression.
+// For inline BlockExpression nodes, generates a synthetic name like "__branch_0".
 // Returns empty string for unrecognized expression types.
 func ExprToNodeName(expr ast.Expression) string {
 	switch e := expr.(type) {
@@ -193,7 +346,14 @@ func ExprToNodeName(expr ast.Expression) string {
 			indices = append(indices, ExprToNodeName(idx))
 		}
 		return ExprToNodeName(e.Object) + "[" + strings.Join(indices, ", ") + "]"
+	case *ast.BlockExpression:
+		// The type system sets BlockNameAnon during analysis. If it's still
+		// empty (e.g. in tests), generate a synthetic name as fallback.
+		if e.BlockNameAnon == "" {
+			inlineBlockCounter++
+			e.BlockNameAnon = fmt.Sprintf("__%s_%d", e.Kind, inlineBlockCounter-1)
+		}
+		return e.BlockNameAnon
 	}
-	// TODO: Return a unique string.
 	return ""
 }
