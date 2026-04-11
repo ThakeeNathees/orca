@@ -139,7 +139,7 @@ def _orca__node_daily(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'daily'."""
     _predecessors = []
     _input = _orca__gather(state, _predecessors)
-    raise NotImplementedError("workflow node "daily": block kind "cron" is not supported in workflows yet")
+    raise NotImplementedError("workflow node 'daily': block kind 'cron' is not supported in workflows yet")
     return {"daily": _out}
 
 def _orca__node_researcher(state: _orca__state_pipeline) -> dict:
@@ -160,7 +160,7 @@ def _orca__node_hooks_in(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'hooks_in'."""
     _predecessors = []
     _input = _orca__gather(state, _predecessors)
-    raise NotImplementedError("workflow node "hooks_in": block kind "webhook" is not supported in workflows yet")
+    raise NotImplementedError("workflow node 'hooks_in': block kind 'webhook' is not supported in workflows yet")
     return {"hooks_in": _out}
 
 def _orca__node_analyst(state: _orca__state_pipeline) -> dict:
