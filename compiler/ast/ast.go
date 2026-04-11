@@ -249,6 +249,19 @@ type Assignment struct {
 
 func (a *Assignment) statementNode() {}
 
+// TernaryExpression represents a conditional expression: condition ? trueExpr : falseExpr.
+// BaseNode spans from the condition's start to the false expression's end.
+type TernaryExpression struct {
+	BaseNode
+	Condition Expression  // the condition to evaluate
+	Question  token.Token // the '?' token, for source mapping
+	TrueExpr  Expression  // the value when condition is truthy
+	Colon     token.Token // the ':' token, for source mapping
+	FalseExpr Expression  // the value when condition is falsy
+}
+
+func (te *TernaryExpression) expressionNode() {}
+
 // BlockExpression represents an inline block definition: model { provider = "openai" ... }.
 // Used for anonymous block instances in expressions like `model = model { provider = "openai" }`
 // and inline schemas like `output = schema { draft = string }`.
@@ -322,6 +335,10 @@ func Walk(root Node, v Visitor) {
 		for _, el := range n.Elements {
 			Walk(el, v)
 		}
+	case *TernaryExpression:
+		Walk(n.Condition, v)
+		Walk(n.TrueExpr, v)
+		Walk(n.FalseExpr, v)
 	case *BlockExpression:
 		walkBlockBody(&n.BlockBody, v)
 	default:

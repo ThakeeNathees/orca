@@ -52,6 +52,7 @@ func TestDescribe(t *testing.T) {
 		{"ARROW", ARROW, "'->'"},
 		{"PIPE", PIPE, "'|'"},
 		{"AT", AT, "'@'"},
+		{"QUESTION", QUESTION, "'?'"},
 		{"unknown token", TokenType("UNKNOWN"), "'UNKNOWN'"},
 	}
 
@@ -82,6 +83,7 @@ func TestPrecedence(t *testing.T) {
 		{"DOT", DOT, PrecAccess},
 		{"LBRACKET", LBRACKET, PrecAccess},
 		{"LPAREN", LPAREN, PrecAccess},
+		{"QUESTION", QUESTION, PrecTernary},
 		{"IDENT lowest", IDENT, PrecLowest},
 		{"EOF lowest", EOF, PrecLowest},
 		{"RBRACE lowest", RBRACE, PrecLowest},

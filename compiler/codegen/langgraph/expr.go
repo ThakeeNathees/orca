@@ -61,6 +61,8 @@ func exprToSource(expr ast.Expression) string {
 			args = append(args, exprToSource(arg))
 		}
 		return exprToSource(e.Callee) + "(" + strings.Join(args, ", ") + ")"
+	case *ast.TernaryExpression:
+		return "(" + exprToSource(e.TrueExpr) + " if " + exprToSource(e.Condition) + " else " + exprToSource(e.FalseExpr) + ")"
 	case *ast.BlockExpression:
 		return blockCallSource(&e.BlockBody, "")
 	default:

@@ -35,11 +35,13 @@ const (
 	ARROW    TokenType = "->"
 	PIPE     TokenType = "|"
 	AT       TokenType = "@"
+	QUESTION TokenType = "?"
 )
 
 // Operator precedence levels for Pratt parsing. Higher values bind tighter.
 const (
 	PrecLowest  int = iota
+	PrecTernary     // ?:
 	PrecArrow       // ->
 	PrecPipe        // |
 	PrecSum         // + -
@@ -110,6 +112,8 @@ func Describe(t TokenType) string {
 		return "'|'"
 	case AT:
 		return "'@'"
+	case QUESTION:
+		return "'?'"
 	default:
 		return "'" + string(t) + "'"
 	}
@@ -128,6 +132,8 @@ func Precedence(t TokenType) int {
 		return PrecSum
 	case STAR, SLASH:
 		return PrecProduct
+	case QUESTION:
+		return PrecTernary
 	case DOT, LBRACKET, LPAREN:
 		return PrecAccess
 	default:

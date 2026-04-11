@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/token"
 )
 
 // ident returns a lazy block reference (no resolved *BlockSchema).
@@ -541,6 +542,92 @@ func TestIsCompatible(t *testing.T) {
 			if got := IsCompatible(tt.got, tt.expected); got != tt.result {
 				t.Errorf("IsCompatible(%s, %s) = %v, want %v",
 					tt.got.String(), tt.expected.String(), got, tt.result)
+			}
+		})
+	}
+}
+
+// TestTernaryExprType verifies the type resolution of ternary expressions.
+func TestTernaryExprType(t *testing.T) {
+	symtab := NewSymbolTable()
+	tok := token.Token{}
+	// Bootstrap string, number, bool so IdentType resolves them.
+	symtab.Define("string", NewBlockRefType("string", &BlockSchema{BlockName: "string", Ast: &ast.BlockBody{Kind: BlockKindSchema}}), tok)
+	symtab.Define("number", NewBlockRefType("number", &BlockSchema{BlockName: "number", Ast: &ast.BlockBody{Kind: BlockKindSchema}}), tok)
+	symtab.Define("bool", NewBlockRefType("bool", &BlockSchema{BlockName: "bool", Ast: &ast.BlockBody{Kind: BlockKindSchema}}), tok)
+	symtab.Define("true", NewBlockRefType("bool", &BlockSchema{BlockName: "bool", Ast: &ast.BlockBody{Kind: "bool"}}), tok)
+	symtab.Define("false", NewBlockRefType("bool", &BlockSchema{BlockName: "bool", Ast: &ast.BlockBody{Kind: "bool"}}), tok)
+
+	strLit := func(v string) ast.Expression {
+		return &ast.StringLiteral{Value: v}
+	}
+	numLit := func(v float64) ast.Expression {
+		return &ast.NumberLiteral{Value: v}
+	}
+	identExpr := func(v string) ast.Expression {
+		return &ast.Identifier{Value: v}
+	}
+
+	tests := []struct {
+		name     string
+		ternary  *ast.TernaryExpression
+		wantKind TypeKind
+		wantStr  string
+	}{
+		{
+			name: "same type string",
+			ternary: &ast.TernaryExpression{
+				Condition: identExpr("true"),
+				TrueExpr:  strLit("a"),
+				FalseExpr: strLit("b"),
+			},
+			wantKind: BlockRef,
+			wantStr:  "string",
+		},
+		{
+			name: "same type number",
+			ternary: &ast.TernaryExpression{
+				Condition: identExpr("true"),
+				TrueExpr:  numLit(1),
+				FalseExpr: numLit(2),
+			},
+			wantKind: BlockRef,
+			wantStr:  "number",
+		},
+		{
+			name: "different types string | number",
+			ternary: &ast.TernaryExpression{
+				Condition: identExpr("true"),
+				TrueExpr:  strLit("a"),
+				FalseExpr: numLit(1),
+			},
+			wantKind: Union,
+			wantStr:  "string | number",
+		},
+		{
+			name: "nested ternary flattens union",
+			ternary: &ast.TernaryExpression{
+				Condition: identExpr("true"),
+				TrueExpr:  strLit("a"),
+				FalseExpr: &ast.TernaryExpression{
+					Condition: identExpr("false"),
+					TrueExpr:  numLit(1),
+					FalseExpr: identExpr("true"),
+				},
+			},
+			wantKind: Union,
+			wantStr:  "string | number | bool",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ternaryExprType(1, tt.ternary, &symtab)
+			if got.Kind != tt.wantKind {
+				t.Errorf("Kind = %v, want %v", got.Kind, tt.wantKind)
+			}
+			if got.String() != tt.wantStr {
+				t.Errorf("String() = %q, want %q", got.String(), tt.wantStr)
 			}
 		})
 	}

@@ -268,6 +268,10 @@ func collectBlockDeps(expr ast.Expression, userBlocks map[string]*ast.BlockState
 		if e.Index != nil {
 			collectBlockDeps(e.Index, userBlocks, deps)
 		}
+	case *ast.TernaryExpression:
+		collectBlockDeps(e.Condition, userBlocks, deps)
+		collectBlockDeps(e.TrueExpr, userBlocks, deps)
+		collectBlockDeps(e.FalseExpr, userBlocks, deps)
 	case *ast.BlockExpression:
 		for _, assign := range e.BlockBody.Assignments {
 			if assign.Value != nil {
@@ -677,6 +681,19 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 			if diags := checkReferences(entry.Value, symbols); len(diags) > 0 {
 				return diags
 			}
+		}
+	case *ast.TernaryExpression:
+		if e == nil {
+			return nil
+		}
+		if diags := checkReferences(e.Condition, symbols); len(diags) > 0 {
+			return diags
+		}
+		if diags := checkReferences(e.TrueExpr, symbols); len(diags) > 0 {
+			return diags
+		}
+		if diags := checkReferences(e.FalseExpr, symbols); len(diags) > 0 {
+			return diags
 		}
 	case *ast.BlockExpression:
 		if e == nil {

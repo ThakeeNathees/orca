@@ -338,6 +338,40 @@ func TestFindNodeAtBinaryExpression(t *testing.T) {
 	}
 }
 
+// TestFindNodeAtTernaryExpression verifies cursor navigation into ternary sub-expressions.
+func TestFindNodeAtTernaryExpression(t *testing.T) {
+	// Line layout:
+	// 1: let vars {
+	// 2:   val = a ? b : c
+	// 3: }
+	input := "let vars {\n  val = a ? b : c\n}"
+	program := parseProgram(t, input)
+
+	tests := []struct {
+		name  string
+		line  int
+		col   int
+		kind  NodeKind
+		ident string
+	}{
+		{"condition", 2, 9, IdentNode, "a"},
+		{"true branch", 2, 13, IdentNode, "b"},
+		{"false branch", 2, 17, IdentNode, "c"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := FindNodeAt(program, tt.line, tt.col)
+			if node.Kind != tt.kind {
+				t.Errorf("Kind = %v, want %v", node.Kind, tt.kind)
+			}
+			if node.Ident == nil || node.Ident.Value != tt.ident {
+				t.Errorf("expected ident %q, got %v", tt.ident, node.Ident)
+			}
+		})
+	}
+}
+
 // TestFindNodeAtWorkflowEdge verifies that identifiers inside bare workflow
 // edge expressions (A -> B -> C) are found via findInExpr.
 func TestFindNodeAtWorkflowEdge(t *testing.T) {
