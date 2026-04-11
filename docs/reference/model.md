@@ -80,5 +80,5 @@ Compiles to:
 ```python
 from langchain_openai import ChatOpenAI
 
-gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.7)  # main.oc:1
+gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.7)  # main.orca:1
 ```

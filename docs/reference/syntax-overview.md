@@ -1,6 +1,6 @@
 # Syntax Overview
 
-Orca uses an HCL-like block syntax. Files use the `.oc` extension.
+Orca uses an HCL-like block syntax. Files use the `.orca` extension.
 
 ## Blocks
 

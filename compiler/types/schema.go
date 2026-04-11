@@ -1,6 +1,6 @@
 // Package types provides block field schemas that define the expected
 // types for each field within each block type. The analyzer will use
-// these schemas to validate assignments in .oc files.
+// these schemas to validate assignments in .orca files.
 package types
 
 import "github.com/thakee/orca/compiler/ast"

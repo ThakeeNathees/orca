@@ -15,11 +15,11 @@ import (
 	"github.com/thakee/orca/compiler/parser"
 )
 
-// buildCmd compiles all .oc files in the current directory.
+// buildCmd compiles all .orca files in the current directory.
 var buildCmd = &cobra.Command{
 	Use:   "build",
-	Short: "Compile .oc files to Python",
-	Long:  "Reads all .oc files in the current directory, parses them, and produces a build/ folder with generated Python code.",
+	Short: "Compile .orca files to Python",
+	Long:  "Reads all .orca files in the current directory, parses them, and produces a build/ folder with generated Python code.",
 	RunE:  runBuild,
 }
 
@@ -39,20 +39,20 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("compiled %d .oc file(s) → %s/\n", result.FileCount, result.OutputDir)
+	fmt.Printf("compiled %d .orca file(s) → %s/\n", result.FileCount, result.OutputDir)
 	return nil
 }
 
-// compileCurrentDir compiles all .oc files in the current directory and writes
+// compileCurrentDir compiles all .orca files in the current directory and writes
 // generated output to disk.
 func compileCurrentDir() (compileResult, error) {
-	files, err := filepath.Glob("*.oc")
+	files, err := filepath.Glob("*.orca")
 	if err != nil {
-		return compileResult{}, fmt.Errorf("failed to find .oc files: %w", err)
+		return compileResult{}, fmt.Errorf("failed to find .orca files: %w", err)
 	}
 
 	if len(files) == 0 {
-		return compileResult{}, fmt.Errorf("no .oc files found in current directory")
+		return compileResult{}, fmt.Errorf("no .orca files found in current directory")
 	}
 
 	// Parse each file separately to preserve per-file line numbers.

@@ -1,4 +1,4 @@
-// Visual graph → `.oc` source generator.
+// Visual graph → `.orca` source generator.
 //
 // Walks the store's (nodes, edges) tuple and emits a textual Orca program
 // that the Go compiler should be able to consume. This is a pure function:
@@ -9,7 +9,7 @@
 // ────────────
 // 1. **Reference resolution via edges.** Studio edges carry semantic meaning
 //    through their `(sourceHandle, targetHandle)` pair. We translate them
-//    into declarative `.oc` references:
+//    into declarative `.orca` references:
 //      - `model-out  → model-in`   → agent's `model = <ident>`
 //      - `memory-out → memory-in`  → agent's `memory = <ident>`
 //      - `tool-out   → tools-in`   → appends to agent's `tools = [...]`
@@ -31,12 +31,12 @@
 //    keep node insertion order for deterministic output.
 //
 // 4. **Field alignment.** Within every block the `=` signs line up on the
-//    longest key. Matches the style in `compiler/codegen/testdata/golden/*.oc`.
+//    longest key. Matches the style in `compiler/codegen/testdata/golden/*.orca`.
 
 import type { BlockNode, BlockEdge, BlockKind } from "./types";
 import { BLOCK_DEFS } from "./block-defs";
 
-// File header prepended to every generated `.oc` source. Tells the user
+// File header prepended to every generated `.orca` source. Tells the user
 // where Orca lives and how to run the downloaded file. Kept intentionally
 // short — it's the first thing anyone opening the file will see.
 const FILE_HEADER = `// https://github.com/ThakeeNathees/orca
@@ -140,7 +140,7 @@ function assignIdents(nodes: BlockNode[]): Map<string, string> {
   return out;
 }
 
-/** Escapes a string for emission inside double-quoted `.oc` literals. */
+/** Escapes a string for emission inside double-quoted `.orca` literals. */
 function escapeString(s: string): string {
   return s
     .replace(/\\/g, "\\\\")
@@ -150,7 +150,7 @@ function escapeString(s: string): string {
     .replace(/\t/g, "\\t");
 }
 
-/** Renders a scalar field value in its `.oc` surface form. */
+/** Renders a scalar field value in its `.orca` surface form. */
 function formatValue(v: string | number): string {
   if (typeof v === "number") return String(v);
   return `"${escapeString(v)}"`;
@@ -206,7 +206,7 @@ function shouldEmitField(v: string | number | undefined | null): boolean {
 /* ── Main entry point ────────────────────────────────────────────────── */
 
 /**
- * Generates a complete `.oc` source string from a studio graph. The output
+ * Generates a complete `.orca` source string from a studio graph. The output
  * ends with a trailing newline (POSIX convention) except when the graph is
  * empty, in which case the empty string is returned.
  */

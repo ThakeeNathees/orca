@@ -1,6 +1,6 @@
 // Package lsp implements the Language Server Protocol server for Orca.
 // It provides real-time diagnostics, autocompletion, and other editor
-// features for .oc files.
+// features for .orca files.
 package lsp
 
 import (
@@ -801,8 +801,8 @@ func tokenToRange(tok token.Token) protocol.Range {
 // updateDocument parses the text, runs analysis, and stores everything.
 // Called on every open/change — parses once and caches the results.
 //
-// To support cross-file references (e.g. an input block in inputs.oc
-// referenced from main.oc), we build a combined program from all .oc
+// To support cross-file references (e.g. an input block in inputs.orca
+// referenced from main.orca), we build a combined program from all .orca
 // files in the same directory. The current file's text comes from the
 // editor buffer (may have unsaved changes); sibling files are read from
 // disk. Analysis runs on the merged program, but only diagnostics that
@@ -815,7 +815,7 @@ func updateDocument(uri, text string) *documentState {
 	diags := p.Diagnostics()
 	filePath := uriToPath(uri)
 
-	// Merge sibling .oc files so cross-file symbols are visible.
+	// Merge sibling .orca files so cross-file symbols are visible.
 	mergeSiblingFiles(uri, program)
 
 	// Always run the analyzer, even with parse errors. The parser produces
@@ -840,7 +840,7 @@ func updateDocument(uri, text string) *documentState {
 	return doc
 }
 
-// mergeSiblingFiles finds all .oc files in the same directory as uri,
+// mergeSiblingFiles finds all .orca files in the same directory as uri,
 // parses them, and appends their statements to program. Skips the file
 // identified by uri itself (already parsed from the editor buffer).
 func mergeSiblingFiles(uri string, program *ast.Program) {
@@ -851,7 +851,7 @@ func mergeSiblingFiles(uri string, program *ast.Program) {
 	dir := filepath.Dir(filePath)
 	base := filepath.Base(filePath)
 
-	siblings, err := filepath.Glob(filepath.Join(dir, "*.oc"))
+	siblings, err := filepath.Glob(filepath.Join(dir, "*.orca"))
 	if err != nil {
 		return
 	}

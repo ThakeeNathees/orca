@@ -8,15 +8,15 @@ import (
 
 // TestDefinitionNestedSchemaChain verifies go-to-definition along
 // t → v → ls → item for a user-defined schema, instance block, and list-of-schema field.
-// Loads compiler/lsp/testdata/definition_nested_schema.oc (1-based line/col in table match that file).
+// Loads compiler/lsp/testdata/definition_nested_schema.orca (1-based line/col in table match that file).
 func TestDefinitionNestedSchemaChain(t *testing.T) {
-	path := filepath.Join("testdata", "definition_nested_schema.oc")
+	path := filepath.Join("testdata", "definition_nested_schema.orca")
 	src, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read testdata: %v", err)
 	}
 
-	doc := updateDocument("test://definition_nested_schema.oc", string(src))
+	doc := updateDocument("test://definition_nested_schema.orca", string(src))
 	if doc.Symbols == nil {
 		t.Fatal("expected symbol table")
 	}

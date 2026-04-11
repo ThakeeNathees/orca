@@ -15,7 +15,7 @@ const (
 	Hint                    // a suggestion for improvement
 )
 
-// Position represents a source location in an .oc file.
+// Position represents a source location in an .orca file.
 // Line and Column are 1-based, matching the lexer's convention.
 type Position struct {
 	Line   int
@@ -55,7 +55,7 @@ type Diagnostic struct {
 	EndPosition Position // end of the diagnostic range (zero value means same as Position)
 	Message     string
 	Source      string // which stage produced this: "parser", "analyzer", etc.
-	File        string // source .oc file this diagnostic originates from (set by multi-file compilation)
+	File        string // source .orca file this diagnostic originates from (set by multi-file compilation)
 }
 
 // Error implements the error interface so a Diagnostic can be used as a Go error.

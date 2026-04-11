@@ -5,7 +5,7 @@ import (
 )
 
 // bootstrapSchemaPointers returns a map of block name -> *BlockSchema from the
-// embedded bootstrap.oc. Pointers reference the slice backing BootstrapResult.Schemas.
+// embedded bootstrap.orca. Pointers reference the slice backing BootstrapResult.Schemas.
 func bootstrapSchemaPointers(t *testing.T) map[string]*BlockSchema {
 	t.Helper()
 	res := Bootstrap(testBootstrapSource)

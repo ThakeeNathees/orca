@@ -23,7 +23,7 @@
           "orca"
         ],
         "extensions": [
-          ".oc"
+          ".orca"
         ],
         "configuration": "./language-configuration.json"
       }

@@ -55,20 +55,20 @@ var goldenExtensions = map[string]string{
 }
 
 // TestGoldenFiles runs golden file tests for codegen. Each test case
-// has a .oc input, a .py expected output, and a .toml expected output.
+// has a .orca input, a .py expected output, and a .toml expected output.
 // Run with -update-golden to regenerate expected files.
 func TestGoldenFiles(t *testing.T) {
 	goldenDir := "testdata/golden"
-	inputs, err := filepath.Glob(filepath.Join(goldenDir, "*.oc"))
+	inputs, err := filepath.Glob(filepath.Join(goldenDir, "*.orca"))
 	if err != nil {
 		t.Fatalf("failed to glob golden inputs: %v", err)
 	}
 	if len(inputs) == 0 {
-		t.Fatal("no golden .oc files found")
+		t.Fatal("no golden .orca files found")
 	}
 
 	for _, inputPath := range inputs {
-		name := strings.TrimSuffix(filepath.Base(inputPath), ".oc")
+		name := strings.TrimSuffix(filepath.Base(inputPath), ".orca")
 		t.Run(name, func(t *testing.T) {
 			source, err := os.ReadFile(inputPath)
 			if err != nil {

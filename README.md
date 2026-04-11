@@ -153,7 +153,7 @@ cd orca/compiler
 make build
 ```
 
-Create a file called `main.oc`:
+Create a file called `main.orca`:
 
 ```hcl
 model gemini {
@@ -178,31 +178,35 @@ workflow flow {
 }
 ```
 
-Compile it:
+
+Run it:
 
 ```bash
-orca build
+orca run
 ```
 
-This reads all `.oc` files in the current directory and generates a `build/` directory with runnable Python and LangGraph code.
+This will automatically build your `.orca` files, generate the `build/` directory, and run the resulting Python/LangGraph code.  
+(You can also use `orca build` to just generate the code without running.)
 
-## How It Works
 
-```
-.oc source → Lexer → Parser → Analyzer → Code Generator → Python
-```
+## Key Features
 
-The Orca compiler is written in Go with a four-stage pipeline.
+- **Domain-agnostic DSL** — the entire language is defined by schemas in `bootstrap.orca`; customize it to your domain by redefining block types and fields
+- **Declarative syntax** — models, agents, tools, workflows, and schemas in clean, readable HCL-like syntax
+- **Type-safe by default** — schemas and block references validated at compile time, not runtime
+- **Multi-agent workflows** — agent chains, fan-out patterns, conditional routing, and complex orchestration graphs
+- **Built-in triggers** — cron schedules and HTTP webhooks for automated or event-driven workflows
+- **Custom schemas** — define strongly-typed, nested schemas with field descriptions and annotations
+- **First-class functions** — lambdas with type inference, closures, and higher-order functions
+- **LangGraph backend** — generates production-ready Python code using the battle-tested LangGraph framework
+- **IDE support** — language server with go-to-definition, hover hints, autocomplete, and diagnostics
+- **Readable generated code** — Python output is clean and debuggable, with source mapping back to `.orca` files
+- **Extensible** — generated code is meant to be customized and extended for your use case
 
-The **lexer** tokenizes `.oc` source files with full line and column tracking. The **parser** is a [Pratt parser](https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html) that produces a typed AST from the token stream, with error-tolerant parsing that can recover and report multiple diagnostics in a single pass. The **analyzer** performs semantic analysis — resolving references between blocks (an agent referencing a model, a workflow referencing agents), type checking assignments against block schemas, and validating required fields. The **code generator** walks the analyzed AST and emits Python targeting the LangGraph framework, with source-map comments on every line tracing back to the original `.oc` source.
-
-The code generator is behind a `Backend` interface. Adding a new target (CrewAI, AutoGen, or a different language entirely) means implementing that interface — the rest of the pipeline stays unchanged.
-
-Every block type in the language — `model`, `agent`, `tool`, `task`, `workflow`, `webhook` — is defined by a **schema** that specifies its fields, types, and constraints. The analyzer validates `.oc` files against these schemas at compile time, catching errors that frameworks would only surface at runtime.
 
 ## Editor Support
 
-Orca ships with a VS Code extension that provides syntax highlighting, autocomplete, and go-to-definition for `.oc` files.
+Orca ships with a VS Code extension that provides syntax highlighting, autocomplete, and go-to-definition for `.orca` files.
 
 To install the Orca language extension locally for your editor, simply run the commands below. This will link the extension directory directly, enabling you to get the latest features without needing a marketplace install. For VS Code, use:
 
@@ -246,7 +250,7 @@ Presents Orca as a domain-specific language for AI agent orchestration. Describe
 
 ### Paper 2: [Compiling Intent: An Agentic Compiler for Multi-Agent System Generation](paper/compiling-intent/)
 
-Argues that the path to robust multi-agent systems is not smarter prompting but smarter engineering. Applies classical compiler design principles — parsing, semantic analysis, optimization, and code generation — to the problem of transforming natural language intent into executable agent graphs. The agentic compiler, itself written in Orca, takes natural language descriptions and generates valid `.oc` source files, which are then compiled by the Orca compiler into Python/LangGraph code — creating a two-stage pipeline that isolates LLM non-determinism from deterministic compilation.
+Argues that the path to robust multi-agent systems is not smarter prompting but smarter engineering. Applies classical compiler design principles — parsing, semantic analysis, optimization, and code generation — to the problem of transforming natural language intent into executable agent graphs. The agentic compiler, itself written in Orca, takes natural language descriptions and generates valid `.orca` source files, which are then compiled by the Orca compiler into Python/LangGraph code — creating a two-stage pipeline that isolates LLM non-determinism from deterministic compilation.
 
 ### References
 

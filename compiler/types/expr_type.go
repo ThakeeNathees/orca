@@ -66,7 +66,7 @@ func schemaFromExprWithDepth(depth int, expr ast.Expression, symbols *SymbolTabl
 	switch e := expr.(type) {
 
 	// NOTE: actually bool true and false are currently identifiers and defined
-	// in the bootstrap.oc file. as `bool true {}` and `bool false {}`
+	// in the bootstrap.orca file. as `bool true {}` and `bool false {}`
 	//
 	// Ideally we want the string, number to be the same like
 	// `string "foo"` and `number 42` to be the same (consecptually), so

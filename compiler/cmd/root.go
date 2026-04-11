@@ -13,7 +13,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:           "orca",
 	Short:         "The Orca compiler",
-	Long:          "Orca is a declarative language for defining AI agents.\nCompiles .oc files to Python/LangGraph code.",
+	Long:          "Orca is a declarative language for defining AI agents.\nCompiles .orca files to Python/LangGraph code.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }

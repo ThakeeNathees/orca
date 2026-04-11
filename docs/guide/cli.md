@@ -2,7 +2,7 @@
 
 ## `orca build`
 
-Compiles all `.oc` files in the current directory and generates Python code.
+Compiles all `.orca` files in the current directory and generates Python code.
 
 ```bash
 orca build
@@ -13,14 +13,14 @@ orca build
 - `build/pyproject.toml` — Python project configuration with dependencies.
 
 **Behavior:**
-- Reads every `.oc` file in the current working directory.
+- Reads every `.orca` file in the current working directory.
 - Runs the full pipeline: parse → analyze → generate.
 - Reports diagnostics (errors, warnings) to stderr.
 - Exits with a non-zero code if there are errors.
 
 **Example output:**
 ```
-compiled 3 .oc file(s) → build/main.py, build/pyproject.toml
+compiled 3 .orca file(s) → build/main.py, build/pyproject.toml
 ```
 
 ## `orca lsp`

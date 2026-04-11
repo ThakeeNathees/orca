@@ -19,7 +19,7 @@ This produces a binary at `compiler/bin/orca`. Add it to your PATH or run it dir
 
 ## Your first Orca file
 
-Create a file called `main.oc`:
+Create a file called `main.orca`:
 
 ```orca
 model gpt4 {
@@ -42,7 +42,7 @@ Run the compiler in the same directory:
 orca build
 ```
 
-This reads all `.oc` files in the current directory and generates:
+This reads all `.orca` files in the current directory and generates:
 
 ```
 build/
@@ -61,7 +61,7 @@ from langchain_openai import ChatOpenAI
 
 # === models ===
 
-gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.7)  # main.oc:1
+gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.7)  # main.orca:1
 ```
 
 The `build/pyproject.toml` includes the correct dependencies:

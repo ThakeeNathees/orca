@@ -25,7 +25,7 @@ func analyzedProgram(p *ast.Program) analyzer.AnalyzedProgram {
 }
 
 // analyzedProgramFromSource parses Orca source and runs semantic analysis (same pipeline
-// as tests that load .oc fixtures).
+// as tests that load .orca fixtures).
 func analyzedProgramFromSource(t *testing.T, source string) analyzer.AnalyzedProgram {
 	t.Helper()
 	l := lexer.New(source, "")
@@ -37,13 +37,13 @@ func analyzedProgramFromSource(t *testing.T, source string) analyzer.AnalyzedPro
 	return analyzer.Analyze(program)
 }
 
-// testdataProviderConstFoldDir holds .oc inputs for TestGenerateProviderConstFold.
+// testdataProviderConstFoldDir holds .orca inputs for TestGenerateProviderConstFold.
 const testdataProviderConstFoldDir = "testdata/provider_const_fold"
 
-// loadProviderConstFoldOC reads a named fixture (without .oc) from testdata/provider_const_fold.
+// loadProviderConstFoldOC reads a named fixture (without .orca) from testdata/provider_const_fold.
 func loadProviderConstFoldOC(t *testing.T, baseName string) string {
 	t.Helper()
-	path := filepath.Join(testdataProviderConstFoldDir, baseName+".oc")
+	path := filepath.Join(testdataProviderConstFoldDir, baseName+".orca")
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
@@ -721,10 +721,10 @@ func TestCollectDependencies(t *testing.T) {
 }
 
 // TestGenerateProviderConstFold verifies resolveProviders uses analyzer.ConstFold on
-// the model provider field. Each case is a real .oc file under testdata/provider_const_fold.
+// the model provider field. Each case is a real .orca file under testdata/provider_const_fold.
 func TestGenerateProviderConstFold(t *testing.T) {
 	tests := []struct {
-		fixture        string // base name of testdata/provider_const_fold/<fixture>.oc
+		fixture        string // base name of testdata/provider_const_fold/<fixture>.orca
 		wantDeps       []string
 		wantImport     string // substring of main.py; empty to skip
 		wantDiagCount  int
@@ -766,7 +766,7 @@ func TestGenerateProviderConstFold(t *testing.T) {
 		t.Run(tt.fixture, func(t *testing.T) {
 			src := loadProviderConstFoldOC(t, tt.fixture)
 			ap := analyzedProgramFromSource(t, src)
-			// non_string_provider.oc intentionally violates the model schema (int for provider);
+			// non_string_provider.orca intentionally violates the model schema (int for provider);
 			// the analyzer reports that before codegen reports a non-string constant fold.
 			if tt.fixture != "non_string_provider" && len(ap.Diagnostics) > 0 {
 				t.Fatalf("unexpected analyzer diagnostics before codegen: %v", ap.Diagnostics)
