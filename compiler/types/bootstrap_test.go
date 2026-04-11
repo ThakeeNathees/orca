@@ -214,15 +214,15 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 			"subscription list[string] resolves to list type",
 			&ast.Subscription{
 				Object: &ast.Identifier{Value: "list"},
-				Index:  &ast.Identifier{Value: "string"},
+				Indices: []ast.Expression{&ast.Identifier{Value: "string"}},
 			},
 			List, nil, "",
 		},
 		{
-			"subscription map[number] resolves to map type",
+			"subscription map[string, number] resolves to map type",
 			&ast.Subscription{
-				Object: &ast.Identifier{Value: "map"},
-				Index:  &ast.Identifier{Value: "number"},
+				Object:  &ast.Identifier{Value: "map"},
+				Indices: []ast.Expression{&ast.Identifier{Value: "string"}, &ast.Identifier{Value: "number"}},
 			},
 			Map, nil, "",
 		},
@@ -230,7 +230,7 @@ func TestBlockSchemaTypeOfExprBootstrap(t *testing.T) {
 			"unsupported parameterized type returns any",
 			&ast.Subscription{
 				Object: &ast.Identifier{Value: "set"},
-				Index:  &ast.Identifier{Value: "string"},
+				Indices: []ast.Expression{&ast.Identifier{Value: "string"}},
 			},
 			BlockRef, typePtr(anyTyp), "",
 		},

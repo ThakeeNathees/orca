@@ -189,13 +189,13 @@ type MemberAccess struct {
 
 func (ma *MemberAccess) expressionNode() {}
 
-// Subscription represents an index access expression: object[index].
-// For example, `tools[0]` or `matrix[i + 1]`.
+// Subscription represents an index access expression: object[index, ...].
+// For example, `tools[0]`, `matrix[i + 1]`, or `callable[number, string, bool]`.
 // BaseNode spans from the object's start to the closing bracket.
 type Subscription struct {
 	BaseNode
-	Object Expression // the left-hand side expression
-	Index  Expression // the expression inside the brackets
+	Object  Expression   // the left-hand side expression
+	Indices []Expression // comma-separated expressions inside the brackets
 }
 
 func (s *Subscription) expressionNode() {}
@@ -320,7 +320,9 @@ func Walk(root Node, v Visitor) {
 		Walk(n.Object, v)
 	case *Subscription:
 		Walk(n.Object, v)
-		Walk(n.Index, v)
+		for _, idx := range n.Indices {
+			Walk(idx, v)
+		}
 	case *CallExpression:
 		Walk(n.Callee, v)
 		for _, arg := range n.Arguments {

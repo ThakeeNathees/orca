@@ -360,8 +360,10 @@ func findInExpr(expr ast.Expression, block *ast.BlockStatement, line, col int) N
 		if node := findInExpr(e.Object, block, line, col); node.Kind != NoneNode {
 			return node
 		}
-		if node := findInExpr(e.Index, block, line, col); node.Kind != NoneNode {
-			return node
+		for _, idx := range e.Indices {
+			if node := findInExpr(idx, block, line, col); node.Kind != NoneNode {
+				return node
+			}
 		}
 	case *ast.MapLiteral:
 		for _, entry := range e.Entries {

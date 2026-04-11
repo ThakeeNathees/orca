@@ -405,7 +405,7 @@ func TestTypeStringRendering(t *testing.T) {
 		{"list", Type{Kind: List}, "list"},
 		{"list[string]", NewListType(str), "list[string]"},
 		{"map", Type{Kind: Map}, "map"},
-		{"map[number]", NewMapType(ident("string"), num), "map[number]"},
+		{"map[string, number]", NewMapType(ident("string"), num), "map[string, number]"},
 		{"union string | number", NewUnionType(str, num), "string | number"},
 		{"union string | model | null", NewUnionType(str, schemaNamed("model"), nul), "string | model | null"},
 	}

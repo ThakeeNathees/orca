@@ -942,7 +942,7 @@ func TestAnalyzeListSubscriptRequiresInt(t *testing.T) {
 		{
 			"string subscript on nested list inside map value is invalid",
 			`schema user_defined_thing {
-				some_map = map[list[int]]
+				some_map = map[string, list[int]]
 			}
 			user_defined_thing user_input {
 				some_map = { "": [1, 2] }

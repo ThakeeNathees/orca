@@ -4,6 +4,8 @@
 package workflow
 
 import (
+	"strings"
+
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/graph"
 	"github.com/thakee/orca/compiler/token"
@@ -186,7 +188,11 @@ func ExprToNodeName(expr ast.Expression) string {
 	case *ast.MemberAccess:
 		return ExprToNodeName(e.Object) + "." + e.Member
 	case *ast.Subscription:
-		return ExprToNodeName(e.Object) + "[" + ExprToNodeName(e.Index) + "]"
+		var indices []string
+		for _, idx := range e.Indices {
+			indices = append(indices, ExprToNodeName(idx))
+		}
+		return ExprToNodeName(e.Object) + "[" + strings.Join(indices, ", ") + "]"
 	}
 	// TODO: Return a unique string.
 	return ""

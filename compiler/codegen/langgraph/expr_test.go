@@ -110,7 +110,7 @@ func TestExprToSource(t *testing.T) {
 			name: "subscription with integer",
 			expr: &ast.Subscription{
 				Object: &ast.Identifier{Value: "items"},
-				Index:  &ast.NumberLiteral{Value: 0},
+				Indices: []ast.Expression{&ast.NumberLiteral{Value: 0}},
 			},
 			expected: "items[0]",
 		},
@@ -118,7 +118,7 @@ func TestExprToSource(t *testing.T) {
 			name: "subscription with string key",
 			expr: &ast.Subscription{
 				Object: &ast.Identifier{Value: "data"},
-				Index:  &ast.StringLiteral{Value: "key"},
+				Indices: []ast.Expression{&ast.StringLiteral{Value: "key"}},
 			},
 			expected: `data["key"]`,
 		},
@@ -323,7 +323,7 @@ func TestExprToSourceExhaustiveKinds(t *testing.T) {
 		{"Identifier_null", &ast.Identifier{Value: "null"}},
 		{"Identifier", &ast.Identifier{Value: "id"}},
 		{"MemberAccess", &ast.MemberAccess{Object: &ast.Identifier{Value: "a"}, Member: "b"}},
-		{"Subscription", &ast.Subscription{Object: &ast.Identifier{Value: "a"}, Index: &ast.NumberLiteral{Value: 0}}},
+		{"Subscription", &ast.Subscription{Object: &ast.Identifier{Value: "a"}, Indices: []ast.Expression{&ast.NumberLiteral{Value: 0}}}},
 		{"ListLiteral", &ast.ListLiteral{Elements: []ast.Expression{&ast.NumberLiteral{Value: 1}}}},
 		{"MapLiteral", &ast.MapLiteral{Entries: []ast.MapEntry{{Key: &ast.StringLiteral{Value: "k"}, Value: &ast.NumberLiteral{Value: 1}}}}},
 		{"BinaryExpression", &ast.BinaryExpression{Left: &ast.Identifier{Value: "a"}, Operator: token.Token{Literal: "->"}, Right: &ast.Identifier{Value: "b"}}},

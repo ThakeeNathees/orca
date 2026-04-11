@@ -89,8 +89,8 @@ func orcaTypeToPythonTypeName(t types.Type) string {
 		}
 		return "list"
 	case types.Map:
-		if t.ValueType != nil {
-			return "dict[str, " + orcaTypeToPythonTypeName(*t.ValueType) + "]"
+		if t.KeyType != nil && t.ValueType != nil {
+			return "dict[" + orcaTypeToPythonTypeName(*t.KeyType) + ", " + orcaTypeToPythonTypeName(*t.ValueType) + "]"
 		}
 		return "dict"
 	case types.Union:

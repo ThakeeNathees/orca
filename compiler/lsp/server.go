@@ -555,8 +555,8 @@ func resolveExprValue(expr ast.Expression, doc *documentState) ast.Node {
 
 // resolveListSchemaElement returns the inner schema block for `list [ schema { ... } ]`.
 func resolveListSchemaElement(s *ast.Subscription) ast.Node {
-	if id, ok := s.Object.(*ast.Identifier); ok && id.Value == "list" {
-		if inner, ok := s.Index.(*ast.BlockExpression); ok {
+	if id, ok := s.Object.(*ast.Identifier); ok && id.Value == "list" && len(s.Indices) > 0 {
+		if inner, ok := s.Indices[0].(*ast.BlockExpression); ok {
 			return inner
 		}
 	}

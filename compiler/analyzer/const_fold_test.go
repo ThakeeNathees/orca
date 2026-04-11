@@ -212,7 +212,7 @@ func memberAccess(obj ast.Expression, member string) *ast.MemberAccess {
 
 // subExpr builds object[index] for const-fold tests.
 func subExpr(obj, index ast.Expression) *ast.Subscription {
-	return &ast.Subscription{Object: obj, Index: index}
+	return &ast.Subscription{Object: obj, Indices: []ast.Expression{index}}
 }
 
 // TestConstFoldMemberAccess covers foldMemberAccess: ConstBlock field lookup,

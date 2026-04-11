@@ -311,18 +311,39 @@ func identType(depth int, name string, symtab *SymbolTable) (Type, bool) {
 // type inference. With symbols, always infers from the object type.
 func subscriptionType(depth int, e *ast.Subscription, symtab *SymbolTable) Type {
 	// Bootstrap: try parameterized type like list[tool] or map[string].
-	if baseIdent, ok := e.Object.(*ast.Identifier); ok {
-		elemType := schemaFromExprWithDepth(depth, e.Index, symtab)
+	if baseIdent, ok := e.Object.(*ast.Identifier); ok && len(e.Indices) > 0 {
 		switch baseIdent.Value {
 		case "list":
+			elemType := schemaFromExprWithDepth(depth, e.Indices[0], symtab)
 			return NewListType(elemType)
 		case "map":
-			// NOTE: Map keys are always string (Orca primitive) but we set anyways maybe
-			// in the future we support other key types.
-			return NewMapType(IdentType(0, "string", symtab), elemType)
+			if len(e.Indices) == 2 {
+				keyType := schemaFromExprWithDepth(depth, e.Indices[0], symtab)
+				valType := schemaFromExprWithDepth(depth, e.Indices[1], symtab)
+				return NewMapType(keyType, valType)
+			}
+			// map requires exactly 2 indices: map[key_type, value_type].
+			return anyType(symtab)
+		case "callable":
+			return callableTypeFromIndices(depth, e.Indices, symtab)
 		}
 	}
 	return subscriptResultType(depth, schemaFromExprWithDepth(depth, e.Object, symtab), symtab)
+}
+
+// callableTypeFromIndices builds a Callable type from subscription indices.
+// The last index is the return type; all preceding indices are parameter types.
+// callable[number, string, bool] → params=[number, string], return=bool.
+func callableTypeFromIndices(depth int, indices []ast.Expression, symtab *SymbolTable) Type {
+	if len(indices) == 0 {
+		return anyType(symtab)
+	}
+	paramTypes := make([]Type, 0, len(indices)-1)
+	for _, idx := range indices[:len(indices)-1] {
+		paramTypes = append(paramTypes, schemaFromExprWithDepth(depth, idx, symtab))
+	}
+	returnType := schemaFromExprWithDepth(depth, indices[len(indices)-1], symtab)
+	return NewCallableType(paramTypes, returnType)
 }
 
 // memberAccessType resolves the type of a member access expression

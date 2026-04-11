@@ -20,6 +20,8 @@ const (
 	List
 	// Map represents a collection of key-value pairs.
 	Map
+	// Callable represents a function type with parameter types and a return type.
+	Callable
 )
 
 // kindStrings maps each TypeKind to its human-readable name.
@@ -28,6 +30,7 @@ var kindStrings = map[TypeKind]string{
 	List:     "list",
 	Map:      "map",
 	Union:    "union",
+	Callable: "callable",
 }
 
 // String returns the human-readable name of this type kind.
@@ -66,10 +69,19 @@ type Type struct {
 	BlockName string
 	Block     *BlockSchema // the defined block schema
 
-	ElementType *Type  // non-nil for List types
-	KeyType     *Type  // non-nil for Map types
-	ValueType   *Type  // non-nil for Map types
-	Members     []Type // non-nil for Union types — the set of acceptable types
+	// non-nil for Union types — the set of acceptable types
+	Members []Type
+
+	// non-nil for List types
+	ElementType *Type
+
+	// non-nil for Map types
+	KeyType   *Type
+	ValueType *Type
+
+	// non-nil for Callable types
+	ParamTypes []Type
+	ReturnType *Type
 }
 
 // NewListType creates a list type with the given element type.
@@ -80,6 +92,11 @@ func NewListType(element Type) Type {
 // NewMapType creates a map type with the given key and value types.
 func NewMapType(key, value Type) Type {
 	return Type{Kind: Map, KeyType: &key, ValueType: &value}
+}
+
+// NewCallableType creates a callable type with the given parameter and return types.
+func NewCallableType(params []Type, ret Type) Type {
+	return Type{Kind: Callable, ParamTypes: params, ReturnType: &ret}
 }
 
 // NewUnionType creates a union type that accepts any of the given member types.
@@ -135,10 +152,26 @@ func (t Type) String() string {
 		}
 		return "list"
 	case Map:
-		if t.ValueType != nil {
-			return "map[" + t.ValueType.String() + "]"
+		if t.KeyType != nil && t.ValueType != nil {
+			return "map[" + t.KeyType.String() + ", " + t.ValueType.String() + "]"
 		}
 		return "map"
+	case Callable:
+		s := "callable["
+		for i, p := range t.ParamTypes {
+			if i > 0 {
+				s += ", "
+			}
+			s += p.String()
+		}
+		if len(t.ParamTypes) > 0 {
+			s += ", "
+		}
+		if t.ReturnType != nil {
+			s += t.ReturnType.String()
+		}
+		s += "]"
+		return s
 	case Union:
 		s := ""
 		for i, m := range t.Members {
@@ -315,6 +348,19 @@ func (t Type) Equals(other Type) bool {
 			return false
 		}
 		return t.KeyType.Equals(*other.KeyType) && t.ValueType.Equals(*other.ValueType)
+	case Callable:
+		if len(t.ParamTypes) != len(other.ParamTypes) {
+			return false
+		}
+		for i := range t.ParamTypes {
+			if !t.ParamTypes[i].Equals(other.ParamTypes[i]) {
+				return false
+			}
+		}
+		if t.ReturnType == nil || other.ReturnType == nil {
+			return t.ReturnType == other.ReturnType
+		}
+		return t.ReturnType.Equals(*other.ReturnType)
 	case Union:
 		if len(t.Members) != len(other.Members) {
 			return false
