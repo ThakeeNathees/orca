@@ -650,6 +650,16 @@ func exprString(expr ast.Expression) string {
 		return fmt.Sprintf("%s(%s)", exprString(e.Callee), args)
 	case *ast.TernaryExpression:
 		return fmt.Sprintf("(%s ? %s : %s)", exprString(e.Condition), exprString(e.TrueExpr), exprString(e.FalseExpr))
+	case *ast.Lambda:
+		var params []string
+		for _, p := range e.Params {
+			params = append(params, p.Name.Value+" "+exprString(p.TypeExpr))
+		}
+		ret := ""
+		if e.ReturnType != nil {
+			ret = " " + exprString(e.ReturnType)
+		}
+		return fmt.Sprintf(`\(%s)%s -> %s`, strings.Join(params, ", "), ret, exprString(e.Body))
 	case *ast.MapLiteral:
 		entries := ""
 		for i, entry := range e.Entries {
@@ -1052,6 +1062,59 @@ func TestParseMultiIndexSubscription(t *testing.T) {
 			if len(sub.Indices) != tt.count {
 				t.Errorf("expected %d indices, got %d", tt.count, len(sub.Indices))
 			}
+			got := exprString(block.Assignments[0].Value)
+			if got != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, got)
+			}
+		})
+	}
+}
+
+// --- lambda ---
+
+func TestParseLambda(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "basic lambda with return type",
+			input:    `let v { add = \(a number, b number) number -> a + b }`,
+			expected: `\(a number, b number) number -> (a + b)`,
+		},
+		{
+			name:     "lambda without return type",
+			input:    `let v { double = \(x number) -> x * 2 }`,
+			expected: `\(x number) -> (x * 2)`,
+		},
+		{
+			name:     "zero param lambda",
+			input:    `let v { greet = \() -> "hello" }`,
+			expected: `\() -> "hello"`,
+		},
+		{
+			name:     "zero param lambda with return type",
+			input:    `let v { greet = \() string -> "hello" }`,
+			expected: `\() string -> "hello"`,
+		},
+		{
+			name:     "higher order lambda (currying)",
+			input:    `let v { add_k = \(k number) -> \(n number) -> k + n }`,
+			expected: `\(k number) -> \(n number) -> (k + n)`,
+		},
+		// TODO: IIFE requires grouped expression support: (\(...) -> ...)(args)
+		// {
+		// 	name:     "lambda as IIFE",
+		// 	input:    `let v { x = (\(n number) -> n + 40)(2) }`,
+		// 	expected: `(\(n number) -> (n + 40))(2)`,
+		// },
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			program := parseOrFail(t, tt.input)
+			block := assertBlock(t, program.Statements[0], "let", "v")
 			got := exprString(block.Assignments[0].Value)
 			if got != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, got)

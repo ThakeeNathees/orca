@@ -65,6 +65,9 @@ func ConstFold(expr ast.Expression, ap AnalyzedProgram) (ConstValue, []diagnosti
 	case *ast.CallExpression:
 		// TODO: fold pure builtins / intrinsics with constant args; else ConstUnknown.
 		return ConstValue{Kind: ConstUnknown}, diags
+	case *ast.Lambda:
+		// Lambdas are not constant-foldable.
+		return ConstValue{Kind: ConstUnknown}, diags
 	case *ast.MapLiteral:
 		return foldMapLiteral(e, ap)
 	case *ast.ListLiteral:

@@ -35,7 +35,8 @@ const (
 	ARROW    TokenType = "->"
 	PIPE     TokenType = "|"
 	AT       TokenType = "@"
-	QUESTION TokenType = "?"
+	QUESTION  TokenType = "?"
+	BACKSLASH TokenType = "\\"
 )
 
 // Operator precedence levels for Pratt parsing. Higher values bind tighter.
@@ -114,6 +115,8 @@ func Describe(t TokenType) string {
 		return "'@'"
 	case QUESTION:
 		return "'?'"
+	case BACKSLASH:
+		return "'\\'"
 	default:
 		return "'" + string(t) + "'"
 	}

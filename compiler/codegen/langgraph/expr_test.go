@@ -232,6 +232,28 @@ func TestExprToSource(t *testing.T) {
 			expected: `{"items": [1, 2]}`,
 		},
 		{
+			name: "lambda with params",
+			expr: &ast.Lambda{
+				Params: []ast.LambdaParam{
+					{Name: &ast.Identifier{Value: "a"}, TypeExpr: &ast.Identifier{Value: "number"}},
+					{Name: &ast.Identifier{Value: "b"}, TypeExpr: &ast.Identifier{Value: "number"}},
+				},
+				Body: &ast.BinaryExpression{
+					Left:     &ast.Identifier{Value: "a"},
+					Operator: token.Token{Literal: "+"},
+					Right:    &ast.Identifier{Value: "b"},
+				},
+			},
+			expected: "lambda a, b: a + b",
+		},
+		{
+			name: "lambda zero params",
+			expr: &ast.Lambda{
+				Body: &ast.NumberLiteral{Value: 42},
+			},
+			expected: "lambda : 42",
+		},
+		{
 			name: "block expression with assignments",
 			expr: &ast.BlockExpression{BlockBody: ast.BlockBody{
 				Kind: analyzer.BlockKindModel,

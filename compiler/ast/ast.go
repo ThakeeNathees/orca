@@ -262,6 +262,25 @@ type TernaryExpression struct {
 
 func (te *TernaryExpression) expressionNode() {}
 
+// LambdaParam represents a single parameter in a lambda expression.
+type LambdaParam struct {
+	Name     *Identifier // parameter name
+	TypeExpr Expression  // type annotation (e.g. number, schema { ... })
+}
+
+// Lambda represents a lambda expression: \(params) return_type -> body.
+// The return type is optional (nil when inferred from body).
+// Body is always a single expression.
+type Lambda struct {
+	BaseNode
+	Params     []LambdaParam // parameter list
+	ReturnType Expression    // optional return type annotation, nil if omitted
+	Arrow      token.Token   // the '->' token, for source mapping
+	Body       Expression    // the body expression
+}
+
+func (l *Lambda) expressionNode() {}
+
 // BlockExpression represents an inline block definition: model { provider = "openai" ... }.
 // Used for anonymous block instances in expressions like `model = model { provider = "openai" }`
 // and inline schemas like `output = schema { draft = string }`.
@@ -341,6 +360,15 @@ func Walk(root Node, v Visitor) {
 		Walk(n.Condition, v)
 		Walk(n.TrueExpr, v)
 		Walk(n.FalseExpr, v)
+	case *Lambda:
+		for _, p := range n.Params {
+			Walk(p.Name, v)
+			Walk(p.TypeExpr, v)
+		}
+		if n.ReturnType != nil {
+			Walk(n.ReturnType, v)
+		}
+		Walk(n.Body, v)
 	case *BlockExpression:
 		walkBlockBody(&n.BlockBody, v)
 	default:

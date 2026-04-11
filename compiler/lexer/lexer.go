@@ -116,6 +116,9 @@ func (l *Lexer) NextToken() token.Token {
 	case '?':
 		tok.Type = token.QUESTION
 		tok.Literal = "?"
+	case '\\':
+		tok.Type = token.BACKSLASH
+		tok.Literal = "\\"
 	case '*':
 		tok.Type = token.STAR
 		tok.Literal = "*"
