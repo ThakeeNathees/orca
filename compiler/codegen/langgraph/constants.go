@@ -2,7 +2,7 @@ package langgraph
 
 // orcaPrefix is the namespace prefix for all Orca runtime symbols in generated
 // Python code. Block constructors become __orca_model(), __orca_agent(), etc.
-const orcaPrefix = "__orca_"
+const orcaPrefix = "_orca__"
 
 // Generated Python field and function names built from orcaPrefix.
 // Centralised here so a prefix change propagates everywhere.

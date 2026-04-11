@@ -4,48 +4,48 @@ from typing import Any, TypedDict
 from langchain.agents import create_agent
 
 
-def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
+def _orca__block(kind: str, **kwargs: Any) -> SimpleNamespace:
     """Create a block instance with the given kind and keyword fields."""
     return SimpleNamespace(_kind=kind, **kwargs)
 
 
-def __orca_fields(params: dict[str, Any]) -> dict[str, Any]:
+def _orca__fields(params: dict[str, Any]) -> dict[str, Any]:
     """Filter out None values from a parameter dict to omit unset optional fields."""
     return {k: v for k, v in params.items() if v is not None}
 
 
-def __orca_meta(name: str, *args: Any) -> SimpleNamespace:
+def _orca__meta(name: str, *args: Any) -> SimpleNamespace:
     """Single Orca decorator as data (@name or @name(args...))."""
     return SimpleNamespace(_kind="meta", name=name, args=args)
 
 
-def __orca_with_meta(value: Any, metas: list[Any]) -> SimpleNamespace:
-    """Attach a non-empty list of __orca_meta() values to a block or field value."""
+def _orca__with_meta(value: Any, metas: list[Any]) -> SimpleNamespace:
+    """Attach a non-empty list of _orca__meta() values to a block or field value."""
     return SimpleNamespace(_kind="with_meta", value=value, metas=metas)
 
 
 
-def __orca_gather(state: dict, predecessors: list[str]) -> Any:
+def _orca__gather(state: dict, predecessors: list[str]) -> Any:
     """Collect predecessor outputs from workflow state.
 
-    No predecessors (entry nodes) use the __orca_payload field as input.
+    No predecessors (entry nodes) use the _orca__payload field as input.
     Single predecessor returns its value directly.
     Multiple predecessors returns a dict keyed by predecessor name.
     """
     if len(predecessors) == 0:
-        return state.get("__orca_payload")
+        return state.get("_orca__payload")
     if len(predecessors) == 1:
         return state.get(predecessors[0])
     return {k: state.get(k) for k in predecessors}
 
 
-def __orca_resolve_model(model_ns: SimpleNamespace) -> Any:
+def _orca__resolve_model(model_ns: SimpleNamespace) -> Any:
     """Instantiate a LangChain ChatModel from a model SimpleNamespace.
 
     The provider_class field is the actual class (e.g. ChatOpenAI), resolved
     at compile time by the codegen. No runtime provider lookup needed.
     """
-    return model_ns.provider_class(**__orca_fields({
+    return model_ns.provider_class(**_orca__fields({
         "model": model_ns.model_name,
         "temperature": getattr(model_ns, "temperature", None),
         "api_key": getattr(model_ns, "api_key", None),
@@ -53,9 +53,9 @@ def __orca_resolve_model(model_ns: SimpleNamespace) -> Any:
     }))
 
 
-def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
+def _orca__invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
     """Invoke an agent node using create_agent (works with or without tools)."""
-    llm = __orca_resolve_model(agent.model)
+    llm = _orca__resolve_model(agent.model)
     tools = [t.invoke for t in getattr(agent, "tools", None) or []]
     output_schema = getattr(agent, "output_schema", None)
 
@@ -76,6 +76,6 @@ def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
     return last_msg.content
 
 
-def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
+def _orca__invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     """Invoke a tool node by calling its invoke callable directly."""
     return tool.invoke(input_data)
