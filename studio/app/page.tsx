@@ -36,7 +36,7 @@ function WorkflowEditor() {
   const nodes = useStudioStore((s) => s.nodes);
   const edges = useStudioStore((s) => s.edges);
 
-  // Derive `.oc` source from the current graph on every change. The
+  // Derive `.orca` source from the current graph on every change. The
   // generator is pure and cheap for typical graph sizes, so memoising on
   // the node/edge refs is enough — Zustand hands back stable references
   // when nothing changed, so this recomputes only on real edits.

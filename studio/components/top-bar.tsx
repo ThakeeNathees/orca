@@ -73,7 +73,7 @@ export function TopBar() {
     // enforces snake_case / no weird characters — exactly what we want for
     // a cross-platform download name.
     const base = sanitizeIdent(activeName) || "workflow";
-    const filename = `${base}.oc`;
+    const filename = `${base}.orca`;
 
     // Browser download dance: Blob → object URL → hidden anchor click →
     // revoke. No backend, no IndexedDB round-trip — the source is
@@ -174,7 +174,7 @@ export function TopBar() {
               className="gap-1.5 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent disabled:cursor-not-allowed disabled:opacity-50"
               title={
                 canBuild
-                  ? "Download .oc source"
+                  ? "Download .orca source"
                   : "Add nodes to the canvas to build"
               }
             >
