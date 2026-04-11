@@ -1,4 +1,4 @@
-// A tool with a dotted import path invoke.
+// A tool with a callable invoke.
 tool web_search {
-  invoke = "langchain_community.tools.web_search.WebSearchTool"
+  invoke = \(query string) -> query
 }

@@ -88,7 +88,7 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		{"model.temperature", "model", "temperature", Union, false, "number | null"},
 		{"agent.persona", "agent", "persona", BlockRef, true, "string"},
 		{"tool.desc", "tool", "desc", Union, false, "string | null"},
-		{"tool.invoke", "tool", "invoke", BlockRef, true, "string"},
+		{"tool.invoke", "tool", "invoke", BlockRef, true, "callable"},
 		{"workflow.name", "workflow", "name", Union, false, "string | null"},
 	}
 

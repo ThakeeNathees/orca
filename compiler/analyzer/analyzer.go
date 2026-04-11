@@ -6,7 +6,6 @@ package analyzer
 
 import (
 	"fmt"
-	"regexp"
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
@@ -16,10 +15,6 @@ import (
 	"github.com/thakee/orca/compiler/types"
 	"github.com/thakee/orca/compiler/workflow"
 )
-
-// defNameRe matches `def <name>` at the start of a Python function definition
-// to extract the function name from an inline invoke raw string.
-var defNameRe = regexp.MustCompile(`(?m)^\s*def\s+(\w+)`)
 
 // AnalyzedProgram holds the output of semantic analysis: the symbol table
 // built from block definitions and any diagnostics produced.
@@ -509,62 +504,6 @@ func validateField(assign *ast.Assignment, blockName string, kind string, schema
 			Message: fmt.Sprintf("field %q expects type %s, got %s",
 				assign.Name, expected.String(), exprType.String()),
 			Source: "analyzer",
-		}}
-	}
-
-	// TODO: This is a "tool" kind specific validation maybe move somewhere else.
-	// Validate invoke field specifics for tool blocks.
-	if kind == BlockKindTool && assign.Name == "invoke" {
-		// TODO: Here we're checking for literal string but first we need to const fold.
-		if str, ok := assign.Value.(*ast.StringLiteral); ok {
-			if str.Lang != "" && str.Lang != LangTagPython {
-				return []diagnostic.Diagnostic{{
-					Severity: diagnostic.Warning,
-					Code:     diagnostic.CodeUnsupportedLang,
-					Position: diagnostic.Position{
-						Line:   str.Start().Line,
-						Column: str.Start().Column,
-					},
-					Message: fmt.Sprintf("unsupported language %q in invoke field; only \"py\" is supported", str.Lang),
-					Source:  "analyzer",
-				}}
-			}
-			return validateInlineInvoke(str, blockName)
-		}
-	}
-
-	return nil
-}
-
-// validateInlineInvoke checks that an inline Python invoke raw string contains
-// a function definition and that the function name matches the tool block name.
-// Diagnostics span the entire raw string for visibility.
-func validateInlineInvoke(str *ast.StringLiteral, blockName string) []diagnostic.Diagnostic {
-	end := str.End()
-	rng := diagnostic.Position{Line: str.Start().Line, Column: str.Start().Column}
-	endRng := diagnostic.Position{Line: end.EndLine, Column: end.EndCol + 1}
-
-	matches := defNameRe.FindStringSubmatch(str.Value)
-	if len(matches) < 2 {
-		return []diagnostic.Diagnostic{{
-			Severity:    diagnostic.Error,
-			Code:        diagnostic.CodeInvalidValue,
-			Position:    rng,
-			EndPosition: endRng,
-			Message:     fmt.Sprintf("invoke raw string must contain a function definition (def %s(...))", blockName),
-			Source:      "analyzer",
-		}}
-	}
-
-	funcName := matches[1]
-	if funcName != blockName {
-		return []diagnostic.Diagnostic{{
-			Severity:    diagnostic.Warning,
-			Code:        diagnostic.CodeInvalidValue,
-			Position:    rng,
-			EndPosition: endRng,
-			Message:     fmt.Sprintf("invoke function name %q does not match tool block name %q", funcName, blockName),
-			Source:      "analyzer",
 		}}
 	}
 

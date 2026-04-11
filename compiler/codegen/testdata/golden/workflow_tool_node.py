@@ -104,12 +104,9 @@ drafter = __orca_block("agent",
     persona="You draft reports.",
 )
 
-def validate__invoke_verbatim(report: str) -> str:
-    return report
-
 validate = __orca_block("tool", 
     desc="Validate report against style guide",
-    invoke=validate__invoke_verbatim,
+    invoke=lambda report: report,
 )
 
 reviewer = __orca_block("agent", 

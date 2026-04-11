@@ -12,6 +12,20 @@ import (
 	"github.com/thakee/orca/compiler/workflow"
 )
 
+// resolveWorkflows pre-processes all workflow blocks, resolving their node
+// graphs and trigger predicates.
+func (b *LangGraphBackend) resolveWorkflows() {
+	wfs := b.collectWorkflows()
+	if len(wfs) == 0 {
+		return
+	}
+	b.resolvedWorkflows = make(map[string]workflow.ResolvedWorkflow, len(wfs))
+	for _, wf := range wfs {
+		rw := workflow.Resolve(wf, b.triggerPredicate())
+		b.resolvedWorkflows[wf.Name] = rw
+	}
+}
+
 // collectWorkflows returns all workflow blocks. Cached so that both
 // writeWorkflowSection and workflowImports share the same traversal.
 func (b *LangGraphBackend) collectWorkflows() []*ast.BlockStatement {

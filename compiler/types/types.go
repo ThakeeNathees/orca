@@ -243,8 +243,12 @@ func IsCompatible(got Type, expected Type) bool {
 			return false
 		}
 
+		// A bare primitive schema (e.g. `schema list {}`, `schema map {}`,
+		// `schema callable {}`) accepts any value whose native kind matches.
+		// This handles cases like `invoke = callable` accepting a lambda, or
+		// a hypothetical `items = list` accepting a list literal.
 		if got.Kind != BlockRef {
-			return false
+			return kindStrings[got.Kind] == expected.BlockName
 		}
 
 		// When got has an unresolved block pointer (e.g. from an inline block
@@ -314,6 +318,27 @@ func IsCompatible(got Type, expected Type) bool {
 	if got.Kind == Map && expected.Kind == Map {
 		if got.ValueType != nil && expected.ValueType != nil {
 			return IsCompatible(*got.ValueType, *expected.ValueType)
+		}
+		return true
+	}
+
+	// Callables: a bare callable (no params/return) accepts any callable.
+	// Typed callables check param count, param types, and return type.
+	if got.Kind == Callable && expected.Kind == Callable {
+		// Bare callable accepts any callable.
+		if len(expected.ParamTypes) == 0 && expected.ReturnType == nil {
+			return true
+		}
+		if len(got.ParamTypes) != len(expected.ParamTypes) {
+			return false
+		}
+		for i := range got.ParamTypes {
+			if !IsCompatible(got.ParamTypes[i], expected.ParamTypes[i]) {
+				return false
+			}
+		}
+		if got.ReturnType != nil && expected.ReturnType != nil {
+			return IsCompatible(*got.ReturnType, *expected.ReturnType)
 		}
 		return true
 	}

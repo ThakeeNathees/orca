@@ -5,17 +5,11 @@ model gpt4 {
 }
 
 tool web_search {
-  invoke = ```py
-def web_search(query: str) -> str:
-    return ""
-```
+  invoke = \(query string) -> ""
 }
 
 tool calculator {
-  invoke = ```py
-def calculator(expr: str) -> str:
-    return ""
-```
+  invoke = \(expr string) -> ""
 }
 
 agent researcher {

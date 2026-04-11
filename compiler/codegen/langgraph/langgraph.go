@@ -20,7 +20,6 @@ var embeddedRuntime string
 type LangGraphBackend struct {
 	codegen.BaseBackend
 	resolvedProviders resolvedProviders
-	resolvedTools     map[string]resolvedToolInvoke        // keyed by tool block name
 	resolvedWorkflows map[string]workflow.ResolvedWorkflow // keyed by workflow block name
 }
 
@@ -33,7 +32,6 @@ func New(program *analyzer.AnalyzedProgram) codegen.CodegenBackend {
 func (b *LangGraphBackend) Generate() codegen.CodegenOutput {
 
 	b.resolveProviders()
-	b.resolveToolInvokes()
 	b.resolveWorkflows()
 
 	workflows := b.collectWorkflows()
@@ -66,8 +64,7 @@ func (b *LangGraphBackend) generateMain() string {
 
 	workflows := b.collectWorkflows()
 	schemaBlocks := b.CollectBlocksByKind(types.BlockKindSchema)
-	allImports := append(b.resolvedProviders.providerImports, b.toolImports()...)
-	allImports = append(allImports, workflowImports(workflows)...)
+	allImports := append(b.resolvedProviders.providerImports, workflowImports(workflows)...)
 	allImports = append(allImports, python.PythonImport{Module: "sys"})
 
 	if len(schemaBlocks) > 0 {
@@ -123,19 +120,8 @@ func (b *LangGraphBackend) writeBlock(s *strings.Builder, block *ast.BlockStatem
 		fmt.Fprintf(s, "%s = %s\n", block.Name, modelBlockSource(block))
 
 	case analyzer.BlockKindTool:
-		resolved, ok := b.resolvedTools[block.Name]
-		if !ok {
-			s.WriteString("\n")
-			fmt.Fprintf(s, "%s = %s\n", block.Name, topLevelBlockSource(block))
-			return
-		}
-		if resolved.verbatim != "" {
-			s.WriteString("\n")
-			s.WriteString(resolved.verbatim)
-			s.WriteString("\n")
-		}
 		s.WriteString("\n")
-		fmt.Fprintf(s, "%s = %s\n", block.Name, toolBlockSource(block, resolved.invokeRef))
+		fmt.Fprintf(s, "%s = %s\n", block.Name, topLevelBlockSource(block))
 
 	case analyzer.BlockKindWorkflow:
 		if rw, ok := b.resolvedWorkflows[block.Name]; ok {

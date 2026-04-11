@@ -13,12 +13,12 @@ model claude {
 }
 
 tool web_search {
-  invoke = "langchain_community.tools.web_search.WebSearchTool"
+  invoke = \(query string) -> query
 }
 
 tool slack {
   desc   = "Send messages to Slack"
-  invoke = "integrations.slack.send_message"
+  invoke = \(msg string) -> msg
 }
 
 // The researcher uses web search to gather information.

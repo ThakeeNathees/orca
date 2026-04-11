@@ -203,11 +203,11 @@
     "keyword": {
       "patterns": [
         {
-          "match": "\\b(string|number|nul|null|bool|list|map|any|true|false)\\b",
+          "match": "\\b(string|number|nul|null|bool|list|map|any|true|false|callable)\\b",
           "name": "keyword.language.primitive.orca"
         },
         {
-          "match": "\\b(model|agent|tool|knowledge|workflow|cron|webhook|schema|input|let)\\b",
+          "match": "\\b(model|agent|tool|knowledge|workflow|cron|webhook|schema|let)\\b",
           "name": "keyword.other.block-type.orca"
         }
       ]

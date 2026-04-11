@@ -535,6 +535,16 @@ func TestIsCompatible(t *testing.T) {
 		{"list[str] not compatible with list[number]", listStr, listNum, false},
 
 		{"null resolved compatible with null resolved", nullResolved(), nullResolved(), false},
+
+		// Bare primitive schema BlockRefs should accept their native kind.
+		// e.g. `invoke = callable` in bootstrap produces BlockRef("callable"),
+		// but a lambda expression produces Kind: Callable.
+		{"callable compatible with bare callable schema", NewCallableType([]Type{str}, str), schemaNamed("callable"), true},
+		{"bare callable schema compatible with callable", schemaNamed("callable"), NewCallableType([]Type{str}, str), false},
+		{"list compatible with bare list schema", Type{Kind: List}, schemaNamed("list"), true},
+		{"list[str] compatible with bare list schema", NewListType(str), schemaNamed("list"), true},
+		{"map compatible with bare map schema", Type{Kind: Map}, schemaNamed("map"), true},
+		{"map[str,str] compatible with bare map schema", NewMapType(str, str), schemaNamed("map"), true},
 	}
 
 	for _, tt := range tests {

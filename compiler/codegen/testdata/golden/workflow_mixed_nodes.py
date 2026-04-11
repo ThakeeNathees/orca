@@ -115,11 +115,8 @@ writer = __orca_block("agent",
     output_schema=report,
 )
 
-def validate__invoke_verbatim(report: str) -> str:
-    return report
-
 validate = __orca_block("tool", 
-    invoke=validate__invoke_verbatim,
+    invoke=lambda report: report,
 )
 
 class __orca_state_pipeline(TypedDict):

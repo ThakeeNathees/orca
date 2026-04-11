@@ -99,18 +99,12 @@ gpt4 = __orca_block("model",
     temperature=0.5,
 )
 
-def web_search__invoke_verbatim(query: str) -> str:
-    return ""
-
 web_search = __orca_block("tool", 
-    invoke=web_search__invoke_verbatim,
+    invoke=lambda query: "",
 )
 
-def calculator__invoke_verbatim(expr: str) -> str:
-    return ""
-
 calculator = __orca_block("tool", 
-    invoke=calculator__invoke_verbatim,
+    invoke=lambda expr: "",
 )
 
 researcher = __orca_block("agent", 

@@ -110,8 +110,8 @@ schema tool {
   @desc("The output schema for the tool.")
   output_schema = schema | null
 
-  @desc("The function to invoke for the tool. Either a dotted import path or an inline raw string.")
-  invoke = string
+  @desc("The callable to invoke for the tool.")
+  invoke = callable
 }
 
 @suppress("duplicate-block")

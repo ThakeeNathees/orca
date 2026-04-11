@@ -10,74 +10,6 @@ import (
 	"github.com/thakee/orca/compiler/parser"
 )
 
-// TestAnalyzeInlineInvoke verifies that the analyzer checks inline Python
-// invoke raw strings for a function definition and name match.
-func TestAnalyzeInlineInvoke(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       string
-		expectDiag  bool
-		errContains string
-		severity    diagnostic.Severity
-	}{
-		{
-			"valid inline invoke with matching name",
-			"tool foo {\n  invoke = ```py\ndef foo(query: str) -> str:\n    return query\n```\n}",
-			false, "", 0,
-		},
-		{
-			"inline invoke missing def",
-			"tool foo {\n  invoke = ```py\nreturn 42\n```\n}",
-			true,
-			"must contain a function definition",
-			diagnostic.Error,
-		},
-		{
-			"inline invoke name mismatch",
-			"tool foo {\n  invoke = ```py\ndef not_foo(query: str) -> str:\n    return query\n```\n}",
-			true,
-			`invoke function name "not_foo" does not match tool block name "foo"`,
-			diagnostic.Warning,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			program := parseProgram(t, tt.input)
-			result := Analyze(program)
-
-			var found *diagnostic.Diagnostic
-			for i, d := range result.Diagnostics {
-				if d.Code == diagnostic.CodeInvalidValue && strings.Contains(d.Message, tt.errContains) {
-					found = &result.Diagnostics[i]
-					break
-				}
-			}
-
-			if tt.expectDiag {
-				if found == nil {
-					t.Fatalf("expected diagnostic containing %q, got %v", tt.errContains, result.Diagnostics)
-				}
-				if found.Severity != tt.severity {
-					t.Errorf("expected severity %v, got %v", tt.severity, found.Severity)
-				}
-				// Verify the diagnostic spans the entire raw string (has EndPosition set).
-				if found.EndPosition.Line == 0 {
-					t.Error("expected EndPosition to be set for multi-line diagnostic span")
-				}
-				if found.EndPosition.Line <= found.Position.Line || (found.EndPosition.Line == found.Position.Line && found.EndPosition.Column <= found.Position.Column) {
-					t.Errorf("expected EndPosition (%d:%d) to be after Position (%d:%d)",
-						found.EndPosition.Line, found.EndPosition.Column,
-						found.Position.Line, found.Position.Column)
-				}
-			} else {
-				if found != nil {
-					t.Errorf("unexpected diagnostic: %s", found.Message)
-				}
-			}
-		})
-	}
-}
 
 // parseProgram is a test helper that parses input and fails on parse errors.
 func parseProgram(t *testing.T, input string) *ast.Program {
@@ -545,7 +477,7 @@ func TestCheckReferencesRecursive(t *testing.T) {
 		{
 			"valid ref in list element",
 			`tool web_search {
-				invoke = "tools.web_search.search"
+				invoke = \(q string) -> q
 			}
 			agent a {
 				model = "gpt-4o"
@@ -1209,7 +1141,7 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 		{
 			"valid workflow with tool node",
 			`agent A { model = gpt4 }
-			 tool T { invoke = "some.module.func" }
+			 tool T { invoke = \(x string) -> x }
 			 model gpt4 { provider = "openai" }
 			 workflow run { A -> T }`,
 			false,
