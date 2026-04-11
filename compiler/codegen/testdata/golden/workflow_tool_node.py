@@ -17,48 +17,48 @@ from typing import Any, TypedDict
 from langchain.agents import create_agent
 
 
-def __orca_block(kind: str, **kwargs: Any) -> SimpleNamespace:
+def _orca__block(kind: str, **kwargs: Any) -> SimpleNamespace:
     """Create a block instance with the given kind and keyword fields."""
     return SimpleNamespace(_kind=kind, **kwargs)
 
 
-def __orca_fields(params: dict[str, Any]) -> dict[str, Any]:
+def _orca__fields(params: dict[str, Any]) -> dict[str, Any]:
     """Filter out None values from a parameter dict to omit unset optional fields."""
     return {k: v for k, v in params.items() if v is not None}
 
 
-def __orca_meta(name: str, *args: Any) -> SimpleNamespace:
+def _orca__meta(name: str, *args: Any) -> SimpleNamespace:
     """Single Orca decorator as data (@name or @name(args...))."""
     return SimpleNamespace(_kind="meta", name=name, args=args)
 
 
-def __orca_with_meta(value: Any, metas: list[Any]) -> SimpleNamespace:
-    """Attach a non-empty list of __orca_meta() values to a block or field value."""
+def _orca__with_meta(value: Any, metas: list[Any]) -> SimpleNamespace:
+    """Attach a non-empty list of _orca__meta() values to a block or field value."""
     return SimpleNamespace(_kind="with_meta", value=value, metas=metas)
 
 
 
-def __orca_gather(state: dict, predecessors: list[str]) -> Any:
+def _orca__gather(state: dict, predecessors: list[str]) -> Any:
     """Collect predecessor outputs from workflow state.
 
-    No predecessors (entry nodes) use the __orca_payload field as input.
+    No predecessors (entry nodes) use the _orca__payload field as input.
     Single predecessor returns its value directly.
     Multiple predecessors returns a dict keyed by predecessor name.
     """
     if len(predecessors) == 0:
-        return state.get("__orca_payload")
+        return state.get("_orca__payload")
     if len(predecessors) == 1:
         return state.get(predecessors[0])
     return {k: state.get(k) for k in predecessors}
 
 
-def __orca_resolve_model(model_ns: SimpleNamespace) -> Any:
+def _orca__resolve_model(model_ns: SimpleNamespace) -> Any:
     """Instantiate a LangChain ChatModel from a model SimpleNamespace.
 
     The provider_class field is the actual class (e.g. ChatOpenAI), resolved
     at compile time by the codegen. No runtime provider lookup needed.
     """
-    return model_ns.provider_class(**__orca_fields({
+    return model_ns.provider_class(**_orca__fields({
         "model": model_ns.model_name,
         "temperature": getattr(model_ns, "temperature", None),
         "api_key": getattr(model_ns, "api_key", None),
@@ -66,9 +66,9 @@ def __orca_resolve_model(model_ns: SimpleNamespace) -> Any:
     }))
 
 
-def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
+def _orca__invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
     """Invoke an agent node using create_agent (works with or without tools)."""
-    llm = __orca_resolve_model(agent.model)
+    llm = _orca__resolve_model(agent.model)
     tools = [t.invoke for t in getattr(agent, "tools", None) or []]
     output_schema = getattr(agent, "output_schema", None)
 
@@ -89,68 +89,68 @@ def __orca_invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
     return last_msg.content
 
 
-def __orca_invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
+def _orca__invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
     """Invoke a tool node by calling its invoke callable directly."""
     return tool.invoke(input_data)
 
 
-gpt4 = __orca_block("model", 
+gpt4 = _orca__block("model", 
     provider_class=ChatOpenAI,
     model_name="gpt-4o",
 )
 
-drafter = __orca_block("agent", 
+drafter = _orca__block("agent", 
     model=gpt4,
     persona="You draft reports.",
 )
 
-validate = __orca_block("tool", 
+validate = _orca__block("tool", 
     desc="Validate report against style guide",
     invoke=lambda report: report,
 )
 
-reviewer = __orca_block("agent", 
+reviewer = _orca__block("agent", 
     model=gpt4,
     persona="You review validated reports.",
 )
 
-class __orca_state_review_pipeline(TypedDict):
-    __orca_trigger: str | None
-    __orca_payload: dict | None
+class _orca__state_review_pipeline(TypedDict):
+    _orca__trigger: str | None
+    _orca__payload: dict | None
     drafter: Any
     validate: Any
     reviewer: Any
 
-def __orca_node_drafter(state: __orca_state_review_pipeline) -> dict:
+def _orca__node_drafter(state: _orca__state_review_pipeline) -> dict:
     """Workflow node wrapping 'drafter'."""
     _predecessors = []
-    _input = __orca_gather(state, _predecessors)
-    _out = __orca_invoke_agent(drafter, _input)
+    _input = _orca__gather(state, _predecessors)
+    _out = _orca__invoke_agent(drafter, _input)
     return {"drafter": _out}
 
-def __orca_node_validate(state: __orca_state_review_pipeline) -> dict:
+def _orca__node_validate(state: _orca__state_review_pipeline) -> dict:
     """Workflow node wrapping 'validate'."""
     _predecessors = ["drafter"]
-    _input = __orca_gather(state, _predecessors)
-    _out = __orca_invoke_tool(validate, _input)
+    _input = _orca__gather(state, _predecessors)
+    _out = _orca__invoke_tool(validate, _input)
     return {"validate": _out}
 
-def __orca_node_reviewer(state: __orca_state_review_pipeline) -> dict:
+def _orca__node_reviewer(state: _orca__state_review_pipeline) -> dict:
     """Workflow node wrapping 'reviewer'."""
     _predecessors = ["validate"]
-    _input = __orca_gather(state, _predecessors)
-    _out = __orca_invoke_agent(reviewer, _input)
+    _input = _orca__gather(state, _predecessors)
+    _out = _orca__invoke_agent(reviewer, _input)
     return {"reviewer": _out}
 
-def __orca_route_review_pipeline(state: __orca_state_review_pipeline) -> str:
+def _orca__route_review_pipeline(state: _orca__state_review_pipeline) -> str:
     """Route to entry node based on trigger source."""
     return "drafter"
 
-review_pipeline = StateGraph(__orca_state_review_pipeline)
-review_pipeline.add_node("drafter", __orca_node_drafter)
-review_pipeline.add_node("validate", __orca_node_validate)
-review_pipeline.add_node("reviewer", __orca_node_reviewer)
-review_pipeline.add_conditional_edges(START, __orca_route_review_pipeline)
+review_pipeline = StateGraph(_orca__state_review_pipeline)
+review_pipeline.add_node("drafter", _orca__node_drafter)
+review_pipeline.add_node("validate", _orca__node_validate)
+review_pipeline.add_node("reviewer", _orca__node_reviewer)
+review_pipeline.add_conditional_edges(START, _orca__route_review_pipeline)
 review_pipeline.add_edge("drafter", "validate")
 review_pipeline.add_edge("validate", "reviewer")
 review_pipeline.add_edge("reviewer", END)
@@ -158,9 +158,9 @@ review_pipeline = review_pipeline.compile()
 
 if __name__ == "__main__":
     payload = sys.argv[1] if len(sys.argv) >= 2 else ""
-    initial_state: __orca_state_review_pipeline = {
-        "__orca_trigger": "",
-        "__orca_payload": payload,
+    initial_state: _orca__state_review_pipeline = {
+        "_orca__trigger": "",
+        "_orca__payload": payload,
         "drafter": "",
         "validate": "",
         "reviewer": "",
