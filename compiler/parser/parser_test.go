@@ -1103,12 +1103,11 @@ func TestParseLambda(t *testing.T) {
 			input:    `let v { add_k = \(k number) -> \(n number) -> k + n }`,
 			expected: `\(k number) -> \(n number) -> (k + n)`,
 		},
-		// TODO: IIFE requires grouped expression support: (\(...) -> ...)(args)
-		// {
-		// 	name:     "lambda as IIFE",
-		// 	input:    `let v { x = (\(n number) -> n + 40)(2) }`,
-		// 	expected: `(\(n number) -> (n + 40))(2)`,
-		// },
+		{
+			name:     "lambda as IIFE",
+			input:    `let v { x = (\(n number) -> n + 40)(2) }`,
+			expected: `\(n number) -> (n + 40)(2)`,
+		},
 	}
 
 	for _, tt := range tests {
