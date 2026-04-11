@@ -4,7 +4,7 @@ A complete example with multiple agents orchestrated through a workflow pipeline
 
 ## Source
 
-### `models.oc`
+### `models.orca`
 
 ```orca
 model gpt4 {
@@ -20,7 +20,7 @@ model claude {
 }
 ```
 
-### `agents.oc`
+### `agents.orca`
 
 ```orca
 tool search {
@@ -57,7 +57,7 @@ agent editor {
 }
 ```
 
-### `workflow.oc`
+### `workflow.orca`
 
 ```orca
 workflow content_pipeline {
@@ -78,4 +78,4 @@ orca build
 3. The `workflow` block connects them with arrow syntax: `researcher -> writer -> editor`.
 4. `START` and `END` are inferred automatically — `researcher` has no incoming edges so it becomes the entry point, `editor` has no outgoing edges so it becomes the exit.
 
-This pattern — splitting definitions across multiple `.oc` files — is idiomatic. The compiler reads all `.oc` files in the directory and resolves cross-file references automatically.
+This pattern — splitting definitions across multiple `.orca` files — is idiomatic. The compiler reads all `.orca` files in the directory and resolves cross-file references automatically.

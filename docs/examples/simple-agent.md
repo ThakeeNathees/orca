@@ -2,7 +2,7 @@
 
 A minimal Orca project with one model, one tool, and one agent.
 
-## Source (`main.oc`)
+## Source (`main.orca`)
 
 ```orca
 model gpt4 {
@@ -46,7 +46,7 @@ from langchain_openai import ChatOpenAI
 
 # === models ===
 
-gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.7)  # main.oc:1
+gpt4 = ChatOpenAI(model="gpt-4o", temperature=0.7)  # main.orca:1
 ```
 
 ## Generated dependencies (`build/pyproject.toml`)

@@ -1,5 +1,5 @@
 // Package lexer implements the tokenizer for the Orca language.
-// It reads raw .oc source text character by character and produces
+// It reads raw .orca source text character by character and produces
 // a stream of tokens for the parser. Handles strings, numbers (int/float),
 // identifiers/keywords, single-char operators, and comments.
 package lexer
@@ -20,13 +20,13 @@ type Lexer struct {
 	ch           byte   // current character under examination
 	line         int    // current line number (1-based)
 	column       int    // current column number (1-based)
-	SourceFile   string // the .oc file being lexed; empty for in-memory/test inputs
+	SourceFile   string // the .orca file being lexed; empty for in-memory/test inputs
 }
 
 // New creates a Lexer for the given input string and primes it
 // by reading the first character. Line starts at 1, column at 0
 // because readChar increments column before the first real read.
-// sourceFile is the path of the .oc file being lexed; pass "" for
+// sourceFile is the path of the .orca file being lexed; pass "" for
 // in-memory or test inputs.
 func New(input string, sourceFile string) *Lexer {
 	l := &Lexer{input: input, line: 1, column: 0, SourceFile: sourceFile}

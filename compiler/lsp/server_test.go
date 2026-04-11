@@ -14,7 +14,7 @@ import (
 
 // diagnoseText is a test helper that parses text and returns LSP diagnostics.
 func diagnoseText(text string) []protocol.Diagnostic {
-	doc := updateDocument("test://diag.oc", text)
+	doc := updateDocument("test://diag.orca", text)
 	lspDiags := make([]protocol.Diagnostic, 0, len(doc.Diagnostics))
 	for _, d := range doc.Diagnostics {
 		lspDiags = append(lspDiags, toLspDiagnostic(d))
@@ -142,7 +142,7 @@ func TestToLspSeverity(t *testing.T) {
 // suggests missing schema fields.
 func TestCompleteFieldNames(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n}"
-	doc := updateDocument("test://file.oc", text)
+	doc := updateDocument("test://file.orca", text)
 
 	// Line 2, col 1 — inside block body, should suggest missing fields.
 	ctx := resolveAtDocPosition(doc, 1, 0) // 0-based: line 1, char 0
@@ -171,7 +171,7 @@ func TestCompleteFieldNames(t *testing.T) {
 // TestCompleteFieldNamesRequired verifies that required fields sort before optional.
 func TestCompleteFieldNamesRequired(t *testing.T) {
 	text := "agent researcher {\n}"
-	doc := updateDocument("test://file.oc", text)
+	doc := updateDocument("test://file.orca", text)
 
 	ctx := resolveAtDocPosition(doc, 0, 19) // inside empty block
 	items := completionItems(ctx)
@@ -198,7 +198,7 @@ func TestCompleteFieldNamesRequired(t *testing.T) {
 // TestCompleteFieldNamesInsertText verifies that completion inserts "field = ".
 func TestCompleteFieldNamesInsertText(t *testing.T) {
 	text := "model gpt4 {\n}"
-	doc := updateDocument("test://file.oc", text)
+	doc := updateDocument("test://file.orca", text)
 
 	ctx := resolveAtDocPosition(doc, 0, 13) // inside empty block
 	items := completionItems(ctx)
@@ -229,7 +229,7 @@ func findMemberCompletion(doc *documentState, line, char int) []protocol.Complet
 // of the model block.
 func TestCompleteMemberAccess(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://dotcomp.oc", text)
+	doc := updateDocument("test://dotcomp.orca", text)
 
 	// Cursor is right after "gpt4." on line 6 (0-based: line 5, char 15).
 	items := findMemberCompletion(doc, 5, 15)
@@ -256,7 +256,7 @@ func TestCompleteMemberAccess(t *testing.T) {
 // TestCompleteMemberAccessKind verifies that member completions use Property kind.
 func TestCompleteMemberAccessKind(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://dotcomp2.oc", text)
+	doc := updateDocument("test://dotcomp2.orca", text)
 
 	items := findMemberCompletion(doc, 5, 15)
 	for _, item := range items {
@@ -269,7 +269,7 @@ func TestCompleteMemberAccessKind(t *testing.T) {
 // TestCompleteMemberAccessNoResults verifies no completions for unknown identifiers.
 func TestCompleteMemberAccessNoResults(t *testing.T) {
 	text := "agent researcher {\n  model = unknown.\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://dotcomp3.oc", text)
+	doc := updateDocument("test://dotcomp3.orca", text)
 
 	items := findMemberCompletion(doc, 1, 18)
 	if len(items) != 0 {
@@ -282,7 +282,7 @@ func TestCompleteMemberAccessNoResults(t *testing.T) {
 // instead of falling through to the enclosing block's field suggestions.
 func TestCompleteMemberAccessPrimitiveStr(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\n\nmodel my_model {\n  provider = gpt4.provider.\n  model_name = \"gpt-4o\"\n}"
-	doc := updateDocument("test://dotcomp_str.oc", text)
+	doc := updateDocument("test://dotcomp_str.orca", text)
 
 	// "gpt4.provider." — string has no schema fields; must not suggest model fields.
 	items := findMemberCompletion(doc, 6, 25)
@@ -297,7 +297,7 @@ func TestCompleteMemberAccessPrimitiveStr(t *testing.T) {
 // TestCompleteMemberAccessDescription verifies that completions include field descriptions.
 func TestCompleteMemberAccessDescription(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://dotcomp4.oc", text)
+	doc := updateDocument("test://dotcomp4.orca", text)
 
 	items := findMemberCompletion(doc, 5, 15)
 	for _, item := range items {
@@ -310,7 +310,7 @@ func TestCompleteMemberAccessDescription(t *testing.T) {
 // TestHoverOnBlockName verifies that hovering a block name shows its type.
 func TestHoverOnBlockName(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n}"
-	doc := updateDocument("test://hover.oc", text)
+	doc := updateDocument("test://hover.orca", text)
 
 	node := findNodeAtDoc(doc, 0, 6) // 0-based: "gpt4" starts at char 6
 	if node.Kind != cursor.BlockNameNode {
@@ -321,7 +321,7 @@ func TestHoverOnBlockName(t *testing.T) {
 // TestHoverOnIdentReference verifies hover on an identifier reference.
 func TestHoverOnIdentReference(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://hover.oc", text)
+	doc := updateDocument("test://hover.orca", text)
 
 	// "gpt4" reference on line 4 (0-based), char 10.
 	node := findNodeAtDoc(doc, 4, 10)
@@ -345,7 +345,7 @@ func TestHoverOnIdentReference(t *testing.T) {
 // TestHoverOnFieldName verifies hover on a field key.
 func TestHoverOnFieldName(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n}"
-	doc := updateDocument("test://hover.oc", text)
+	doc := updateDocument("test://hover.orca", text)
 
 	// "provider" on line 1 (0-based), char 2.
 	node := findNodeAtDoc(doc, 1, 2)
@@ -361,7 +361,7 @@ func TestHoverOnFieldName(t *testing.T) {
 // reference jumps to the block's name token.
 func TestDefinitionJumpsToBlock(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://def.oc", text)
+	doc := updateDocument("test://def.orca", text)
 
 	// "gpt4" reference on line 6 (1-based), col 11.
 	loc, found := resolveDefinition(doc, 6, 11)
@@ -380,7 +380,7 @@ func TestDefinitionJumpsToBlock(t *testing.T) {
 // the referenced block.
 func TestDefinitionMemberJumpsToField(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.provider\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://memdef.oc", text)
+	doc := updateDocument("test://memdef.orca", text)
 
 	// "provider" member on line 6 (1-based). "gpt4.provider" starts at col 11.
 	// "provider" starts at col 16 (after "gpt4.").
@@ -399,7 +399,7 @@ func TestDefinitionMemberJumpsToField(t *testing.T) {
 // jumps to the model_name field assignment.
 func TestDefinitionMemberModelName(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.model_name\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://memdef2.oc", text)
+	doc := updateDocument("test://memdef2.orca", text)
 
 	// "model_name" member on line 6. "gpt4.model_name" starts at col 11.
 	// "model_name" starts at col 16 (after "gpt4.").
@@ -418,7 +418,7 @@ func TestDefinitionMemberModelName(t *testing.T) {
 // schema field that isn't assigned falls back to the block name.
 func TestDefinitionMemberUnassignedField(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.temperature\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://memdef3.oc", text)
+	doc := updateDocument("test://memdef3.orca", text)
 
 	// "temperature" is a valid schema field for model but not assigned.
 	// "gpt4.temperature" — "temperature" starts at col 16.
@@ -437,7 +437,7 @@ func TestDefinitionMemberUnassignedField(t *testing.T) {
 // member that doesn't exist in the block or schema returns nothing.
 func TestDefinitionMemberInvalidField(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4.nonexistent\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://memdef4.oc", text)
+	doc := updateDocument("test://memdef4.orca", text)
 
 	// "nonexistent" is not a schema field and not assigned.
 	loc, found := resolveDefinition(doc, 6, 16)
@@ -452,7 +452,7 @@ func TestDefinitionMemberInvalidField(t *testing.T) {
 // then researcher.model.provider goes to that model's provider field).
 func TestDefinitionMemberChained(t *testing.T) {
 	text := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}\nagent researcher {\n  model = gpt4\n  persona = \"hi\"\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  model = researcher.model\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://chain.oc", text)
+	doc := updateDocument("test://chain.orca", text)
 
 	// "researcher.model" — "model" starts at col 23 on line 11 (1-based).
 	loc, found := resolveDefinition(doc, 11, 23)
@@ -471,7 +471,7 @@ func TestDefinitionMemberChained(t *testing.T) {
 // e.g. cursor on "draft" in "researcher.output.draft" → schema { draft = string }.
 func TestDefinitionSchemaField(t *testing.T) {
 	text := "agent researcher {\n  persona = \"hi\"\n  output_schema = schema {\n    draft = string\n    score = int\n  }\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  persona = researcher.output_schema.draft\n  model = \"x\"\n}"
-	doc := updateDocument("test://schema-def.oc", text)
+	doc := updateDocument("test://schema-def.orca", text)
 
 	// "draft" in "researcher.output_schema.draft" on line 10, col 38 (1-based).
 	loc, found := resolveDefinition(doc, 10, 38)
@@ -489,7 +489,7 @@ func TestDefinitionSchemaField(t *testing.T) {
 // in an inline schema to make sure it's not always matching the first field.
 func TestDefinitionSchemaFieldScore(t *testing.T) {
 	text := "agent researcher {\n  persona = \"hi\"\n  output_schema = schema {\n    draft = string\n    score = int\n  }\n}\n@suppress(\"type-mismatch\")\nagent consumer {\n  persona = researcher.output_schema.score\n  model = \"x\"\n}"
-	doc := updateDocument("test://schema-def2.oc", text)
+	doc := updateDocument("test://schema-def2.orca", text)
 
 	// "score" in "researcher.output_schema.score" on line 10, col 38 (1-based).
 	loc, found := resolveDefinition(doc, 10, 38)
@@ -507,7 +507,7 @@ func TestDefinitionSchemaFieldScore(t *testing.T) {
 // nothing for a member that doesn't exist in the inline schema.
 func TestDefinitionSchemaUnknownField(t *testing.T) {
 	text := "agent researcher {\n  persona = \"hi\"\n  output = schema {\n    draft = string\n  }\n}\ntask t1 {\n  agent = researcher\n  prompt = researcher.output.missing\n}"
-	doc := updateDocument("test://schema-def3.oc", text)
+	doc := updateDocument("test://schema-def3.orca", text)
 
 	_, found := resolveDefinition(doc, 9, 30)
 	if found {
@@ -546,7 +546,7 @@ func TestNoCrashIncompleteMemberAccess(t *testing.T) {
 	for _, tt := range inputs {
 		t.Run(tt.name, func(t *testing.T) {
 			// Must not panic.
-			_ = updateDocument("test://crash-member.oc", tt.input)
+			_ = updateDocument("test://crash-member.orca", tt.input)
 		})
 	}
 }
@@ -569,7 +569,7 @@ func TestNoCrashIncompleteSubscription(t *testing.T) {
 	for _, tt := range inputs {
 		t.Run(tt.name, func(t *testing.T) {
 			// Must not panic.
-			_ = updateDocument("test://crash-sub.oc", tt.input)
+			_ = updateDocument("test://crash-sub.orca", tt.input)
 		})
 	}
 }
@@ -599,7 +599,7 @@ func TestNoCrashMalformedExpressions(t *testing.T) {
 	for _, tt := range inputs {
 		t.Run(tt.name, func(t *testing.T) {
 			// Must not panic.
-			_ = updateDocument("test://crash-expr.oc", tt.input)
+			_ = updateDocument("test://crash-expr.orca", tt.input)
 		})
 	}
 }
@@ -621,7 +621,7 @@ func TestNoCrashCompletionOnPartialParse(t *testing.T) {
 
 	for _, tt := range inputs {
 		t.Run(tt.name, func(t *testing.T) {
-			doc := updateDocument("test://crash-comp.oc", tt.input)
+			doc := updateDocument("test://crash-comp.orca", tt.input)
 			// Must not panic — simulate what the LSP handler does.
 			line := tt.line + 1
 			col := tt.char + 1
@@ -639,7 +639,7 @@ func TestNoCrashCompletionOnPartialParse(t *testing.T) {
 // inline block expressions (e.g. model = model { | }).
 func TestCompletionInsideInlineBlock(t *testing.T) {
 	input := "agent researcher {\n  model = model {\n    provider = \"openai\"\n\n  }\n  persona = \"hi\"\n}"
-	doc := updateDocument("test://inline-comp.oc", input)
+	doc := updateDocument("test://inline-comp.orca", input)
 
 	// Line 4 (0-based: 3) is the blank line inside the inline model block.
 	line := 4
@@ -685,7 +685,7 @@ func TestNoCrashHoverOnPartialParse(t *testing.T) {
 
 	for _, tt := range inputs {
 		t.Run(tt.name, func(t *testing.T) {
-			doc := updateDocument("test://crash-hover.oc", tt.input)
+			doc := updateDocument("test://crash-hover.orca", tt.input)
 			// Must not panic.
 			_ = cursor.FindNodeAt(doc.Program, tt.line+1, tt.char+1)
 		})
@@ -701,7 +701,7 @@ func findNodeAtDoc(doc *documentState, line, char int) cursor.NodeAt {
 }
 
 // TestCrossFileReferenceResolution verifies that symbols defined in sibling
-// .oc files are visible during analysis.
+// .orca files are visible during analysis.
 func TestCrossFileReferenceResolution(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -713,7 +713,7 @@ func TestCrossFileReferenceResolution(t *testing.T) {
 			name:     "cross-file model reference resolves",
 			mainText: "agent a {\n  model = gpt4\n  persona = \"hi\"\n}",
 			siblings: map[string]string{
-				"models.oc": "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}",
+				"models.orca": "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}",
 			},
 			wantErr: false,
 		},
@@ -727,7 +727,7 @@ func TestCrossFileReferenceResolution(t *testing.T) {
 			name:     "multiple cross-file refs",
 			mainText: "agent a {\n  model = gpt4\n  persona = \"x\"\n}\nagent b {\n  model = claude\n  persona = \"y\"\n}",
 			siblings: map[string]string{
-				"models.oc": "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt\"\n}\nmodel claude {\n  provider = \"anthropic\"\n  model_name = \"opus\"\n}",
+				"models.orca": "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt\"\n}\nmodel claude {\n  provider = \"anthropic\"\n  model_name = \"opus\"\n}",
 			},
 			wantErr: false,
 		},
@@ -744,9 +744,9 @@ func TestCrossFileReferenceResolution(t *testing.T) {
 				}
 			}
 
-			// Use a file:// URI pointing to main.oc in the temp dir so
-			// mergeSiblingFiles can discover the sibling .oc files.
-			mainPath := filepath.Join(dir, "main.oc")
+			// Use a file:// URI pointing to main.orca in the temp dir so
+			// mergeSiblingFiles can discover the sibling .orca files.
+			mainPath := filepath.Join(dir, "main.orca")
 			uri := "file://" + mainPath
 
 			doc := updateDocument(uri, tt.mainText)
@@ -775,13 +775,13 @@ func TestCrossFileGoToDefinition(t *testing.T) {
 	dir := t.TempDir()
 
 	sibContent := "model gpt4 {\n  provider = \"openai\"\n  model_name = \"gpt-4o\"\n}"
-	sibPath := filepath.Join(dir, "models.oc")
+	sibPath := filepath.Join(dir, "models.orca")
 	if err := os.WriteFile(sibPath, []byte(sibContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	mainText := "agent a {\n  model = gpt4\n  persona = \"hi\"\n}"
-	mainPath := filepath.Join(dir, "main.oc")
+	mainPath := filepath.Join(dir, "main.orca")
 	mainURI := "file://" + mainPath
 
 	doc := updateDocument(mainURI, mainText)
@@ -836,7 +836,7 @@ func TestDefinitionLambdaParam(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			doc := updateDocument("test://lambda-"+tt.name+".oc", tt.text)
+			doc := updateDocument("test://lambda-"+tt.name+".orca", tt.text)
 			loc, found := resolveDefinition(doc, tt.line, tt.col)
 			if !found {
 				t.Fatal("expected definition location for lambda param")

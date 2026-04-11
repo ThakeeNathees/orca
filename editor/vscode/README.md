@@ -1,6 +1,6 @@
 # Orca Language Extension
 
-Syntax highlighting for `.oc` files.
+Syntax highlighting for `.orca` files.
 
 ## Local Development Install
 

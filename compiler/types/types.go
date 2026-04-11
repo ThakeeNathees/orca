@@ -1,7 +1,7 @@
 // Package types defines the Orca type system used for semantic analysis.
 // Block types (model, agent, etc.) are represented as BlockRef with a BlockKind enum.
 // Primitive types (string, number, bool, any, null) are schemas defined in
-// bootstrap.oc and represented as SchemaTypeOf("string"), etc. Structural types
+// bootstrap.orca and represented as SchemaTypeOf("string"), etc. Structural types
 // (List, Map, Union) are separate kinds.
 package types
 

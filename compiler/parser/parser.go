@@ -394,7 +394,7 @@ func (p *Parser) parsePrimary() ast.Expression {
 		}
 
 	// In Orca's philosophy there is no special identifiers (example true, false, null, schema, etc.).
-	// However orca has them, so null and bool are schemas defined in the bootstrap.oc and
+	// However orca has them, so null and bool are schemas defined in the bootstrap.orca and
 	// true/false are "instances" of bool, and they defined as such:
 	//
 	//     bool true {}

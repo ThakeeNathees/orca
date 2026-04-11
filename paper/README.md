@@ -8,7 +8,7 @@ The core Orca language paper: declarative DSL design, four-stage compiler pipeli
 
 ### [compiling-intent](compiling-intent/) — *Compiling Intent: An Agentic Compiler for Multi-Agent System Generation*
 
-An agentic compiler (written in Orca itself) that takes natural language prompts and generates `.oc` files, which then compile to Python/LangGraph.
+An agentic compiler (written in Orca itself) that takes natural language prompts and generates `.orca` files, which then compile to Python/LangGraph.
 
 ## Prerequisites
 

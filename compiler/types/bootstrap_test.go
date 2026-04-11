@@ -11,13 +11,13 @@ import (
 	"github.com/thakee/orca/compiler/token"
 )
 
-//go:embed bootstrap.oc
+//go:embed bootstrap.orca
 var testBootstrapSource string
 
 // typePtr returns a pointer to a Type for use in test table comparisons.
 func typePtr(t Type) *Type { return &t }
 
-// TestLoadSchemas verifies that the embedded builtins.oc is parsed and
+// TestLoadSchemas verifies that the embedded builtins.orca is parsed and
 // all expected schemas are present with the correct number of fields.
 func TestLoadSchemas(t *testing.T) {
 	res := Bootstrap(testBootstrapSource)
@@ -62,7 +62,7 @@ func TestLoadSchemas(t *testing.T) {
 }
 
 // TestLoadSchemasFieldTypes verifies that field types are correctly
-// resolved from the .oc file, including union types and block references.
+// resolved from the .orca file, including union types and block references.
 func TestLoadSchemasFieldTypes(t *testing.T) {
 	res := Bootstrap(testBootstrapSource)
 	schemas := make(map[string]BlockSchema)
@@ -71,7 +71,7 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 	}
 
 	// wantString is the canonical Orca type string Type.String() should produce for each
-	// field per bootstrap.oc (string, model, number, schema, … — not the meta-type name "schema"
+	// field per bootstrap.orca (string, model, number, schema, … — not the meta-type name "schema"
 	// unless the field is literally typed as `schema`).
 	tests := []struct {
 		name     string

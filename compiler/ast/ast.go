@@ -56,7 +56,7 @@ func (n *BaseNode) Start() token.Token { return n.TokenStart }
 func (n *BaseNode) End() token.Token { return n.TokenEnd }
 
 // Program is the root node of every AST. It holds all top-level statements
-// (blocks) parsed from a single .oc source file.
+// (blocks) parsed from a single .orca source file.
 type Program struct {
 	BaseNode
 	Statements []Statement
@@ -91,7 +91,7 @@ type BlockBody struct {
 	Kind        string        // the block type (model, agent, tool, …)
 	Assignments []*Assignment // key = value pairs inside the block body
 	Expressions []Expression  // workflow edge expressions (A -> B -> C)
-	SourceFile  string        // the .oc file this block was parsed from
+	SourceFile  string        // the .orca file this block was parsed from
 }
 
 // GetFieldExpression returns the right-hand expression for the first assignment

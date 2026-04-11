@@ -11,8 +11,8 @@ import (
 // runCmd builds and then runs the compiled output.
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "Build and run .oc files",
-	Long:  "Compiles .oc files and executes the generated Python code.",
+	Short: "Build and run .orca files",
+	Long:  "Compiles .orca files and executes the generated Python code.",
 	RunE:  runRun,
 }
 
@@ -38,7 +38,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("compiled %d .oc file(s) → %s/\n", result.FileCount, result.OutputDir)
+	fmt.Printf("compiled %d .orca file(s) → %s/\n", result.FileCount, result.OutputDir)
 
 	if err := executeCommandInDir(result.OutputDir, "uv", "sync"); err != nil {
 		return fmt.Errorf("failed to run uv sync: %w", err)

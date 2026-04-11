@@ -59,7 +59,7 @@ const (
 
 // Token represents a single lexical token with its type, literal text,
 // and source position. Line and Column enable source mapping from generated
-// code back to the original .oc file.
+// code back to the original .orca file.
 type Token struct {
 	Type    TokenType
 	Literal string

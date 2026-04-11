@@ -122,7 +122,7 @@ var bootstrapSym *types.SymbolTable
 var bootstrapOnce sync.Once
 
 // BootstrapSymbolTable returns the symbol table built from the embedded
-// bootstrap.oc file. The result is cached; safe for concurrent use.
+// bootstrap.orca file. The result is cached; safe for concurrent use.
 func bootstrapSymbolTable() *types.SymbolTable {
 	bootstrapOnce.Do(func() {
 		res := types.Bootstrap(types.BootstrapSource)
@@ -132,7 +132,7 @@ func bootstrapSymbolTable() *types.SymbolTable {
 }
 
 // LookupBootstrapSchema returns the block schema for a name defined in
-// bootstrap.oc (e.g. "model", "agent", "string"). This is the replacement
+// bootstrap.orca (e.g. "model", "agent", "string"). This is the replacement
 // for a global schema registry: the schema lives on the BlockRef type in
 // the bootstrap symbol table.
 func LookupBootstrapSchema(name string) (*types.BlockSchema, bool) {
@@ -164,7 +164,7 @@ func resolveBlockSchema(kind string, name string, program *ast.Program) *types.B
 }
 
 // schemaFromProgram builds a BlockSchema from a top-level `schema <name> { ... }`
-// in the current program (user-defined types not present in bootstrap.oc).
+// in the current program (user-defined types not present in bootstrap.orca).
 func schemaFromProgram(schemaName string, program *ast.Program) *types.BlockSchema {
 	if program == nil {
 		return nil

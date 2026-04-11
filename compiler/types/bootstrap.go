@@ -13,7 +13,7 @@ import (
 // inlineCounter generates unique names for anonymous inline schemas.
 var inlineCounter atomic.Int64
 
-//go:embed bootstrap.oc
+//go:embed bootstrap.orca
 var BootstrapSource string
 
 type BootstrapResult struct {
@@ -21,10 +21,10 @@ type BootstrapResult struct {
 	Symtab  *SymbolTable
 }
 
-// Bootstrap parses the embedded bootstrap.oc file and returns
+// Bootstrap parses the embedded bootstrap.orca file and returns
 // a list of block schemas. This is the single source of truth
 // for block domain specific definitions. Other than the
-// bootstrap.oc file the langauge itself is domain agnostic.
+// bootstrap.orca file the langauge itself is domain agnostic.
 func Bootstrap(bootstrapSource string) BootstrapResult {
 
 	l := lexer.New(bootstrapSource, "")
@@ -33,7 +33,7 @@ func Bootstrap(bootstrapSource string) BootstrapResult {
 
 	// TODO: Better way to panic
 	if errs := p.Errors(); len(errs) > 0 {
-		panic(fmt.Errorf("failed to parse bootstrap.oc: %v", errs))
+		panic(fmt.Errorf("failed to parse bootstrap.orca: %v", errs))
 	}
 
 	symtab := NewSymbolTable()

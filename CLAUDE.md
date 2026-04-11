@@ -2,7 +2,7 @@
 
 A declarative language for defining AI agents. HCL-like syntax that transpiles to Python code.
 
-File extension: `.oc`
+File extension: `.orca`
 
 ## Repository structure
 
@@ -36,7 +36,7 @@ Two LaTeX research papers:
 - **Build**: `cd paper/agents-as-code && make build` — outputs PDF to `out/main.pdf`
 
 ### `paper/compiling-intent/` — *Compiling Intent: An Agentic Compiler for Multi-Agent System Generation*
-- About the agentic compiler that takes natural language and generates `.oc` files (bootstrapped in Orca itself).
+- About the agentic compiler that takes natural language and generates `.orca` files (bootstrapped in Orca itself).
 - **Auto-maintain**: When agentic compiler features are implemented in `experiments/orca/`, update the relevant section.
 - **Build**: `cd paper/compiling-intent && make build` — outputs PDF to `out/main.pdf`
 
@@ -48,7 +48,7 @@ Two LaTeX research papers:
 ### Pipeline
 
 ```
-.oc files → token/lexer → ast/parser → analyzer → ir → codegen (Python)
+.orca files → token/lexer → ast/parser → analyzer → ir → codegen (Python)
 ```
 
 Currently targeting **LangGraph** as the sole codegen backend.
@@ -56,7 +56,7 @@ Currently targeting **LangGraph** as the sole codegen backend.
 ### Packages
 
 - `token/` — token types, precedence levels, and definitions (includes line/column tracking)
-- `lexer/` — tokenization of `.oc` source files
+- `lexer/` — tokenization of `.orca` source files
 - `ast/` — AST node definitions
 - `parser/` — Pratt parser producing AST from tokens
 - `analyzer/` — semantic analysis (reference resolution, type checking, validation)
@@ -94,13 +94,13 @@ make lint           # fmt + vet
 
 ## CLI
 
-- `orca build` — reads all `.oc` files in the current directory, produces a `build/` folder with generated Python code
+- `orca build` — reads all `.orca` files in the current directory, produces a `build/` folder with generated Python code
 - `orca run` — builds and runs (future)
 - `orca lsp` — starts the language server
 
 ## Debug / source mapping
 
-Generated Python code must be fully annotated with source mapping back to the `.oc` file (line, column). This enables debugging generated code by tracing back to the original Orca source.
+Generated Python code must be fully annotated with source mapping back to the `.orca` file (line, column). This enables debugging generated code by tracing back to the original Orca source.
 
 ## Development rules
 
@@ -117,14 +117,14 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **Table-driven tests**: All tests must use Go table-driven test pattern (`[]struct` with `name`, `input`, `expected`).
 - **Lexer tests**: Every token type must have a test case. Test input strings against expected `[]token.Token` sequences including `Line` and `Column`.
 - **Parser tests**: Every AST node type must have a test case. Use helpers like `parseOrFail(t, input)`, `assertBlockCount()`, `assertBlockType()`.
-- **Codegen tests**: Use golden files in `testdata/golden/`. Input `.oc`, expected `.py` (output). Update with `go test -update-golden`.
+- **Codegen tests**: Use golden files in `testdata/golden/`. Input `.orca`, expected `.py` (output). Update with `go test -update-golden`.
 - **Error cases**: Every stage must test invalid input — bad syntax, undefined references, type mismatches.
-- **Integration tests**: End-to-end `.oc` → `build/` output, verify generated Python is valid.
+- **Integration tests**: End-to-end `.orca` → `build/` output, verify generated Python is valid.
 - **No test without assertion**: Every test case must assert something meaningful. No empty or placeholder tests.
 
 ## Target audience
 
-Programmers who want a concise, declarative alternative to writing verbose LangGraph Python code. A visual UI (node/edge editor) is planned as a future frontend that generates `.oc` files.
+Programmers who want a concise, declarative alternative to writing verbose LangGraph Python code. A visual UI (node/edge editor) is planned as a future frontend that generates `.orca` files.
 
 ## Important notes
 

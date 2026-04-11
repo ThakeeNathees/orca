@@ -1444,7 +1444,7 @@ func TestParseCallExpressionErrors(t *testing.T) {
 
 // --- file-based tests ---
 
-// readTestFile reads a .oc file from the testdata directory.
+// readTestFile reads a .orca file from the testdata directory.
 func readTestFile(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -1454,10 +1454,10 @@ func readTestFile(t *testing.T, path string) string {
 	return string(data)
 }
 
-// TestValidFiles walks testdata/valid/ and verifies each .oc file parses
+// TestValidFiles walks testdata/valid/ and verifies each .orca file parses
 // without errors and produces at least one statement.
 func TestValidFiles(t *testing.T) {
-	files, err := filepath.Glob("testdata/valid/*.oc")
+	files, err := filepath.Glob("testdata/valid/*.orca")
 	if err != nil {
 		t.Fatalf("failed to glob valid test files: %v", err)
 	}
@@ -1486,10 +1486,10 @@ func TestValidFiles(t *testing.T) {
 	}
 }
 
-// TestInvalidFiles walks testdata/invalid/ and verifies each .oc file
+// TestInvalidFiles walks testdata/invalid/ and verifies each .orca file
 // produces at least one parse error.
 func TestInvalidFiles(t *testing.T) {
-	files, err := filepath.Glob("testdata/invalid/*.oc")
+	files, err := filepath.Glob("testdata/invalid/*.orca")
 	if err != nil {
 		t.Fatalf("failed to glob invalid test files: %v", err)
 	}
@@ -2188,8 +2188,8 @@ func TestSourceFileOnBlocks(t *testing.T) {
 		{
 			name:               "top-level block gets source file",
 			input:              `model gpt4 { provider = "openai" }`,
-			sourceFile:         "models.oc",
-			wantBlockStmtFile:  "models.oc",
+			sourceFile:         "models.orca",
+			wantBlockStmtFile:  "models.orca",
 			wantBlockExprFiles: nil,
 		},
 		{
@@ -2197,9 +2197,9 @@ func TestSourceFileOnBlocks(t *testing.T) {
 			input: `agent a {
 				model = model { provider = "openai" }
 			}`,
-			sourceFile:         "agents.oc",
-			wantBlockStmtFile:  "agents.oc",
-			wantBlockExprFiles: []string{"agents.oc"},
+			sourceFile:         "agents.orca",
+			wantBlockStmtFile:  "agents.orca",
+			wantBlockExprFiles: []string{"agents.orca"},
 		},
 		{
 			name: "nested inline blocks get source file",
@@ -2207,24 +2207,24 @@ func TestSourceFileOnBlocks(t *testing.T) {
 				model = model { provider = "openai" }
 				knowledge = knowledge { desc = "docs" }
 			}`,
-			sourceFile:         "deep.oc",
-			wantBlockStmtFile:  "deep.oc",
-			wantBlockExprFiles: []string{"deep.oc", "deep.oc"},
+			sourceFile:         "deep.orca",
+			wantBlockStmtFile:  "deep.orca",
+			wantBlockExprFiles: []string{"deep.orca", "deep.orca"},
 		},
 		{
 			name: "inline block inside list",
 			input: `agent a {
 				tools = [tool { name = "gmail" }, tool { name = "slack" }]
 			}`,
-			sourceFile:         "tools.oc",
-			wantBlockStmtFile:  "tools.oc",
-			wantBlockExprFiles: []string{"tools.oc", "tools.oc"},
+			sourceFile:         "tools.orca",
+			wantBlockStmtFile:  "tools.orca",
+			wantBlockExprFiles: []string{"tools.orca", "tools.orca"},
 		},
 		{
 			name:               "let block gets source file",
 			input:              `let vars { api_key = "sk-123" }`,
-			sourceFile:         "vars.oc",
-			wantBlockStmtFile:  "vars.oc",
+			sourceFile:         "vars.orca",
+			wantBlockStmtFile:  "vars.orca",
 			wantBlockExprFiles: nil,
 		},
 		{

@@ -124,7 +124,7 @@ type checking, concurrency detection mirrors optimization passes, and
 stateful orchestration mirrors code generation. We further describe an
 implementation of this architecture as a self-hosted agentic compiler
 written in Orca, a declarative domain-specific language for agent
-orchestration, which produces \texttt{.oc} source files that are then
+orchestration, which produces \texttt{.orca} source files that are then
 compiled by the Orca compiler into Python/LangGraph code---creating a
 two-stage pipeline that isolates LLM non-determinism from deterministic
 compilation.
@@ -493,7 +493,7 @@ Tree.
 To validate the architecture, we implement it as a self-hosted agentic
 compiler written in Orca. The compiler takes natural language
 descriptions of desired agent workflows and generates valid
-\texttt{.oc} source files, which are then compiled by the Orca compiler
+\texttt{.orca} source files, which are then compiled by the Orca compiler
 into executable Python/LangGraph code.
 
 \subsection{The Two-Stage Pipeline}
@@ -505,9 +505,9 @@ stage}.
 
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Stage 1 (non-deterministic):} Natural language
-        $\xrightarrow{\text{agentic compiler}}$ \texttt{.oc} files.
+        $\xrightarrow{\text{agentic compiler}}$ \texttt{.orca} files.
         This stage uses LLM agents and is inherently non-deterministic.
-  \item \textbf{Stage 2 (deterministic):} \texttt{.oc} files
+  \item \textbf{Stage 2 (deterministic):} \texttt{.orca} files
         $\xrightarrow{\text{Orca compiler}}$ Python/LangGraph code.
         This stage is a traditional compiler---fully deterministic, with
         static type checking, reference resolution, and schema
@@ -576,7 +576,7 @@ than propagated.
 \begin{todobox}
 Expand the seed implementation to include all four phases as distinct
 agents: validator, optimizer, and code generator. Show the complete
-\texttt{orca.oc} once the full pipeline is implemented.
+\texttt{orca.orca} once the full pipeline is implemented.
 \end{todobox}
 
 % ══════════════════════════════════════════════════════════════════════════════
@@ -707,7 +707,7 @@ Several extensions are planned:
         node-and-edge graph editor: natural language generates the
         initial graph, and users refine it visually.
   \item \textbf{Learning from corrections.} When a user manually fixes
-        generated \texttt{.oc} code, feeding corrections back to
+        generated \texttt{.orca} code, feeding corrections back to
         improve future generation accuracy.
   \item \textbf{Multi-framework targeting.} Since Orca's language
         design is backend-independent, the same natural language prompt
