@@ -202,6 +202,17 @@ let funcs {
 }
 ```
 
+**Recursion:** lambdas can call themselves through their enclosing block:
+
+```orca
+let main {
+  // "\" is visual shorthand for λ (lambda)
+  fib = \(n number) -> (n > 1)
+    ? main.fib(n-1) + main.fib(n-2)
+    : n
+}
+```
+
 **Type:** lambda expressions have type `callable[param_types..., return_type]`. For example, `\(a number, b number) number -> a + b` has type `callable[number, number, number]`.
 
 **Code generation:** lambdas compile to Python `lambda` expressions.

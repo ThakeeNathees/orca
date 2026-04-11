@@ -401,6 +401,10 @@ func resolveDefinition(doc *documentState, line, col int) (protocol.Location, bo
 	case cursor.IdentNode:
 		sym, found := doc.Symbols.LookupSymbol(node.Ident.Value)
 		if !found {
+			// Check if the identifier is a lambda parameter reference.
+			if param := findLambdaParam(doc.Program, node.Ident.Value, line, col); param != nil {
+				return protocol.Location{Range: tokenToRange(param.Name.TokenStart)}, true
+			}
 			return protocol.Location{}, false
 		}
 		loc := protocol.Location{Range: tokenToRange(sym.DefToken)}
@@ -415,6 +419,131 @@ func resolveDefinition(doc *documentState, line, col int) (protocol.Location, bo
 	}
 
 	return protocol.Location{}, false
+}
+
+// findLambdaParam searches for a lambda parameter with the given name that
+// encloses the specified position. Returns the matching LambdaParam if found.
+func findLambdaParam(program *ast.Program, name string, line, col int) *ast.LambdaParam {
+	if program == nil {
+		return nil
+	}
+	for _, stmt := range program.Statements {
+		block, ok := stmt.(*ast.BlockStatement)
+		if !ok {
+			continue
+		}
+		for _, assign := range block.Assignments {
+			if p := findLambdaParamInExpr(assign.Value, name, line, col); p != nil {
+				return p
+			}
+		}
+		for _, expr := range block.Expressions {
+			if p := findLambdaParamInExpr(expr, name, line, col); p != nil {
+				return p
+			}
+		}
+	}
+	return nil
+}
+
+// findLambdaParamInExpr recursively searches for a lambda that encloses the
+// given position and has a parameter matching name. Returns the innermost match.
+func findLambdaParamInExpr(expr ast.Expression, name string, line, col int) *ast.LambdaParam {
+	if expr == nil {
+		return nil
+	}
+	switch e := expr.(type) {
+	case *ast.Lambda:
+		// Check if position is inside this lambda's body.
+		if p := findLambdaParamInExpr(e.Body, name, line, col); p != nil {
+			return p // inner lambda shadows
+		}
+		// Check if this lambda has a matching param and the position is within the lambda.
+		start, end := e.Start(), e.End()
+		if posAfterOrAt(line, col, start.Line, start.Column) &&
+			posBeforeOrAt(line, col, end.Line, end.Column) {
+			for i := range e.Params {
+				if e.Params[i].Name.Value == name {
+					return &e.Params[i]
+				}
+			}
+		}
+	case *ast.BinaryExpression:
+		if p := findLambdaParamInExpr(e.Left, name, line, col); p != nil {
+			return p
+		}
+		if p := findLambdaParamInExpr(e.Right, name, line, col); p != nil {
+			return p
+		}
+	case *ast.CallExpression:
+		if p := findLambdaParamInExpr(e.Callee, name, line, col); p != nil {
+			return p
+		}
+		for _, arg := range e.Arguments {
+			if p := findLambdaParamInExpr(arg, name, line, col); p != nil {
+				return p
+			}
+		}
+	case *ast.MemberAccess:
+		return findLambdaParamInExpr(e.Object, name, line, col)
+	case *ast.Subscription:
+		if p := findLambdaParamInExpr(e.Object, name, line, col); p != nil {
+			return p
+		}
+		for _, idx := range e.Indices {
+			if p := findLambdaParamInExpr(idx, name, line, col); p != nil {
+				return p
+			}
+		}
+	case *ast.TernaryExpression:
+		if p := findLambdaParamInExpr(e.Condition, name, line, col); p != nil {
+			return p
+		}
+		if p := findLambdaParamInExpr(e.TrueExpr, name, line, col); p != nil {
+			return p
+		}
+		return findLambdaParamInExpr(e.FalseExpr, name, line, col)
+	case *ast.ListLiteral:
+		for _, el := range e.Elements {
+			if p := findLambdaParamInExpr(el, name, line, col); p != nil {
+				return p
+			}
+		}
+	case *ast.MapLiteral:
+		for _, entry := range e.Entries {
+			if p := findLambdaParamInExpr(entry.Key, name, line, col); p != nil {
+				return p
+			}
+			if p := findLambdaParamInExpr(entry.Value, name, line, col); p != nil {
+				return p
+			}
+		}
+	case *ast.BlockExpression:
+		if e == nil {
+			return nil
+		}
+		for _, assign := range e.Assignments {
+			if p := findLambdaParamInExpr(assign.Value, name, line, col); p != nil {
+				return p
+			}
+		}
+		for _, expr := range e.Expressions {
+			if p := findLambdaParamInExpr(expr, name, line, col); p != nil {
+				return p
+			}
+		}
+	}
+	return nil
+}
+
+// posAfterOrAt returns true if (line, col) is at or after (startLine, startCol).
+func posAfterOrAt(line, col, startLine, startCol int) bool {
+	return line > startLine || (line == startLine && col >= startCol)
+}
+
+// posBeforeOrAt returns true if (line, col) is at or before (endLine, endCol).
+func posBeforeOrAt(line, col, endLine, endCol int) bool {
+	return line < endLine || (line == endLine && col <= endCol)
 }
 
 // resolveMemberDefinition resolves go-to-definition for a member access expression.

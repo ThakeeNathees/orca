@@ -805,6 +805,51 @@ func TestCrossFileGoToDefinition(t *testing.T) {
 }
 
 // resolveAtDocPosition resolves cursor context from 0-based LSP positions.
+// TestDefinitionLambdaParam verifies that go-to-definition on a lambda
+// parameter reference inside the lambda body jumps to the parameter definition.
+func TestDefinitionLambdaParam(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		line     int // 1-based cursor position on the param reference
+		col      int
+		wantLine uint32 // 0-based LSP position of the param definition
+		wantChar uint32
+	}{
+		{
+			name:     "simple lambda param",
+			text:     "let main {\n  fib = \\(n number) -> n\n}",
+			line:     2,
+			col:     24, // cursor on 'n' in the body (1-based col 24)
+			wantLine: 1,
+			wantChar: 10, // 'n' in \(n number) — 0-based char 10
+		},
+		{
+			name:     "lambda param in ternary",
+			text:     "let main {\n  fib = \\(n number) -> (n > 1) ? n : n\n}",
+			line:     2,
+			col:     25, // cursor on 'n' in (n > 1) — 1-based col 25
+			wantLine: 1,
+			wantChar: 10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := updateDocument("test://lambda-"+tt.name+".oc", tt.text)
+			loc, found := resolveDefinition(doc, tt.line, tt.col)
+			if !found {
+				t.Fatal("expected definition location for lambda param")
+			}
+			if loc.Range.Start.Line != tt.wantLine || loc.Range.Start.Character != tt.wantChar {
+				t.Errorf("definition at (%d, %d), want (%d, %d)",
+					loc.Range.Start.Line, loc.Range.Start.Character,
+					tt.wantLine, tt.wantChar)
+			}
+		})
+	}
+}
+
 func resolveAtDocPosition(doc *documentState, line, char int) cursor.Context {
 	if doc.Program == nil {
 		return cursor.Context{}

@@ -342,6 +342,10 @@ func findInExpr(expr ast.Expression, block *ast.BlockStatement, line, col int) N
 		}
 	case *ast.Lambda:
 		for _, p := range e.Params {
+			// Check if cursor is on the parameter name itself.
+			if posOnToken(p.Name.TokenStart, line, col) {
+				return NodeAt{Kind: IdentNode, Block: block, Ident: p.Name}
+			}
 			if node := findInExpr(p.TypeExpr, block, line, col); node.Kind != NoneNode {
 				return node
 			}
