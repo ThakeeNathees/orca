@@ -72,11 +72,23 @@ func (rw *ResolvedWorkflow) HasTriggers() bool {
 
 // Predecessors returns the list of predecessor processing node names for the
 // given node. Entry nodes (no incoming edges) return an empty slice.
+// For nodes that are route entry points of a branch, the branch's predecessors
+// are included (since the branch routes input from its predecessors to route targets).
 func (rw *ResolvedWorkflow) Predecessors(node string) []string {
 	var preds []string
 	for _, e := range rw.Edges {
 		if e.To == node && e.From != NodeSTART && e.From != NodeEND {
 			preds = append(preds, e.From)
+		}
+	}
+	// Check if this node is a route entry point — if so, add the branch's predecessors.
+	for _, branch := range rw.Branches {
+		for _, route := range branch.Routes {
+			for _, entry := range route.EntryNodes {
+				if entry == node {
+					preds = append(preds, branch.Preds...)
+				}
+			}
 		}
 	}
 	return preds
