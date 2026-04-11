@@ -330,6 +330,16 @@ func findInExpr(expr ast.Expression, block *ast.BlockStatement, line, col int) N
 				return node
 			}
 		}
+	case *ast.TernaryExpression:
+		if node := findInExpr(e.Condition, block, line, col); node.Kind != NoneNode {
+			return node
+		}
+		if node := findInExpr(e.TrueExpr, block, line, col); node.Kind != NoneNode {
+			return node
+		}
+		if node := findInExpr(e.FalseExpr, block, line, col); node.Kind != NoneNode {
+			return node
+		}
 	case *ast.BinaryExpression:
 		if node := findInExpr(e.Left, block, line, col); node.Kind != NoneNode {
 			return node

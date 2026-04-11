@@ -101,11 +101,40 @@ func schemaFromExprWithDepth(depth int, expr ast.Expression, symbols *SymbolTabl
 		return anyType(symbols)
 	case *ast.BinaryExpression:
 		return binaryExprType(depth, e, symbols)
+	case *ast.TernaryExpression:
+		return ternaryExprType(depth, e, symbols)
 	case *ast.BlockExpression:
 		return blockExprType(depth, e, symbols)
 	default:
 		return anyType(symbols)
 	}
+}
+
+// ternaryExprType returns the type of a ternary expression.
+// If both branches have the same type, returns that type.
+// Otherwise returns a union of the two branch types, flattened.
+func ternaryExprType(depth int, e *ast.TernaryExpression, symbols *SymbolTable) Type {
+	trueType := schemaFromExprWithDepth(depth, e.TrueExpr, symbols)
+	falseType := schemaFromExprWithDepth(depth, e.FalseExpr, symbols)
+
+	if IsCompatible(trueType, falseType) && IsCompatible(falseType, trueType) {
+		return trueType
+	}
+
+	// Collect members, flattening nested unions.
+	var members []Type
+	if trueType.Kind == Union {
+		members = append(members, trueType.Members...)
+	} else {
+		members = append(members, trueType)
+	}
+	if falseType.Kind == Union {
+		members = append(members, falseType.Members...)
+	} else {
+		members = append(members, falseType)
+	}
+
+	return NewUnionType(members...)
 }
 
 // blockExprType returns the type of an inline block expression.

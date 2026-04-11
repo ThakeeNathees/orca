@@ -338,6 +338,11 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 			continue
 		}
 
+		if p.curToken.Type == token.QUESTION {
+			left = p.parseTernaryExpression(left)
+			continue
+		}
+
 		op := p.curToken
 		prec := token.Precedence(op.Type)
 		p.nextToken() // consume the operator
@@ -423,6 +428,48 @@ func (p *Parser) parsePrimary() ast.Expression {
 	default:
 		p.addError(fmt.Sprintf("expected value, got %s", token.Describe(p.curToken.Type)))
 		return nil
+	}
+}
+
+// parseTernaryExpression parses a ternary conditional: condition ? trueExpr : falseExpr.
+// The condition has already been parsed as 'left'. The '?' must be the current token.
+// Right-associative: a ? b ? c : d : e parses as a ? (b ? c : d) : e.
+func (p *Parser) parseTernaryExpression(condition ast.Expression) ast.Expression {
+	question := p.curToken
+	p.nextToken() // consume ?
+
+	// Parse true branch — use PrecLowest so nested ternaries bind right.
+	trueExpr := p.parseExpression(token.PrecLowest)
+	if trueExpr == nil {
+		return nil
+	}
+
+	// Expect colon separator.
+	if p.curToken.Type != token.COLON {
+		p.addError(fmt.Sprintf("expected ':' in ternary expression, got %s",
+			token.Describe(p.curToken.Type)))
+		return nil
+	}
+	colon := p.curToken
+	p.nextToken() // consume :
+
+	// Parse false branch — use PrecLowest so nested ternaries bind right.
+	falseExpr := p.parseExpression(token.PrecLowest)
+	if falseExpr == nil {
+		p.addError("expected expression after ':' in ternary")
+		return nil
+	}
+
+	return &ast.TernaryExpression{
+		BaseNode: ast.BaseNode{
+			TokenStart: condition.Start(),
+			TokenEnd:   falseExpr.End(),
+		},
+		Condition: condition,
+		Question:  question,
+		TrueExpr:  trueExpr,
+		Colon:     colon,
+		FalseExpr: falseExpr,
 	}
 }
 

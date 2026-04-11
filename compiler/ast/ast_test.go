@@ -184,6 +184,15 @@ func TestWalk(t *testing.T) {
 			wantCount: 3,
 		},
 		{
+			name: "ternary expression",
+			root: &TernaryExpression{
+				Condition: idGPT,
+				TrueExpr:  prov,
+				FalseExpr: &NumberLiteral{BaseNode: NewTerminal(token.Token{Type: token.NUMBER, Literal: "0"}), Value: 0},
+			},
+			wantCount: 4,
+		},
+		{
 			name: "nested inline block expression",
 			root: &Program{Statements: []Statement{
 				&BlockStatement{

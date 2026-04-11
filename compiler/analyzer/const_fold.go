@@ -69,6 +69,9 @@ func ConstFold(expr ast.Expression, ap AnalyzedProgram) (ConstValue, []diagnosti
 		return foldMapLiteral(e, ap)
 	case *ast.ListLiteral:
 		return foldListLiteral(e, ap)
+	case *ast.TernaryExpression:
+		// TODO: If the condition is a constant, we can fold the ternary.
+		return ConstValue{Kind: ConstUnknown}, diags
 	case *ast.BlockExpression:
 		return foldBlockBody(&e.BlockBody, ap)
 	default:

@@ -643,6 +643,8 @@ func exprString(expr ast.Expression) string {
 			args += exprString(a)
 		}
 		return fmt.Sprintf("%s(%s)", exprString(e.Callee), args)
+	case *ast.TernaryExpression:
+		return fmt.Sprintf("(%s ? %s : %s)", exprString(e.Condition), exprString(e.TrueExpr), exprString(e.FalseExpr))
 	case *ast.MapLiteral:
 		entries := ""
 		for i, entry := range e.Entries {
@@ -722,6 +724,26 @@ func TestParseOperatorPrecedence(t *testing.T) {
 			input:    `model m { val = a + b - c * d / e -> f }`,
 			expected: "(((a + b) - ((c * d) / e)) -> f)",
 		},
+		{
+			name:     "ternary basic",
+			input:    `model m { val = a ? b : c }`,
+			expected: "(a ? b : c)",
+		},
+		{
+			name:     "ternary lower than arrow",
+			input:    `model m { val = a -> b ? c : d }`,
+			expected: "((a -> b) ? c : d)",
+		},
+		{
+			name:     "ternary with arithmetic",
+			input:    `model m { val = a + b ? c * d : e }`,
+			expected: "((a + b) ? (c * d) : e)",
+		},
+		{
+			name:     "ternary right associative (nested)",
+			input:    `model m { val = a ? b ? c : d : e }`,
+			expected: "(a ? (b ? c : d) : e)",
+		},
 	}
 
 	for _, tt := range tests {
@@ -732,6 +754,59 @@ func TestParseOperatorPrecedence(t *testing.T) {
 			if got != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, got)
 			}
+		})
+	}
+}
+
+// --- ternary expression ---
+
+func TestParseTernaryExpression(t *testing.T) {
+	input := `model m { val = a ? b : c }`
+	program := parseOrFail(t, input)
+	block := assertBlock(t, program.Statements[0], "model", "m")
+
+	te, ok := block.Assignments[0].Value.(*ast.TernaryExpression)
+	if !ok {
+		t.Fatalf("expected TernaryExpression, got %T", block.Assignments[0].Value)
+	}
+	if te.Question.Literal != "?" {
+		t.Errorf("expected question token '?', got %q", te.Question.Literal)
+	}
+	if te.Colon.Literal != ":" {
+		t.Errorf("expected colon token ':', got %q", te.Colon.Literal)
+	}
+	cond, ok := te.Condition.(*ast.Identifier)
+	if !ok || cond.Value != "a" {
+		t.Errorf("expected condition 'a', got %v", te.Condition)
+	}
+	trueExpr, ok := te.TrueExpr.(*ast.Identifier)
+	if !ok || trueExpr.Value != "b" {
+		t.Errorf("expected true expr 'b', got %v", te.TrueExpr)
+	}
+	falseExpr, ok := te.FalseExpr.(*ast.Identifier)
+	if !ok || falseExpr.Value != "c" {
+		t.Errorf("expected false expr 'c', got %v", te.FalseExpr)
+	}
+}
+
+func TestParseTernaryExpressionError(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"missing colon", `model m { val = a ? b }`},
+		{"missing false expr", `model m { val = a ? b : }`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.input, "")
+			p := New(l)
+			prog := p.ParseProgram()
+			if len(p.Errors()) == 0 {
+				t.Errorf("expected parse error for %q, got none", tt.input)
+			}
+			_ = prog
 		})
 	}
 }

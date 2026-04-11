@@ -572,6 +572,33 @@ func TestCheckReferencesRecursive(t *testing.T) {
 			true,
 			`undefined reference "nonexistent"`,
 		},
+		{
+			"undefined ref in ternary condition",
+			`model m {
+				provider = "openai"
+				model_name = nonexistent ? "a" : "b"
+			}`,
+			true,
+			`undefined reference "nonexistent"`,
+		},
+		{
+			"undefined ref in ternary true branch",
+			`model m {
+				provider = "openai"
+				model_name = "x" ? nonexistent : "b"
+			}`,
+			true,
+			`undefined reference "nonexistent"`,
+		},
+		{
+			"undefined ref in ternary false branch",
+			`model m {
+				provider = "openai"
+				model_name = "x" ? "a" : nonexistent
+			}`,
+			true,
+			`undefined reference "nonexistent"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -950,17 +977,6 @@ func TestAnalyzeListSubscriptRequiresInt(t *testing.T) {
 			}
 		})
 	}
-}
-
-// filterErrors returns only error-severity diagnostics.
-func filterErrors(diags []diagnostic.Diagnostic) []diagnostic.Diagnostic {
-	var errs []diagnostic.Diagnostic
-	for _, d := range diags {
-		if d.Severity == diagnostic.Error {
-			errs = append(errs, d)
-		}
-	}
-	return errs
 }
 
 // hasErrorContaining returns true if any error diagnostic contains substr.
