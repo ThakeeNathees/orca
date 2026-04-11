@@ -1937,6 +1937,10 @@ func TestParseBlockExpressionErrors(t *testing.T) {
 			"missing value after equals",
 			`agent a { model = model { provider = } }`,
 		},
+		{
+			"block expression error in binary expression (missing brace + operator)",
+			`agent a { model = model { provider = "openai" + x }`,
+		},
 	}
 
 	for _, tt := range tests {

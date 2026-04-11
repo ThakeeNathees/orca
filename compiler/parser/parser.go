@@ -413,7 +413,11 @@ func (p *Parser) parsePrimary() ast.Expression {
 		// If followed by '{', parse as inline block expression.
 		// Otherwise treat as identifier (e.g., model = gpt4 inside an agent block).
 		if p.peekToken.Type == token.LBRACE {
-			return p.parseBlockExpression()
+			expr := p.parseBlockExpression()
+			if expr == nil {
+				return nil
+			}
+			return expr
 		}
 		expr := &ast.Identifier{BaseNode: ast.NewTerminal(p.curToken), Value: p.curToken.Literal}
 		p.nextToken()
