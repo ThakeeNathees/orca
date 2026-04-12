@@ -146,7 +146,7 @@ func ternaryExprType(depth int, e *ast.TernaryExpression, symbols *SymbolTable) 
 func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type {
 
 	if e.BlockNameAnon == "" {
-		e.BlockNameAnon = fmt.Sprintf("__anon_%d", inlineCounter.Add(1))
+		e.BlockNameAnon = fmt.Sprintf("__anon_%d", symtab.nextInlineAnonID())
 	}
 
 	// TODO: The depth parameter is not used here but it should be.
@@ -286,9 +286,9 @@ func identType(depth int, name string, symtab *SymbolTable) (Type, bool) {
 			// kind the user has choosen, and it could be `foo bar {}` as well. so we construct
 			// the block schema from the Ast.
 
-			// TODO: we may not need the `inlineCounter` here because the name is already make it unique
+			// TODO: we may not need the counter here because the name is already made unique
 			// and if two blocks have the same name it'll be an error, (the name is the global namespace).
-			newSchemaName := "__anon_schema_of_" + name + "_" + fmt.Sprintf("%d", inlineCounter.Add(1))
+			newSchemaName := "__anon_schema_of_" + name + "_" + fmt.Sprintf("%d", symtab.nextInlineAnonID())
 			blockSchema := NewBlockSchema(
 				blockRef.Block.Annotations,
 				newSchemaName,

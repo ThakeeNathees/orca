@@ -791,8 +791,25 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 
 // validateWorkflowExpr checks that a workflow expression only uses the -> operator
 // and that each graph endpoint resolves to a workflow-capable block reference
-// (agent, tool, cron, webhook, branch) via the type system.
+// (agent, tool, cron, webhook, branch) via the type system. When the expression
+// resolves to a branch, the branch's route values are recursively validated
+// with stricter rules — see validateWorkflowExprRec.
 func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+	return validateWorkflowExprRec(expr, symbols, false, make(map[string]bool))
+}
+
+// validateWorkflowExprRec is the recursive worker for validateWorkflowExpr.
+//
+// insideRoute indicates the expression is a branch route value. Route values
+// follow workflow-expression rules with one extra restriction: triggers are
+// not allowed (a trigger can only be the source of a workflow, never a route
+// target).
+//
+// branchSeen guards recursion through nested branches. A branch's route
+// values may themselves resolve to branches whose routes are validated in
+// turn; the seen set prevents infinite recursion when branches reference
+// each other (a → b → a).
+func validateWorkflowExprRec(expr ast.Expression, symbols *types.SymbolTable, insideRoute bool, branchSeen map[string]bool) []diagnostic.Diagnostic {
 	if expr == nil {
 		return nil
 	}
@@ -828,12 +845,77 @@ func validateWorkflowExpr(expr ast.Expression, symbols *types.SymbolTable) []dia
 			})
 		}
 
-		diags = append(diags, validateWorkflowExpr(e.Left, symbols)...)
-		diags = append(diags, validateWorkflowExpr(e.Right, symbols)...)
+		diags = append(diags, validateWorkflowExprRec(e.Left, symbols, insideRoute, branchSeen)...)
+		diags = append(diags, validateWorkflowExprRec(e.Right, symbols, insideRoute, branchSeen)...)
 	default:
 		diags = append(diags, validateWorkflowLeafExpr(expr, symbols)...)
+
+		// Inside a branch route, triggers are forbidden — they can only be
+		// the source of a workflow, never a route target.
+		if insideRoute && isTriggerExpr(expr, symbols) {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeTriggerAsTarget,
+				Position: diagnostic.Position{
+					Line:   expr.Start().Line,
+					Column: expr.Start().Column,
+				},
+				Message: "trigger block cannot appear in a branch route; triggers can only be workflow entry points",
+				Source:  "analyzer",
+			})
+		}
+
+		// If this leaf resolves to a branch, recursively validate its route
+		// values. Cycle-guarded so a branch referenced multiple times is
+		// only descended into once.
+		if name, body := branchBodyForLeaf(expr, symbols); body != nil && !branchSeen[name] {
+			branchSeen[name] = true
+			diags = append(diags, validateBranchRoutes(body, symbols, branchSeen)...)
+		}
 	}
 	return diags
+}
+
+// validateBranchRoutes validates each route value of a branch as a workflow
+// expression with the insideRoute flag set. Used by validateWorkflowExprRec
+// when it encounters a branch leaf.
+func validateBranchRoutes(branchBody *ast.BlockBody, symbols *types.SymbolTable, branchSeen map[string]bool) []diagnostic.Diagnostic {
+	routeExpr, ok := branchBody.GetFieldExpression(workflow.BranchFieldRoute)
+	if !ok {
+		return nil
+	}
+	mapLit, ok := routeExpr.(*ast.MapLiteral)
+	if !ok {
+		return nil
+	}
+	var diags []diagnostic.Diagnostic
+	for _, entry := range mapLit.Entries {
+		diags = append(diags, validateWorkflowExprRec(entry.Value, symbols, true, branchSeen)...)
+	}
+	return diags
+}
+
+// branchBodyForLeaf returns (name, body) if the expression is a leaf that
+// resolves to a branch — either an inline `branch { ... }` BlockExpression
+// or an Identifier referencing a named branch block. Returns ("", nil)
+// otherwise.
+func branchBodyForLeaf(expr ast.Expression, symbols *types.SymbolTable) (string, *ast.BlockBody) {
+	switch e := expr.(type) {
+	case *ast.BlockExpression:
+		if e.Kind == workflow.BlockKindBranch {
+			return e.BlockNameAnon, &e.BlockBody
+		}
+	case *ast.Identifier:
+		sym, ok := symbols.Lookup(e.Value)
+		if !ok || sym.Block == nil || sym.Block.Ast == nil {
+			return "", nil
+		}
+		if sym.Block.Ast.Kind != workflow.BlockKindBranch {
+			return "", nil
+		}
+		return e.Value, sym.Block.Ast
+	}
+	return "", nil
 }
 
 // rightmostLeaf returns the rightmost non-arrow leaf of an expression tree.
@@ -861,9 +943,33 @@ func isBranchExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
 // validateWorkflowLeafExpr checks a single workflow node position (not an arrow).
 // It resolves the expression's type and requires a BlockRef whose kind passes
 // IsWorkflowNode(); other types are not valid graph nodes.
+//
+// Inline blocks (anonymous BlockExpressions) are only allowed if they are
+// branches — codegen needs a top-level Python variable to call into for
+// agents and tools, but inline branches are encoded directly into the
+// generated branch node function and don't need a top-level emission.
 func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	if refDiags := checkReferences(expr, symbols); len(refDiags) > 0 {
 		return refDiags
+	}
+
+	// Reject inline non-branch BlockExpressions as workflow nodes. Codegen
+	// emits agents/tools as top-level Python variables, which doesn't exist
+	// for an anonymous inline block — there's nothing to reference from the
+	// generated workflow node function. Inline branches are exempt because
+	// the walker stores their transform/routes directly in ctx.branches and
+	// codegen reads from there.
+	if be, ok := expr.(*ast.BlockExpression); ok && be.Kind != workflow.BlockKindBranch {
+		return []diagnostic.Diagnostic{{
+			Severity: diagnostic.Error,
+			Code:     diagnostic.CodeUnexpectedExpr,
+			Position: diagnostic.Position{
+				Line:   expr.Start().Line,
+				Column: expr.Start().Column,
+			},
+			Message: fmt.Sprintf("inline %s block cannot be used as a workflow node; define it as a top-level block and reference it by name", be.Kind),
+			Source:  "analyzer",
+		}}
 	}
 
 	// Workflow leaf expression must be a block reference.
@@ -908,7 +1014,9 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 
 // isTriggerExpr returns true if the expression's resolved type is a trigger block kind.
 // Works with any expression type (identifiers, member access, subscriptions, etc.)
-// by using the type system to infer the block kind.
+// by using the type system to infer the block kind. For inline BlockExpressions
+// blockExprType returns the schema kind without the schema pointer, so falls back
+// to looking up the schema by kind name (mirrors validateWorkflowLeafExpr).
 func isTriggerExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
 	typ := types.SchemaTypeFromExpr(expr, symbols)
 	if typ.Kind != types.BlockRef {
@@ -916,12 +1024,14 @@ func isTriggerExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
 	}
 	schema := typ.Block
 	if schema == nil {
+		if schemaType, ok := symbols.Lookup(typ.BlockName); ok {
+			schema = schemaType.Block
+		}
+	}
+	if schema == nil {
 		return false
 	}
-	if !helper.HasAnnotation(schema.Annotations, AnnotationTriggerNode) {
-		return false
-	}
-	return true
+	return helper.HasAnnotation(schema.Annotations, AnnotationTriggerNode)
 }
 
 // validateTriggerPositions checks that trigger blocks (cron, webhook) only appear

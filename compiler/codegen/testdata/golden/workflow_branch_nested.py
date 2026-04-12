@@ -103,94 +103,127 @@ gpt4 = _orca__block("model",
     model_name="gpt-4o",
 )
 
-classifier = _orca__block("agent", 
+triage = _orca__block("agent", 
     model=gpt4,
-    persona="Classify input.",
+    persona="Triage as 'urgent' or 'normal'.",
 )
 
-drafter = _orca__block("agent", 
+urgent_handler = _orca__block("agent", 
     model=gpt4,
-    persona="Draft content.",
+    persona="Handle urgent requests.",
 )
 
-reviewer = _orca__block("agent", 
+sub_classifier = _orca__block("agent", 
     model=gpt4,
-    persona="Review content.",
+    persona="Sub-classify normal requests as 'tech' or 'sales'.",
 )
 
-fallback = _orca__block("agent", 
+tech_support = _orca__block("agent", 
     model=gpt4,
-    persona="Handle unrecognized input.",
+    persona="Tech support.",
+)
+
+sales_support = _orca__block("agent", 
+    model=gpt4,
+    persona="Sales support.",
 )
 
 class _orca__state_pipeline(TypedDict):
     _orca__trigger: str | None
     _orca__payload: dict | None
-    classifier: Any
+    triage: Any
     __anon_1: Any
-    drafter: Any
-    reviewer: Any
-    fallback: Any
+    urgent_handler: Any
+    sub_classifier: Any
+    __anon_2: Any
+    tech_support: Any
+    sales_support: Any
     _orca__route____anon_1: Any
+    _orca__route____anon_2: Any
 
-def _orca__node_classifier(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping 'classifier'."""
+def _orca__node_triage(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping 'triage'."""
     _predecessors = []
     _input = _orca__gather(state, _predecessors)
-    _out = _orca__invoke_agent(classifier, _input)
-    return {"classifier": _out}
+    _out = _orca__invoke_agent(triage, _input)
+    return {"triage": _out}
 
 def _orca__node___anon_1(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping '__anon_1'."""
-    _predecessors = ["classifier"]
+    _predecessors = ["triage"]
     _input = _orca__gather(state, _predecessors)
     _route_key = (lambda out: out)(_input)
     return {"__anon_1": _input, "_orca__route____anon_1": _route_key}
 
-def _orca__node_drafter(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping 'drafter'."""
+def _orca__node_urgent_handler(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping 'urgent_handler'."""
     _predecessors = ["__anon_1"]
     _input = _orca__gather(state, _predecessors)
-    _out = _orca__invoke_agent(drafter, _input)
-    return {"drafter": _out}
+    _out = _orca__invoke_agent(urgent_handler, _input)
+    return {"urgent_handler": _out}
 
-def _orca__node_reviewer(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping 'reviewer'."""
-    _predecessors = ["drafter"]
-    _input = _orca__gather(state, _predecessors)
-    _out = _orca__invoke_agent(reviewer, _input)
-    return {"reviewer": _out}
-
-def _orca__node_fallback(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping 'fallback'."""
+def _orca__node_sub_classifier(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping 'sub_classifier'."""
     _predecessors = ["__anon_1"]
     _input = _orca__gather(state, _predecessors)
-    _out = _orca__invoke_agent(fallback, _input)
-    return {"fallback": _out}
+    _out = _orca__invoke_agent(sub_classifier, _input)
+    return {"sub_classifier": _out}
+
+def _orca__node___anon_2(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping '__anon_2'."""
+    _predecessors = ["sub_classifier"]
+    _input = _orca__gather(state, _predecessors)
+    _route_key = (lambda out: out)(_input)
+    return {"__anon_2": _input, "_orca__route____anon_2": _route_key}
+
+def _orca__node_tech_support(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping 'tech_support'."""
+    _predecessors = ["__anon_2"]
+    _input = _orca__gather(state, _predecessors)
+    _out = _orca__invoke_agent(tech_support, _input)
+    return {"tech_support": _out}
+
+def _orca__node_sales_support(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping 'sales_support'."""
+    _predecessors = ["__anon_2"]
+    _input = _orca__gather(state, _predecessors)
+    _out = _orca__invoke_agent(sales_support, _input)
+    return {"sales_support": _out}
 
 def _orca__route_pipeline(state: _orca__state_pipeline) -> str:
     """Route to entry node based on trigger source."""
-    return "classifier"
+    return "triage"
 
 def _orca__route_pipeline_branch_0(state: _orca__state_pipeline) -> Any:
     """Branch router for "__anon_1"."""
     _key = state.get("_orca__route____anon_1", "default")
-    if _key in {"draft", "default"}:
+    if _key in {"urgent", "normal"}:
+        return _key
+    return "default"
+
+def _orca__route_pipeline_branch_1(state: _orca__state_pipeline) -> Any:
+    """Branch router for "__anon_2"."""
+    _key = state.get("_orca__route____anon_2", "default")
+    if _key in {"tech", "sales"}:
         return _key
     return "default"
 
 pipeline = StateGraph(_orca__state_pipeline)
-pipeline.add_node("classifier", _orca__node_classifier)
+pipeline.add_node("triage", _orca__node_triage)
 pipeline.add_node("__anon_1", _orca__node___anon_1)
-pipeline.add_node("drafter", _orca__node_drafter)
-pipeline.add_node("reviewer", _orca__node_reviewer)
-pipeline.add_node("fallback", _orca__node_fallback)
+pipeline.add_node("urgent_handler", _orca__node_urgent_handler)
+pipeline.add_node("sub_classifier", _orca__node_sub_classifier)
+pipeline.add_node("__anon_2", _orca__node___anon_2)
+pipeline.add_node("tech_support", _orca__node_tech_support)
+pipeline.add_node("sales_support", _orca__node_sales_support)
 pipeline.add_conditional_edges(START, _orca__route_pipeline)
-pipeline.add_conditional_edges("__anon_1", _orca__route_pipeline_branch_0, {"draft": "drafter", "default": "fallback"})
-pipeline.add_edge("drafter", "reviewer")
-pipeline.add_edge("classifier", "__anon_1")
-pipeline.add_edge("reviewer", END)
-pipeline.add_edge("fallback", END)
+pipeline.add_conditional_edges("__anon_1", _orca__route_pipeline_branch_0, {"urgent": "urgent_handler", "normal": "sub_classifier", "default": END})
+pipeline.add_conditional_edges("__anon_2", _orca__route_pipeline_branch_1, {"tech": "tech_support", "sales": "sales_support", "default": END})
+pipeline.add_edge("sub_classifier", "__anon_2")
+pipeline.add_edge("triage", "__anon_1")
+pipeline.add_edge("urgent_handler", END)
+pipeline.add_edge("tech_support", END)
+pipeline.add_edge("sales_support", END)
 pipeline = pipeline.compile()
 
 if __name__ == "__main__":
@@ -198,12 +231,15 @@ if __name__ == "__main__":
     initial_state: _orca__state_pipeline = {
         "_orca__trigger": "",
         "_orca__payload": payload,
-        "classifier": "",
+        "triage": "",
         "__anon_1": "",
-        "drafter": "",
-        "reviewer": "",
-        "fallback": "",
+        "urgent_handler": "",
+        "sub_classifier": "",
+        "__anon_2": "",
+        "tech_support": "",
+        "sales_support": "",
         "_orca__route____anon_1": "",
+        "_orca__route____anon_2": "",
     }
     final_state = pipeline.invoke(initial_state)
     print(final_state)

@@ -322,6 +322,388 @@ func TestPredecessorsNoTrigger(t *testing.T) {
 	}
 }
 
+// TestWalkExpr verifies the unified walker correctly handles non-branch
+// expression shapes: identifiers, member access, subscriptions, and arrow
+// chains. WalkResult.Head is the leftmost node, WalkResult.Tail is the
+// rightmost.
+func TestWalkExpr(t *testing.T) {
+	tests := []struct {
+		name          string
+		expr          ast.Expression
+		expectedHead  string
+		expectedTail  string
+		expectedNodes []string
+		expectedEdges []Edge
+	}{
+		{
+			"single identifier",
+			ident("A"),
+			"A", "A",
+			[]string{"A"},
+			nil,
+		},
+		{
+			"simple arrow A -> B",
+			arrow(ident("A"), ident("B")),
+			"A", "B",
+			[]string{"A", "B"},
+			[]Edge{{From: "A", To: "B"}},
+		},
+		{
+			"chain A -> B -> C",
+			arrow(arrow(ident("A"), ident("B")), ident("C")),
+			"A", "C",
+			[]string{"A", "B", "C"},
+			[]Edge{{From: "A", To: "B"}, {From: "B", To: "C"}},
+		},
+		{
+			"long chain A -> B -> C -> D",
+			arrow(arrow(arrow(ident("A"), ident("B")), ident("C")), ident("D")),
+			"A", "D",
+			[]string{"A", "B", "C", "D"},
+			[]Edge{
+				{From: "A", To: "B"},
+				{From: "B", To: "C"},
+				{From: "C", To: "D"},
+			},
+		},
+		{
+			"member access node",
+			&ast.MemberAccess{Object: ident("agents"), Member: "researcher"},
+			"agents.researcher", "agents.researcher",
+			[]string{"agents.researcher"},
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := newResolveCtx(nil, nil)
+			res := walkExpr(tt.expr, ctx)
+			if res.Head != tt.expectedHead {
+				t.Errorf("Head = %q, want %q", res.Head, tt.expectedHead)
+			}
+			if res.Tail != tt.expectedTail {
+				t.Errorf("Tail = %q, want %q", res.Tail, tt.expectedTail)
+			}
+
+			gotNodes := ctx.allGraph.Nodes()
+			if len(gotNodes) != len(tt.expectedNodes) {
+				t.Fatalf("nodes = %v, want %v", gotNodes, tt.expectedNodes)
+			}
+			for i, n := range gotNodes {
+				if n != tt.expectedNodes[i] {
+					t.Errorf("nodes[%d] = %q, want %q", i, n, tt.expectedNodes[i])
+				}
+			}
+
+			gotEdges := ctx.allGraph.Edges()
+			if len(gotEdges) != len(tt.expectedEdges) {
+				t.Fatalf("edges = %v, want %v", gotEdges, tt.expectedEdges)
+			}
+			for i, e := range gotEdges {
+				ee := Edge{From: e.From, To: e.To}
+				if ee != tt.expectedEdges[i] {
+					t.Errorf("edges[%d] = %v, want %v", i, ee, tt.expectedEdges[i])
+				}
+			}
+		})
+	}
+}
+
+// TestWalkExprTriggers verifies the walker classifies trigger nodes correctly
+// and tracks them in insertion order separately from regular nodes.
+func TestWalkExprTriggers(t *testing.T) {
+	// cron -> A -> B, where cron is a trigger.
+	expr := arrow(arrow(ident("cron"), ident("A")), ident("B"))
+	ctx := newResolveCtx(func(n string) bool { return n == "cron" }, nil)
+
+	res := walkExpr(expr, ctx)
+	if res.Tail != "B" {
+		t.Errorf("Tail = %q, want B", res.Tail)
+	}
+	if res.Head != "cron" {
+		t.Errorf("Head = %q, want cron", res.Head)
+	}
+	if !ctx.triggers["cron"] {
+		t.Errorf("expected cron to be marked as trigger")
+	}
+	if len(ctx.triggerOrder) != 1 || ctx.triggerOrder[0] != "cron" {
+		t.Errorf("triggerOrder = %v, want [cron]", ctx.triggerOrder)
+	}
+	// Triggers are still in allGraph — separation happens in Resolve, not the walker.
+	if !ctx.allGraph.HasNode("cron") {
+		t.Errorf("expected cron in allGraph")
+	}
+	if !ctx.allGraph.HasEdge("cron", "A") {
+		t.Errorf("expected edge cron -> A in allGraph")
+	}
+}
+
+// TestWalkExprBranchInline verifies the walker treats an inline branch as
+// a real node: the branch is added to allGraph, its routes are extracted
+// into ctx.branches, and conditional edges from branch → route entries are
+// recorded.
+func TestWalkExprBranchInline(t *testing.T) {
+	// A -> branch { route = { "x": B, "y": C } }
+	br := inlineBranch("br0", nil,
+		ast.MapEntry{Key: strKey("x"), Value: ident("B")},
+		ast.MapEntry{Key: strKey("y"), Value: ident("C")},
+	)
+	expr := arrow(ident("A"), br)
+
+	ctx := newResolveCtx(nil, nil)
+	res := walkExpr(expr, ctx)
+
+	// Chain head/tail.
+	if res.Head != "A" {
+		t.Errorf("Head = %q, want A", res.Head)
+	}
+	if res.Tail != "br0" {
+		t.Errorf("Tail = %q, want br0", res.Tail)
+	}
+
+	// Nodes in allGraph: A, br0 (the branch IS a node), B, C.
+	expectedNodes := []string{"A", "br0", "B", "C"}
+	if len(ctx.allGraph.Nodes()) != len(expectedNodes) {
+		t.Fatalf("Nodes = %v, want %v", ctx.allGraph.Nodes(), expectedNodes)
+	}
+	for i, n := range ctx.allGraph.Nodes() {
+		if n != expectedNodes[i] {
+			t.Errorf("Nodes[%d] = %q, want %q", i, n, expectedNodes[i])
+		}
+	}
+
+	// Edges in allGraph: A→br0 (regular), br0→B (conditional), br0→C (conditional).
+	if !ctx.allGraph.HasEdge("A", "br0") {
+		t.Errorf("missing edge A -> br0")
+	}
+	if !ctx.allGraph.HasEdge("br0", "B") {
+		t.Errorf("missing edge br0 -> B")
+	}
+	if !ctx.allGraph.HasEdge("br0", "C") {
+		t.Errorf("missing edge br0 -> C")
+	}
+	// br0→B and br0→C should be marked conditional, A→br0 should NOT.
+	if !ctx.conditionalEdges[Edge{From: "br0", To: "B"}] {
+		t.Errorf("expected br0 -> B to be conditional")
+	}
+	if !ctx.conditionalEdges[Edge{From: "br0", To: "C"}] {
+		t.Errorf("expected br0 -> C to be conditional")
+	}
+	if ctx.conditionalEdges[Edge{From: "A", To: "br0"}] {
+		t.Errorf("A -> br0 should be a regular edge, not conditional")
+	}
+
+	// Branch metadata.
+	if len(ctx.branches) != 1 {
+		t.Fatalf("branches = %d, want 1", len(ctx.branches))
+	}
+	br0 := ctx.branches[0]
+	if br0.Name != "br0" {
+		t.Errorf("branch.Name = %q, want br0", br0.Name)
+	}
+	if len(br0.Routes) != 2 {
+		t.Fatalf("routes = %d, want 2", len(br0.Routes))
+	}
+	if len(br0.Routes[0].EntryNodes) != 1 || br0.Routes[0].EntryNodes[0] != "B" {
+		t.Errorf("Routes[0].EntryNodes = %v, want [B]", br0.Routes[0].EntryNodes)
+	}
+	if len(br0.Routes[1].EntryNodes) != 1 || br0.Routes[1].EntryNodes[0] != "C" {
+		t.Errorf("Routes[1].EntryNodes = %v, want [C]", br0.Routes[1].EntryNodes)
+	}
+}
+
+// TestWalkExprBranchChainRoute verifies the walker handles route values that
+// are arrow chains (e.g. `route = { "x": B -> C }`). The route's entry is the
+// leftmost node (B); the chain B→C is a regular edge in allGraph.
+func TestWalkExprBranchChainRoute(t *testing.T) {
+	// A -> branch { route = { "x": B -> C, "y": D } }
+	br := inlineBranch("br0", nil,
+		ast.MapEntry{Key: strKey("x"), Value: arrow(ident("B"), ident("C"))},
+		ast.MapEntry{Key: strKey("y"), Value: ident("D")},
+	)
+	expr := arrow(ident("A"), br)
+
+	ctx := newResolveCtx(nil, nil)
+	walkExpr(expr, ctx)
+
+	// Conditional edge: br0 -> B (the head of the chain), not br0 -> C.
+	if !ctx.conditionalEdges[Edge{From: "br0", To: "B"}] {
+		t.Errorf("expected conditional edge br0 -> B")
+	}
+	if ctx.conditionalEdges[Edge{From: "br0", To: "C"}] {
+		t.Errorf("br0 -> C should NOT be conditional (B->C is the chain)")
+	}
+
+	// Regular edge: B -> C.
+	if !ctx.allGraph.HasEdge("B", "C") {
+		t.Errorf("missing regular edge B -> C")
+	}
+	if ctx.conditionalEdges[Edge{From: "B", To: "C"}] {
+		t.Errorf("B -> C should NOT be conditional")
+	}
+
+	// Branch routes.
+	if len(ctx.branches) != 1 {
+		t.Fatalf("branches = %d, want 1", len(ctx.branches))
+	}
+	if ctx.branches[0].Routes[0].EntryNodes[0] != "B" {
+		t.Errorf("Route 0 entry = %q, want B", ctx.branches[0].Routes[0].EntryNodes[0])
+	}
+}
+
+// TestWalkExprBranchNested verifies the walker handles nested branches —
+// a branch whose route value is itself a branch. Both branches are recorded
+// in pre-order (outer first), and conditional edges chain correctly.
+func TestWalkExprBranchNested(t *testing.T) {
+	// A -> outer { route = { "x": inner { route = { "y": C } } } }
+	inner := inlineBranch("inner", nil,
+		ast.MapEntry{Key: strKey("y"), Value: ident("C")},
+	)
+	outer := inlineBranch("outer", nil,
+		ast.MapEntry{Key: strKey("x"), Value: inner},
+	)
+	expr := arrow(ident("A"), outer)
+
+	ctx := newResolveCtx(nil, nil)
+	walkExpr(expr, ctx)
+
+	// Both branches recorded, outer first (pre-order).
+	if len(ctx.branches) != 2 {
+		t.Fatalf("branches = %d, want 2", len(ctx.branches))
+	}
+	if ctx.branches[0].Name != "outer" {
+		t.Errorf("branches[0].Name = %q, want outer", ctx.branches[0].Name)
+	}
+	if ctx.branches[1].Name != "inner" {
+		t.Errorf("branches[1].Name = %q, want inner", ctx.branches[1].Name)
+	}
+
+	// Outer's route "x" → inner (the inner branch is a real node).
+	if ctx.branches[0].Routes[0].EntryNodes[0] != "inner" {
+		t.Errorf("outer route 0 entry = %q, want inner", ctx.branches[0].Routes[0].EntryNodes[0])
+	}
+	// Inner's route "y" → C.
+	if ctx.branches[1].Routes[0].EntryNodes[0] != "C" {
+		t.Errorf("inner route 0 entry = %q, want C", ctx.branches[1].Routes[0].EntryNodes[0])
+	}
+
+	// Conditional edges: outer→inner, inner→C.
+	if !ctx.conditionalEdges[Edge{From: "outer", To: "inner"}] {
+		t.Errorf("expected conditional edge outer -> inner")
+	}
+	if !ctx.conditionalEdges[Edge{From: "inner", To: "C"}] {
+		t.Errorf("expected conditional edge inner -> C")
+	}
+	// Regular edge: A → outer.
+	if !ctx.allGraph.HasEdge("A", "outer") {
+		t.Errorf("missing regular edge A -> outer")
+	}
+	if ctx.conditionalEdges[Edge{From: "A", To: "outer"}] {
+		t.Errorf("A -> outer should be a regular edge")
+	}
+}
+
+// TestWalkExprBranchNamed verifies the walker resolves named branches via
+// the getBranchBody lookup function (mimicking how codegen passes the symbol
+// table lookup).
+func TestWalkExprBranchNamed(t *testing.T) {
+	// A -> my_branch (named branch defined elsewhere)
+	branchBody := &ast.BlockBody{
+		Kind: BlockKindBranch,
+		Assignments: []*ast.Assignment{
+			{Name: "route", Value: &ast.MapLiteral{Entries: []ast.MapEntry{
+				{Key: strKey("x"), Value: ident("B")},
+			}}},
+		},
+	}
+	getBranchBody := func(name string) *ast.BlockBody {
+		if name == "my_branch" {
+			return branchBody
+		}
+		return nil
+	}
+
+	expr := arrow(ident("A"), ident("my_branch"))
+	ctx := newResolveCtx(nil, getBranchBody)
+	walkExpr(expr, ctx)
+
+	if len(ctx.branches) != 1 {
+		t.Fatalf("branches = %d, want 1", len(ctx.branches))
+	}
+	if ctx.branches[0].Name != "my_branch" {
+		t.Errorf("branches[0].Name = %q, want my_branch", ctx.branches[0].Name)
+	}
+	if !ctx.allGraph.HasEdge("A", "my_branch") {
+		t.Errorf("missing edge A -> my_branch")
+	}
+	if !ctx.conditionalEdges[Edge{From: "my_branch", To: "B"}] {
+		t.Errorf("missing conditional edge my_branch -> B")
+	}
+}
+
+// TestWalkExprBranchCycle verifies the branchSeen guard prevents infinite
+// recursion when a branch is referenced multiple times (e.g., via getBranchBody
+// returning the same branch from a route value that loops back).
+func TestWalkExprBranchCycle(t *testing.T) {
+	// my_branch with route "again" -> my_branch (loops back to itself).
+	var branchBody *ast.BlockBody
+	branchBody = &ast.BlockBody{
+		Kind: BlockKindBranch,
+		Assignments: []*ast.Assignment{
+			{Name: "route", Value: &ast.MapLiteral{Entries: []ast.MapEntry{
+				{Key: strKey("again"), Value: ident("my_branch")},
+				{Key: strKey("done"), Value: ident("B")},
+			}}},
+		},
+	}
+	getBranchBody := func(name string) *ast.BlockBody {
+		if name == "my_branch" {
+			return branchBody
+		}
+		return nil
+	}
+
+	ctx := newResolveCtx(nil, getBranchBody)
+	res := walkExpr(ident("my_branch"), ctx)
+
+	// Walker terminated without infinite recursion.
+	if res.Head != "my_branch" {
+		t.Errorf("Head = %q, want my_branch", res.Head)
+	}
+	if len(ctx.branches) != 1 {
+		t.Fatalf("branches = %d, want 1 (cycle should not duplicate)", len(ctx.branches))
+	}
+	// The branch's "again" route still wires a conditional edge back to itself.
+	if !ctx.conditionalEdges[Edge{From: "my_branch", To: "my_branch"}] {
+		t.Errorf("expected self-loop conditional edge my_branch -> my_branch")
+	}
+}
+
+// TestWalkExprMultipleExpressions verifies the walker accumulates state
+// correctly across multiple top-level expressions sharing the same context.
+// This mirrors how Resolve will invoke walkExpr in a loop over block.Expressions.
+func TestWalkExprMultipleExpressions(t *testing.T) {
+	ctx := newResolveCtx(nil, nil)
+	walkExpr(arrow(ident("A"), ident("B")), ctx)
+	walkExpr(arrow(ident("C"), ident("B")), ctx)
+
+	expectedNodes := []string{"A", "B", "C"}
+	gotNodes := ctx.allGraph.Nodes()
+	if len(gotNodes) != len(expectedNodes) {
+		t.Fatalf("nodes = %v, want %v", gotNodes, expectedNodes)
+	}
+	for i, n := range gotNodes {
+		if n != expectedNodes[i] {
+			t.Errorf("nodes[%d] = %q, want %q", i, n, expectedNodes[i])
+		}
+	}
+	if !ctx.allGraph.HasEdge("A", "B") || !ctx.allGraph.HasEdge("C", "B") {
+		t.Errorf("missing expected edges in allGraph")
+	}
+}
+
 // inlineBranch creates an inline branch BlockExpression with a route map for testing.
 // The name parameter is used as BlockNameAnon to simulate the type system having
 // already registered this block in the symbol table.
@@ -392,26 +774,43 @@ func TestResolveBranch(t *testing.T) {
 		branchRoutes    int
 	}{
 		{
+			// br_simple appears in Nodes (branches are real nodes); A →
+			// br_simple is a regular edge; B and C are END leaves; the
+			// br_simple → B and br_simple → C edges are conditional and live
+			// in rw.Branches[0].Routes, not rw.Edges.
 			"inline branch with simple routes",
 			makeBlock("wf", arrow(ident("A"), simpleBranch)),
 			branchLookup(simpleBranch),
-			[]string{"A", "B", "C"},
-			[]Edge{{From: "B", To: NodeEND}, {From: "C", To: NodeEND}},
+			[]string{"A", "br_simple", "B", "C"},
+			[]Edge{
+				{From: "A", To: "br_simple"},
+				{From: "B", To: NodeEND},
+				{From: "C", To: NodeEND},
+			},
 			[]string{"A"},
 			1,
 			2,
 		},
 		{
+			// Route value `B -> C` puts B as the conditional target; B → C is
+			// a regular edge in rw.Edges; D is its own simple route.
 			"inline branch with chain routes",
 			makeBlock("wf", arrow(ident("A"), chainBranch)),
 			branchLookup(chainBranch),
-			[]string{"A", "B", "C", "D"},
-			[]Edge{{From: "B", To: "C"}, {From: "C", To: NodeEND}, {From: "D", To: NodeEND}},
+			[]string{"A", "br_chain", "B", "C", "D"},
+			[]Edge{
+				{From: "B", To: "C"},
+				{From: "A", To: "br_chain"},
+				{From: "C", To: NodeEND},
+				{From: "D", To: NodeEND},
+			},
 			[]string{"A"},
 			1,
 			2,
 		},
 		{
+			// Named branch referenced from two predecessors. branchSeen guards
+			// against double-extraction; both A and B regular-edge into my_branch.
 			"named branch with multiple predecessors",
 			makeBlock("wf",
 				arrow(ident("A"), ident("my_branch")),
@@ -431,18 +830,31 @@ func TestResolveBranch(t *testing.T) {
 				}
 				return nil
 			},
-			[]string{"A", "B", "C", "D"},
-			[]Edge{{From: "C", To: NodeEND}, {From: "D", To: NodeEND}},
+			[]string{"A", "my_branch", "C", "D", "B"},
+			[]Edge{
+				{From: "A", To: "my_branch"},
+				{From: "B", To: "my_branch"},
+				{From: "C", To: NodeEND},
+				{From: "D", To: NodeEND},
+			},
 			[]string{"A", "B"},
 			1,
 			2,
 		},
 		{
+			// Two route chains that converge at D — D appears once and is a
+			// shared END leaf. br_complex → B and br_complex → C are
+			// conditional, B → D and C → D are regular.
 			"branch with complex subgraph in route",
 			makeBlock("wf", arrow(ident("A"), complexBranch)),
 			branchLookup(complexBranch),
-			[]string{"A", "B", "D", "C"},
-			[]Edge{{From: "B", To: "D"}, {From: "C", To: "D"}, {From: "D", To: NodeEND}},
+			[]string{"A", "br_complex", "B", "D", "C"},
+			[]Edge{
+				{From: "B", To: "D"},
+				{From: "C", To: "D"},
+				{From: "A", To: "br_complex"},
+				{From: "D", To: NodeEND},
+			},
 			[]string{"A"},
 			1,
 			2,

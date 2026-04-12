@@ -1247,6 +1247,63 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			false,
 			"",
 		},
+		{
+			"trigger as branch route value is rejected",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> branch { route = { "x": daily, "y": B } } }`,
+			true,
+			"trigger block cannot appear in a branch route",
+		},
+		{
+			"inline trigger as branch route value is rejected",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> branch { route = { "x": cron { schedule = "0 9 * * *" }, "y": B } } }`,
+			true,
+			"trigger block cannot appear in a branch route",
+		},
+		{
+			"inline tool as branch route value is rejected",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> branch { route = { "x": tool { invoke = \(s string) -> "x" }, "y": B } } }`,
+			true,
+			"inline tool block cannot be used as a workflow node",
+		},
+		{
+			"inline agent as workflow node is rejected",
+			`agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> agent { model = gpt4 persona = "inline" } }`,
+			true,
+			"inline agent block cannot be used as a workflow node",
+		},
+		{
+			"branch on left of arrow inside route value is rejected",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 branch inner { route = { "x": C } }
+			 workflow run { A -> branch { route = { "y": inner -> B } } }`,
+			true,
+			"branch block cannot have outgoing edges",
+		},
+		{
+			"nested branch routes are recursively validated",
+			`cron daily { schedule = "0 9 * * *" }
+			 agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { A -> branch { route = { "x": branch { route = { "y": daily } } } } }`,
+			true,
+			"trigger block cannot appear in a branch route",
+		},
 	}
 
 	for _, tt := range tests {

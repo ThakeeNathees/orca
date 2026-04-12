@@ -99,6 +99,9 @@ func (b *LangGraphBackend) writeWorkflowEntrypoint(s *strings.Builder) {
 	for _, node := range rw.Nodes {
 		fmt.Fprintf(s, "        %q: %q,\n", node, "")
 	}
+	for _, branch := range rw.Branches {
+		fmt.Fprintf(s, "        %q: %q,\n", orcaBranchRouteField(branch.Name), "")
+	}
 	s.WriteString("    }\n")
 	fmt.Fprintf(s, "    final_state = %s.invoke(initial_state)\n", rw.Name)
 	s.WriteString("    print(final_state)\n")
@@ -147,35 +150,15 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 	// START → router (always conditional edges).
 	fmt.Fprintf(s, "%s.add_conditional_edges(START, %sroute_%s)\n", rw.Name, orcaPrefix, rw.Name)
 
-	// Branch conditional edges.
+	// Branch conditional edges. The source is the branch node itself — its
+	// node function stores the computed route key in state, and its router
+	// (writeBranchRouter) reads that key to dispatch to a target. See
+	// writeBranchRouteMap for the route map shape.
 	for i, branch := range rw.Branches {
 		routerName := branchRouterFuncName(rw.Name, i)
-		for _, pred := range branch.Preds {
-			fmt.Fprintf(s, "%s.add_conditional_edges(%q, %s", rw.Name, pred, routerName)
-			// Emit route map: {key: first_node, ...}
-			s.WriteString(", {")
-			for j, route := range branch.Routes {
-				if j > 0 {
-					s.WriteString(", ")
-				}
-				fmt.Fprintf(s, "%s: %q", exprToSource(route.Key), route.EntryNodes[0])
-			}
-			// Default route → END if no "default" key.
-			hasDefault := false
-			for _, route := range branch.Routes {
-				if strLit, ok := route.Key.(*ast.StringLiteral); ok && strLit.Value == "default" {
-					hasDefault = true
-					break
-				}
-			}
-			if !hasDefault {
-				if len(branch.Routes) > 0 {
-					s.WriteString(", ")
-				}
-				fmt.Fprintf(s, "%q: %s", "default", workflow.NodeEND)
-			}
-			s.WriteString("})\n")
-		}
+		fmt.Fprintf(s, "%s.add_conditional_edges(%q, %s", rw.Name, branch.Name, routerName)
+		writeBranchRouteMap(s, branch)
+		s.WriteString(")\n")
 	}
 
 	// Processing edges + END edges.
@@ -187,7 +170,9 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 }
 
 // writeWorkflowState emits a per-workflow TypedDict class with typed fields
-// for trigger metadata and each processing node's output.
+// for trigger metadata, each processing node's output, and each branch's
+// route key (stored under orcaBranchRouteField(branch.Name) by the branch's
+// node function and read by its router function).
 func (b *LangGraphBackend) writeWorkflowState(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string) {
 	s.WriteString("\n")
 	fmt.Fprintf(s, "class %s(TypedDict):\n", stateName)
@@ -197,6 +182,14 @@ func (b *LangGraphBackend) writeWorkflowState(s *strings.Builder, rw workflow.Re
 	for _, node := range rw.Nodes {
 		typeAnnotation := b.nodeFieldType(node)
 		fmt.Fprintf(s, "    %s: %s\n", node, typeAnnotation)
+	}
+
+	// Branch route-key fields. Stores the key returned by the branch's
+	// transform so the branch router can dispatch conditional edges.
+	// TODO: strict typing based on the user-declared route key types
+	// (string | number | bool per the branch schema). For now, Any.
+	for _, branch := range rw.Branches {
+		fmt.Fprintf(s, "    %s: Any\n", orcaBranchRouteField(branch.Name))
 	}
 }
 
@@ -290,9 +283,18 @@ func pythonStringListLiteral(ss []string) string {
 }
 
 // writeWorkflowNode emits a full Python workflow node function: signature,
-// docstring, and body that gathers upstream inputs (or trigger payload for
-// entry nodes), invokes the agent or tool block, and returns the partial
-// state update for this node's output field.
+// docstring, and body that gathers upstream inputs, dispatches on the block
+// kind, and returns the partial state update for this node's output field.
+//
+// Supported block kinds:
+//
+//   - agent / tool: invoked via the runtime helpers; output stored under the
+//     node's name.
+//   - branch: computes a route key from the input (via the branch's transform
+//     or pass-through) and returns both the passthrough input under the
+//     branch's name AND the route key under orcaBranchRouteField(name). The
+//     branch's own router function (see writeBranchRouter) reads the route
+//     key to dispatch conditional edges.
 func (b *LangGraphBackend) writeWorkflowNode(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName, node string) {
 	s.WriteString("\n")
 	fmt.Fprintf(s, "def %s(state: %s) -> dict:\n", nodeFuncName(node), stateName)
@@ -302,9 +304,17 @@ func (b *LangGraphBackend) writeWorkflowNode(s *strings.Builder, rw workflow.Res
 	fmt.Fprintf(s, "    _predecessors = %s\n", pythonStringListLiteral(preds))
 	fmt.Fprintf(s, "    _input = %s(state, _predecessors)\n", orcaGatherFunc)
 
+	// Branches don't have a top-level block statement (they can be inline),
+	// so resolve them via rw.FindBranch before falling back to the symbol
+	// table / AST lookup used for named blocks like agent/tool.
+	if branch := rw.FindBranch(node); branch != nil {
+		writeBranchNodeBody(s, branch)
+		return
+	}
+
 	block := b.Program.Ast.FindBlockWithName(node)
 	if block == nil {
-		fmt.Fprintf(s, "    raise RuntimeError(\"workflow node %q: no block definition found\")\n", node)
+		fmt.Fprintf(s, "    raise RuntimeError(\"workflow node '%s': no block definition found\")\n", node)
 		return
 	}
 
@@ -324,21 +334,82 @@ func branchRouterFuncName(workflowName string, branchIndex int) string {
 	return fmt.Sprintf("%sroute_%s_branch_%d", orcaPrefix, workflowName, branchIndex)
 }
 
-// writeBranchRouter emits a Python function that routes based on the branch's
-// transform output. The function gathers predecessor input, applies the optional
-// transform lambda, and returns the result as the route key.
+// writeBranchRouter emits a Python function that reads a branch's route key
+// from workflow state and returns it to LangGraph for conditional edge
+// dispatch. The key is filtered against the branch's known route keys; any
+// unknown key falls back to workflow.BranchRouteKeyDefault. The route map
+// always contains the default key (auto-wired to END if the user didn't
+// provide one — see writeBranchRouteMap), so LangGraph never receives an
+// unknown key at runtime.
 func writeBranchRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string, branch workflow.Branch, branchIndex int) {
 	funcName := branchRouterFuncName(rw.Name, branchIndex)
-	fmt.Fprintf(s, "def %s(state: %s) -> str:\n", funcName, stateName)
-	fmt.Fprintf(s, "    \"\"\"Branch router.\"\"\"\n")
-	fmt.Fprintf(s, "    _predecessors = %s\n", pythonStringListLiteral(branch.Preds))
-	fmt.Fprintf(s, "    _input = %s(state, _predecessors)\n", orcaGatherFunc)
+	fmt.Fprintf(s, "def %s(state: %s) -> Any:\n", funcName, stateName)
+	fmt.Fprintf(s, "    \"\"\"Branch router for %q.\"\"\"\n", branch.Name)
+	fmt.Fprintf(s, "    _key = state.get(%q, %q)\n", orcaBranchRouteField(branch.Name), workflow.BranchRouteKeyDefault)
 
-	if branch.Transform != nil {
-		fmt.Fprintf(s, "    return (%s)(_input)\n", exprToSource(branch.Transform))
-	} else {
-		s.WriteString("    return _input\n")
+	knownKeys := make([]string, 0, len(branch.Routes))
+	for _, route := range branch.Routes {
+		if len(route.EntryNodes) == 0 {
+			continue
+		}
+		knownKeys = append(knownKeys, exprToSource(route.Key))
 	}
+	if len(knownKeys) > 0 {
+		fmt.Fprintf(s, "    if _key in {%s}:\n", strings.Join(knownKeys, ", "))
+		s.WriteString("        return _key\n")
+	}
+	fmt.Fprintf(s, "    return %q\n", workflow.BranchRouteKeyDefault)
+}
+
+// writeBranchNodeBody emits the body of a branch's workflow node function
+// (called from writeWorkflowNode's branch case). The body:
+//
+//  1. Uses the already-emitted `_input` (gathered from predecessors).
+//  2. Applies the branch's transform to produce a route key — or passes
+//     _input through unchanged if there is no transform.
+//  3. Returns a state update with the passthrough input under the branch's
+//     own name AND the route key under orcaBranchRouteField(branch.Name).
+//
+// The caller is responsible for writing the function signature, docstring,
+// and the _predecessors / _input preamble.
+func writeBranchNodeBody(s *strings.Builder, branch *workflow.Branch) {
+	if branch.Transform != nil {
+		fmt.Fprintf(s, "    _route_key = (%s)(_input)\n", exprToSource(branch.Transform))
+	} else {
+		s.WriteString("    _route_key = _input\n")
+	}
+	fmt.Fprintf(s, "    return {%q: _input, %q: _route_key}\n", branch.Name, orcaBranchRouteField(branch.Name))
+}
+
+// writeBranchRouteMap emits the route map argument for an add_conditional_edges
+// call: `, {key1: target1, ..., "default": <fallback>}`. Routes with empty
+// EntryNodes are skipped (unsupported route value shapes). If the user did
+// not provide a workflow.BranchRouteKeyDefault entry, one is auto-wired to
+// END so LangGraph always has a fallback.
+func writeBranchRouteMap(s *strings.Builder, branch workflow.Branch) {
+	s.WriteString(", {")
+	first := true
+	hasDefault := false
+	for _, route := range branch.Routes {
+		if len(route.EntryNodes) == 0 {
+			continue
+		}
+		if !first {
+			s.WriteString(", ")
+		}
+		first = false
+		fmt.Fprintf(s, "%s: %q", exprToSource(route.Key), route.EntryNodes[0])
+		if strLit, ok := route.Key.(*ast.StringLiteral); ok && strLit.Value == workflow.BranchRouteKeyDefault {
+			hasDefault = true
+		}
+	}
+	if !hasDefault {
+		if !first {
+			s.WriteString(", ")
+		}
+		fmt.Fprintf(s, "%q: %s", workflow.BranchRouteKeyDefault, workflow.NodeEND)
+	}
+	s.WriteString("}")
 }
 
 // workflowImports returns the Python imports required by the given workflow blocks.

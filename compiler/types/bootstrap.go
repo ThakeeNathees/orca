@@ -3,15 +3,11 @@ package types
 import (
 	_ "embed"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/lexer"
 	"github.com/thakee/orca/compiler/parser"
 )
-
-// inlineCounter generates unique names for anonymous inline schemas.
-var inlineCounter atomic.Int64
 
 //go:embed bootstrap.orca
 var BootstrapSource string
