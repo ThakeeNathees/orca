@@ -24,7 +24,7 @@ func TestExprTypeFromExpr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ExprTypeFromExpr(tt.expr, st)
+			got := EvalType(tt.expr, st)
 			if got.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", got.Kind)
 			}
@@ -38,7 +38,7 @@ func TestExprTypeFromExpr(t *testing.T) {
 // TestExprTypeFromExprList verifies list literal type inference.
 func TestExprTypeFromExprList(t *testing.T) {
 	st := bootstrapSymtab(t)
-	got := ExprTypeFromExpr(&ast.ListLiteral{}, st)
+	got := EvalType(&ast.ListLiteral{}, st)
 	if got.Kind != List {
 		t.Fatalf("Kind = %v, want List", got.Kind)
 	}
@@ -49,7 +49,7 @@ func TestExprTypeFromExprList(t *testing.T) {
 			&ast.StringLiteral{Value: "b"},
 		},
 	}
-	got = ExprTypeFromExpr(list, st)
+	got = EvalType(list, st)
 	if got.Kind != List {
 		t.Fatalf("Kind = %v, want List", got.Kind)
 	}
@@ -98,7 +98,7 @@ func TestExprTypeFromExprMapLiteral(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &ast.MapLiteral{Entries: tt.entries}
-			got := ExprTypeFromExpr(m, st)
+			got := EvalType(m, st)
 			if got.Kind != Map {
 				t.Errorf("Kind = %v, want Map", got.Kind)
 			}
@@ -143,7 +143,7 @@ func TestExprTypeFromExprIdentWithSymbolTable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			expr := &ast.Identifier{Value: tt.ident}
-			got := ExprTypeFromExpr(expr, &st)
+			got := EvalType(expr, &st)
 			if got.Kind != BlockRef {
 				t.Errorf("Kind = %v, want BlockRef", got.Kind)
 			}
@@ -189,7 +189,7 @@ func TestExprTypeFromExprMemberAccess(t *testing.T) {
 				Object: &ast.Identifier{Value: tt.object},
 				Member: tt.member,
 			}
-			got := ExprTypeFromExpr(expr, &st)
+			got := EvalType(expr, &st)
 			switch {
 			case tt.wantField != "":
 				want := model.Fields[tt.wantField].Type
@@ -265,7 +265,7 @@ func TestExprTypeFromExprSubscription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			expr := &ast.Subscription{Object: tt.object, Indices: []ast.Expression{tt.index}}
-			got := ExprTypeFromExpr(expr, st)
+			got := EvalType(expr, st)
 			if !got.Equals(tt.expected) {
 				t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), tt.expected.String())
 			}
@@ -281,7 +281,7 @@ func TestExprTypeFromExprBinaryArrow(t *testing.T) {
 		Operator: token.Token{Type: token.ARROW},
 		Right:    &ast.Identifier{Value: "b"},
 	}
-	got := ExprTypeFromExpr(expr, st)
+	got := EvalType(expr, st)
 	want := IdentType(0, "any", st)
 	if !got.Equals(want) {
 		t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), want.String())
@@ -329,7 +329,7 @@ func TestExprTypeFromExprBinaryArithmetic(t *testing.T) {
 				Operator: token.Token{Type: tt.op},
 				Right:    tt.right,
 			}
-			got := ExprTypeFromExpr(expr, st)
+			got := EvalType(expr, st)
 			if !got.Equals(tt.expected) {
 				t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), tt.expected.String())
 			}

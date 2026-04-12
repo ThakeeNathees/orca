@@ -39,38 +39,35 @@ type BlockSchema struct {
 	Schema *BlockSchema
 }
 
-// NewBlockSchema builds a BlockSchema from a schema block's assignments.
-// Each assignment is resolved using ResolveFieldSchema, producing field
-// types, required flags, and descriptions from annotations.
-func NewBlockSchema(
-	annotations []*ast.Annotation,
-	blockName string,
-	block *ast.BlockBody,
-	symtab *SymbolTable,
-) BlockSchema {
-	fields := make(map[string]FieldSchema)
-	for _, assign := range block.Assignments {
-		fs := NewFieldSchema(assign, symtab)
-		fields[assign.Name] = fs
+// NewBlockSchema builds a BlockSchema from a block body. For `schema X { ... }`
+// declarations, field RHS values are TYPE expressions (depth=0). For value
+// blocks (agent, tool, let, etc.), field RHS values are VALUE expressions
+// whose schema-level type is taken at depth=1 — walking one level up the
+// schema chain so `tool_1 = some_tool` resolves to the `tool` bootstrap
+// schema rather than some_tool's instance schema.
+func NewBlockSchema(annotations []*ast.Annotation, blockName string, body *ast.BlockBody, symtab *SymbolTable) BlockSchema {
+	fields := make(map[string]FieldSchema, len(body.Assignments))
+	for _, assign := range body.Assignments {
+		var typ Type
+		if body.Kind == BlockKindSchema {
+			typ = EvalType(assign.Value, symtab)
+		} else {
+			typ = TypeOf(assign.Value, symtab)
+		}
+		fields[assign.Name] = newFieldSchema(assign, typ)
 	}
 	return BlockSchema{
 		BlockName:   blockName,
-		Ast:         block,
+		Ast:         body,
 		Annotations: annotations,
 		Fields:      fields,
 	}
 }
 
-// NewFieldSchema extracts a FieldSchema from an assignment using the
-// annotation-based format. The assignment value is the type expression
-// (e.g. string, string | model | null). Annotations provide metadata:
-// @desc("...") for descriptions. Required is inferred: if the type
-// contains null in a union, the field is optional; otherwise required.
-func NewFieldSchema(assign *ast.Assignment, symtab *SymbolTable) FieldSchema {
-	typ := ExprTypeFromExpr(assign.Value, symtab)
+func newFieldSchema(assign *ast.Assignment, typ Type) FieldSchema {
 	fs := FieldSchema{Required: true, Type: typ}
 
-	// If the type is a union containing null, the field is optional.
+	// A union containing null makes the field optional.
 	if typ.Kind == Union {
 		for _, m := range typ.Members {
 			if m.IsNull() {
@@ -79,15 +76,13 @@ func NewFieldSchema(assign *ast.Assignment, symtab *SymbolTable) FieldSchema {
 		}
 	}
 
-	// Extract metadata from annotations.
+	// @desc("...") populates the description.
 	for _, ann := range assign.Annotations {
-		switch ann.Name {
-		case "desc":
-			if len(ann.Arguments) == 1 {
-				if strLit, ok := ann.Arguments[0].(*ast.StringLiteral); ok {
-					fs.Description = strLit.Value
-				}
-			}
+		if ann.Name != "desc" || len(ann.Arguments) != 1 {
+			continue
+		}
+		if strLit, ok := ann.Arguments[0].(*ast.StringLiteral); ok {
+			fs.Description = strLit.Value
 		}
 	}
 
