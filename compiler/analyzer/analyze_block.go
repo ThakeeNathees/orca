@@ -461,9 +461,6 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		if e == nil {
 			return nil
 		}
-		// Resolve the type first to ensure BlockNameAnon is set and the
-		// inline block is registered in the symbol table.
-		types.TypeOf(e, symbols)
 		diags := analyzeBlockBody(&e.BlockBody, nil, e.BlockNameAnon, e.TokenStart, e.TokenEnd, symbols)
 		if len(diags) > 0 {
 			return diags

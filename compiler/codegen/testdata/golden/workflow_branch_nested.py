@@ -132,14 +132,14 @@ class _orca__state_pipeline(TypedDict):
     _orca__trigger: str | None
     _orca__payload: dict | None
     triage: Any
-    __anon_1: Any
+    _orca__anon_1: Any
     urgent_handler: Any
     sub_classifier: Any
-    __anon_2: Any
+    _orca__anon_2: Any
     tech_support: Any
     sales_support: Any
-    _orca__route____anon_1: Any
-    _orca__route____anon_2: Any
+    _orca__route___orca__anon_1: Any
+    _orca__route___orca__anon_2: Any
 
 def _orca__node_triage(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'triage'."""
@@ -148,44 +148,44 @@ def _orca__node_triage(state: _orca__state_pipeline) -> dict:
     _out = _orca__invoke_agent(triage, _input)
     return {"triage": _out}
 
-def _orca__node___anon_1(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping '__anon_1'."""
+def _orca__node__orca__anon_1(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping '_orca__anon_1'."""
     _predecessors = ["triage"]
     _input = _orca__gather(state, _predecessors)
     _route_key = (lambda out: out)(_input)
-    return {"__anon_1": _input, "_orca__route____anon_1": _route_key}
+    return {"_orca__anon_1": _input, "_orca__route___orca__anon_1": _route_key}
 
 def _orca__node_urgent_handler(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'urgent_handler'."""
-    _predecessors = ["__anon_1"]
+    _predecessors = ["_orca__anon_1"]
     _input = _orca__gather(state, _predecessors)
     _out = _orca__invoke_agent(urgent_handler, _input)
     return {"urgent_handler": _out}
 
 def _orca__node_sub_classifier(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'sub_classifier'."""
-    _predecessors = ["__anon_1"]
+    _predecessors = ["_orca__anon_1"]
     _input = _orca__gather(state, _predecessors)
     _out = _orca__invoke_agent(sub_classifier, _input)
     return {"sub_classifier": _out}
 
-def _orca__node___anon_2(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping '__anon_2'."""
+def _orca__node__orca__anon_2(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping '_orca__anon_2'."""
     _predecessors = ["sub_classifier"]
     _input = _orca__gather(state, _predecessors)
     _route_key = (lambda out: out)(_input)
-    return {"__anon_2": _input, "_orca__route____anon_2": _route_key}
+    return {"_orca__anon_2": _input, "_orca__route___orca__anon_2": _route_key}
 
 def _orca__node_tech_support(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'tech_support'."""
-    _predecessors = ["__anon_2"]
+    _predecessors = ["_orca__anon_2"]
     _input = _orca__gather(state, _predecessors)
     _out = _orca__invoke_agent(tech_support, _input)
     return {"tech_support": _out}
 
 def _orca__node_sales_support(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'sales_support'."""
-    _predecessors = ["__anon_2"]
+    _predecessors = ["_orca__anon_2"]
     _input = _orca__gather(state, _predecessors)
     _out = _orca__invoke_agent(sales_support, _input)
     return {"sales_support": _out}
@@ -194,37 +194,47 @@ def _orca__route_pipeline(state: _orca__state_pipeline) -> str:
     """Route to entry node based on trigger source."""
     return "triage"
 
-def _orca__route_pipeline_branch_0(state: _orca__state_pipeline) -> Any:
-    """Branch router for "__anon_1"."""
-    _key = state.get("_orca__route____anon_1", "default")
+def _orca__route_pipeline_branch__orca__anon_1(state: _orca__state_pipeline) -> Any:
+    """Branch router for "_orca__anon_1"."""
+    _key = state.get("_orca__route___orca__anon_1", "default")
     if _key in {"urgent", "normal"}:
         return _key
     return "default"
 
-def _orca__route_pipeline_branch_1(state: _orca__state_pipeline) -> Any:
-    """Branch router for "__anon_2"."""
-    _key = state.get("_orca__route____anon_2", "default")
+def _orca__route_pipeline_branch__orca__anon_2(state: _orca__state_pipeline) -> Any:
+    """Branch router for "_orca__anon_2"."""
+    _key = state.get("_orca__route___orca__anon_2", "default")
     if _key in {"tech", "sales"}:
         return _key
     return "default"
 
 pipeline = StateGraph(_orca__state_pipeline)
 pipeline.add_node("triage", _orca__node_triage)
-pipeline.add_node("__anon_1", _orca__node___anon_1)
+pipeline.add_node("_orca__anon_1", _orca__node__orca__anon_1)
 pipeline.add_node("urgent_handler", _orca__node_urgent_handler)
 pipeline.add_node("sub_classifier", _orca__node_sub_classifier)
-pipeline.add_node("__anon_2", _orca__node___anon_2)
+pipeline.add_node("_orca__anon_2", _orca__node__orca__anon_2)
 pipeline.add_node("tech_support", _orca__node_tech_support)
 pipeline.add_node("sales_support", _orca__node_sales_support)
 pipeline.add_conditional_edges(START, _orca__route_pipeline)
-pipeline.add_conditional_edges("__anon_1", _orca__route_pipeline_branch_0, {"urgent": "urgent_handler", "normal": "sub_classifier", "default": END})
-pipeline.add_conditional_edges("__anon_2", _orca__route_pipeline_branch_1, {"tech": "tech_support", "sales": "sales_support", "default": END})
-pipeline.add_edge("sub_classifier", "__anon_2")
-pipeline.add_edge("triage", "__anon_1")
+pipeline.add_conditional_edges("_orca__anon_1", _orca__route_pipeline_branch__orca__anon_1, {"urgent": "urgent_handler", "normal": "sub_classifier", "default": END})
+pipeline.add_conditional_edges("_orca__anon_2", _orca__route_pipeline_branch__orca__anon_2, {"tech": "tech_support", "sales": "sales_support", "default": END})
+pipeline.add_edge("sub_classifier", "_orca__anon_2")
+pipeline.add_edge("triage", "_orca__anon_1")
 pipeline.add_edge("urgent_handler", END)
 pipeline.add_edge("tech_support", END)
 pipeline.add_edge("sales_support", END)
 pipeline = pipeline.compile()
+
+_orca__anon_1 = _orca__block("branch", 
+    transform=lambda out: out,
+    route={"urgent": urgent_handler, "normal": sub_classifier},
+)
+
+_orca__anon_2 = _orca__block("branch", 
+    transform=lambda out: out,
+    route={"tech": tech_support, "sales": sales_support},
+)
 
 if __name__ == "__main__":
     payload = sys.argv[1] if len(sys.argv) >= 2 else ""
@@ -232,14 +242,14 @@ if __name__ == "__main__":
         "_orca__trigger": "",
         "_orca__payload": payload,
         "triage": "",
-        "__anon_1": "",
+        "_orca__anon_1": "",
         "urgent_handler": "",
         "sub_classifier": "",
-        "__anon_2": "",
+        "_orca__anon_2": "",
         "tech_support": "",
         "sales_support": "",
-        "_orca__route____anon_1": "",
-        "_orca__route____anon_2": "",
+        "_orca__route___orca__anon_1": "",
+        "_orca__route___orca__anon_2": "",
     }
     final_state = pipeline.invoke(initial_state)
     print(final_state)

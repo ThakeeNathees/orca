@@ -145,30 +145,29 @@ func validateBranchRoutes(branchBody *ast.BlockBody, symbols *types.SymbolTable,
 
 		// Inside a branch route, triggers are forbidden — they can only be
 		// the source of a workflow, never a route target.
-		if leftMost, ok := getLeftMostExpr(entry.Value); ok {
-			if types.IsAnnotated(types.TypeOf(leftMost, symbols), types.AnnotationTriggerNode) {
-				diags = append(diags, diagnostic.Diagnostic{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeTriggerAsTarget,
-					Position: diagnostic.Position{
-						Line:   leftMost.Start().Line,
-						Column: leftMost.Start().Column,
-					},
-					Message: "Triggers can only be workflow entry points",
-					Source:  "analyzer",
-				})
-			}
+		leftMost := GetLeftMostExpr(entry.Value)
+		if types.IsAnnotated(types.TypeOf(leftMost, symbols), types.AnnotationTriggerNode) {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity: diagnostic.Error,
+				Code:     diagnostic.CodeTriggerAsTarget,
+				Position: diagnostic.Position{
+					Line:   leftMost.Start().Line,
+					Column: leftMost.Start().Column,
+				},
+				Message: "Triggers can only be workflow entry points",
+				Source:  "analyzer",
+			})
 		}
 	}
 	return diags
 }
 
 // Return the left most expression in a binary expression or the expression itself if it's not a binary expression.
-func getLeftMostExpr(expr ast.Expression) (ast.Expression, bool) {
+func GetLeftMostExpr(expr ast.Expression) ast.Expression {
 	switch e := expr.(type) {
 	case *ast.BinaryExpression:
-		return getLeftMostExpr(e.Left)
+		return GetLeftMostExpr(e.Left)
 	default:
-		return expr, true
+		return expr
 	}
 }

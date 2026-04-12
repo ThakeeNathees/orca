@@ -154,7 +154,9 @@ func ternaryExprType(depth int, e *ast.TernaryExpression, symbols *SymbolTable) 
 func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type {
 
 	if e.BlockNameAnon == "" {
-		e.BlockNameAnon = fmt.Sprintf("__anon_%d", symtab.nextInlineAnonID())
+		// TODO: Use the OrcaPrefix here but that mean we need to move the constant
+		// out of the codegen to a common package.
+		e.BlockNameAnon = fmt.Sprintf("_orca__anon_%d", symtab.nextInlineAnonID())
 	}
 
 	// TODO: The depth parameter is not used here but it should be.
@@ -197,15 +199,12 @@ func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type 
 		refBlock.Schema = kindSchema.Block
 	}
 
-	ty := NewBlockRefType(e.BlockNameAnon, &refBlock)
-	symtab.Define(e.BlockNameAnon, ty, e.Start())
-
 	// Eagerly resolve the schema pointer for the returned kind type. The
 	// kind name is a bootstrap schema (tool, agent, branch, ...) which is
 	// in the symbol table by the time any inline expression is type-checked.
 	// Resolving here means callers always get a fully-resolved Type — no
 	// per-callsite "look up by kind name if Block is nil" workaround.
-	result := NewBlockRefType(e.BlockBody.Kind, nil)
+	result := NewBlockRefType(e.BlockBody.Kind, &refBlock)
 	if schemaType, ok := symtab.Lookup(e.BlockBody.Kind); ok {
 		result.Block = schemaType.Block
 	}
@@ -319,7 +318,7 @@ func identType(depth int, name string, symtab *SymbolTable) (Type, bool) {
 
 			// TODO: we may not need the counter here because the name is already made unique
 			// and if two blocks have the same name it'll be an error, (the name is the global namespace).
-			newSchemaName := "__anon_schema_of_" + name + "_" + fmt.Sprintf("%d", symtab.nextInlineAnonID())
+			newSchemaName := "_orca__anon_schema_of_" + name + "_" + fmt.Sprintf("%d", symtab.nextInlineAnonID())
 			blockSchema := NewBlockSchema(
 				blockRef.Block.Annotations,
 				newSchemaName,

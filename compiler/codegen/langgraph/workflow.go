@@ -149,8 +149,8 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 	// node function stores the computed route key in state, and its router
 	// (writeBranchRouter) reads that key to dispatch to a target. See
 	// writeBranchRouteMap for the route map shape.
-	for i, branch := range rw.Branches {
-		routerName := branchRouterFuncName(rw.Name, i)
+	for _, branch := range rw.Branches {
+		routerName := branchRouterFuncName(rw.Name, branch.Name)
 		fmt.Fprintf(s, "%s.add_conditional_edges(%q, %s", rw.Name, branch.Name, routerName)
 		writeBranchRouteMap(s, branch)
 		s.WriteString(")\n")
@@ -325,8 +325,8 @@ func (b *LangGraphBackend) writeWorkflowNode(s *strings.Builder, rw workflow.Res
 }
 
 // branchRouterFuncName returns the Python function name for a branch router.
-func branchRouterFuncName(workflowName string, branchIndex int) string {
-	return fmt.Sprintf("%sroute_%s_branch_%d", orcaPrefix, workflowName, branchIndex)
+func branchRouterFuncName(workflowName string, branchName string) string {
+	return fmt.Sprintf("%sroute_%s_branch_%s", orcaPrefix, workflowName, branchName)
 }
 
 // writeBranchRouter emits a Python function that reads a branch's route key
@@ -337,7 +337,7 @@ func branchRouterFuncName(workflowName string, branchIndex int) string {
 // provide one — see writeBranchRouteMap), so LangGraph never receives an
 // unknown key at runtime.
 func writeBranchRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string, branch workflow.Branch, branchIndex int) {
-	funcName := branchRouterFuncName(rw.Name, branchIndex)
+	funcName := branchRouterFuncName(rw.Name, branch.Name)
 	fmt.Fprintf(s, "def %s(state: %s) -> Any:\n", funcName, stateName)
 	fmt.Fprintf(s, "    \"\"\"Branch router for %q.\"\"\"\n", branch.Name)
 	fmt.Fprintf(s, "    _key = state.get(%q, %q)\n", orcaBranchRouteField(branch.Name), workflow.BranchRouteKeyDefault)
@@ -429,4 +429,10 @@ func workflowImports(blocks []*ast.BlockStatement) []python.PythonImport {
 			{Name: "END"},
 		},
 	}}
+}
+
+// orcaBranchRouteField returns the state field name that stores the route
+// key produced by a branch's transform. See orcaBranchRouteKeyPrefix.
+func orcaBranchRouteField(branchName string) string {
+	return orcaBranchRouteKeyPrefix + branchName
 }

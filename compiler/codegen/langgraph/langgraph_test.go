@@ -732,6 +732,13 @@ func TestGenerateProviderConstFold(t *testing.T) {
 		wantDiagSubstr string
 	}{
 		{
+			fixture:        "non_string_provider",
+			wantDeps:       []string{"langchain-core", "langchain"},
+			wantDiagCount:  1,
+			wantDiagCode:   diagnostic.CodeTypeMismatch,
+			wantDiagSubstr: `field "provider" expects type string, got number`,
+		},
+		{
 			fixture:    "concat_openai",
 			wantDeps:   []string{"langchain-core", "langchain", "langchain-openai"},
 			wantImport: "from langchain_openai import ChatOpenAI",
@@ -752,13 +759,6 @@ func TestGenerateProviderConstFold(t *testing.T) {
 			wantDiagCount:  1,
 			wantDiagCode:   diagnostic.CodeUnknownProvider,
 			wantDiagSubstr: `unknown provider "bad_provider"`,
-		},
-		{
-			fixture:        "non_string_provider",
-			wantDeps:       []string{"langchain-core", "langchain"},
-			wantDiagCount:  1,
-			wantDiagCode:   diagnostic.CodeTypeMismatch,
-			wantDiagSubstr: `field "provider" expects type string, got number`,
 		},
 	}
 
