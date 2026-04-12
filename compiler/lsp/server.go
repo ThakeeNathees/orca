@@ -387,7 +387,7 @@ func completeMemberFields(doc *documentState, ma *ast.MemberAccess) []protocol.C
 	}
 
 	// Resolve the object expression's type through the AST.
-	objType := types.SchemaTypeFromExpr(ma.Object, doc.Symbols)
+	objType := types.TypeOf(ma.Object, doc.Symbols)
 	if objType.Kind != types.BlockRef {
 		return nil
 	}
@@ -488,7 +488,7 @@ func textDocumentHover(ctx *glsp.Context, params *protocol.HoverParams) (*protoc
 		if doc.Symbols == nil {
 			return nil, nil
 		}
-		objType := types.SchemaTypeFromExpr(node.MemberAccess.Object, doc.Symbols)
+		objType := types.TypeOf(node.MemberAccess.Object, doc.Symbols)
 		if objType.Kind != types.BlockRef {
 			return nil, nil
 		}

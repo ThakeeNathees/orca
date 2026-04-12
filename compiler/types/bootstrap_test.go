@@ -170,7 +170,7 @@ func TestResolveIdentAsType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typ := ExprTypeFromExpr(&ast.Identifier{Value: tt.input}, st)
+			typ := EvalType(&ast.Identifier{Value: tt.input}, st)
 			var want Type
 			if tt.input == "vpc_data_t" {
 				want, _ = st.Lookup("any")
@@ -213,7 +213,7 @@ func TestExprTypeFromExprBootstrap(t *testing.T) {
 		{
 			"subscription list[string] resolves to list type",
 			&ast.Subscription{
-				Object: &ast.Identifier{Value: "list"},
+				Object:  &ast.Identifier{Value: "list"},
 				Indices: []ast.Expression{&ast.Identifier{Value: "string"}},
 			},
 			List, nil, "",
@@ -229,7 +229,7 @@ func TestExprTypeFromExprBootstrap(t *testing.T) {
 		{
 			"unsupported parameterized type returns any",
 			&ast.Subscription{
-				Object: &ast.Identifier{Value: "set"},
+				Object:  &ast.Identifier{Value: "set"},
 				Indices: []ast.Expression{&ast.Identifier{Value: "string"}},
 			},
 			BlockRef, typePtr(anyTyp), "",
@@ -261,7 +261,7 @@ func TestExprTypeFromExprBootstrap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typ := ExprTypeFromExpr(tt.expr, st)
+			typ := EvalType(tt.expr, st)
 			if typ.Kind != tt.kind {
 				t.Errorf("Kind = %v, want %v", typ.Kind, tt.kind)
 			}
@@ -300,7 +300,7 @@ func TestExprTypeFromExprInlineSchema(t *testing.T) {
 		},
 	}
 
-	typ := ExprTypeFromExpr(expr, st)
+	typ := EvalType(expr, st)
 	if typ.Kind != BlockRef {
 		t.Errorf("Kind = %v, want BlockRef", typ.Kind)
 	}
@@ -330,7 +330,7 @@ func TestExprTypeFromExprInlineSchema(t *testing.T) {
 	}
 }
 
-// TestFieldSchemaOptionalNullInUnion verifies NewFieldSchema marks a field optional
+// TestFieldSchemaOptionalNullInUnion verifies NewBlockSchema marks a field optional
 // when the type is a union that contains null (via Type.IsNull()), but keeps the full
 // union on FieldSchema.Type — null is only an optionality marker, not removed from the type.
 func TestFieldSchemaOptionalNullInUnion(t *testing.T) {
@@ -369,8 +369,8 @@ func TestFieldSchemaOptionalNullInUnion(t *testing.T) {
 				t.Fatalf("parse errors: %v", p.Errors())
 			}
 			block := program.Statements[0].(*ast.BlockStatement)
-			assign := block.Assignments[0]
-			fs := NewFieldSchema(assign, st)
+			schema := NewBlockSchema(block.Annotations, block.Name, &block.BlockBody, st)
+			fs := schema.Fields["field"]
 			if fs.Required != tt.required {
 				t.Errorf("Required = %v, want %v", fs.Required, tt.required)
 			}

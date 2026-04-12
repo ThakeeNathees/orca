@@ -130,7 +130,7 @@ func (t Type) IsNull() bool {
 	if t.Block != nil {
 		return t.Block.BlockName == "null"
 	}
-	// Unresolved identifier "null" so NewFieldSchema can strip `| null` from unions.
+	// Unresolved identifier "null" so newFieldSchema can strip `| null` from unions.
 	return t.BlockName == "null"
 }
 

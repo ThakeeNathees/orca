@@ -100,13 +100,7 @@ func buildSymbolTable(ap *AnalyzedProgram) {
 			}
 		}
 
-		schema := types.NewBlockSchema(
-			block.Annotations,
-			block.Name,
-			&block.BlockBody,
-			ap.SymbolTable)
-
-		// Define the block in the symbol table.
+		schema := types.NewBlockSchema(block.Annotations, block.Name, &block.BlockBody, ap.SymbolTable)
 		typ := types.NewBlockRefType(block.Name, &schema)
 		ap.SymbolTable.Define(block.Name, typ, block.NameToken)
 	}
@@ -480,7 +474,7 @@ func validateField(assign *ast.Assignment, blockName string, kind string, schema
 		return diags
 	}
 
-	exprType := types.SchemaTypeFromExpr(assign.Value, symbols)
+	exprType := types.TypeOf(assign.Value, symbols)
 	// Skip type validation when the expression type is unknown.
 	if exprType.IsAny() {
 		return nil
@@ -544,7 +538,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		if e.Member == "" {
 			return nil
 		}
-		objType := types.SchemaTypeFromExpr(e.Object, symbols)
+		objType := types.TypeOf(e.Object, symbols)
 		if objType.Kind != types.BlockRef {
 			return nil
 		}
@@ -594,7 +588,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 				return diags
 			}
 		}
-		objType := types.SchemaTypeFromExpr(e.Object, symbols)
+		objType := types.TypeOf(e.Object, symbols)
 		if types.IsCompatible(objType, types.Type{Kind: types.List}) && len(e.Indices) > 0 {
 			if len(e.Indices) > 1 {
 				return []diagnostic.Diagnostic{{
@@ -608,7 +602,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 					Source:  "analyzer",
 				}}
 			}
-			idxType := types.SchemaTypeFromExpr(e.Indices[0], symbols)
+			idxType := types.TypeOf(e.Indices[0], symbols)
 
 			// TODO: Const fold and validate out of bounds errors.
 
@@ -695,7 +689,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		for _, p := range e.Params {
 			// Use depth 0 to get the direct type (e.g. "number" → Type{BlockRef, "number", <schema number {}>})
 			// rather than depth 1 which walks up to the meta-schema.
-			paramType := types.ExprTypeFromExpr(p.TypeExpr, symbols)
+			paramType := types.EvalType(p.TypeExpr, symbols)
 			// Create a synthetic block instance for the param so IdentType's
 			// depth chain resolves correctly. E.g. param `n number` gets a block
 			// with Ast.Kind="number", mirroring how `model gpt4 {}` works.
@@ -710,8 +704,8 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		}
 		// Validate body type matches declared return type.
 		if e.ReturnType != nil {
-			expected := types.ExprTypeFromExpr(e.ReturnType, symbols)
-			got := types.SchemaTypeFromExpr(e.Body, symbols)
+			expected := types.EvalType(e.ReturnType, symbols)
+			got := types.TypeOf(e.Body, symbols)
 			if !types.IsCompatible(got, expected) {
 				symbols.PopScope()
 				return []diagnostic.Diagnostic{{
@@ -737,7 +731,7 @@ func checkReferences(expr ast.Expression, symbols *types.SymbolTable) []diagnost
 		}
 		// Resolve the type first to ensure BlockNameAnon is set and the
 		// inline block is registered in the symbol table.
-		types.SchemaTypeFromExpr(e, symbols)
+		types.TypeOf(e, symbols)
 		diags := analyzeBlockBody(&e.BlockBody, nil, e.BlockNameAnon, e.TokenStart, e.TokenEnd, symbols)
 		if len(diags) > 0 {
 			return diags
@@ -930,7 +924,7 @@ func rightmostLeaf(expr ast.Expression) ast.Expression {
 // isBranchExpr returns true if the expression resolves to a branch block.
 // Thin wrapper over types.IsBlockKind that resolves the expression first.
 func isBranchExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
-	return types.IsBlockKind(types.SchemaTypeFromExpr(expr, symbols), workflow.BlockKindBranch)
+	return types.IsBlockKind(types.TypeOf(expr, symbols), workflow.BlockKindBranch)
 }
 
 // validateWorkflowLeafExpr checks a single workflow node position (not an
@@ -961,7 +955,7 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 		}}
 	}
 
-	typ := types.SchemaTypeFromExpr(expr, symbols)
+	typ := types.TypeOf(expr, symbols)
 	if typ.Kind != types.BlockRef {
 		return []diagnostic.Diagnostic{{
 			Severity: diagnostic.Error,
@@ -994,7 +988,7 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 // isTriggerExpr returns true if the expression resolves to a block annotated
 // as @trigger_node. Thin wrapper over types.IsAnnotated.
 func isTriggerExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
-	return types.IsAnnotated(types.SchemaTypeFromExpr(expr, symbols), AnnotationTriggerNode)
+	return types.IsAnnotated(types.TypeOf(expr, symbols), AnnotationTriggerNode)
 }
 
 // validateTriggerPositions checks that trigger blocks (cron, webhook) only appear

@@ -33,7 +33,7 @@ func SchemaBlockToSource(block *ast.BlockStatement) string {
 	}
 
 	for _, assign := range block.Assignments {
-		resolved := types.ExprTypeFromExpr(assign.Value, nil)
+		resolved := types.EvalType(assign.Value, nil)
 		isOptional := isOptional(resolved)
 		desc := extractDesc(assign.Annotations)
 

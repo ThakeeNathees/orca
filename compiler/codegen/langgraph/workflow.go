@@ -204,7 +204,7 @@ func (b *LangGraphBackend) nodeFieldType(nodeName string) string {
 
 	// Check for output_schema field.
 	if schemaExpr, ok := block.GetFieldExpression("output_schema"); ok {
-		schemaType := types.ExprTypeFromExpr(schemaExpr, b.Program.SymbolTable)
+		schemaType := types.EvalType(schemaExpr, b.Program.SymbolTable)
 		typeName := python.OrcaTypeToPythonTypeName(schemaType)
 		return typeName + " | None"
 	}
