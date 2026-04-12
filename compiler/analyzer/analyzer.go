@@ -10,7 +10,6 @@ import (
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
 	"github.com/thakee/orca/compiler/graph"
-	"github.com/thakee/orca/compiler/helper"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
 	"github.com/thakee/orca/compiler/workflow"
@@ -398,7 +397,7 @@ func analyzeBlockBody(
 	}
 
 	// Check if the block support expressions (other than assignments).
-	if onlyAssignments := helper.HasAnnotation(blockSchema.Annotations, AnnotationOnlyAssignments); onlyAssignments {
+	if onlyAssignments := types.HasAnnotation(blockSchema.Annotations, AnnotationOnlyAssignments); onlyAssignments {
 		for _, expr := range body.Expressions {
 			// TODO: once assignments become expressions, we need to check that here.
 			diags = append(diags, diagnostic.Diagnostic{
@@ -928,26 +927,16 @@ func rightmostLeaf(expr ast.Expression) ast.Expression {
 	return expr
 }
 
-// isBranchExpr returns true if the expression resolves to a branch block type.
-// Works for both inline branch { ... } expressions and named branch references.
+// isBranchExpr returns true if the expression resolves to a branch block.
+// Thin wrapper over types.IsBlockKind that resolves the expression first.
 func isBranchExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
-	// Fast path: inline block expression with Kind "branch".
-	if be, ok := expr.(*ast.BlockExpression); ok {
-		return be.Kind == workflow.BlockKindBranch
-	}
-	// Named branch reference: resolve the type and check the block kind.
-	typ := types.SchemaTypeFromExpr(expr, symbols)
-	return typ.Kind == types.BlockRef && typ.BlockName == workflow.BlockKindBranch
+	return types.IsBlockKind(types.SchemaTypeFromExpr(expr, symbols), workflow.BlockKindBranch)
 }
 
-// validateWorkflowLeafExpr checks a single workflow node position (not an arrow).
-// It resolves the expression's type and requires a BlockRef whose kind passes
-// IsWorkflowNode(); other types are not valid graph nodes.
-//
-// Inline blocks (anonymous BlockExpressions) are only allowed if they are
-// branches — codegen needs a top-level Python variable to call into for
-// agents and tools, but inline branches are encoded directly into the
-// generated branch node function and don't need a top-level emission.
+// validateWorkflowLeafExpr checks a single workflow node position (not an
+// arrow). It requires the expression to resolve to a block annotated with
+// @workflow_node. Inline non-branch BlockExpressions are rejected because
+// codegen has no path to emit them as workflow nodes (Phase 5 will lift this).
 func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	if refDiags := checkReferences(expr, symbols); len(refDiags) > 0 {
 		return refDiags
@@ -972,7 +961,6 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 		}}
 	}
 
-	// Workflow leaf expression must be a block reference.
 	typ := types.SchemaTypeFromExpr(expr, symbols)
 	if typ.Kind != types.BlockRef {
 		return []diagnostic.Diagnostic{{
@@ -987,16 +975,7 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 		}}
 	}
 
-	// Ensure the block is a workflow node. For inline BlockExpressions,
-	// typ.Block may be nil (blockExprType returns the schema kind without
-	// the schema pointer), so fall back to looking up the schema by kind name.
-	schema := typ.Block
-	if schema == nil {
-		if schemaType, ok := symbols.Lookup(typ.BlockName); ok {
-			schema = schemaType.Block
-		}
-	}
-	if schema == nil || !helper.HasAnnotation(schema.Annotations, AnnotationWorkflowNode) {
+	if !types.IsAnnotated(typ, AnnotationWorkflowNode) {
 		return []diagnostic.Diagnostic{{
 			Severity: diagnostic.Error,
 			Code:     diagnostic.CodeInvalidWorkNode,
@@ -1012,26 +991,10 @@ func validateWorkflowLeafExpr(expr ast.Expression, symbols *types.SymbolTable) [
 	return nil
 }
 
-// isTriggerExpr returns true if the expression's resolved type is a trigger block kind.
-// Works with any expression type (identifiers, member access, subscriptions, etc.)
-// by using the type system to infer the block kind. For inline BlockExpressions
-// blockExprType returns the schema kind without the schema pointer, so falls back
-// to looking up the schema by kind name (mirrors validateWorkflowLeafExpr).
+// isTriggerExpr returns true if the expression resolves to a block annotated
+// as @trigger_node. Thin wrapper over types.IsAnnotated.
 func isTriggerExpr(expr ast.Expression, symbols *types.SymbolTable) bool {
-	typ := types.SchemaTypeFromExpr(expr, symbols)
-	if typ.Kind != types.BlockRef {
-		return false
-	}
-	schema := typ.Block
-	if schema == nil {
-		if schemaType, ok := symbols.Lookup(typ.BlockName); ok {
-			schema = schemaType.Block
-		}
-	}
-	if schema == nil {
-		return false
-	}
-	return helper.HasAnnotation(schema.Annotations, AnnotationTriggerNode)
+	return types.IsAnnotated(types.SchemaTypeFromExpr(expr, symbols), AnnotationTriggerNode)
 }
 
 // validateTriggerPositions checks that trigger blocks (cron, webhook) only appear

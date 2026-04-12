@@ -7,7 +7,6 @@ import (
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen/python"
-	"github.com/thakee/orca/compiler/helper"
 	"github.com/thakee/orca/compiler/types"
 	"github.com/thakee/orca/compiler/workflow"
 )
@@ -40,10 +39,7 @@ func (b *LangGraphBackend) triggerPredicate() func(string) bool {
 		if !ok {
 			return false
 		}
-		if typ.Block == nil {
-			return false
-		}
-		return helper.HasAnnotation(typ.Block.Annotations, analyzer.AnnotationTriggerNode)
+		return types.IsAnnotated(typ, analyzer.AnnotationTriggerNode)
 	}
 }
 
