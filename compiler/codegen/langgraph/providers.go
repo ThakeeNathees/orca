@@ -137,23 +137,6 @@ func (b *LangGraphBackend) resolveProviders() {
 	b.resolvedProviders = resolvedProviders{providerImports: imports}
 }
 
-// writeModelSection emits model blocks with the provider field replaced by the
-// resolved LangChain class reference. Instead of provider="openai", emits
-// provider_class=ChatOpenAI so the runtime can instantiate directly.
-func (b *LangGraphBackend) writeModelSection(s *strings.Builder) {
-	models := b.CollectBlocksByKind(analyzer.BlockKindModel)
-	if len(models) == 0 {
-		return
-	}
-
-	s.WriteString("\n# --- Models ---\n")
-
-	for _, model := range models {
-		s.WriteString("\n")
-		fmt.Fprintf(s, "%s = %s\n", model.Name, modelBlockSource(model))
-	}
-}
-
 // modelBlockSource generates the __orca_model(...) call with the provider field
 // substituted from a string to the resolved class name.
 func modelBlockSource(model *ast.BlockStatement) string {

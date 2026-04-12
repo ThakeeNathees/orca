@@ -911,18 +911,6 @@ func schemaKindAssignments(doc *documentState, kindName string) []*ast.Assignmen
 	return ty.Block.Ast.Assignments
 }
 
-// findTypeSchema returns the BlockExpression from the "type" field of a block,
-// or nil if not found. Used for input blocks where `type = schema { ... }` defines
-// the value schema that members are accessed through.
-func findTypeSchema(block *ast.BlockStatement) *ast.BlockExpression {
-	expr, ok := block.GetFieldExpression("type")
-	if !ok {
-		return nil
-	}
-	be, _ := expr.(*ast.BlockExpression)
-	return be
-}
-
 // findBlock returns the BlockStatement with the given name, or nil.
 func findBlock(program *ast.Program, name string) *ast.BlockStatement {
 	for _, stmt := range program.Statements {
