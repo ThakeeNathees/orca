@@ -22,11 +22,25 @@ type Scope struct {
 // Supports nested scopes via PushScope/PopScope for lambda parameters.
 type SymbolTable struct {
 	current *Scope
+
+	// inlineAnonCounter generates unique IDs for anonymous inline blocks
+	// (e.g. `model = model { ... }` → `__anon_N`). Scoped per-SymbolTable,
+	// so each compilation gets a fresh counter and the same input always
+	// produces the same names (deterministic golden tests).
+	inlineAnonCounter int64
 }
 
 // NewSymbolTable creates an empty symbol table with a root scope.
 func NewSymbolTable() SymbolTable {
 	return SymbolTable{current: &Scope{symbols: make(map[string]Symbol)}}
+}
+
+// nextInlineAnonID returns a monotonic per-SymbolTable ID for naming an
+// anonymous inline block. Each compilation creates a fresh SymbolTable, so
+// the IDs are deterministic across runs of the same source.
+func (st *SymbolTable) nextInlineAnonID() int64 {
+	st.inlineAnonCounter++
+	return st.inlineAnonCounter
 }
 
 // PushScope creates a new child scope and sets it as the current scope.

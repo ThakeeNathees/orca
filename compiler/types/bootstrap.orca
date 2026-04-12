@@ -1,9 +1,9 @@
 // Schema definitions for all block types.
 
-// Annotations are now predefined set of names but rather they can be any
-// identifiers and passed to the tool that analyze the ast.
+// Annotations are not limited to a predefined set of names; they can be any
+// identifiers and may be passed to tools that analyze the AST.
 //
-// Here is the internally recognized annotation details:
+// Here are the internally recognized annotations:
 //   @suppress: Suppresses compiler diagnostics.
 //   @desc: Adds a description to a field.
 //   @workflow_node: Indicates that the block is a workflow node.
@@ -175,13 +175,13 @@ schema branch {
 
   // TODO: Remove the any here and it should be workflow_node
   // but workflow_node should be a schema and we should support
-  // structural simllarity instead of strict schema match.
+  // structural similarity instead of strict schema match.
   //
   // i.e.
   // schema_1 = schema { a = str b = bool c = number }
   // schema_2 = schema { a = str b = bool }
   // here schema_1 is compatible with schema_2 because it has
-  // all the fields that schema_2 requires (we shouldnt care about c).
+  // all the fields that schema_2 requires (we shouldn't care about c).
   //
   // This is more or less duck typing. It can quack so it's a duck.
   @desc("The routes to take based on the input.")

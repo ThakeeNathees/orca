@@ -21,4 +21,17 @@ const (
 
 	// orcaInvokeToolFunc is the runtime helper that invokes a tool node.
 	orcaInvokeToolFunc = orcaPrefix + "invoke_tool"
+
+	// orcaBranchRouteKeyPrefix is the prefix for the state field that stores
+	// a branch's computed route key. The full field name for a branch named
+	// "foo" is orcaBranchRouteKeyPrefix + "foo" = "_orca__route__foo".
+	// The branch node function writes the route key here; the branch router
+	// function reads it to dispatch conditional edges.
+	orcaBranchRouteKeyPrefix = orcaPrefix + "route__"
 )
+
+// orcaBranchRouteField returns the state field name that stores the route
+// key produced by a branch's transform. See orcaBranchRouteKeyPrefix.
+func orcaBranchRouteField(branchName string) string {
+	return orcaBranchRouteKeyPrefix + branchName
+}
