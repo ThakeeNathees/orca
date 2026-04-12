@@ -124,21 +124,12 @@ hooks_in = _orca__block("webhook",
 class _orca__state_pipeline(TypedDict):
     _orca__trigger: str | None
     _orca__payload: dict | None
-    daily: Any
     researcher: Any
     writer: Any
-    hooks_in: Any
-
-def _orca__node_daily(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping 'daily'."""
-    _predecessors = []
-    _input = _orca__gather(state, _predecessors)
-    raise NotImplementedError("workflow node 'daily': block kind 'cron' is not supported in workflows yet")
-    return {"daily": _out}
 
 def _orca__node_researcher(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'researcher'."""
-    _predecessors = ["daily", "hooks_in"]
+    _predecessors = []
     _input = _orca__gather(state, _predecessors)
     _out = _orca__invoke_agent(researcher, _input)
     return {"researcher": _out}
@@ -150,26 +141,20 @@ def _orca__node_writer(state: _orca__state_pipeline) -> dict:
     _out = _orca__invoke_agent(writer, _input)
     return {"writer": _out}
 
-def _orca__node_hooks_in(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping 'hooks_in'."""
-    _predecessors = []
-    _input = _orca__gather(state, _predecessors)
-    raise NotImplementedError("workflow node 'hooks_in': block kind 'webhook' is not supported in workflows yet")
-    return {"hooks_in": _out}
-
 def _orca__route_pipeline(state: _orca__state_pipeline) -> str:
     """Route to entry node based on trigger source."""
-    return ["daily", "hooks_in"]
+    trigger = state.get("_orca__trigger")
+    if trigger == "daily":
+        return "researcher"
+    if trigger == "hooks_in":
+        return "researcher"
+    raise ValueError(f"unknown trigger: {trigger!r}")
 
 pipeline = StateGraph(_orca__state_pipeline)
-pipeline.add_node("daily", _orca__node_daily)
 pipeline.add_node("researcher", _orca__node_researcher)
 pipeline.add_node("writer", _orca__node_writer)
-pipeline.add_node("hooks_in", _orca__node_hooks_in)
 pipeline.add_conditional_edges(START, _orca__route_pipeline)
-pipeline.add_edge("daily", "researcher")
 pipeline.add_edge("researcher", "writer")
-pipeline.add_edge("hooks_in", "researcher")
 pipeline.add_edge("writer", END)
 pipeline = pipeline.compile()
 
@@ -178,10 +163,8 @@ if __name__ == "__main__":
     initial_state: _orca__state_pipeline = {
         "_orca__trigger": "",
         "_orca__payload": payload,
-        "daily": "",
         "researcher": "",
         "writer": "",
-        "hooks_in": "",
     }
     final_state = pipeline.invoke(initial_state)
     print(final_state)

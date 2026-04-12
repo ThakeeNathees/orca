@@ -183,7 +183,16 @@ func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type 
 	ty := NewBlockRefType(e.BlockNameAnon, &refBlock)
 	symtab.Define(e.BlockNameAnon, ty, e.Start())
 
-	return NewBlockRefType(e.BlockBody.Kind, nil)
+	// Eagerly resolve the schema pointer for the returned kind type. The
+	// kind name is a bootstrap schema (tool, agent, branch, ...) which is
+	// in the symbol table by the time any inline expression is type-checked.
+	// Resolving here means callers always get a fully-resolved Type — no
+	// per-callsite "look up by kind name if Block is nil" workaround.
+	result := NewBlockRefType(e.BlockBody.Kind, nil)
+	if schemaType, ok := symtab.Lookup(e.BlockBody.Kind); ok {
+		result.Block = schemaType.Block
+	}
+	return result
 }
 
 // binaryExprType resolves the type of a binary expression. Pipe operators

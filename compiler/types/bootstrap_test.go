@@ -282,8 +282,10 @@ func TestExprTypeFromExprBootstrap(t *testing.T) {
 }
 
 // TestExprTypeFromExprInlineSchema verifies that inline schema expressions
-// register a synthetic name in the symbol table; the expression's type is the
-// schema kind with a nil Block pointer (see blockExprType).
+// register a synthetic name in the symbol table and that the returned type
+// has the schema kind with the schema pointer eagerly resolved from the
+// symbol table. Callers no longer need a per-call "fallback if Block is nil"
+// workaround because blockExprType resolves the kind name on return.
 func TestExprTypeFromExprInlineSchema(t *testing.T) {
 	st := bootstrapSymtab(t)
 	expr := &ast.BlockExpression{
@@ -305,8 +307,10 @@ func TestExprTypeFromExprInlineSchema(t *testing.T) {
 	if typ.BlockName != BlockKindSchema {
 		t.Errorf("BlockName = %q, want %q", typ.BlockName, BlockKindSchema)
 	}
-	if typ.Block != nil {
-		t.Errorf("Block = %v, want nil (return uses schema kind only)", typ.Block)
+	if typ.Block == nil {
+		t.Errorf("Block = nil, want resolved schema pointer (eagerly looked up by kind)")
+	} else if typ.Block.BlockName != BlockKindSchema {
+		t.Errorf("Block.BlockName = %q, want %q", typ.Block.BlockName, BlockKindSchema)
 	}
 
 	var inline *BlockSchema
