@@ -41,6 +41,8 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 		Diagnostics: []diagnostic.Diagnostic{},
 	}
 
+	// These function should run in this order
+	injectAnonBlocks(&ap)
 	buildSymbolTable(&ap)
 	resolveBlockSchemaReferences(&ap)
 	buildBlockDependencyGraph(&ap)
@@ -64,6 +66,30 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 	}
 
 	return ap
+}
+
+// injectAnonBlocks injects the anonymous blocks into the symbol table.
+func injectAnonBlocks(ap *AnalyzedProgram) {
+	ast.Walk(ap.Ast, func(n ast.Node) bool {
+		switch e := n.(type) {
+		case *ast.BlockExpression:
+			if e != nil {
+				// Resolve the type first to ensure BlockNameAnon is set and the
+				// inline block is registered in the symbol table.
+				// This TypeOf will set the symbol table as well which is ugly side effect
+				// interms of functional programming and buggy, but works, maybe I need to think.
+				types.TypeOf(e, ap.SymbolTable)
+				bs := ast.BlockStatement{
+					Name:      e.BlockNameAnon,
+					NameToken: e.Start(), // Actually they dont have a name token (cause anon)
+					OpenBrace: e.BlockBody.TokenStart,
+				}
+				bs.BlockBody = e.BlockBody
+				ap.Ast.Statements = append(ap.Ast.Statements, &bs)
+			}
+		}
+		return true
+	})
 }
 
 // buildSymbolTable walks all block statements and registers each block

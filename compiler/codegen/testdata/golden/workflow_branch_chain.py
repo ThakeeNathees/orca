@@ -127,11 +127,11 @@ class _orca__state_pipeline(TypedDict):
     _orca__trigger: str | None
     _orca__payload: dict | None
     classifier: Any
-    __anon_1: Any
+    _orca__anon_1: Any
     drafter: Any
     reviewer: Any
     fallback: Any
-    _orca__route____anon_1: Any
+    _orca__route___orca__anon_1: Any
 
 def _orca__node_classifier(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'classifier'."""
@@ -140,16 +140,16 @@ def _orca__node_classifier(state: _orca__state_pipeline) -> dict:
     _out = _orca__invoke_agent(classifier, _input)
     return {"classifier": _out}
 
-def _orca__node___anon_1(state: _orca__state_pipeline) -> dict:
-    """Workflow node wrapping '__anon_1'."""
+def _orca__node__orca__anon_1(state: _orca__state_pipeline) -> dict:
+    """Workflow node wrapping '_orca__anon_1'."""
     _predecessors = ["classifier"]
     _input = _orca__gather(state, _predecessors)
     _route_key = (lambda out: out)(_input)
-    return {"__anon_1": _input, "_orca__route____anon_1": _route_key}
+    return {"_orca__anon_1": _input, "_orca__route___orca__anon_1": _route_key}
 
 def _orca__node_drafter(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'drafter'."""
-    _predecessors = ["__anon_1"]
+    _predecessors = ["_orca__anon_1"]
     _input = _orca__gather(state, _predecessors)
     _out = _orca__invoke_agent(drafter, _input)
     return {"drafter": _out}
@@ -163,7 +163,7 @@ def _orca__node_reviewer(state: _orca__state_pipeline) -> dict:
 
 def _orca__node_fallback(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping 'fallback'."""
-    _predecessors = ["__anon_1"]
+    _predecessors = ["_orca__anon_1"]
     _input = _orca__gather(state, _predecessors)
     _out = _orca__invoke_agent(fallback, _input)
     return {"fallback": _out}
@@ -172,26 +172,31 @@ def _orca__route_pipeline(state: _orca__state_pipeline) -> str:
     """Route to entry node based on trigger source."""
     return "classifier"
 
-def _orca__route_pipeline_branch_0(state: _orca__state_pipeline) -> Any:
-    """Branch router for "__anon_1"."""
-    _key = state.get("_orca__route____anon_1", "default")
+def _orca__route_pipeline_branch__orca__anon_1(state: _orca__state_pipeline) -> Any:
+    """Branch router for "_orca__anon_1"."""
+    _key = state.get("_orca__route___orca__anon_1", "default")
     if _key in {"draft", "default"}:
         return _key
     return "default"
 
 pipeline = StateGraph(_orca__state_pipeline)
 pipeline.add_node("classifier", _orca__node_classifier)
-pipeline.add_node("__anon_1", _orca__node___anon_1)
+pipeline.add_node("_orca__anon_1", _orca__node__orca__anon_1)
 pipeline.add_node("drafter", _orca__node_drafter)
 pipeline.add_node("reviewer", _orca__node_reviewer)
 pipeline.add_node("fallback", _orca__node_fallback)
 pipeline.add_conditional_edges(START, _orca__route_pipeline)
-pipeline.add_conditional_edges("__anon_1", _orca__route_pipeline_branch_0, {"draft": "drafter", "default": "fallback"})
+pipeline.add_conditional_edges("_orca__anon_1", _orca__route_pipeline_branch__orca__anon_1, {"draft": "drafter", "default": "fallback"})
 pipeline.add_edge("drafter", "reviewer")
-pipeline.add_edge("classifier", "__anon_1")
+pipeline.add_edge("classifier", "_orca__anon_1")
 pipeline.add_edge("reviewer", END)
 pipeline.add_edge("fallback", END)
 pipeline = pipeline.compile()
+
+_orca__anon_1 = _orca__block("branch", 
+    transform=lambda out: out,
+    route={"draft": drafter, "default": fallback},
+)
 
 if __name__ == "__main__":
     payload = sys.argv[1] if len(sys.argv) >= 2 else ""
@@ -199,11 +204,11 @@ if __name__ == "__main__":
         "_orca__trigger": "",
         "_orca__payload": payload,
         "classifier": "",
-        "__anon_1": "",
+        "_orca__anon_1": "",
         "drafter": "",
         "reviewer": "",
         "fallback": "",
-        "_orca__route____anon_1": "",
+        "_orca__route___orca__anon_1": "",
     }
     final_state = pipeline.invoke(initial_state)
     print(final_state)

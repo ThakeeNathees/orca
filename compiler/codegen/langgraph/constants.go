@@ -29,9 +29,3 @@ const (
 	// function reads it to dispatch conditional edges.
 	orcaBranchRouteKeyPrefix = orcaPrefix + "route__"
 )
-
-// orcaBranchRouteField returns the state field name that stores the route
-// key produced by a branch's transform. See orcaBranchRouteKeyPrefix.
-func orcaBranchRouteField(branchName string) string {
-	return orcaBranchRouteKeyPrefix + branchName
-}

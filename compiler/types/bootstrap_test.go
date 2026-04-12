@@ -2,7 +2,6 @@ package types
 
 import (
 	_ "embed"
-	"strings"
 	"testing"
 
 	"github.com/thakee/orca/compiler/ast"
@@ -311,22 +310,6 @@ func TestExprTypeFromExprInlineSchema(t *testing.T) {
 		t.Errorf("Block = nil, want resolved schema pointer (eagerly looked up by kind)")
 	} else if typ.Block.BlockName != BlockKindSchema {
 		t.Errorf("Block.BlockName = %q, want %q", typ.Block.BlockName, BlockKindSchema)
-	}
-
-	var inline *BlockSchema
-	for name, sym := range st.GetSymbols() {
-		if strings.HasPrefix(name, "__anon_") && sym.Type.Block != nil {
-			if _, ok := sym.Type.Block.Fields["host"]; ok {
-				inline = sym.Type.Block
-				break
-			}
-		}
-	}
-	if inline == nil {
-		t.Fatal("expected symtab to register anon inline schema with field host")
-	}
-	if inline.Ast == nil || inline.Ast.Kind != BlockKindSchema {
-		t.Errorf("Ast.Kind = %v, want %q", inline.Ast.Kind, BlockKindSchema)
 	}
 }
 

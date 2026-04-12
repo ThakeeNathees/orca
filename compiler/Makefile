@@ -1,7 +1,7 @@
 # Orca compiler — local build and quality targets.
 # Run from compiler/ (see CLAUDE.md). Produces bin/orca.
 
-.PHONY: build test test-v coverage run clean fmt vet lint
+.PHONY: build test test-v coverage run clean fmt vet lint golden
 
 APP_NAME := orca
 BUILD_DIR := bin
@@ -35,6 +35,10 @@ vet:
 
 # Format and vet; use before committing.
 lint: fmt vet
+
+# Regenerate codegen golden files from current compiler output.
+golden:
+	go test ./codegen/ -run TestGoldenFiles -update-golden
 
 # Remove build artifact and coverage outputs.
 clean:

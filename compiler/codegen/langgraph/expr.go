@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/token"
 )
 
 // exprToSource converts an AST expression to its Python source representation.
@@ -58,6 +59,10 @@ func exprToSource(expr ast.Expression) string {
 		}
 		return "{" + strings.Join(entries, ", ") + "}"
 	case *ast.BinaryExpression:
+		// If it's an arrow expression <expr> -> <expr>: we write the node name of the right expression.
+		if e.Operator.Type == token.ARROW {
+			return exprToSource(e.Left)
+		}
 		return exprToSource(e.Left) + " " + e.Operator.Literal + " " + exprToSource(e.Right)
 	case *ast.CallExpression:
 		var args []string
