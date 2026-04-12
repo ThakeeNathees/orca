@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/types"
@@ -28,7 +27,7 @@ func (b *LangGraphBackend) resolveWorkflows() {
 // collectWorkflows returns all workflow blocks. Cached so that both
 // writeWorkflowSection and workflowImports share the same traversal.
 func (b *LangGraphBackend) collectWorkflows() []*ast.BlockStatement {
-	return b.CollectBlocksByKind(analyzer.BlockKindWorkflow)
+	return b.CollectBlocksByKind(types.BlockKindWorkflow)
 }
 
 // triggerPredicate returns a function that checks if a node name is a trigger
@@ -39,7 +38,7 @@ func (b *LangGraphBackend) triggerPredicate() func(string) bool {
 		if !ok {
 			return false
 		}
-		return types.IsAnnotated(typ, analyzer.AnnotationTriggerNode)
+		return types.IsAnnotated(typ, types.AnnotationTriggerNode)
 	}
 }
 
@@ -56,7 +55,7 @@ func (b *LangGraphBackend) branchBodyLookup() func(string) *ast.BlockBody {
 		if typ.Block == nil || typ.Block.Ast == nil {
 			return nil
 		}
-		if typ.Block.Ast.Kind != workflow.BlockKindBranch {
+		if typ.Block.Ast.Kind != types.BlockKindBranch {
 			return nil
 		}
 		return typ.Block.Ast
@@ -315,9 +314,9 @@ func (b *LangGraphBackend) writeWorkflowNode(s *strings.Builder, rw workflow.Res
 	}
 
 	switch block.Kind {
-	case analyzer.BlockKindAgent:
+	case types.BlockKindAgent:
 		fmt.Fprintf(s, "    _out = %s(%s, _input)\n", orcaInvokeAgentFunc, node)
-	case analyzer.BlockKindTool:
+	case types.BlockKindTool:
 		fmt.Fprintf(s, "    _out = %s(%s, _input)\n", orcaInvokeToolFunc, node)
 	default:
 		fmt.Fprintf(s, "    raise NotImplementedError(\"workflow node '%s': block kind '%s' is not supported in workflows yet\")\n", node, block.Kind)

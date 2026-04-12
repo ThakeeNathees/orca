@@ -11,6 +11,7 @@ import (
 	"github.com/thakee/orca/compiler/codegen"
 	"github.com/thakee/orca/compiler/codegen/python"
 	"github.com/thakee/orca/compiler/diagnostic"
+	"github.com/thakee/orca/compiler/types"
 )
 
 // providerInfo holds LangChain metadata for a model provider.
@@ -96,7 +97,7 @@ func (b *LangGraphBackend) resolveProviders() {
 	seen := make(map[string]bool)
 	var names []string
 
-	for _, body := range b.collectBodiesByKind(analyzer.BlockKindModel) {
+	for _, body := range b.collectBodiesByKind(types.BlockKindModel) {
 		expr, ok := body.GetFieldExpression("provider")
 		if !ok {
 			continue

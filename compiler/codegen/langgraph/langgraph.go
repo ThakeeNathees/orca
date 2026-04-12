@@ -115,15 +115,15 @@ func (b *LangGraphBackend) writeBlocksInOrder(s *strings.Builder) {
 // based on block kind.
 func (b *LangGraphBackend) writeBlock(s *strings.Builder, block *ast.BlockStatement) {
 	switch block.Kind {
-	case analyzer.BlockKindModel:
+	case types.BlockKindModel:
 		s.WriteString("\n")
 		fmt.Fprintf(s, "%s = %s\n", block.Name, modelBlockSource(block))
 
-	case analyzer.BlockKindTool:
+	case types.BlockKindTool:
 		s.WriteString("\n")
 		fmt.Fprintf(s, "%s = %s\n", block.Name, topLevelBlockSource(block))
 
-	case analyzer.BlockKindWorkflow:
+	case types.BlockKindWorkflow:
 		if rw, ok := b.resolvedWorkflows[block.Name]; ok {
 			if len(rw.Nodes) > 0 {
 				b.writeWorkflow(s, rw)
