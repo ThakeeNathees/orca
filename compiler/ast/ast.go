@@ -88,7 +88,9 @@ type Annotation struct {
 // that analyzer, codegen, and tooling can operate on a single type.
 type BlockBody struct {
 	BaseNode
+	Name        string        // the name of the block, if any
 	Kind        string        // the block type (model, agent, tool, …)
+	OpenBrace   token.Token   // the '{' token, used for diagnostic ranges
 	Assignments []*Assignment // key = value pairs inside the block body
 	Expressions []Expression  // workflow edge expressions (A -> B -> C)
 	SourceFile  string        // the .orca file this block was parsed from
@@ -118,9 +120,7 @@ func (b *BlockBody) GetFieldExpression(field string) (expr Expression, ok bool) 
 type BlockStatement struct {
 	BaseNode
 	BlockBody
-	Name        string        // the user-given name identifier after the keyword
 	NameToken   token.Token   // the name token, used for diagnostic ranges
-	OpenBrace   token.Token   // the '{' token, used for diagnostic ranges
 	Annotations []*Annotation // decorators before the block keyword (@sensitive, etc.)
 }
 
@@ -286,15 +286,7 @@ func (l *Lambda) expressionNode() {}
 // and inline schemas like `output = schema { draft = string }`.
 // Works for all block types except let. BaseNode covers from the block keyword to the closing '}'.
 type BlockExpression struct {
-	BaseNode
 	BlockBody
-
-	// FIXME: Once the Block name is removed, we can use this everywhere but right now
-	// It's fragmented so not a single source of truth.
-	//
-	// TODO: Remove the BlockName from the BlockStatement and use this BlockName (rename)
-	// so we'll have the name here, so all blocks even inline have a name (__anon_<id>).
-	BlockNameAnon string // the name of the anonymous block, if any
 }
 
 func (be *BlockExpression) expressionNode() {}

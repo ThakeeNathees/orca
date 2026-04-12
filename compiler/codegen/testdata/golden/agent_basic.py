@@ -35,8 +35,6 @@ def _orca__with_meta(value: Any, metas: list[Any]) -> SimpleNamespace:
     """Attach a non-empty list of _orca__meta() values to a block or field value."""
     return SimpleNamespace(_kind="with_meta", value=value, metas=metas)
 
-
-
 def _orca__gather(state: dict, predecessors: list[str]) -> Any:
     """Collect predecessor outputs from workflow state.
 

@@ -80,9 +80,8 @@ func injectAnonBlocks(ap *AnalyzedProgram) {
 				// interms of functional programming and buggy, but works, maybe I need to think.
 				types.TypeOf(e, ap.SymbolTable)
 				bs := ast.BlockStatement{
-					Name:      e.BlockNameAnon,
+					BlockBody: e.BlockBody,
 					NameToken: e.Start(), // Actually they dont have a name token (cause anon)
-					OpenBrace: e.BlockBody.TokenStart,
 				}
 				bs.BlockBody = e.BlockBody
 				ap.Ast.Statements = append(ap.Ast.Statements, &bs)

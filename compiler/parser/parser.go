@@ -766,6 +766,8 @@ func (p *Parser) parseBlockExpression() *ast.BlockExpression {
 	be.TokenStart = p.curToken // the block keyword
 
 	p.nextToken() // move to {
+	be.OpenBrace = p.curToken
+
 	be.Assignments, be.Expressions = p.parseBlockBody(be.Kind, "inline")
 
 	if p.curToken.Type != token.RBRACE {

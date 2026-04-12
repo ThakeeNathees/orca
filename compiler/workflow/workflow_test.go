@@ -5,7 +5,39 @@ import (
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/token"
+	"github.com/thakee/orca/compiler/types"
 )
+
+// buildAgentsSymtab constructs a symbol table mimicking:
+//
+//	let agents {
+//	    researcher = agent { ... }
+//	    writer     = agent { ... }
+//	}
+//
+// so that MemberAccess expressions like `agents.researcher` resolve through
+// types.ExprToBlockBody to the inner BlockExpression, whose BlockBody.Name
+// is what ExprToNodeName returns as the workflow node name.
+func buildAgentsSymtab() *types.SymbolTable {
+	researcher := &ast.BlockExpression{
+		BlockBody: ast.BlockBody{Name: "agents.researcher", Kind: "agent"},
+	}
+	writer := &ast.BlockExpression{
+		BlockBody: ast.BlockBody{Name: "agents.writer", Kind: "agent"},
+	}
+	agentsBody := &ast.BlockBody{
+		Name: "agents",
+		Kind: "let",
+		Assignments: []*ast.Assignment{
+			{Name: "researcher", Value: researcher},
+			{Name: "writer", Value: writer},
+		},
+	}
+	schema := &types.BlockSchema{BlockName: "agents", Ast: agentsBody}
+	symtab := types.NewSymbolTable()
+	symtab.Define("agents", types.NewBlockRefType("agents", schema), token.Token{})
+	return &symtab
+}
 
 // ident creates an Identifier expression for testing.
 func ident(name string) *ast.Identifier {
@@ -55,7 +87,7 @@ func TestEdgesFromExpr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := EdgesFromExpr(tt.expr)
+			got := EdgesFromExpr(tt.expr, nil)
 			if len(got) != len(tt.expected) {
 				t.Fatalf("EdgesFromExpr() = %v, want %v", got, tt.expected)
 			}
@@ -72,8 +104,7 @@ func TestResolve(t *testing.T) {
 	// Helper to build a workflow block with expressions.
 	makeBlock := func(name string, exprs ...ast.Expression) *ast.BlockStatement {
 		return &ast.BlockStatement{
-			BlockBody: ast.BlockBody{Expressions: exprs},
-			Name:      name,
+			BlockBody: ast.BlockBody{Name: name, Expressions: exprs},
 		}
 	}
 
@@ -163,7 +194,7 @@ func TestResolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rw := Resolve(tt.block, tt.isTrigger, nil)
+			rw := Resolve(tt.block, tt.isTrigger, nil, nil)
 
 			// Check nodes.
 			if len(rw.Nodes) != len(tt.expectedNodes) {
@@ -220,31 +251,34 @@ func TestResolve(t *testing.T) {
 }
 
 func TestExprToNodeName(t *testing.T) {
+	agentsSymtab := buildAgentsSymtab()
+
 	tests := []struct {
 		name     string
 		expr     ast.Expression
+		symtab   *types.SymbolTable
 		expected string
 	}{
 		{
 			"identifier",
 			ident("foo"),
+			nil,
 			"foo",
 		},
 		{
+			// MemberAccess resolves through the symbol table: agents →
+			// let block → researcher assignment → inner BlockExpression
+			// whose BlockBody.Name is "agents.researcher".
 			"member access",
 			&ast.MemberAccess{Object: ident("agents"), Member: "researcher"},
+			agentsSymtab,
 			"agents.researcher",
-		},
-		{
-			"subscription",
-			&ast.Subscription{Object: ident("agents")},
-			"agents[]",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ExprToNodeName(tt.expr)
+			got := ExprToNodeName(tt.expr, tt.symtab)
 			if got != tt.expected {
 				t.Errorf("ExprToNodeName() = %q, want %q", got, tt.expected)
 			}
@@ -256,8 +290,8 @@ func TestExprToNodeName(t *testing.T) {
 func TestPredecessors(t *testing.T) {
 	// Build a workflow: cron -> A -> B -> D, A -> C -> D (diamond with trigger).
 	block := &ast.BlockStatement{
-		Name: "pipeline",
 		BlockBody: ast.BlockBody{
+			Name: "pipeline",
 			Kind: "workflow",
 			Expressions: []ast.Expression{
 				arrow(arrow(ident("cron"), ident("A")), ident("B")),
@@ -269,7 +303,7 @@ func TestPredecessors(t *testing.T) {
 	}
 
 	isTrigger := func(name string) bool { return name == "cron" }
-	rw := Resolve(block, isTrigger, nil)
+	rw := Resolve(block, isTrigger, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -300,8 +334,8 @@ func TestPredecessors(t *testing.T) {
 // TestPredecessorsNoTrigger verifies predecessors when there's no trigger.
 func TestPredecessorsNoTrigger(t *testing.T) {
 	block := &ast.BlockStatement{
-		Name: "simple",
 		BlockBody: ast.BlockBody{
+			Name: "simple",
 			Kind: "workflow",
 			Expressions: []ast.Expression{
 				arrow(ident("A"), ident("B")),
@@ -309,7 +343,7 @@ func TestPredecessorsNoTrigger(t *testing.T) {
 		},
 	}
 
-	rw := Resolve(block, nil, nil)
+	rw := Resolve(block, nil, nil, nil)
 
 	got := rw.Predecessors("A")
 	if len(got) != 0 {
@@ -327,9 +361,12 @@ func TestPredecessorsNoTrigger(t *testing.T) {
 // chains. WalkResult.Head is the leftmost node, WalkResult.Tail is the
 // rightmost.
 func TestWalkExpr(t *testing.T) {
+	agentsSymtab := buildAgentsSymtab()
+
 	tests := []struct {
 		name          string
 		expr          ast.Expression
+		symtab        *types.SymbolTable
 		expectedHead  string
 		expectedTail  string
 		expectedNodes []string
@@ -338,6 +375,7 @@ func TestWalkExpr(t *testing.T) {
 		{
 			"single identifier",
 			ident("A"),
+			nil,
 			"A", "A",
 			[]string{"A"},
 			nil,
@@ -345,6 +383,7 @@ func TestWalkExpr(t *testing.T) {
 		{
 			"simple arrow A -> B",
 			arrow(ident("A"), ident("B")),
+			nil,
 			"A", "B",
 			[]string{"A", "B"},
 			[]Edge{{From: "A", To: "B"}},
@@ -352,6 +391,7 @@ func TestWalkExpr(t *testing.T) {
 		{
 			"chain A -> B -> C",
 			arrow(arrow(ident("A"), ident("B")), ident("C")),
+			nil,
 			"A", "C",
 			[]string{"A", "B", "C"},
 			[]Edge{{From: "A", To: "B"}, {From: "B", To: "C"}},
@@ -359,6 +399,7 @@ func TestWalkExpr(t *testing.T) {
 		{
 			"long chain A -> B -> C -> D",
 			arrow(arrow(arrow(ident("A"), ident("B")), ident("C")), ident("D")),
+			nil,
 			"A", "D",
 			[]string{"A", "B", "C", "D"},
 			[]Edge{
@@ -370,6 +411,7 @@ func TestWalkExpr(t *testing.T) {
 		{
 			"member access node",
 			&ast.MemberAccess{Object: ident("agents"), Member: "researcher"},
+			agentsSymtab,
 			"agents.researcher", "agents.researcher",
 			[]string{"agents.researcher"},
 			nil,
@@ -378,7 +420,7 @@ func TestWalkExpr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := newResolveCtx(nil, nil)
+			ctx := newResolveCtx(nil, nil, tt.symtab)
 			res := walkExpr(tt.expr, ctx)
 			if res.Head != tt.expectedHead {
 				t.Errorf("Head = %q, want %q", res.Head, tt.expectedHead)
@@ -416,7 +458,7 @@ func TestWalkExpr(t *testing.T) {
 func TestWalkExprTriggers(t *testing.T) {
 	// cron -> A -> B, where cron is a trigger.
 	expr := arrow(arrow(ident("cron"), ident("A")), ident("B"))
-	ctx := newResolveCtx(func(n string) bool { return n == "cron" }, nil)
+	ctx := newResolveCtx(func(n string) bool { return n == "cron" }, nil, nil)
 
 	res := walkExpr(expr, ctx)
 	if res.Tail != "B" {
@@ -452,7 +494,7 @@ func TestWalkExprBranchInline(t *testing.T) {
 	)
 	expr := arrow(ident("A"), br)
 
-	ctx := newResolveCtx(nil, nil)
+	ctx := newResolveCtx(nil, nil, nil)
 	res := walkExpr(expr, ctx)
 
 	// Chain head/tail.
@@ -525,7 +567,7 @@ func TestWalkExprBranchChainRoute(t *testing.T) {
 	)
 	expr := arrow(ident("A"), br)
 
-	ctx := newResolveCtx(nil, nil)
+	ctx := newResolveCtx(nil, nil, nil)
 	walkExpr(expr, ctx)
 
 	// Conditional edge: br0 -> B (the head of the chain), not br0 -> C.
@@ -566,7 +608,7 @@ func TestWalkExprBranchNested(t *testing.T) {
 	)
 	expr := arrow(ident("A"), outer)
 
-	ctx := newResolveCtx(nil, nil)
+	ctx := newResolveCtx(nil, nil, nil)
 	walkExpr(expr, ctx)
 
 	// Both branches recorded, outer first (pre-order).
@@ -626,7 +668,7 @@ func TestWalkExprBranchNamed(t *testing.T) {
 	}
 
 	expr := arrow(ident("A"), ident("my_branch"))
-	ctx := newResolveCtx(nil, getBranchBody)
+	ctx := newResolveCtx(nil, getBranchBody, nil)
 	walkExpr(expr, ctx)
 
 	if len(ctx.branches) != 1 {
@@ -665,7 +707,7 @@ func TestWalkExprBranchCycle(t *testing.T) {
 		return nil
 	}
 
-	ctx := newResolveCtx(nil, getBranchBody)
+	ctx := newResolveCtx(nil, getBranchBody, nil)
 	res := walkExpr(ident("my_branch"), ctx)
 
 	// Walker terminated without infinite recursion.
@@ -685,7 +727,7 @@ func TestWalkExprBranchCycle(t *testing.T) {
 // correctly across multiple top-level expressions sharing the same context.
 // This mirrors how Resolve will invoke walkExpr in a loop over block.Expressions.
 func TestWalkExprMultipleExpressions(t *testing.T) {
-	ctx := newResolveCtx(nil, nil)
+	ctx := newResolveCtx(nil, nil, nil)
 	walkExpr(arrow(ident("A"), ident("B")), ctx)
 	walkExpr(arrow(ident("C"), ident("B")), ctx)
 
@@ -717,8 +759,8 @@ func inlineBranch(name string, transform ast.Expression, routes ...ast.MapEntry)
 		Value: &ast.MapLiteral{Entries: routes},
 	})
 	return &ast.BlockExpression{
-		BlockNameAnon: name,
 		BlockBody: ast.BlockBody{
+			Name:        name,
 			Kind:        "branch",
 			Assignments: assignments,
 		},
@@ -729,7 +771,7 @@ func inlineBranch(name string, transform ast.Expression, routes ...ast.MapEntry)
 func branchLookup(branches ...*ast.BlockExpression) func(string) *ast.BlockBody {
 	m := make(map[string]*ast.BlockBody, len(branches))
 	for _, b := range branches {
-		m[b.BlockNameAnon] = &b.BlockBody
+		m[b.Name] = &b.BlockBody
 	}
 	return func(name string) *ast.BlockBody {
 		return m[name]
@@ -744,8 +786,7 @@ func strKey(s string) *ast.StringLiteral {
 func TestResolveBranch(t *testing.T) {
 	makeBlock := func(name string, exprs ...ast.Expression) *ast.BlockStatement {
 		return &ast.BlockStatement{
-			BlockBody: ast.BlockBody{Expressions: exprs},
-			Name:      name,
+			BlockBody: ast.BlockBody{Name: name, Expressions: exprs},
 		}
 	}
 
@@ -863,7 +904,7 @@ func TestResolveBranch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rw := Resolve(tt.block, nil, tt.getBranchBody)
+			rw := Resolve(tt.block, nil, tt.getBranchBody, nil)
 
 			// Check nodes.
 			if len(rw.Nodes) != len(tt.expectedNodes) {

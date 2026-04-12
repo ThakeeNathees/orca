@@ -4,11 +4,10 @@
 package workflow
 
 import (
-	"strings"
-
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/graph"
 	"github.com/thakee/orca/compiler/token"
+	"github.com/thakee/orca/compiler/types"
 )
 
 const (
@@ -79,6 +78,7 @@ type ResolvedWorkflow struct {
 // including branches — live in a single allGraph; branches are first-class
 // processing nodes alongside agents and tools.
 type resolveCtx struct {
+	symtab           *types.SymbolTable   // symbol table
 	allGraph         *graph.Graph[string] // all nodes and edges discovered so far
 	triggers         map[string]bool      // set of trigger node names
 	triggerOrder     []string             // triggers in first-appearance order
@@ -145,7 +145,11 @@ func (rw *ResolvedWorkflow) Predecessors(node string) []string {
 
 // newResolveCtx creates a resolveCtx with empty state. Nil predicates are
 // replaced with no-op defaults so callers can omit them for simple cases.
-func newResolveCtx(isTrigger func(string) bool, getBranchBody func(string) *ast.BlockBody) *resolveCtx {
+func newResolveCtx(
+	isTrigger func(string) bool,
+	getBranchBody func(string) *ast.BlockBody,
+	symtab *types.SymbolTable,
+) *resolveCtx {
 	if isTrigger == nil {
 		isTrigger = func(string) bool { return false }
 	}
@@ -153,6 +157,7 @@ func newResolveCtx(isTrigger func(string) bool, getBranchBody func(string) *ast.
 		getBranchBody = func(string) *ast.BlockBody { return nil }
 	}
 	return &resolveCtx{
+		symtab:           symtab,
 		allGraph:         graph.New[string](),
 		triggers:         make(map[string]bool),
 		branchSeen:       make(map[string]bool),
@@ -216,8 +221,13 @@ func (rw *ResolvedWorkflow) IsFanOut() bool {
 // Triggers are kept separate from processing nodes — they appear in
 // Triggers and TriggerMap but not in Nodes or Edges. Implicit END edges
 // are added for leaf processing nodes.
-func Resolve(block *ast.BlockStatement, isTrigger func(string) bool, getBranchBody func(string) *ast.BlockBody) ResolvedWorkflow {
-	ctx := newResolveCtx(isTrigger, getBranchBody)
+func Resolve(
+	block *ast.BlockStatement,
+	isTrigger func(string) bool,
+	getBranchBody func(string) *ast.BlockBody,
+	symtab *types.SymbolTable,
+) ResolvedWorkflow {
+	ctx := newResolveCtx(isTrigger, getBranchBody, symtab)
 
 	rw := ResolvedWorkflow{
 		Name:       block.Name,
@@ -323,9 +333,25 @@ func walkExpr(expr ast.Expression, ctx *resolveCtx) WalkResult {
 		return WalkResult{Head: leftRes.Head, Tail: rightRes.Tail}
 	}
 
+	// If the expression is an orca chain (expr = foo and foo = a -> b).
+	if blockBody := types.ExprToBlockBody(expr, ctx.symtab); blockBody != nil {
+		if blockBody.Kind == types.AnnotationWorkflowChain {
+			left := types.FindAssignment(blockBody, "left")
+			right := types.FindAssignment(blockBody, "right")
+			if left != nil && right != nil {
+				leftRes := walkExpr(left.Value, ctx)
+				rightRes := walkExpr(right.Value, ctx)
+				if leftRes.Tail != "" && rightRes.Head != "" {
+					ctx.allGraph.AddEdge(leftRes.Tail, rightRes.Head)
+				}
+				return WalkResult{Head: leftRes.Head, Tail: rightRes.Tail}
+			}
+		}
+	}
+
 	// Leaf: resolve the expression to a node name and classify it. If it's
 	// a branch (inline or named), extract its transform and routes.
-	name := ExprToNodeName(expr)
+	name := ExprToNodeName(expr, ctx.symtab)
 	if name == "" {
 		return WalkResult{}
 	}
@@ -404,7 +430,7 @@ func extractBranch(name string, body *ast.BlockBody, ctx *resolveCtx) {
 // EdgesFromExpr walks a (possibly chained) arrow expression and returns
 // the list of individual edges. For example, A -> B -> C yields:
 // [{A, B}, {B, C}]. Non-arrow expressions return nil.
-func EdgesFromExpr(expr ast.Expression) []Edge {
+func EdgesFromExpr(expr ast.Expression, symtab *types.SymbolTable) []Edge {
 	bin, ok := expr.(*ast.BinaryExpression)
 	if !ok || bin.Operator.Type != token.ARROW {
 		return nil
@@ -412,43 +438,35 @@ func EdgesFromExpr(expr ast.Expression) []Edge {
 
 	// The parser builds left-associative trees: ((A -> B) -> C).
 	// Recursively flatten the left side, then connect its last node to the right.
-	leftEdges := EdgesFromExpr(bin.Left)
+	leftEdges := EdgesFromExpr(bin.Left, symtab)
 
-	rightName := ExprToNodeName(bin.Right)
+	rightName := ExprToNodeName(bin.Right, symtab)
 
 	if len(leftEdges) > 0 {
 		lastTo := leftEdges[len(leftEdges)-1].To
 		return append(leftEdges, Edge{From: lastTo, To: rightName})
 	}
 
-	leftName := ExprToNodeName(bin.Left)
+	leftName := ExprToNodeName(bin.Left, symtab)
 	return []Edge{{From: leftName, To: rightName}}
 }
 
 // ExprToNodeName returns the workflow node name for an expression.
 // For inline BlockExpression nodes, generates a synthetic name like "__branch_0".
 // Returns empty string for unrecognized expression types.
-func ExprToNodeName(expr ast.Expression) string {
+func ExprToNodeName(expr ast.Expression, symtab *types.SymbolTable) string {
+	if symtab != nil {
+		if block := types.ExprToBlockBody(expr, symtab); block != nil {
+			return block.Name
+		}
+	}
+
+	// A fallback method when symbol table is null (Only in tests)
 	switch e := expr.(type) {
 	case *ast.Identifier:
 		return e.Value
-	case *ast.MemberAccess:
-		return ExprToNodeName(e.Object) + "." + e.Member
-	case *ast.Subscription:
-		var indices []string
-		for _, idx := range e.Indices {
-			indices = append(indices, ExprToNodeName(idx))
-		}
-		return ExprToNodeName(e.Object) + "[" + strings.Join(indices, ", ") + "]"
 	case *ast.BlockExpression:
-		// The type system assigns BlockNameAnon during analysis (see
-		// types.blockExprType). Tests that construct a BlockExpression
-		// directly must set it explicitly. An empty value here means a
-		// caller skipped analysis or forgot to set it — surface the bug.
-		if e.BlockNameAnon == "" {
-			panic("workflow.ExprToNodeName: BlockExpression has empty BlockNameAnon — analyzer must run before workflow resolution")
-		}
-		return e.BlockNameAnon
+		return e.Name
 	}
 	return ""
 }

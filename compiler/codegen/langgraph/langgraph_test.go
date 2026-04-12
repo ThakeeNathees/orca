@@ -66,13 +66,13 @@ func findFile(b *LangGraphBackend, name string) string {
 func TestCollectBlocksByKind(t *testing.T) {
 	program := &ast.Program{
 		Statements: []ast.Statement{
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindModel}, Name: "m1"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindAgent}, Name: "a1"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindModel}, Name: "m2"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindLet}, Name: "vars"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindCron}, Name: "daily"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindSchema}, Name: "cfg"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindKnowledge}, Name: "kb"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindModel, Name: "m1"}},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindAgent, Name: "a1"}},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindModel, Name: "m2"}},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindLet, Name: "vars"}},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindCron, Name: "daily"}},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindSchema, Name: "cfg"}},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindKnowledge, Name: "kb"}},
 		},
 	}
 
@@ -371,8 +371,8 @@ func TestWriteAgent(t *testing.T) {
 						{Name: "model", Value: &ast.Identifier{Value: "gpt4"}},
 						{Name: "persona", Value: &ast.StringLiteral{Value: "test"}},
 					},
+					Name: "a1",
 				},
-				Name: "a1",
 			},
 			contains: []string{
 				")\n",
@@ -889,8 +889,8 @@ func modelBlock(name, provider, modelName string) *ast.BlockStatement {
 				{Name: "provider", Value: &ast.StringLiteral{Value: provider}},
 				{Name: "model_name", Value: &ast.StringLiteral{Value: modelName}},
 			},
+			Name: name,
 		},
-		Name: name,
 	}
 }
 
@@ -931,8 +931,8 @@ func agentBlock(name, model, persona string) *ast.BlockStatement {
 				{Name: "model", Value: &ast.Identifier{Value: model}},
 				{Name: "persona", Value: &ast.StringLiteral{Value: persona}},
 			},
+			Name: name,
 		},
-		Name: name,
 	}
 }
 
@@ -956,8 +956,8 @@ func schemaBlock(name string, fields ...schemaField) *ast.BlockStatement {
 		BlockBody: ast.BlockBody{
 			Kind:        types.BlockKindSchema,
 			Assignments: assigns,
+			Name:        name,
 		},
-		Name: name,
 	}
 }
 
@@ -975,8 +975,8 @@ func knowledgeBlock(blockName, descValue string) *ast.BlockStatement {
 		BlockBody: ast.BlockBody{
 			Kind:        types.BlockKindKnowledge,
 			Assignments: assigns,
+			Name:        blockName,
 		},
-		Name: blockName,
 	}
 }
 

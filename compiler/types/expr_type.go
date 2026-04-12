@@ -153,10 +153,10 @@ func ternaryExprType(depth int, e *ast.TernaryExpression, symbols *SymbolTable) 
 // so member access can resolve through it.
 func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type {
 
-	if e.BlockNameAnon == "" {
+	if e.Name == "" {
 		// TODO: Use the OrcaPrefix here but that mean we need to move the constant
 		// out of the codegen to a common package.
-		e.BlockNameAnon = fmt.Sprintf("_orca__anon_%d", symtab.nextInlineAnonID())
+		e.Name = fmt.Sprintf("_orca__anon_%d", symtab.nextInlineAnonID())
 	}
 
 	// TODO: The depth parameter is not used here but it should be.
@@ -189,7 +189,7 @@ func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type 
 	// Now in the symbol table "__anon_1" -> Type(BlockRef(model __anon_1 { ... }))
 	// BUT, ExprType("__anon_1") -> `schema model { ... }` and not `model __anon_1 { ... }`
 	//
-	refBlock := NewBlockSchema(nil, e.BlockNameAnon, &e.BlockBody, symtab)
+	refBlock := NewBlockSchema(nil, e.Name, &e.BlockBody, symtab)
 
 	// if expr = tool { ... }
 	// refBlock = tool __anon_n {}
@@ -519,13 +519,15 @@ func exprToBlockBody(expr ast.Expression, symbols *SymbolTable) *ast.BlockBody {
 		return nil
 
 	case *ast.Identifier:
-		if typ, ok := symbols.Lookup(e.Value); ok && typ.Block != nil && typ.Block.Ast != nil {
-			return typ.Block.Ast
+		if symbols != nil {
+			if typ, ok := symbols.Lookup(e.Value); ok && typ.Block != nil && typ.Block.Ast != nil {
+				return typ.Block.Ast
+			}
 		}
 
 	case *ast.MemberAccess:
 		if rightBlock := exprToBlockBody(e.Object, symbols); rightBlock != nil {
-			if assign := findAssignment(rightBlock, e.Member); assign != nil {
+			if assign := FindAssignment(rightBlock, e.Member); assign != nil {
 				return exprToBlockBody(assign.Value, symbols)
 			}
 		}
@@ -536,6 +538,17 @@ func exprToBlockBody(expr ast.Expression, symbols *SymbolTable) *ast.BlockBody {
 	case *ast.CallExpression:
 		return nil
 	case *ast.BinaryExpression:
+		if symbols != nil && e.Operator.Type == token.ARROW {
+			return &ast.BlockBody{
+				// FIXME: OrcaPrefix should be moved out from langgraph package
+				Name: fmt.Sprintf("%sinline_chain_%d", "_orca__", symbols.nextInlineAnonID()),
+				Kind: AnnotationWorkflowChain,
+				Assignments: []*ast.Assignment{
+					{Name: "left", Value: e.Left},
+					{Name: "right", Value: e.Right},
+				},
+			}
+		}
 		return nil
 	case *ast.TernaryExpression:
 		return nil
@@ -549,7 +562,7 @@ func exprToBlockBody(expr ast.Expression, symbols *SymbolTable) *ast.BlockBody {
 }
 
 // FIXME: This is not the best place and this might be a duplicate function of some ast helper.
-func findAssignment(blockBody *ast.BlockBody, member string) *ast.Assignment {
+func FindAssignment(blockBody *ast.BlockBody, member string) *ast.Assignment {
 	for _, assign := range blockBody.Assignments {
 		if assign.Name == member {
 			return assign

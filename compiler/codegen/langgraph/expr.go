@@ -7,6 +7,7 @@ import (
 
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/token"
+	"github.com/thakee/orca/compiler/types"
 )
 
 // exprToSource converts an AST expression to its Python source representation.
@@ -59,9 +60,12 @@ func exprToSource(expr ast.Expression) string {
 		}
 		return "{" + strings.Join(entries, ", ") + "}"
 	case *ast.BinaryExpression:
-		// If it's an arrow expression <expr> -> <expr>: we write the node name of the right expression.
 		if e.Operator.Type == token.ARROW {
-			return exprToSource(e.Left)
+			// FIXME: Dont hard code like this
+			// "_orca__block("workflow_chain", left, right)"
+			return orcaPrefix + "block(\"" + types.AnnotationWorkflowChain +
+				"\", left=" + exprToSource(e.Left) +
+				", right=" + exprToSource(e.Right) + ")"
 		}
 		return exprToSource(e.Left) + " " + e.Operator.Literal + " " + exprToSource(e.Right)
 	case *ast.CallExpression:

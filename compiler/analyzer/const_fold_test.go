@@ -313,8 +313,8 @@ func TestConstFoldMemberAccess(t *testing.T) {
 							Assignments: []*ast.Assignment{
 								{Name: "provider", Value: str("openai")},
 							},
+							Name: "gpt",
 						},
-						Name: "gpt",
 					},
 				},
 			},
@@ -592,7 +592,14 @@ func TestConstFoldIdentifier(t *testing.T) {
 			}(),
 			program: &ast.Program{
 				Statements: []ast.Statement{
-					&ast.BlockStatement{BlockBody: ast.BlockBody{Assignments: []*ast.Assignment{{Name: "x", Value: str("y")}}}, Name: "other"},
+					&ast.BlockStatement{
+						BlockBody: ast.BlockBody{
+							Assignments: []*ast.Assignment{
+								{Name: "x", Value: str("y")},
+							},
+							Name: "other",
+						},
+					},
 				},
 			},
 			want: ConstValue{Kind: ConstUnknown},
@@ -616,8 +623,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 									Value:    0.5,
 								}},
 							},
+							Name: "gpt",
 						},
-						Name: "gpt",
 					},
 				},
 			},
@@ -645,8 +652,8 @@ func TestConstFoldIdentifier(t *testing.T) {
 							Assignments: []*ast.Assignment{
 								{Name: "x", Value: str("y")},
 							},
+							Name: "wf",
 						},
-						Name: "wf",
 					},
 				},
 			},

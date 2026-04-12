@@ -461,7 +461,7 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		if e == nil {
 			return nil
 		}
-		diags := analyzeBlockBody(&e.BlockBody, nil, e.BlockNameAnon, e.TokenStart, e.TokenEnd, symbols)
+		diags := analyzeBlockBody(&e.BlockBody, nil, e.Name, e.TokenStart, e.TokenEnd, symbols)
 		if len(diags) > 0 {
 			return diags
 		}

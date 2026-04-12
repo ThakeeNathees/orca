@@ -83,8 +83,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "basic string and int fields",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{Name: "title", Value: &ast.Identifier{Value: "string"}},
@@ -99,8 +99,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "all primitive types",
 			block: &ast.BlockStatement{
-				Name: "config",
 				BlockBody: ast.BlockBody{
+					Name: "config",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{Name: "name", Value: &ast.Identifier{Value: "string"}},
@@ -119,8 +119,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "any type field",
 			block: &ast.BlockStatement{
-				Name: "flexible",
 				BlockBody: ast.BlockBody{
+					Name: "flexible",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{Name: "data", Value: &ast.Identifier{Value: "any"}},
@@ -133,8 +133,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "field with desc annotation",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -153,8 +153,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "desc with special characters",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -173,8 +173,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "optional field without desc (null identifier union)",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -194,8 +194,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "optional field without desc (null identifier)",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -215,8 +215,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "optional field with desc",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -239,8 +239,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "multi-member union with null",
 			block: &ast.BlockStatement{
-				Name: "result",
 				BlockBody: ast.BlockBody{
+					Name: "result",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -264,8 +264,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "non-optional union",
 			block: &ast.BlockStatement{
-				Name: "result",
 				BlockBody: ast.BlockBody{
+					Name: "result",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -285,8 +285,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "nested schema reference",
 			block: &ast.BlockStatement{
-				Name: "person",
 				BlockBody: ast.BlockBody{
+					Name: "person",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{Name: "name", Value: &ast.Identifier{Value: "string"}},
@@ -301,8 +301,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "optional schema reference",
 			block: &ast.BlockStatement{
-				Name: "person",
 				BlockBody: ast.BlockBody{
+					Name: "person",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -322,14 +322,14 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "list[str] field",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "tags",
 							Value: &ast.Subscription{
-								Object: &ast.Identifier{Value: "list"},
+								Object:  &ast.Identifier{Value: "list"},
 								Indices: []ast.Expression{&ast.Identifier{Value: "string"}},
 							},
 						},
@@ -342,14 +342,14 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "list[schema_ref] with desc",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
 							Name: "items",
 							Value: &ast.Subscription{
-								Object: &ast.Identifier{Value: "list"},
+								Object:  &ast.Identifier{Value: "list"},
 								Indices: []ast.Expression{&ast.Identifier{Value: "address"}},
 							},
 							Annotations: []*ast.Annotation{
@@ -365,8 +365,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "map[string, string] field",
 			block: &ast.BlockStatement{
-				Name: "config",
 				BlockBody: ast.BlockBody{
+					Name: "config",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -385,8 +385,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "inline schema field",
 			block: &ast.BlockStatement{
-				Name: "report",
 				BlockBody: ast.BlockBody{
+					Name: "report",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -410,8 +410,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "empty schema",
 			block: &ast.BlockStatement{
-				Name: "empty",
 				BlockBody: ast.BlockBody{
+					Name:        "empty",
 					Kind:        types.BlockKindSchema,
 					Assignments: nil,
 				},
@@ -422,8 +422,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "non-desc annotations are ignored",
 			block: &ast.BlockStatement{
-				Name: "article",
 				BlockBody: ast.BlockBody{
+					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -443,8 +443,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "mixed required and optional fields",
 			block: &ast.BlockStatement{
-				Name: "report",
 				BlockBody: ast.BlockBody{
+					Name: "report",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{
@@ -469,7 +469,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 						{
 							Name: "tags",
 							Value: &ast.Subscription{
-								Object: &ast.Identifier{Value: "list"},
+								Object:  &ast.Identifier{Value: "list"},
 								Indices: []ast.Expression{&ast.Identifier{Value: "string"}},
 							},
 						},
@@ -485,8 +485,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 		{
 			name: "only optional fields",
 			block: &ast.BlockStatement{
-				Name: "opts",
 				BlockBody: ast.BlockBody{
+					Name: "opts",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
 						{

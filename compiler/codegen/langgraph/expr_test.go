@@ -491,11 +491,11 @@ func TestWrapWithMetaIfNeeded(t *testing.T) {
 // TestTopLevelBlockSource verifies block-level annotations wrap the whole _orca__* call.
 func TestTopLevelBlockSource(t *testing.T) {
 	block := &ast.BlockStatement{
-		Name: "gpt4",
 		Annotations: []*ast.Annotation{
 			{Name: "sensitive"},
 		},
 		BlockBody: ast.BlockBody{
+			Name: "gpt4",
 			Kind: types.BlockKindModel,
 			Assignments: []*ast.Assignment{
 				{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}},
@@ -512,8 +512,8 @@ func TestTopLevelBlockSource(t *testing.T) {
 	}
 
 	plain := &ast.BlockStatement{
-		Name: "x",
 		BlockBody: ast.BlockBody{
+			Name: "x",
 			Kind: types.BlockKindModel,
 			Assignments: []*ast.Assignment{
 				{Name: "provider", Value: &ast.StringLiteral{Value: "openai"}},
