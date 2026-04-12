@@ -66,13 +66,13 @@ func findFile(b *LangGraphBackend, name string) string {
 func TestCollectBlocksByKind(t *testing.T) {
 	program := &ast.Program{
 		Statements: []ast.Statement{
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindModel}, Name: "m1"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindAgent}, Name: "a1"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindModel}, Name: "m2"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindLet}, Name: "vars"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindCron}, Name: "daily"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindModel}, Name: "m1"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindAgent}, Name: "a1"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindModel}, Name: "m2"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindLet}, Name: "vars"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindCron}, Name: "daily"},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindSchema}, Name: "cfg"},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: analyzer.BlockKindKnowledge}, Name: "kb"},
+			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindKnowledge}, Name: "kb"},
 		},
 	}
 
@@ -81,12 +81,12 @@ func TestCollectBlocksByKind(t *testing.T) {
 		kind     string
 		expected int
 	}{
-		{"models", analyzer.BlockKindModel, 2},
-		{"agents", analyzer.BlockKindAgent, 1},
-		{"lets", analyzer.BlockKindLet, 1},
-		{"crons", analyzer.BlockKindCron, 1},
+		{"models", types.BlockKindModel, 2},
+		{"agents", types.BlockKindAgent, 1},
+		{"lets", types.BlockKindLet, 1},
+		{"crons", types.BlockKindCron, 1},
 		{"schemas", types.BlockKindSchema, 1},
-		{"knowledge", analyzer.BlockKindKnowledge, 1},
+		{"knowledge", types.BlockKindKnowledge, 1},
 	}
 
 	for _, tt := range tests {
@@ -366,7 +366,7 @@ func TestWriteAgent(t *testing.T) {
 			block: &ast.BlockStatement{
 				BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Line: 15}},
 				BlockBody: ast.BlockBody{
-					Kind: analyzer.BlockKindAgent,
+					Kind: types.BlockKindAgent,
 					Assignments: []*ast.Assignment{
 						{Name: "model", Value: &ast.Identifier{Value: "gpt4"}},
 						{Name: "persona", Value: &ast.StringLiteral{Value: "test"}},
@@ -884,7 +884,7 @@ func modelBlock(name, provider, modelName string) *ast.BlockStatement {
 	return &ast.BlockStatement{
 		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "model"}},
 		BlockBody: ast.BlockBody{
-			Kind: analyzer.BlockKindModel,
+			Kind: types.BlockKindModel,
 			Assignments: []*ast.Assignment{
 				{Name: "provider", Value: &ast.StringLiteral{Value: provider}},
 				{Name: "model_name", Value: &ast.StringLiteral{Value: modelName}},
@@ -926,7 +926,7 @@ func agentBlock(name, model, persona string) *ast.BlockStatement {
 	return &ast.BlockStatement{
 		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "agent"}},
 		BlockBody: ast.BlockBody{
-			Kind: analyzer.BlockKindAgent,
+			Kind: types.BlockKindAgent,
 			Assignments: []*ast.Assignment{
 				{Name: "model", Value: &ast.Identifier{Value: model}},
 				{Name: "persona", Value: &ast.StringLiteral{Value: persona}},
@@ -973,7 +973,7 @@ func knowledgeBlock(blockName, descValue string) *ast.BlockStatement {
 	return &ast.BlockStatement{
 		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "knowledge"}},
 		BlockBody: ast.BlockBody{
-			Kind:        analyzer.BlockKindKnowledge,
+			Kind:        types.BlockKindKnowledge,
 			Assignments: assigns,
 		},
 		Name: blockName,

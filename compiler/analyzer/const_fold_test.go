@@ -33,7 +33,7 @@ func TestConstFoldLiterals(t *testing.T) {
 		},
 		{
 			name: "null",
-			expr: &ast.Identifier{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"}), Value: BlockKindNull},
+			expr: &ast.Identifier{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"}), Value: types.BlockKindNull},
 			want: ConstValue{Kind: ConstNull},
 		},
 	}
@@ -178,7 +178,7 @@ func TestConstFoldBlockExpression(t *testing.T) {
 			name: "workflow edges not constant",
 			be: &ast.BlockExpression{
 				BlockBody: ast.BlockBody{
-					Kind:        BlockKindWorkflow,
+					Kind:        types.BlockKindWorkflow,
 					Expressions: []ast.Expression{idExpr("a")},
 					Assignments: []*ast.Assignment{{Name: "x", Value: str("y")}},
 				},
@@ -284,7 +284,7 @@ func TestConstFoldMemberAccess(t *testing.T) {
 			name: "null_object_not_folded_member",
 			expr: memberAccess(&ast.Identifier{
 				BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"}),
-				Value:    BlockKindNull,
+				Value:    types.BlockKindNull,
 			}, "x"),
 			want:         ConstValue{Kind: ConstUnknown},
 			expDiagCodes: []string{diagnostic.CodeUnexpectedExpr},

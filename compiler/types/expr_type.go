@@ -31,6 +31,8 @@ import (
 // The return value will be schema <something> {}
 
 func TypeOf(expr ast.Expression, symbols *SymbolTable) Type {
+	// TODO: Cache the expression here so calling this on the same type multiple
+	// times wont rerun the bellow function.
 	return schemaFromExprWithDepth(1, expr, symbols)
 }
 
@@ -40,6 +42,12 @@ func TypeOf(expr ast.Expression, symbols *SymbolTable) Type {
 // and other value-level identifiers.
 func EvalType(expr ast.Expression, symbols *SymbolTable) Type {
 	return schemaFromExprWithDepth(0, expr, symbols)
+}
+
+// ExprToBlockBody returns the block body of the expression. Iff the resolved expression points
+// to a block definitino or a block expression.
+func ExprToBlockBody(expr ast.Expression, symbols *SymbolTable) *ast.BlockBody {
+	return exprToBlockBody(expr, symbols)
 }
 
 // Schema depth is how deep it needs to go and get the schema.
@@ -180,6 +188,15 @@ func blockExprType(depth int, e *ast.BlockExpression, symtab *SymbolTable) Type 
 	// BUT, ExprType("__anon_1") -> `schema model { ... }` and not `model __anon_1 { ... }`
 	//
 	refBlock := NewBlockSchema(nil, e.BlockNameAnon, &e.BlockBody, symtab)
+
+	// if expr = tool { ... }
+	// refBlock = tool __anon_n {}
+	// kindSchema = schema tool {}
+	kindSchema := IdentType(0, e.BlockBody.Kind, symtab)
+	if kindSchema.Kind == BlockRef {
+		refBlock.Schema = kindSchema.Block
+	}
+
 	ty := NewBlockRefType(e.BlockNameAnon, &refBlock)
 	symtab.Define(e.BlockNameAnon, ty, e.Start())
 
@@ -212,9 +229,14 @@ func binaryExprType(depth int, e *ast.BinaryExpression, symbols *SymbolTable) Ty
 		return NewUnionType(members...)
 	case token.PLUS, token.MINUS, token.STAR, token.SLASH:
 		return arithmeticResultType(depth, e, symbols)
-	default:
-		return anyType(symbols)
+	case token.ARROW:
+		leftType := schemaFromExprWithDepth(depth, e.Left, symbols)
+		rightType := schemaFromExprWithDepth(depth, e.Right, symbols)
+		if IsAnnotated(leftType, AnnotationWorkflowNode) && IsAnnotated(rightType, AnnotationWorkflowNode) {
+			return IdentType(0, AnnotationWorkflowChain, symbols)
+		}
 	}
+	return anyType(symbols)
 }
 
 // arithmeticResultType infers the result type of an arithmetic binary expression.
@@ -229,17 +251,17 @@ func arithmeticResultType(depth int, e *ast.BinaryExpression, symbols *SymbolTab
 	right := schemaFromExprWithDepth(depth, e.Right, symbols)
 
 	// String concatenation: string + string → string.
-	isLeftStr := IsCompatible(left, IdentType(0, "string", symbols))
-	isRightStr := IsCompatible(right, IdentType(0, "string", symbols))
+	isLeftStr := IsCompatible(left, IdentType(0, BlockKindString, symbols))
+	isRightStr := IsCompatible(right, IdentType(0, BlockKindString, symbols))
 	if e.Operator.Type == token.PLUS && isLeftStr && isRightStr {
-		return IdentType(0, "string", symbols)
+		return IdentType(0, BlockKindString, symbols)
 	}
 
 	// <number> op <number> → <number>.
-	isLeftNum := IsCompatible(left, IdentType(0, "number", symbols))
-	isRightNum := IsCompatible(right, IdentType(0, "number", symbols))
+	isLeftNum := IsCompatible(left, IdentType(0, BlockKindNumber, symbols))
+	isRightNum := IsCompatible(right, IdentType(0, BlockKindNumber, symbols))
 	if isLeftNum && isRightNum {
-		return IdentType(0, "number", symbols)
+		return IdentType(0, BlockKindNumber, symbols)
 	}
 
 	return anyType(symbols)
@@ -482,7 +504,57 @@ func listLiteralType(depth int, list *ast.ListLiteral, symbols *SymbolTable) Typ
 
 func anyType(symtab *SymbolTable) Type {
 	if symtab != nil {
-		return IdentType(0, "any", symtab)
+		return IdentType(0, BlockKindAny, symtab)
 	}
-	return NewBlockRefType("any", nil)
+	return NewBlockRefType(BlockKindAny, nil)
+}
+
+func exprToBlockBody(expr ast.Expression, symbols *SymbolTable) *ast.BlockBody {
+	switch e := expr.(type) {
+
+	// TODO: Maybe consider string "foo" {}
+	case *ast.StringLiteral:
+	case *ast.NumberLiteral:
+	case *ast.ListLiteral:
+	case *ast.MapLiteral:
+		return nil
+
+	case *ast.Identifier:
+		if typ, ok := symbols.Lookup(e.Value); ok && typ.Block != nil && typ.Block.Ast != nil {
+			return typ.Block.Ast
+		}
+
+	case *ast.MemberAccess:
+		if rightBlock := exprToBlockBody(e.Object, symbols); rightBlock != nil {
+			if assign := findAssignment(rightBlock, e.Member); assign != nil {
+				return exprToBlockBody(assign.Value, symbols)
+			}
+		}
+		return nil
+	// TODO: resolve return type from the callee's type.
+	case *ast.Subscription:
+		return nil
+	case *ast.CallExpression:
+		return nil
+	case *ast.BinaryExpression:
+		return nil
+	case *ast.TernaryExpression:
+		return nil
+	case *ast.Lambda:
+		return nil
+	case *ast.BlockExpression:
+		return &e.BlockBody
+	}
+
+	return nil
+}
+
+// FIXME: This is not the best place and this might be a duplicate function of some ast helper.
+func findAssignment(blockBody *ast.BlockBody, member string) *ast.Assignment {
+	for _, assign := range blockBody.Assignments {
+		if assign.Name == member {
+			return assign
+		}
+	}
+	return nil
 }

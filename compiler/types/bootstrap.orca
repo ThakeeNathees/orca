@@ -183,7 +183,27 @@ schema branch {
   // here schema_1 is compatible with schema_2 because it has
   // all the fields that schema_2 requires (we shouldn't care about c).
   //
+  // The problem is that `schema bool {}` will match with all schema,
+  // so we maybe introduce @strict_check annotation to enforce strict schema match.
+  //
   // This is more or less duck typing. It can quack so it's a duck.
   @desc("The routes to take based on the input.")
   route = map[string | number | bool, any]
+}
+
+// The Type of `<expr> -> <expr>`
+@suppress("duplicate-block")
+@only_assignments
+@workflow_node
+schema workflow_chain {
+
+  // FIXME: This should not be any and something like workflow_node.
+  // And we should support structural similarity instead of strict schema match.
+  // Read the comments of branch block above.
+
+  @desc("The left side of the workflow chain.")
+  left = any
+
+  @desc("The right side of the workflow chain.")
+  right = any
 }

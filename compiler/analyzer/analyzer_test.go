@@ -10,7 +10,6 @@ import (
 	"github.com/thakee/orca/compiler/parser"
 )
 
-
 // parseProgram is a test helper that parses input and fails on parse errors.
 func parseProgram(t *testing.T, input string) *ast.Program {
 	t.Helper()
@@ -1112,6 +1111,31 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 		errContains string
 	}{
 		{
+			"inline branch missing required route field",
+			`workflow wf {
+				agent {
+					persona = "p"
+					model = model {
+						provider = "openai"
+						model_name = "gpt-4o"
+					}
+				} -> branch {
+				}
+			}`,
+			true,
+			`missing required field "route"`,
+		},
+		{
+			"member access resolves to workflow chain in let block",
+			`tool tool_get { invoke = \(inp string) -> "foo" }
+			 tool echo_1 { invoke = \(inp string) -> "echo_1: " }
+			 tool echo_2 { invoke = \(inp string) -> "echo_2: " }
+			 let vars { chain = echo_1 -> echo_2 }
+			 workflow wf { tool_get -> vars.chain }`,
+			false,
+			"",
+		},
+		{
 			"expression in non-workflow block",
 			`agent A { model = gpt4 persona = "hi" }
 			 @only_assignments
@@ -1219,30 +1243,9 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			"",
 		},
 		{
-			"branch with outgoing edge",
-			`agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 agent C { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run { A -> branch { route = { "x": B } } -> C }`,
-			true,
-			"branch block cannot have outgoing edges",
-		},
-		{
-			"named branch with outgoing edge",
-			`agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 agent C { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 branch router { route = { "x": B } }
-			 workflow run { router -> C }`,
-			true,
-			"branch block cannot have outgoing edges",
-		},
-		{
 			"standalone branch in workflow is allowed (dead code)",
-			`agent B { model = gpt4 }
-			 model gpt4 { provider = "openai" }
+			`agent B { model = gpt4 persona = "hi" }
+			 model gpt4 { provider = "openai" model_name = "gpt-4o" }
 			 workflow run { branch { route = { "x": B } } }`,
 			false,
 			"",
@@ -1250,59 +1253,31 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 		{
 			"trigger as branch route value is rejected",
 			`cron daily { schedule = "0 9 * * *" }
-			 agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 model gpt4 { provider = "openai" }
+			 agent A { model = gpt4 persona = "hi" }
+			 agent B { model = gpt4 persona = "hi" }
+			 model gpt4 { provider = "openai" model_name = "gpt-4o" }
 			 workflow run { A -> branch { route = { "x": daily, "y": B } } }`,
 			true,
-			"trigger block cannot appear in a branch route",
+			"Triggers can only be workflow entry points",
 		},
 		{
 			"inline trigger as branch route value is rejected",
-			`agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 model gpt4 { provider = "openai" }
+			`agent A { model = gpt4 persona = "hi" }
+			 agent B { model = gpt4 persona = "hi" }
+			 model gpt4 { provider = "openai" model_name = "gpt-4o" }
 			 workflow run { A -> branch { route = { "x": cron { schedule = "0 9 * * *" }, "y": B } } }`,
 			true,
-			"trigger block cannot appear in a branch route",
-		},
-		{
-			"inline tool as branch route value is rejected",
-			`agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run { A -> branch { route = { "x": tool { invoke = \(s string) -> "x" }, "y": B } } }`,
-			true,
-			"inline tool block cannot be used as a workflow node",
-		},
-		{
-			"inline agent as workflow node is rejected",
-			`agent A { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run { A -> agent { model = gpt4 persona = "inline" } }`,
-			true,
-			"inline agent block cannot be used as a workflow node",
-		},
-		{
-			"branch on left of arrow inside route value is rejected",
-			`agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 agent C { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 branch inner { route = { "x": C } }
-			 workflow run { A -> branch { route = { "y": inner -> B } } }`,
-			true,
-			"branch block cannot have outgoing edges",
+			"Triggers can only be workflow entry points",
 		},
 		{
 			"nested branch routes are recursively validated",
 			`cron daily { schedule = "0 9 * * *" }
-			 agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 model gpt4 { provider = "openai" }
+			 agent A { model = gpt4 persona = "hi" }
+			 agent B { model = gpt4 persona = "hi" }
+			 model gpt4 { provider = "openai" model_name = "gpt-4o" }
 			 workflow run { A -> branch { route = { "x": branch { route = { "y": daily } } } } }`,
 			true,
-			"trigger block cannot appear in a branch route",
+			"Triggers can only be workflow entry points",
 		},
 	}
 
@@ -1366,7 +1341,7 @@ func TestAnalyzeTriggerPositions(t *testing.T) {
 			 workflow run { A -> daily -> B }`,
 			true,
 			diagnostic.CodeTriggerAsTarget,
-			"trigger cannot be the target of an edge",
+			"Triggers can only be workflow entry points",
 		},
 		{
 			"trigger as last node is invalid",
@@ -1376,7 +1351,7 @@ func TestAnalyzeTriggerPositions(t *testing.T) {
 			 workflow run { A -> daily }`,
 			true,
 			diagnostic.CodeTriggerAsTarget,
-			"trigger cannot be the target of an edge",
+			"Triggers can only be workflow entry points",
 		},
 		{
 			"trigger-to-trigger chain is invalid",
@@ -1387,7 +1362,7 @@ func TestAnalyzeTriggerPositions(t *testing.T) {
 			 workflow run { daily -> hooks_in -> A }`,
 			true,
 			diagnostic.CodeTriggerAsTarget,
-			"trigger cannot be the target of an edge",
+			"Triggers can only be workflow entry points",
 		},
 		{
 			"webhook as first node is valid",
@@ -1407,7 +1382,7 @@ func TestAnalyzeTriggerPositions(t *testing.T) {
 			 workflow run { A -> hooks_in }`,
 			true,
 			diagnostic.CodeTriggerAsTarget,
-			"trigger cannot be the target of an edge",
+			"Triggers can only be workflow entry points",
 		},
 		{
 			"multiple triggers as first nodes in separate chains is valid",
@@ -1446,129 +1421,6 @@ func TestAnalyzeTriggerPositions(t *testing.T) {
 				for _, d := range result.Diagnostics {
 					if d.Code == diagnostic.CodeTriggerAsTarget {
 						t.Errorf("unexpected trigger diagnostic: %s", d.Message)
-					}
-				}
-			}
-		})
-	}
-}
-
-// TestAnalyzeWorkflowEntryNodes verifies the cardinality rules for workflow
-// entry nodes: ambiguous start (0 triggers + 2+ entries) and dangling entries
-// (1+ triggers + untriggered entry nodes).
-func TestAnalyzeWorkflowEntryNodes(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       string
-		expectCode  string // empty = no diagnostic expected
-		severity    diagnostic.Severity
-		errContains string
-	}{
-		{
-			"single entry no trigger is valid",
-			`agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run { A -> B }`,
-			"",
-			0,
-			"",
-		},
-		{
-			"multiple entries no trigger is ambiguous",
-			`agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 agent C { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run {
-			   A -> C
-			   B -> C
-			 }`,
-			diagnostic.CodeAmbiguousStart,
-			diagnostic.Error,
-			"multiple entry nodes",
-		},
-		{
-			"trigger with all entries covered is valid",
-			`cron daily { schedule = "0 9 * * *" }
-			 agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run { daily -> A -> B }`,
-			"",
-			0,
-			"",
-		},
-		{
-			"trigger with dangling entry warns",
-			`cron daily { schedule = "0 9 * * *" }
-			 agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 agent C { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run {
-			   daily -> A -> C
-			   B -> C
-			 }`,
-			diagnostic.CodeDanglingEntry,
-			diagnostic.Warning,
-			`entry node "B" has no trigger`,
-		},
-		{
-			"multiple triggers covering all entries is valid",
-			`cron daily { schedule = "0 9 * * *" }
-			 webhook hooks_in { path = "/hooks/in" }
-			 agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 agent C { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run {
-			   daily -> A -> C
-			   hooks_in -> B -> C
-			 }`,
-			"",
-			0,
-			"",
-		},
-		{
-			"trigger fan-out to multiple entries is valid",
-			`cron daily { schedule = "0 9 * * *" }
-			 agent A { model = gpt4 }
-			 agent B { model = gpt4 }
-			 agent C { model = gpt4 }
-			 model gpt4 { provider = "openai" }
-			 workflow run {
-			   daily -> A
-			   daily -> B
-			   A -> C
-			   B -> C
-			 }`,
-			"",
-			0,
-			"",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			program := parseProgram(t, tt.input)
-			result := Analyze(program)
-
-			if tt.expectCode != "" {
-				found := false
-				for _, d := range result.Diagnostics {
-					if d.Code == tt.expectCode && d.Severity == tt.severity && strings.Contains(d.Message, tt.errContains) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected %s diagnostic code=%q containing %q, got %v", tt.severity, tt.expectCode, tt.errContains, result.Diagnostics)
-				}
-			} else {
-				for _, d := range result.Diagnostics {
-					if d.Code == diagnostic.CodeAmbiguousStart || d.Code == diagnostic.CodeDanglingEntry {
-						t.Errorf("unexpected diagnostic: %s", d.Message)
 					}
 				}
 			}

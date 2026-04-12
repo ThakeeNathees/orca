@@ -233,7 +233,7 @@ func constAsNumber(v ConstValue) (float64, bool) {
 // their body. Symbols without a matching block yield ConstUnknown.
 func foldIdentifier(e *ast.Identifier, ap AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	// Parsed as an identifier; does not require symbol resolution for folding.
-	if e.Value == BlockKindNull {
+	if e.Value == types.BlockKindNull {
 		return ConstValue{Kind: ConstNull}, nil
 	}
 	if ap.SymbolTable == nil {
