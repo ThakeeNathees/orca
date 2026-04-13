@@ -1,7 +1,6 @@
 package analyzer
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/thakee/orca/compiler/ast"
@@ -36,11 +35,21 @@ func TestConstFoldLiterals(t *testing.T) {
 			expr: &ast.Identifier{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "null"}), Value: types.BlockKindNull},
 			want: ConstValue{Kind: ConstNull},
 		},
+		{
+			name: "bool true",
+			expr: &ast.Identifier{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "true"}), Value: types.BuiltinIdentifierTrue},
+			want: ConstValue{Kind: ConstBool, Bool: true},
+		},
+		{
+			name: "bool false",
+			expr: &ast.Identifier{BaseNode: ast.NewTerminal(token.Token{Type: token.IDENT, Literal: "false"}), Value: types.BuiltinIdentifierFalse},
+			want: ConstValue{Kind: ConstBool, Bool: false},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(tt.expr, AnalyzedProgram{})
-			if !reflect.DeepEqual(got, tt.want) {
+			got, diags := ConstFold(tt.expr, nil)
+			if !constValueEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
 			if len(diags) != 0 {
@@ -85,7 +94,7 @@ func TestConstFoldListAndMap(t *testing.T) {
 		{
 			name: "empty map",
 			expr: &ast.MapLiteral{Entries: []ast.MapEntry{}},
-			want: ConstValue{Kind: ConstMap, KeyValue: map[string]ConstValue{}},
+			want: ConstValue{Kind: ConstMap},
 		},
 		{
 			name: "map string keys",
@@ -93,10 +102,11 @@ func TestConstFoldListAndMap(t *testing.T) {
 				{Key: str("a"), Value: i(1)},
 				{Key: str("b"), Value: str("z")},
 			}},
-			want: ConstValue{Kind: ConstMap, KeyValue: map[string]ConstValue{
-				"a": {Kind: ConstNumber, Number: 1},
-				"b": {Kind: ConstString, Str: "z"},
-			}},
+			want: ConstValue{
+				Kind:   ConstMap,
+				Keys:   []string{"a", "b"},
+				Values: []ConstValue{{Kind: ConstNumber, Number: 1}, {Kind: ConstString, Str: "z"}},
+			},
 		},
 		{
 			name: "map identifier keys",
@@ -104,7 +114,12 @@ func TestConstFoldListAndMap(t *testing.T) {
 				{Key: id("k"), Value: i(7)},
 			}},
 			// Identifier keys are not ConstString; storage uses keyValue.Str (empty for non-string kinds).
-			want: ConstValue{Kind: ConstMap, KeyValue: map[string]ConstValue{"": {Kind: ConstNumber, Number: 7}}, Partial: true},
+			want: ConstValue{
+				Kind:    ConstMap,
+				Keys:    []string{""},
+				Values:  []ConstValue{{Kind: ConstNumber, Number: 7}},
+				Partial: true,
+			},
 		},
 		{
 			name: "map int key",
@@ -112,13 +127,17 @@ func TestConstFoldListAndMap(t *testing.T) {
 				{Key: i(10), Value: str("ten")},
 			}},
 			// Integer keys use the same map path; key string is only filled for ConstString keys.
-			want: ConstValue{Kind: ConstMap, KeyValue: map[string]ConstValue{"": {Kind: ConstString, Str: "ten"}}},
+			want: ConstValue{
+				Kind:   ConstMap,
+				Keys:   []string{""},
+				Values: []ConstValue{{Kind: ConstString, Str: "ten"}},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := ConstFold(tt.expr, AnalyzedProgram{})
-			if !reflect.DeepEqual(got, tt.want) {
+			got, _ := ConstFold(tt.expr, nil)
+			if !constValueEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
 		})
@@ -137,9 +156,14 @@ func TestConstFoldMapNonStringKeyDiagnostic(t *testing.T) {
 	expr := &ast.MapLiteral{Entries: []ast.MapEntry{
 		{Key: numKey, Value: str},
 	}}
-	got, diags := ConstFold(expr, AnalyzedProgram{})
+	got, diags := ConstFold(expr, nil)
 	// Non-string keys still produce ConstMap; the key is stored under keyValue.Str (empty for number).
-	if got.Kind != ConstMap || !reflect.DeepEqual(got.KeyValue, map[string]ConstValue{"": {Kind: ConstString, Str: "v"}}) {
+	wantMap := ConstValue{
+		Kind:   ConstMap,
+		Keys:   []string{""},
+		Values: []ConstValue{{Kind: ConstString, Str: "v"}},
+	}
+	if !constValueEqual(got, wantMap) {
 		t.Errorf("expected ConstMap with empty-string key, got %#v", got)
 	}
 	if len(diags) != 1 {
@@ -170,9 +194,12 @@ func TestConstFoldBlockExpression(t *testing.T) {
 					},
 				},
 			},
-			want: ConstValue{Kind: ConstBlock, KeyValue: map[string]ConstValue{
-				"provider": {Kind: ConstString, Str: "openai"},
-			}},
+			want: ConstValue{
+				Kind:      ConstBlock,
+				BlockKind: "model",
+				Keys:      []string{"provider"},
+				Values:    []ConstValue{{Kind: ConstString, Str: "openai"}},
+			},
 		},
 		{
 			name: "workflow edges not constant",
@@ -184,13 +211,13 @@ func TestConstFoldBlockExpression(t *testing.T) {
 				},
 			},
 			// Any non-empty Expressions marks the block as non-constant shape; result is ConstBlock with Partial.
-			want: ConstValue{Kind: ConstBlock, Partial: true},
+			want: ConstValue{Kind: ConstBlock, BlockKind: types.BlockKindWorkflow, Partial: true},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := ConstFold(tt.be, AnalyzedProgram{})
-			if !reflect.DeepEqual(got, tt.want) {
+			got, _ := ConstFold(tt.be, nil)
+			if !constValueEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
 		})
@@ -324,8 +351,9 @@ func TestConstFoldMemberAccess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(tt.expr, AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols})
-			if !reflect.DeepEqual(got, tt.want) {
+			ap := &AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols, ConstFoldCache: map[ast.Expression]ConstValue{}}
+			got, diags := ConstFold(tt.expr, ap)
+			if !constValueEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
 			assertConstFoldDiagCodes(t, diags, tt.expDiagCodes)
@@ -446,13 +474,60 @@ func TestConstFoldSubscription(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(tt.expr, AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols})
-			if !reflect.DeepEqual(got, tt.want) {
+			ap := &AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols, ConstFoldCache: map[ast.Expression]ConstValue{}}
+			got, diags := ConstFold(tt.expr, ap)
+			if !constValueEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
 			assertConstFoldDiagCodes(t, diags, tt.expDiagCodes)
 		})
 	}
+}
+
+// constValueEqual reports whether two ConstValues are semantically equal,
+// ignoring the Expr field at every level of the tree.
+//
+// We can't use reflect.DeepEqual directly: ConstFold now stores the source
+// ast.Expression on each ConstValue (and on every nested List element and
+// Keys/Values entry) so the emitter can fall back to the AST when a folded
+// child is ConstUnknown. That AST pointer is metadata for codegen, not part
+// of the fold's semantic output, and the hand-written `want` literals in
+// these tests leave Expr as nil. A direct DeepEqual therefore always fails
+// on the Expr mismatch even when the folded value is correct.
+//
+// Zeroing Expr on a copy before comparing is unsafe because ConstValue.List
+// and ConstValue.Values are reference types — mutating the copy would
+// corrupt the cache entry the caller still holds. Hence this recursive
+// walk, which compares every scalar field explicitly and skips Expr.
+func constValueEqual(a, b ConstValue) bool {
+	if a.Kind != b.Kind ||
+		a.Str != b.Str ||
+		a.Number != b.Number ||
+		a.Bool != b.Bool ||
+		a.BlockKind != b.BlockKind ||
+		a.Partial != b.Partial {
+		return false
+	}
+	if len(a.List) != len(b.List) {
+		return false
+	}
+	for i := range a.List {
+		if !constValueEqual(a.List[i], b.List[i]) {
+			return false
+		}
+	}
+	if len(a.Keys) != len(b.Keys) || len(a.Values) != len(b.Values) {
+		return false
+	}
+	for i := range a.Keys {
+		if a.Keys[i] != b.Keys[i] {
+			return false
+		}
+		if !constValueEqual(a.Values[i], b.Values[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // assertConstFoldDiagCodes checks diagnostic codes when exp is nil (expect none) or a list of expected codes in order.
@@ -509,8 +584,8 @@ func TestConstFoldBinary(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := ConstFold(tt.expr, AnalyzedProgram{})
-			if !reflect.DeepEqual(got, tt.want) {
+			got, _ := ConstFold(tt.expr, nil)
+			if !constValueEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
 		})
@@ -630,9 +705,10 @@ func TestConstFoldIdentifier(t *testing.T) {
 			},
 			want: ConstValue{
 				Kind: ConstBlock,
-				KeyValue: map[string]ConstValue{
-					"provider":    {Kind: ConstString, Str: "openai"},
-					"temperature": {Kind: ConstNumber, Number: 0.5},
+				Keys: []string{"provider", "temperature"},
+				Values: []ConstValue{
+					{Kind: ConstString, Str: "openai"},
+					{Kind: ConstNumber, Number: 0.5},
 				},
 			},
 		},
@@ -662,8 +738,9 @@ func TestConstFoldIdentifier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, diags := ConstFold(idExpr(tt.id), AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols})
-			if !reflect.DeepEqual(got, tt.want) {
+			ap := &AnalyzedProgram{Ast: tt.program, SymbolTable: tt.symbols, ConstFoldCache: map[ast.Expression]ConstValue{}}
+			got, diags := ConstFold(idExpr(tt.id), ap)
+			if !constValueEqual(got, tt.want) {
 				t.Errorf("ConstFold() = %#v, want %#v", got, tt.want)
 			}
 			if len(diags) != 0 {
@@ -702,12 +779,96 @@ model gpt {
 	if !ok {
 		t.Fatal("provider field missing")
 	}
-	v, diags := ConstFold(expr, ap)
+	v, diags := ConstFold(expr, &ap)
 	if len(diags) != 0 {
 		t.Errorf("unexpected diags: %v", diags)
 	}
 	want := ConstValue{Kind: ConstString, Str: "openai"}
-	if !reflect.DeepEqual(v, want) {
+	if !constValueEqual(v, want) {
 		t.Errorf("ConstFold(provider) = %#v, want %#v", v, want)
 	}
+}
+
+// TestConstFoldCacheReuse verifies that ConstFold returns cached results on a
+// second call for the same expression without recomputing. We poison the cache
+// entry with a sentinel value after the first fold; the second fold must return
+// the poisoned value, proving it came from the cache rather than being re-walked.
+func TestConstFoldCacheReuse(t *testing.T) {
+	expr := &ast.NumberLiteral{
+		BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "42"}),
+		Value:    42,
+	}
+	ap := &AnalyzedProgram{ConstFoldCache: map[ast.Expression]ConstValue{}}
+
+	first, _ := ConstFold(expr, ap)
+	if !constValueEqual(first, ConstValue{Kind: ConstNumber, Number: 42}) {
+		t.Fatalf("first fold = %#v, want ConstNumber 42", first)
+	}
+	if _, ok := ap.ConstFoldCache[expr]; !ok {
+		t.Fatal("expected expression to be cached after first fold")
+	}
+
+	// Poison the cache entry with an obviously wrong value.
+	ap.ConstFoldCache[expr] = ConstValue{Kind: ConstString, Str: "poisoned"}
+
+	second, _ := ConstFold(expr, ap)
+	if !constValueEqual(second, ConstValue{Kind: ConstString, Str: "poisoned"}) {
+		t.Errorf("second fold recomputed instead of using cache: got %#v", second)
+	}
+}
+
+// TestConstFoldPreservesKeyOrder verifies that map and block folding preserve
+// source order in the Keys slice. This is a regression test for a bug where
+// ConstValue used a map[string]ConstValue under the hood, causing golden
+// codegen output to flake due to Go's randomized map iteration.
+func TestConstFoldPreservesKeyOrder(t *testing.T) {
+	str := func(s string) *ast.StringLiteral {
+		return &ast.StringLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.STRING, Literal: `"x"`}), Value: s}
+	}
+	i := func(n float64) *ast.NumberLiteral {
+		return &ast.NumberLiteral{BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "0"}), Value: n}
+	}
+
+	t.Run("map literal", func(t *testing.T) {
+		// Use keys whose natural alphabetical ordering differs from source order,
+		// so a map-based implementation would flake (and sorted output would
+		// visibly reorder to a, b, c, d).
+		expr := &ast.MapLiteral{Entries: []ast.MapEntry{
+			{Key: str("d"), Value: i(1)},
+			{Key: str("b"), Value: i(2)},
+			{Key: str("a"), Value: i(3)},
+			{Key: str("c"), Value: i(4)},
+		}}
+		got, _ := ConstFold(expr, nil)
+		wantKeys := []string{"d", "b", "a", "c"}
+		if len(got.Keys) != len(wantKeys) {
+			t.Fatalf("Keys length = %d, want %d", len(got.Keys), len(wantKeys))
+		}
+		for idx, k := range wantKeys {
+			if got.Keys[idx] != k {
+				t.Errorf("Keys[%d] = %q, want %q", idx, got.Keys[idx], k)
+			}
+		}
+	})
+
+	t.Run("block body", func(t *testing.T) {
+		be := &ast.BlockExpression{BlockBody: ast.BlockBody{
+			Kind: "model",
+			Assignments: []*ast.Assignment{
+				{Name: "provider", Value: str("openai")},
+				{Name: "model_name", Value: str("gpt-4o")},
+				{Name: "temperature", Value: i(0.7)},
+			},
+		}}
+		got, _ := ConstFold(be, nil)
+		wantKeys := []string{"provider", "model_name", "temperature"}
+		if len(got.Keys) != len(wantKeys) {
+			t.Fatalf("Keys length = %d, want %d", len(got.Keys), len(wantKeys))
+		}
+		for idx, k := range wantKeys {
+			if got.Keys[idx] != k {
+				t.Errorf("Keys[%d] = %q, want %q", idx, got.Keys[idx], k)
+			}
+		}
+	})
 }

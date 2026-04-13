@@ -3,6 +3,7 @@ module github.com/thakee/orca/compiler
 go 1.25.1
 
 require (
+	github.com/fatih/color v1.19.0
 	github.com/spf13/cobra v1.10.2
 	github.com/tliron/commonlog v0.2.21
 	github.com/tliron/glsp v0.2.2
@@ -10,7 +11,6 @@ require (
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/fatih/color v1.19.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

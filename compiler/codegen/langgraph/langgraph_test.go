@@ -119,7 +119,7 @@ func TestWriteBlocksInOrder(t *testing.T) {
 			program: programWithModels(modelBlock("gpt4", "openai", "gpt-4o")),
 			wantSubstrings: []string{
 				`gpt4 = _orca__block("model", `,
-				"provider_class=ChatOpenAI",
+				`provider="openai"`,
 			},
 		},
 		{
@@ -298,7 +298,8 @@ func TestWriteModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var s strings.Builder
-			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
+			b := &LangGraphBackend{}
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(b, tt.block))
 			result := s.String()
 
 			for _, exp := range tt.contains {
@@ -320,7 +321,8 @@ func TestWriteModel(t *testing.T) {
 func TestWriteModelUnknownProvider(t *testing.T) {
 	block := modelBlock("m1", "unknown_provider", "some-model")
 	var s strings.Builder
-	fmt.Fprintf(&s, "%s = %s\n", block.Name, topLevelBlockSource(block))
+	b := &LangGraphBackend{}
+	fmt.Fprintf(&s, "%s = %s\n", block.Name, topLevelBlockSource(b, block))
 	if !strings.Contains(s.String(), `provider="unknown_provider"`) {
 		t.Fatalf("expected _orca__model output, got:\n%s", s.String())
 	}
@@ -404,7 +406,8 @@ func TestWriteAgent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var s strings.Builder
-			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
+			b := &LangGraphBackend{}
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(b, tt.block))
 			result := s.String()
 
 			for _, want := range tt.contains {
@@ -446,7 +449,8 @@ func TestWriteSchema(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var s strings.Builder
-			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
+			b := &LangGraphBackend{}
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(b, tt.block))
 			result := s.String()
 			for _, want := range tt.contains {
 				if !strings.Contains(result, want) {
@@ -487,7 +491,8 @@ func TestWriteKnowledge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var s strings.Builder
-			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(tt.block))
+			b := &LangGraphBackend{}
+			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(b, tt.block))
 			result := s.String()
 			for _, want := range tt.contains {
 				if !strings.Contains(result, want) {

@@ -77,6 +77,8 @@ func (b *LangGraphBackend) generateMain() string {
 	s.WriteString(embeddedRuntime)
 	s.WriteString("\n")
 
+	// FIXME: The schema blocks should also be sorted and written in order
+	// along with the other blocks.
 	b.writeSchemaSection(&s, schemaBlocks)
 	b.writeBlocksInOrder(&s)
 
@@ -115,13 +117,6 @@ func (b *LangGraphBackend) writeBlocksInOrder(s *strings.Builder) {
 // based on block kind.
 func (b *LangGraphBackend) writeBlock(s *strings.Builder, block *ast.BlockStatement) {
 	switch block.Kind {
-	case types.BlockKindModel:
-		s.WriteString("\n")
-		fmt.Fprintf(s, "%s = %s\n", block.Name, modelBlockSource(block))
-
-	case types.BlockKindTool:
-		s.WriteString("\n")
-		fmt.Fprintf(s, "%s = %s\n", block.Name, topLevelBlockSource(block))
 
 	case types.BlockKindWorkflow:
 		if rw, ok := b.resolvedWorkflows[block.Name]; ok {
@@ -133,7 +128,7 @@ func (b *LangGraphBackend) writeBlock(s *strings.Builder, block *ast.BlockStatem
 	default:
 		// Generic block: let, agent, knowledge, cron, webhook.
 		s.WriteString("\n")
-		fmt.Fprintf(s, "%s = %s\n", block.Name, topLevelBlockSource(block))
+		fmt.Fprintf(s, "%s = %s\n", block.Name, topLevelBlockSource(b, block))
 	}
 }
 

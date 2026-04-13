@@ -51,13 +51,33 @@ def _orca__gather(state: dict, predecessors: list[str]) -> Any:
     return {k: state.get(k) for k in predecessors}
 
 
+# FIXME: This is ugly, but works for now, we need to do the provider registry
+# and lookup properly.
+def _orca__provider_from_name(provider: str) -> Any:
+    if provider == "openai":
+        import langchain_openai
+        return langchain_openai.ChatOpenAI
+    elif provider == "anthropic":
+        import langchain_anthropic
+        return langchain_anthropic.ChatAnthropic
+    elif provider == "google":
+        import langchain_google_genai
+        return langchain_google_genai.ChatGoogleGenerativeAI
+    else:
+        raise ValueError(f"Unknown provider: {provider}")
+
+
 def _orca__resolve_model(model_ns: SimpleNamespace) -> Any:
     """Instantiate a LangChain ChatModel from a model SimpleNamespace.
 
     The provider_class field is the actual class (e.g. ChatOpenAI), resolved
     at compile time by the codegen. No runtime provider lookup needed.
     """
-    return model_ns.provider_class(**_orca__fields({
+
+    provider = getattr(model_ns, "provider", "openai")
+    provider_class = _orca__provider_from_name(provider)
+
+    return provider_class(**_orca__fields({
         "model": model_ns.model_name,
         "temperature": getattr(model_ns, "temperature", None),
         "api_key": getattr(model_ns, "api_key", None),
@@ -103,7 +123,7 @@ class report(BaseModel):
     score: int = Field(description="Quality score")
 
 gpt4 = _orca__block("model", 
-    provider_class=ChatOpenAI,
+    provider="openai",
     model_name="gpt-4o",
 )
 
