@@ -4,7 +4,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/codegen"
+	"github.com/thakee/orca/compiler/lexer"
+	"github.com/thakee/orca/compiler/parser"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
 )
@@ -316,7 +320,8 @@ func TestExprToSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := exprToSource(tt.expr)
+			b := &LangGraphBackend{}
+			got := b.exprToSource(tt.expr)
 			if got != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got)
 			}
@@ -326,7 +331,8 @@ func TestExprToSource(t *testing.T) {
 
 // TestExprToSourceNilExpression verifies a nil Expression maps to Python None.
 func TestExprToSourceNilExpression(t *testing.T) {
-	if got := exprToSource(nil); got != "None" {
+	b := &LangGraphBackend{}
+	if got := b.exprToSource(nil); got != "None" {
 		t.Fatalf("exprToSource(nil) = %q, want None", got)
 	}
 }
@@ -358,7 +364,8 @@ func TestExprToSourceExhaustiveKinds(t *testing.T) {
 					t.Fatalf("panic: %v", r)
 				}
 			}()
-			if exprToSource(tc.expr) == "" {
+			b := &LangGraphBackend{}
+			if b.exprToSource(tc.expr) == "" {
 				t.Fatal("empty result")
 			}
 		})
@@ -399,7 +406,8 @@ func TestAnnotationToSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := annotationToSource(tt.ann)
+			b := &LangGraphBackend{}
+			got := annotationToSource(b, tt.ann)
 			if got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
@@ -480,7 +488,8 @@ func TestWrapWithMetaIfNeeded(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := wrapWithMetaIfNeeded(tt.inner, tt.anns, tt.argIndent, tt.closeIndent)
+			b := &LangGraphBackend{}
+			got := wrapWithMetaIfNeeded(b, tt.inner, tt.anns, tt.argIndent, tt.closeIndent)
 			if got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
@@ -503,7 +512,8 @@ func TestTopLevelBlockSource(t *testing.T) {
 			},
 		},
 	}
-	got := topLevelBlockSource(block)
+	b := &LangGraphBackend{}
+	got := topLevelBlockSource(b, block)
 	if !strings.Contains(got, `_orca__with_meta(`) || !strings.Contains(got, `_orca__meta("sensitive")`) {
 		t.Fatalf("expected with_meta and sensitive meta, got:\n%s", got)
 	}
@@ -521,7 +531,7 @@ func TestTopLevelBlockSource(t *testing.T) {
 			},
 		},
 	}
-	plainGot := topLevelBlockSource(plain)
+	plainGot := topLevelBlockSource(b, plain)
 	if strings.Contains(plainGot, "with_meta") {
 		t.Fatalf("expected no with_meta without block annotations, got %q", plainGot)
 	}
@@ -552,5 +562,141 @@ func TestFormatFloat(t *testing.T) {
 				t.Errorf("formatFloat(%v): expected %q, got %q", tt.input, tt.expected, got)
 			}
 		})
+	}
+}
+
+// TestConstValToSource covers each ConstKind rendered to Python source.
+// Partial/Unknown children that fall back to the AST are covered separately
+// in TestExprToSourceCachePath.
+func TestConstValToSource(t *testing.T) {
+	tests := []struct {
+		name string
+		in   analyzer.ConstValue
+		want string
+	}{
+		{"string", analyzer.ConstValue{Kind: analyzer.ConstString, Str: "hello"}, `"hello"`},
+		{"string with quotes", analyzer.ConstValue{Kind: analyzer.ConstString, Str: `say "hi"`}, `"say \"hi\""`},
+		{"number whole", analyzer.ConstValue{Kind: analyzer.ConstNumber, Number: 42}, "42"},
+		{"number fractional", analyzer.ConstValue{Kind: analyzer.ConstNumber, Number: 0.5}, "0.5"},
+		{"bool true", analyzer.ConstValue{Kind: analyzer.ConstBool, Bool: true}, "True"},
+		{"bool false", analyzer.ConstValue{Kind: analyzer.ConstBool, Bool: false}, "False"},
+		{"null", analyzer.ConstValue{Kind: analyzer.ConstNull}, "None"},
+		{
+			name: "list of mixed primitives",
+			in: analyzer.ConstValue{Kind: analyzer.ConstList, List: []analyzer.ConstValue{
+				{Kind: analyzer.ConstNumber, Number: 1},
+				{Kind: analyzer.ConstString, Str: "two"},
+				{Kind: analyzer.ConstBool, Bool: true},
+			}},
+			want: `[1, "two", True]`,
+		},
+		{
+			name: "map preserves source order",
+			in: analyzer.ConstValue{
+				Kind:   analyzer.ConstMap,
+				Keys:   []string{"z", "a"},
+				Values: []analyzer.ConstValue{{Kind: analyzer.ConstNumber, Number: 1}, {Kind: analyzer.ConstNumber, Number: 2}},
+			},
+			want: `{"z": 1, "a": 2}`,
+		},
+		// Note: ConstBlock is intentionally not tested here — constValToSource
+		// routes ConstBlock values back through exprToSource(constVal.Expr) so
+		// named block references stay as identifiers instead of being inlined
+		// (see TestExprToSourceNamedBlockRefNotInlined).
+	}
+
+	b := &LangGraphBackend{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := constValToSource(b, tt.in)
+			if got != tt.want {
+				t.Errorf("constValToSource() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestExprToSourceCachePath verifies that when ConstFoldCache contains a
+// non-Unknown entry for an expression, exprToSource routes it through
+// constValToSource, and that a ConstUnknown entry is bypassed (falling back to
+// the AST switch). A zero backend with no cache should always use the AST path.
+func TestExprToSourceCachePath(t *testing.T) {
+	numExpr := &ast.NumberLiteral{
+		BaseNode: ast.NewTerminal(token.Token{Type: token.NUMBER, Literal: "1"}),
+		Value:    1,
+	}
+
+	t.Run("cache hit routes through constValToSource", func(t *testing.T) {
+		b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzer.AnalyzedProgram{
+			ConstFoldCache: map[ast.Expression]analyzer.ConstValue{
+				numExpr: {Kind: analyzer.ConstNumber, Number: 999},
+			},
+		}}}
+		if got := b.exprToSource(numExpr); got != "999" {
+			t.Errorf("exprToSource() = %q, want cached %q", got, "999")
+		}
+	})
+
+	t.Run("unknown cache entry falls through to AST", func(t *testing.T) {
+		b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: analyzer.AnalyzedProgram{
+			ConstFoldCache: map[ast.Expression]analyzer.ConstValue{
+				numExpr: {Kind: analyzer.ConstUnknown, Expr: numExpr},
+			},
+		}}}
+		// The AST path emits the literal value; the cached Unknown must not short-circuit.
+		if got := b.exprToSource(numExpr); got != "1" {
+			t.Errorf("exprToSource() = %q, want AST path %q", got, "1")
+		}
+	})
+
+	t.Run("no cache uses AST path", func(t *testing.T) {
+		b := &LangGraphBackend{}
+		if got := b.exprToSource(numExpr); got != "1" {
+			t.Errorf("exprToSource() = %q, want %q", got, "1")
+		}
+	})
+}
+
+// TestExprToSourceNamedBlockRefNotInlined is a regression test: an identifier
+// referencing a named top-level block must emit as the Python variable name,
+// not get replaced by an inlined _orca__block(...) call sourced from the
+// ConstFoldCache. Without this guard the single top-level block definition
+// becomes unused and each reference duplicates the block body.
+func TestExprToSourceNamedBlockRefNotInlined(t *testing.T) {
+	src := `model gpt4 {
+  provider = "openai"
+  model_name = "gpt-4o"
+}
+agent writer {
+  model = gpt4
+  persona = "You write things."
+}`
+	l := lexer.New(src, "")
+	p := parser.New(l)
+	program := p.ParseProgram()
+	if errs := p.Errors(); len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	ap := analyzer.Analyze(program)
+	if len(ap.Diagnostics) > 0 {
+		t.Fatalf("analyze diagnostics: %v", ap.Diagnostics)
+	}
+
+	writer := program.FindBlockWithName("writer")
+	if writer == nil {
+		t.Fatal("writer block not found")
+	}
+	modelField, ok := writer.GetFieldExpression("model")
+	if !ok {
+		t.Fatal("writer.model field missing")
+	}
+
+	b := &LangGraphBackend{BaseBackend: codegen.BaseBackend{Program: ap}}
+	got := b.exprToSource(modelField)
+	if got != "gpt4" {
+		t.Errorf("exprToSource(writer.model) = %q, want %q (named block refs must not be inlined)", got, "gpt4")
+	}
+	if strings.Contains(got, "_orca__block") {
+		t.Errorf("named block identifier was inlined: %q", got)
 	}
 }

@@ -23,6 +23,10 @@ type AnalyzedProgram struct {
 	// Blocks with no dependencies come first; dependents come after their
 	// dependencies. Codegen uses this to emit blocks in valid definition order.
 	BlockOrder []string
+
+	// ConstFoldCache is a cache of constant fold results for expressions.
+	// This is used to avoid redundant constant folding calculations.
+	ConstFoldCache map[ast.Expression]ConstValue
 }
 
 // Analyze walks the AST and performs semantic analysis.
@@ -36,15 +40,17 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 	bootstrapResult := types.Bootstrap(types.BootstrapSource)
 
 	ap := AnalyzedProgram{
-		Ast:         program,
-		SymbolTable: bootstrapResult.Symtab,
-		Diagnostics: []diagnostic.Diagnostic{},
+		Ast:            program,
+		SymbolTable:    bootstrapResult.Symtab,
+		Diagnostics:    []diagnostic.Diagnostic{},
+		ConstFoldCache: make(map[ast.Expression]ConstValue),
 	}
 
 	// These function should run in this order
 	injectAnonBlocks(&ap)
 	buildSymbolTable(&ap)
 	resolveBlockSchemaReferences(&ap)
+	foldConstants(&ap)
 	buildBlockDependencyGraph(&ap)
 
 	for _, stmt := range program.Statements {
@@ -219,4 +225,14 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 		}
 	}
 	return filtered
+}
+
+// foldConstants folds the constants in the AST.
+func foldConstants(ap *AnalyzedProgram) {
+	ast.Walk(ap.Ast, func(n ast.Node) bool {
+		if expr, ok := n.(ast.Expression); ok {
+			ConstFold(expr, ap)
+		}
+		return true
+	})
 }

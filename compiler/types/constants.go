@@ -9,6 +9,9 @@ const (
 	BlockKindNumber = "number"
 	BlockKindString = "string"
 
+	BuiltinIdentifierTrue  = "true"
+	BuiltinIdentifierFalse = "false"
+
 	BlockKindLet       = "let"
 	BlockKindWorkflow  = "workflow"
 	BlockKindTool      = "tool"

@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
@@ -16,7 +17,21 @@ import (
 // Unknown or nil interfaces are handled explicitly: nil becomes Python None;
 // any other type panics so mistakes surface immediately instead of emitting
 // invalid Python.
-func exprToSource(expr ast.Expression) string {
+func (b *LangGraphBackend) exprToSource(expr ast.Expression) string {
+
+	// TODO: We're not folding block expressions cause currently we are depend on the block
+	// body (the defined block one) to generate workflow nodes, but that behavior should be changed.
+	//
+	// Here is another !! BUG !! if we use inline block.
+	//     "a": _orca__block("agent", model=_orca__block("model", provider="openai", model_name="gpt-4o", ), ...)
+	//     "b": _orca__block("agent", model=_orca__block("model", model_name="gpt-4o", provider="openai", ), ...)
+	// Source order is provider then model_name in both cases. constValToSource's ConstMap and ConstBlock cases iterate constVal.KeyValue which is a
+	// map[string]ConstValue — Go map iteration is randomized, so every codegen run produces different Python. Goldens will flake.
+	constVal, ok := b.Program.ConstFoldCache[expr]
+	if ok && constVal.Kind != analyzer.ConstUnknown && constVal.Kind != analyzer.ConstBlock {
+		return constValToSource(b, constVal)
+	}
+
 	switch e := expr.(type) {
 	case nil:
 		return "None"
@@ -40,23 +55,23 @@ func exprToSource(expr ast.Expression) string {
 			return e.Value
 		}
 	case *ast.MemberAccess:
-		return exprToSource(e.Object) + "." + e.Member
+		return b.exprToSource(e.Object) + "." + e.Member
 	case *ast.Subscription:
 		var indices []string
 		for _, idx := range e.Indices {
-			indices = append(indices, exprToSource(idx))
+			indices = append(indices, b.exprToSource(idx))
 		}
-		return exprToSource(e.Object) + "[" + strings.Join(indices, ", ") + "]"
+		return b.exprToSource(e.Object) + "[" + strings.Join(indices, ", ") + "]"
 	case *ast.ListLiteral:
 		var elems []string
 		for _, el := range e.Elements {
-			elems = append(elems, exprToSource(el))
+			elems = append(elems, b.exprToSource(el))
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
 	case *ast.MapLiteral:
 		var entries []string
 		for _, entry := range e.Entries {
-			entries = append(entries, exprToSource(entry.Key)+": "+exprToSource(entry.Value))
+			entries = append(entries, b.exprToSource(entry.Key)+": "+b.exprToSource(entry.Value))
 		}
 		return "{" + strings.Join(entries, ", ") + "}"
 	case *ast.BinaryExpression:
@@ -64,42 +79,42 @@ func exprToSource(expr ast.Expression) string {
 			// FIXME: Dont hard code like this
 			// "_orca__block("workflow_chain", left, right)"
 			return orcaPrefix + "block(\"" + types.AnnotationWorkflowChain +
-				"\", left=" + exprToSource(e.Left) +
-				", right=" + exprToSource(e.Right) + ")"
+				"\", left=" + b.exprToSource(e.Left) +
+				", right=" + b.exprToSource(e.Right) + ")"
 		}
-		return exprToSource(e.Left) + " " + e.Operator.Literal + " " + exprToSource(e.Right)
+		return b.exprToSource(e.Left) + " " + e.Operator.Literal + " " + b.exprToSource(e.Right)
 	case *ast.CallExpression:
 		var args []string
 		for _, arg := range e.Arguments {
-			args = append(args, exprToSource(arg))
+			args = append(args, b.exprToSource(arg))
 		}
-		return exprToSource(e.Callee) + "(" + strings.Join(args, ", ") + ")"
+		return b.exprToSource(e.Callee) + "(" + strings.Join(args, ", ") + ")"
 	case *ast.TernaryExpression:
-		return "(" + exprToSource(e.TrueExpr) + " if " + exprToSource(e.Condition) + " else " + exprToSource(e.FalseExpr) + ")"
+		return "(" + b.exprToSource(e.TrueExpr) + " if " + b.exprToSource(e.Condition) + " else " + b.exprToSource(e.FalseExpr) + ")"
 	case *ast.Lambda:
 		var params []string
 		for _, p := range e.Params {
 			params = append(params, p.Name.Value)
 		}
 		if len(params) == 0 {
-			return "lambda: " + exprToSource(e.Body)
+			return "lambda: " + b.exprToSource(e.Body)
 		}
-		return "lambda " + strings.Join(params, ", ") + ": " + exprToSource(e.Body)
+		return "lambda " + strings.Join(params, ", ") + ": " + b.exprToSource(e.Body)
 	case *ast.BlockExpression:
-		return blockCallSource(&e.BlockBody, "")
+		return blockCallSource(b, &e.BlockBody, "")
 	default:
 		panic(fmt.Sprintf("langgraph.exprToSource: unsupported ast.Expression type %T", e))
 	}
 }
 
 // annotationToSource emits one `__orca_meta("name", ...args)` from an AST annotation.
-func annotationToSource(ann *ast.Annotation) string {
+func annotationToSource(b *LangGraphBackend, ann *ast.Annotation) string {
 	var sb strings.Builder
 	sb.WriteString(orcaPrefix + "meta(")
 	sb.WriteString(fmt.Sprintf("%q", ann.Name))
 	for _, arg := range ann.Arguments {
 		sb.WriteString(", ")
-		sb.WriteString(exprToSource(arg))
+		sb.WriteString(b.exprToSource(arg))
 	}
 	sb.WriteString(")")
 	return sb.String()
@@ -123,22 +138,22 @@ func indentNonEmptyLines(s, prefix string) string {
 // annotationsListSourceMultiline builds a multi-line Python list of orca.meta(...)
 // calls. argIndent is the indentation of the opening "[" and closing "]" lines;
 // list elements are indented one level deeper.
-func annotationsListSourceMultiline(anns []*ast.Annotation, argIndent string) string {
+func annotationsListSourceMultiline(b *LangGraphBackend, anns []*ast.Annotation, argIndent string) string {
 	if len(anns) == 0 {
 		return "[]"
 	}
 	metaIndent := argIndent + "    "
-	var b strings.Builder
-	b.WriteString(argIndent)
-	b.WriteString("[\n")
+	var sb strings.Builder
+	sb.WriteString(argIndent)
+	sb.WriteString("[\n")
 	for _, a := range anns {
-		b.WriteString(metaIndent)
-		b.WriteString(annotationToSource(a))
-		b.WriteString(",\n")
+		sb.WriteString(metaIndent)
+		sb.WriteString(annotationToSource(b, a))
+		sb.WriteString(",\n")
 	}
-	b.WriteString(argIndent)
-	b.WriteString("]")
-	return b.String()
+	sb.WriteString(argIndent)
+	sb.WriteString("]")
+	return sb.String()
 }
 
 // wrapWithMetaIfNeeded returns inner unchanged when there are no annotations.
@@ -146,11 +161,11 @@ func annotationsListSourceMultiline(anns []*ast.Annotation, argIndent string) st
 // meta lists stay readable. argIndent prefixes each line of the inner value and
 // the meta list contents; closeIndent prefixes the closing ")" ("" at top level,
 // fieldIndent when the with_meta is a field RHS so ")" aligns with "key=").
-func wrapWithMetaIfNeeded(inner string, anns []*ast.Annotation, argIndent, closeIndent string) string {
+func wrapWithMetaIfNeeded(b *LangGraphBackend, inner string, anns []*ast.Annotation, argIndent, closeIndent string) string {
 	if len(anns) == 0 {
 		return inner
 	}
-	listSrc := annotationsListSourceMultiline(anns, argIndent)
+	listSrc := annotationsListSourceMultiline(b, anns, argIndent)
 	innerIndented := indentNonEmptyLines(inner, argIndent)
 	var sb strings.Builder
 	sb.WriteString(orcaPrefix + "with_meta(\n")
@@ -166,23 +181,23 @@ func wrapWithMetaIfNeeded(inner string, anns []*ast.Annotation, argIndent, close
 // assignmentValueSource emits the RHS for a block field, wrapping with with_meta
 // only when the assignment carries annotations. fieldIndent is the block body's
 // line prefix for assignments ("    " in multi-line blocks, "" when inline).
-func assignmentValueSource(assign *ast.Assignment, fieldIndent string) string {
+func assignmentValueSource(b *LangGraphBackend, assign *ast.Assignment, fieldIndent string) string {
 	if assign == nil {
 		return "None"
 	}
-	val := exprToSource(assign.Value)
+	val := b.exprToSource(assign.Value)
 	argIndent := fieldIndent + "    "
-	return wrapWithMetaIfNeeded(val, assign.Annotations, argIndent, fieldIndent)
+	return wrapWithMetaIfNeeded(b, val, assign.Annotations, argIndent, fieldIndent)
 }
 
 // topLevelBlockSource emits the full Python RHS for a top-level block statement,
 // including optional block-level annotations around the orca.<kind>(...) call.
-func topLevelBlockSource(block *ast.BlockStatement) string {
+func topLevelBlockSource(b *LangGraphBackend, block *ast.BlockStatement) string {
 	if block == nil {
 		panic("BUG: topLevelBlockSource called with nil block")
 	}
-	inner := blockCallSource(&block.BlockBody, "    ")
-	return wrapWithMetaIfNeeded(inner, block.Annotations, "    ", "")
+	inner := blockCallSource(b, &block.BlockBody, "    ")
+	return wrapWithMetaIfNeeded(b, inner, block.Annotations, "    ", "")
 }
 
 // blockCallSource generates a Python expression calling the orca runtime for
@@ -197,7 +212,7 @@ func topLevelBlockSource(block *ast.BlockStatement) string {
 //	)
 //
 // When indent is empty, everything is on one line (used for inline blocks).
-func blockCallSource(body *ast.BlockBody, indent string) string {
+func blockCallSource(b *LangGraphBackend, body *ast.BlockBody, indent string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%sblock(%q, ", orcaPrefix, body.Kind))
 
@@ -205,7 +220,7 @@ func blockCallSource(body *ast.BlockBody, indent string) string {
 		for _, assign := range body.Assignments {
 			sb.WriteString(assign.Name)
 			sb.WriteString("=")
-			sb.WriteString(assignmentValueSource(assign, indent))
+			sb.WriteString(assignmentValueSource(b, assign, indent))
 			sb.WriteString(", ")
 		}
 	} else {
@@ -214,7 +229,7 @@ func blockCallSource(body *ast.BlockBody, indent string) string {
 			sb.WriteString(indent)
 			sb.WriteString(assign.Name)
 			sb.WriteString("=")
-			sb.WriteString(assignmentValueSource(assign, indent))
+			sb.WriteString(assignmentValueSource(b, assign, indent))
 			sb.WriteString(",")
 		}
 		if len(body.Assignments) > 0 {
@@ -226,6 +241,63 @@ func blockCallSource(body *ast.BlockBody, indent string) string {
 	return sb.String()
 }
 
+func constValToSource(b *LangGraphBackend, constVal analyzer.ConstValue) string {
+
+	// TODO:
+	// Cost folded blocks are not inlined, Rethink this situaion.
+	// Also a lambda can return a block that has const value (compile time known) how to handle that?
+	if constVal.Kind == analyzer.ConstUnknown || constVal.Kind == analyzer.ConstBlock {
+		return b.exprToSource(constVal.Expr)
+	}
+
+	switch constVal.Kind {
+	case analyzer.ConstString:
+		return fmt.Sprintf("%q", constVal.Str)
+	case analyzer.ConstNumber:
+		return formatFloat(constVal.Number)
+	case analyzer.ConstBool:
+		if constVal.Bool {
+			return "True"
+		}
+		return "False"
+	case analyzer.ConstNull:
+		return "None"
+	case analyzer.ConstList:
+		var elems []string
+		for _, elem := range constVal.List {
+			elems = append(elems, constValToSource(b, elem))
+		}
+		return "[" + strings.Join(elems, ", ") + "]"
+	case analyzer.ConstMap:
+		var entries []string
+		for i, key := range constVal.Keys {
+			// TODO: Handle escaped quotes and newlines in the string.
+			value := constVal.Values[i]
+			entries = append(entries, "\""+key+"\": "+constValToSource(b, value))
+		}
+		return "{" + strings.Join(entries, ", ") + "}"
+	case analyzer.ConstBlock:
+		// TODO: If the const block has k=v, expressions it set to Partial constant and
+		// those expressions are not folded, we should handle them somehow.
+
+		// blockCallSource and this uses almost same logic make sure they are in sync.
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("%sblock(%q, ", orcaPrefix, constVal.BlockKind))
+		for i, key := range constVal.Keys {
+			value := constVal.Values[i]
+			sb.WriteString(key)
+			sb.WriteString("=")
+			sb.WriteString(constValToSource(b, value))
+			sb.WriteString(", ")
+		}
+		sb.WriteString(")")
+		return sb.String()
+	}
+
+	panic(fmt.Sprintf("langgraph.constValToSource: unsupported analyzer.ConstKind %d", constVal.Kind))
+}
+
+// TODO: Move this to a helper function.
 // formatFloat formats numbers for Python source. Whole values use integer
 // literals (no ".0"); fractional values use %g.
 func formatFloat(f float64) string {

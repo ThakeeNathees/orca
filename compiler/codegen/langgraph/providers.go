@@ -4,7 +4,6 @@ package langgraph
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
@@ -103,7 +102,7 @@ func (b *LangGraphBackend) resolveProviders() {
 			continue
 		}
 
-		v, d := analyzer.ConstFold(expr, b.Program)
+		v, d := analyzer.ConstFold(expr, &b.Program)
 		b.Program.Diagnostics = append(b.Program.Diagnostics, d...)
 
 		if v.Kind != analyzer.ConstString {
@@ -138,41 +137,6 @@ func (b *LangGraphBackend) resolveProviders() {
 	}
 
 	b.resolvedProviders = resolvedProviders{providerImports: imports}
-}
-
-// modelBlockSource generates the __orca_model(...) call with the provider field
-// substituted from a string to the resolved class name.
-func modelBlockSource(model *ast.BlockStatement) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%sblock(%q, ", orcaPrefix, "model"))
-
-	indent := "    "
-	for _, assign := range model.Assignments {
-		sb.WriteString("\n")
-		sb.WriteString(indent)
-
-		if assign.Name == "provider" {
-			if str, ok := assign.Value.(*ast.StringLiteral); ok {
-				if className := providerClassName(str.Value); className != "" {
-					sb.WriteString("provider_class=")
-					sb.WriteString(className)
-					sb.WriteString(",")
-					continue
-				}
-			}
-		}
-
-		sb.WriteString(assign.Name)
-		sb.WriteString("=")
-		sb.WriteString(assignmentValueSource(assign, indent))
-		sb.WriteString(",")
-	}
-	if len(model.Assignments) > 0 {
-		sb.WriteString("\n")
-	}
-	sb.WriteString(")")
-
-	return wrapWithMetaIfNeeded(sb.String(), model.Annotations, "    ", "")
 }
 
 // collectBodiesByKind returns all BlockBody nodes matching the given kind,

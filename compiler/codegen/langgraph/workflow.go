@@ -129,9 +129,9 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 	writeRouter(s, rw, stateName)
 
 	// Branch router functions.
-	for i, branch := range rw.Branches {
+	for _, branch := range rw.Branches {
 		s.WriteString("\n")
-		writeBranchRouter(s, rw, stateName, branch, i)
+		writeBranchRouter(b, s, rw, stateName, branch)
 	}
 
 	// StateGraph construction.
@@ -152,7 +152,7 @@ func (b *LangGraphBackend) writeWorkflow(s *strings.Builder, rw workflow.Resolve
 	for _, branch := range rw.Branches {
 		routerName := branchRouterFuncName(rw.Name, branch.Name)
 		fmt.Fprintf(s, "%s.add_conditional_edges(%q, %s", rw.Name, branch.Name, routerName)
-		writeBranchRouteMap(s, branch)
+		writeBranchRouteMap(b, s, branch)
 		s.WriteString(")\n")
 	}
 
@@ -303,7 +303,7 @@ func (b *LangGraphBackend) writeWorkflowNode(s *strings.Builder, rw workflow.Res
 	// so resolve them via rw.FindBranch before falling back to the symbol
 	// table / AST lookup used for named blocks like agent/tool.
 	if branch := rw.FindBranch(node); branch != nil {
-		writeBranchNodeBody(s, branch)
+		writeBranchNodeBody(b, s, branch)
 		return
 	}
 
@@ -336,7 +336,7 @@ func branchRouterFuncName(workflowName string, branchName string) string {
 // always contains the default key (auto-wired to END if the user didn't
 // provide one — see writeBranchRouteMap), so LangGraph never receives an
 // unknown key at runtime.
-func writeBranchRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string, branch workflow.Branch, branchIndex int) {
+func writeBranchRouter(b *LangGraphBackend, s *strings.Builder, rw workflow.ResolvedWorkflow, stateName string, branch workflow.Branch) {
 	funcName := branchRouterFuncName(rw.Name, branch.Name)
 	fmt.Fprintf(s, "def %s(state: %s) -> Any:\n", funcName, stateName)
 	fmt.Fprintf(s, "    \"\"\"Branch router for %q.\"\"\"\n", branch.Name)
@@ -347,7 +347,7 @@ func writeBranchRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateNa
 		if len(route.EntryNodes) == 0 {
 			continue
 		}
-		knownKeys = append(knownKeys, exprToSource(route.Key))
+		knownKeys = append(knownKeys, b.exprToSource(route.Key))
 	}
 	if len(knownKeys) > 0 {
 		fmt.Fprintf(s, "    if _key in {%s}:\n", strings.Join(knownKeys, ", "))
@@ -367,9 +367,9 @@ func writeBranchRouter(s *strings.Builder, rw workflow.ResolvedWorkflow, stateNa
 //
 // The caller is responsible for writing the function signature, docstring,
 // and the _predecessors / _input preamble.
-func writeBranchNodeBody(s *strings.Builder, branch *workflow.Branch) {
+func writeBranchNodeBody(b *LangGraphBackend, s *strings.Builder, branch *workflow.Branch) {
 	if branch.Transform != nil {
-		fmt.Fprintf(s, "    _route_key = (%s)(_input)\n", exprToSource(branch.Transform))
+		fmt.Fprintf(s, "    _route_key = (%s)(_input)\n", b.exprToSource(branch.Transform))
 	} else {
 		s.WriteString("    _route_key = _input\n")
 	}
@@ -381,7 +381,7 @@ func writeBranchNodeBody(s *strings.Builder, branch *workflow.Branch) {
 // EntryNodes are skipped (unsupported route value shapes). If the user did
 // not provide a workflow.BranchRouteKeyDefault entry, one is auto-wired to
 // END so LangGraph always has a fallback.
-func writeBranchRouteMap(s *strings.Builder, branch workflow.Branch) {
+func writeBranchRouteMap(b *LangGraphBackend, s *strings.Builder, branch workflow.Branch) {
 	s.WriteString(", {")
 	first := true
 	hasDefault := false
@@ -393,7 +393,7 @@ func writeBranchRouteMap(s *strings.Builder, branch workflow.Branch) {
 			s.WriteString(", ")
 		}
 		first = false
-		fmt.Fprintf(s, "%s: %q", exprToSource(route.Key), route.EntryNodes[0])
+		fmt.Fprintf(s, "%s: %q", b.exprToSource(route.Key), route.EntryNodes[0])
 		if strLit, ok := route.Key.(*ast.StringLiteral); ok && strLit.Value == workflow.BranchRouteKeyDefault {
 			hasDefault = true
 		}
