@@ -1,5 +1,6 @@
 import type { NodeTypes } from "@xyflow/react";
 import { BaseNode } from "./base-node";
+import { BranchNode } from "./branch-node";
 
 /**
  * Maps each Orca block kind to a React Flow custom node component.
@@ -19,4 +20,5 @@ export const nodeTypes: NodeTypes = {
   webhook: BaseNode,
   chat: BaseNode,
   custom_tool: BaseNode,
+  branch: BranchNode,
 };

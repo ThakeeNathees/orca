@@ -464,6 +464,36 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     ],
   },
 
+  branch: {
+    kind: "branch",
+    label: "Branch",
+    description: "Conditional routing — transform input to a route key, dispatch to mapped node",
+    color: "#eab308",
+    colorMuted: "#eab30820",
+    icon: "Split",
+    // Only the left input handle is static. Route handles on the right are
+    // rendered dynamically by BranchNode from data.routes — one handle per
+    // row. Their handle ids follow the pattern `route-<routeId>` and their
+    // type is implicitly "agent" (see canvas isValidConnection).
+    handles: [
+      {
+        id: "agent-in",
+        label: "Input",
+        type: "agent",
+        position: "left",
+        multiple: true,
+      },
+    ],
+    fields: [
+      {
+        key: "transform",
+        label: "Transform",
+        type: "code",
+        placeholder: '\\(out string) -> out.lower()',
+      },
+    ],
+  },
+
   schema: {
     kind: "schema",
     label: "Schema",
@@ -497,6 +527,7 @@ export const PALETTE_GROUPS: { label: string; kinds: BlockKind[] }[] = [
   { label: "Tools", kinds: ["web_search", "code_exec", "api_request", "sql_query", "custom_tool"] },
   { label: "Data", kinds: ["knowledge", "memory"] },
   { label: "Triggers", kinds: ["cron", "webhook", "chat"] },
+  { label: "Control Flow", kinds: ["branch"] },
 ];
 
 /**

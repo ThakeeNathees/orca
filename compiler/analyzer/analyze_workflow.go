@@ -44,14 +44,12 @@ func validateWorkflowExprRec(expr ast.Expression, symbols *types.SymbolTable, se
 		// Binary expr `->` is the only valid operator in a workflow block.
 		if e.Operator.Type != token.ARROW {
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUnexpectedExpr,
-				Position: diagnostic.Position{
-					Line:   e.Operator.Line,
-					Column: e.Operator.Column,
-				},
-				Message: fmt.Sprintf("unexpected operator %s in workflow block; only '->' is allowed", token.Describe(e.Operator.Type)),
-				Source:  "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeUnexpectedExpr,
+				Position:    diagnostic.PositionOf(e.Operator),
+				EndPosition: diagnostic.EndPositionOf(e.Operator),
+				Message:     fmt.Sprintf("unexpected operator %s in workflow block; only '->' is allowed", token.Describe(e.Operator.Type)),
+				Source:      "analyzer",
 			})
 		}
 
@@ -60,15 +58,14 @@ func validateWorkflowExprRec(expr ast.Expression, symbols *types.SymbolTable, se
 
 		// Right of -> cannot be a trigger expression.
 		if types.IsAnnotated(types.TypeOf(e.Right, symbols), types.AnnotationTriggerNode) {
+			start, end := diagnostic.RangeOf(expr)
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeTriggerAsTarget,
-				Position: diagnostic.Position{
-					Line:   expr.Start().Line,
-					Column: expr.Start().Column,
-				},
-				Message: "Triggers can only be workflow entry points",
-				Source:  "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeTriggerAsTarget,
+				Position:    start,
+				EndPosition: end,
+				Message:     "Triggers can only be workflow entry points",
+				Source:      "analyzer",
 			})
 		}
 
@@ -100,15 +97,14 @@ func validateWorkflowNodeExpr(expr ast.Expression, symbols *types.SymbolTable, s
 
 	// Make sure the expression resolve to a workflow node
 	if !types.IsAnnotated(typ, types.AnnotationWorkflowNode) {
+		start, end := diagnostic.RangeOf(expr)
 		return []diagnostic.Diagnostic{{
-			Severity: diagnostic.Error,
-			Code:     diagnostic.CodeInvalidWorkNode,
-			Position: diagnostic.Position{
-				Line:   expr.Start().Line,
-				Column: expr.Start().Column,
-			},
-			Message: fmt.Sprintf("%s block is not a valid workflow node", typ.BlockName),
-			Source:  "analyzer",
+			Severity:    diagnostic.Error,
+			Code:        diagnostic.CodeInvalidWorkNode,
+			Position:    start,
+			EndPosition: end,
+			Message:     fmt.Sprintf("%s block is not a valid workflow node", typ.BlockName),
+			Source:      "analyzer",
 		}}
 	}
 
@@ -147,15 +143,14 @@ func validateBranchRoutes(branchBody *ast.BlockBody, symbols *types.SymbolTable,
 		// the source of a workflow, never a route target.
 		leftMost := GetLeftMostExpr(entry.Value)
 		if types.IsAnnotated(types.TypeOf(leftMost, symbols), types.AnnotationTriggerNode) {
+			start, end := diagnostic.RangeOf(leftMost)
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeTriggerAsTarget,
-				Position: diagnostic.Position{
-					Line:   leftMost.Start().Line,
-					Column: leftMost.Start().Column,
-				},
-				Message: "Triggers can only be workflow entry points",
-				Source:  "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeTriggerAsTarget,
+				Position:    start,
+				EndPosition: end,
+				Message:     "Triggers can only be workflow entry points",
+				Source:      "analyzer",
 			})
 		}
 	}

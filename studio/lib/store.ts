@@ -64,6 +64,10 @@ interface StudioState {
     fields: Partial<BlockNodeData["fields"]>
   ) => void;
   updateNodeLabel: (id: string, label: string) => void;
+  updateNodeRoutes: (
+    id: string,
+    routes: NonNullable<BlockNodeData["routes"]>
+  ) => void;
   setSelectedNodeId: (id: string | null) => void;
 }
 
@@ -536,6 +540,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
 
     const id = nextNodeId();
+    // Branch nodes carry dynamic route rows (rendered by BranchNode) in
+    // addition to the standard fields. Seed with a single "default" route
+    // so the node is useful immediately after drop.
+    const routes: BlockNodeData["routes"] | undefined =
+      kind === "branch"
+        ? [{ id: `route-${Date.now().toString(36)}`, key: "default" }]
+        : undefined;
     const newNode: BlockNode = {
       id,
       type: kind,
@@ -544,6 +555,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         kind,
         label: def.label,
         fields: defaultFields,
+        ...(routes ? { routes } : {}),
       },
     };
     set({ nodes: [...get().nodes, newNode] });
@@ -579,6 +591,25 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({
       nodes: get().nodes.map((node) =>
         node.id === id ? { ...node, data: { ...node.data, label } } : node
+      ),
+    });
+    debouncedSaveGraph();
+  },
+
+  updateNodeRoutes: (id, routes) => {
+    // Drop edges whose source handle referenced a removed route row so
+    // the graph doesn't keep dangling edges pointing at non-existent
+    // handles. We match handle ids `route-<routeId>` against the new set.
+    const validHandleIds = new Set(routes.map((r) => `route-${r.id}`));
+    set({
+      nodes: get().nodes.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, routes } } : node
+      ),
+      edges: get().edges.filter(
+        (e) =>
+          e.source !== id ||
+          !e.sourceHandle?.startsWith("route-") ||
+          validHandleIds.has(e.sourceHandle)
       ),
     });
     debouncedSaveGraph();

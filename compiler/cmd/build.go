@@ -56,20 +56,29 @@ func compileCurrentDir() (compileResult, error) {
 	}
 
 	// Parse each file separately to preserve per-file line numbers.
+	// sources keeps each file's text keyed by path so analyzer/codegen
+	// diagnostics (which reference blocks by SourceFile) can still be
+	// rendered with source context after the parse loop finishes.
+	sources := make(map[string]string, len(files))
 	var program ast.Program
 	for _, file := range files {
 		data, err := os.ReadFile(file)
 		if err != nil {
 			return compileResult{}, fmt.Errorf("failed to read %s: %w", file, err)
 		}
+		src := string(data)
+		sources[file] = src
 
-		l := lexer.New(string(data), file)
+		l := lexer.New(src, file)
 		p := parser.New(l)
 		fileProg := p.ParseProgram()
 
 		if len(p.Diagnostics()) > 0 {
 			for _, d := range p.Diagnostics() {
-				fmt.Fprintf(os.Stderr, "%s:%s\n", file, d.Error())
+				// Parser diagnostics don't carry File — inject it so
+				// Render's location header is accurate.
+				d.File = file
+				fmt.Fprintln(os.Stderr, diagnostic.Render(src, d))
 			}
 			return compileResult{}, fmt.Errorf("compilation failed with parse errors")
 		}
@@ -80,14 +89,7 @@ func compileCurrentDir() (compileResult, error) {
 	// Run semantic analysis.
 	analyzedProg := analyzer.Analyze(&program)
 	if len(analyzedProg.Diagnostics) > 0 {
-		hasError := false
-		for _, d := range analyzedProg.Diagnostics {
-			fmt.Fprintln(os.Stderr, d.Error())
-			if d.Severity == diagnostic.Error {
-				hasError = true
-			}
-		}
-		if hasError {
+		if reportDiagnostics(analyzedProg.Diagnostics, sources) {
 			return compileResult{}, fmt.Errorf("compilation failed with analysis errors")
 		}
 	}
@@ -98,14 +100,7 @@ func compileCurrentDir() (compileResult, error) {
 
 	// Check for codegen diagnostics.
 	if len(output.Diagnostics) > 0 {
-		hasError := false
-		for _, d := range output.Diagnostics {
-			fmt.Fprintln(os.Stderr, d.Error())
-			if d.Severity == diagnostic.Error {
-				hasError = true
-			}
-		}
-		if hasError {
+		if reportDiagnostics(output.Diagnostics, sources) {
 			return compileResult{}, fmt.Errorf("compilation failed with codegen errors")
 		}
 	}
@@ -119,6 +114,24 @@ func compileCurrentDir() (compileResult, error) {
 		FileCount: len(files),
 		OutputDir: output.RootDir.Name,
 	}, nil
+}
+
+// reportDiagnostics prints each diagnostic to stderr using diagnostic.Render
+// when the source file is available, falling back to the plain one-line
+// format otherwise. Returns true if any Error-severity diagnostic was seen.
+func reportDiagnostics(diags []diagnostic.Diagnostic, sources map[string]string) bool {
+	hasError := false
+	for _, d := range diags {
+		if src, ok := sources[d.File]; ok && src != "" {
+			fmt.Fprintln(os.Stderr, diagnostic.Render(src, d))
+		} else {
+			fmt.Fprintln(os.Stderr, d.Error())
+		}
+		if d.Severity == diagnostic.Error {
+			hasError = true
+		}
+	}
+	return hasError
 }
 
 // writeOutputDir recursively writes an OutputDirectory tree to disk under parent.

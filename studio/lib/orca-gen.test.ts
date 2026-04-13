@@ -272,4 +272,46 @@ workflow main {
 `;
     expect(out).toBe(expected);
   });
+
+  it("emits a named branch block with transform and route map, and references it by name in workflow main", () => {
+    const nodes: BlockNode[] = [
+      n("n1", "agent", "classifier", { persona: "Classify." }),
+      n("n2", "agent", "tech writer", { persona: "Tech." }),
+      n("n3", "agent", "biz writer", { persona: "Biz." }),
+      {
+        id: "n4",
+        type: "branch",
+        position: { x: 0, y: 0 },
+        data: {
+          kind: "branch",
+          label: "router",
+          fields: { transform: "\\(out string) -> out" },
+          routes: [
+            { id: "r1", key: "tech" },
+            { id: "r2", key: "business" },
+          ],
+        },
+      },
+    ];
+    const edges = [
+      e("e1", "n1", "n4", "agent-out", "agent-in"),
+      e("e2", "n4", "n2", "route-r1", "agent-in"),
+      e("e3", "n4", "n3", "route-r2", "agent-in"),
+    ];
+
+    const out = generateOrcaSource(nodes, edges);
+
+    // Named branch block is emitted with transform (raw lambda, unquoted)
+    // and a route map whose entries point at the sanitized target idents.
+    expect(out).toContain("branch router {");
+    expect(out).toContain("transform = \\(out string) -> out");
+    expect(out).toContain('"tech": tech_writer');
+    expect(out).toContain('"business": biz_writer');
+
+    // The workflow edge from classifier into the branch references the
+    // branch by name; per-route edges are NOT emitted as workflow edges.
+    expect(out).toContain("classifier -> router");
+    expect(out).not.toContain("router -> tech_writer");
+    expect(out).not.toContain("router -> biz_writer");
+  });
 });

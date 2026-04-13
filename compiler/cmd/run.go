@@ -31,6 +31,17 @@ var executeCommandInDir = func(dir, name string, args ...string) error {
 	return command.Run()
 }
 
+// lookupUV resolves the `uv` binary on PATH. Swappable in tests.
+var lookupUV = func() (string, error) { return exec.LookPath("uv") }
+
+// uvNotFoundMessage is shown when `uv` is missing from PATH. The first line
+// is a TODO placeholder for the future auto-bootstrap (download into
+// ~/.orcalang/bin/uv); the second line is the manual fallback users can act
+// on today.
+const uvNotFoundMessage = `uv not found on PATH
+  TODO: auto-download uv binary to ~/.orcalang/bin/uv
+  For now, please install uv manually: https://docs.astral.sh/uv/getting-started/installation/`
+
 // runRun is the entry point for `orca run`.
 func runRun(cmd *cobra.Command, args []string) error {
 	result, err := compileForRun()
@@ -39,6 +50,10 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("compiled %d .orca file(s) → %s/\n", result.FileCount, result.OutputDir)
+
+	if _, err := lookupUV(); err != nil {
+		return fmt.Errorf("%s", uvNotFoundMessage)
+	}
 
 	if err := executeCommandInDir(result.OutputDir, "uv", "sync"); err != nil {
 		return fmt.Errorf("failed to run uv sync: %w", err)
