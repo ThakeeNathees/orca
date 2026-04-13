@@ -15,7 +15,8 @@ export type BlockKind =
   | "cron"
   | "webhook"
   | "chat"
-  | "custom_tool";
+  | "custom_tool"
+  | "branch";
 
 export type HandleType =
   | "model"
@@ -51,10 +52,22 @@ export interface FieldDef {
   defaultValue?: string | number;
 }
 
+/**
+ * A branch route row: stable `id` is used as the React key AND as the suffix
+ * of the source handle id (`route-<id>`), so edges stay attached even if the
+ * user renames the route key.
+ */
+export interface BranchRoute {
+  id: string;
+  key: string;
+}
+
 export interface BlockNodeData {
   kind: BlockKind;
   label: string;
   fields: Record<string, string | number>;
+  /** Only set on `branch` nodes — per-route handles rendered by BranchNode. */
+  routes?: BranchRoute[];
   [key: string]: unknown;
 }
 

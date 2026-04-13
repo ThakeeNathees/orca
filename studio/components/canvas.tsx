@@ -63,15 +63,19 @@ export function Canvas() {
 
     const sourceDef = BLOCK_DEFS[sourceNode.data.kind];
     const targetDef = BLOCK_DEFS[targetNode.data.kind];
-    const sourceHandle = sourceDef.handles.find(
-      (h) => h.id === connection.sourceHandle
-    );
+    // Branch route handles (`route-<id>`) aren't in BLOCK_DEFS since they're
+    // rendered dynamically per-row; treat them as agent-typed sources.
+    const sourceType =
+      sourceNode.data.kind === "branch" &&
+      connection.sourceHandle?.startsWith("route-")
+        ? "agent"
+        : sourceDef.handles.find((h) => h.id === connection.sourceHandle)?.type;
     const targetHandle = targetDef.handles.find(
       (h) => h.id === connection.targetHandle
     );
-    if (!sourceHandle || !targetHandle) return false;
+    if (!sourceType || !targetHandle) return false;
 
-    return canConnect(sourceHandle.type, targetHandle.type);
+    return canConnect(sourceType, targetHandle.type);
   }, []);
 
   const onNodeClick = useCallback(

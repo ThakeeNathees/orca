@@ -61,6 +61,7 @@ const RESERVED = new Set<string>([
   "schema",
   "input",
   "let",
+  "branch",
   "true",
   "false",
   "null",
@@ -84,6 +85,7 @@ const KEYWORD_FOR_KIND: Partial<Record<BlockKind, string>> = {
   webhook: "webhook",
   chat: "chat",
   schema: "schema",
+  branch: "branch",
 };
 
 // Emission order — each kind must come AFTER every kind whose idents it
@@ -100,6 +102,8 @@ const EMIT_KINDS: BlockKind[] = [
   "knowledge",
   "memory",
   "agent",
+  // Branch must follow agent so its route targets are already declared.
+  "branch",
   "cron",
   "webhook",
   "chat",
@@ -229,14 +233,37 @@ export function generateOrcaSource(
   // Flow edges that become lines inside `workflow main { ... }`.
   const flowEdges: { fromId: string; toId: string }[] = [];
 
+  // Per-branch route wiring: branchNodeId → routeId → target idents. Filled
+  // from edges whose source handle is `route-<routeId>`. Used when emitting
+  // the branch block's `route = { ... }` map.
+  const routesOfBranch = new Map<string, Map<string, string[]>>();
+
   for (const e of edges) {
     const src = nodeById.get(e.source);
     const tgt = nodeById.get(e.target);
     if (!src || !tgt) continue;
     const srcIdent = idents.get(src.id)!;
+    const tgtIdent = idents.get(tgt.id)!;
 
     const sh = e.sourceHandle ?? "";
     const th = e.targetHandle ?? "";
+
+    // Branch route edges are NOT workflow flow edges — they populate the
+    // branch block's `route = { ... }` map instead. The target handle is
+    // still `agent-in` (branch routes feed into agents) but the source is
+    // a dynamic `route-<routeId>` handle owned by the branch node.
+    if (src.data.kind === "branch" && sh.startsWith("route-")) {
+      const routeId = sh.slice("route-".length);
+      let branchMap = routesOfBranch.get(src.id);
+      if (!branchMap) {
+        branchMap = new Map();
+        routesOfBranch.set(src.id, branchMap);
+      }
+      const list = branchMap.get(routeId) ?? [];
+      if (!list.includes(tgtIdent)) list.push(tgtIdent);
+      branchMap.set(routeId, list);
+      continue;
+    }
 
     if (sh === "model-out" && th === "model-in") {
       modelOfAgent.set(tgt.id, srcIdent);
@@ -314,6 +341,36 @@ export function generateOrcaSource(
           fields.push({
             key: "knowledge",
             rendered: `[${know.join(", ")}]`,
+          });
+        }
+      } else if (kind === "branch") {
+        // Branch nodes carry a `transform` lambda (raw code, not a quoted
+        // string) and a `route` map whose entries come from edges leaving
+        // each per-route source handle. A route with no outgoing edge is
+        // skipped so the generated `.orca` stays compiler-valid.
+        const transformRaw = node.data.fields.transform;
+        if (typeof transformRaw === "string" && transformRaw.length > 0) {
+          fields.push({ key: "transform", rendered: transformRaw });
+        }
+        const branchRoutes = node.data.routes ?? [];
+        const routeMap = routesOfBranch.get(node.id);
+        const entries: string[] = [];
+        for (const route of branchRoutes) {
+          const targets = routeMap?.get(route.id) ?? [];
+          if (targets.length === 0) continue;
+          if (route.key.length === 0) continue;
+          // Multi-target routes (one key fanning out) aren't expressible
+          // in the current branch schema — emit the first target and rely
+          // on user edits if they need more. TODO: support fan-out routes
+          // once the compiler accepts lists here.
+          entries.push(`"${escapeString(route.key)}": ${targets[0]}`);
+        }
+        if (entries.length > 0) {
+          fields.push({
+            key: "route",
+            rendered: `{\n${entries
+              .map((e) => `    ${e},`)
+              .join("\n")}\n  }`,
           });
         }
       } else if (kind === "schema") {

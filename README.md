@@ -109,28 +109,6 @@ app = graph.compile()
 </tr>
 </table>
 
-## Orca Studio
-
-
-**Orca Studio** is an in-browser companion to the text-based language: a [Next.js](https://nextjs.org/) app that lays out Orca concepts — models, agents, tools, tasks, workflows, and the edges between them — on an interactive canvas.
-
-Try it online: [Orca Studio (GitHub Pages)](https://thakeenathees.github.io/orca/studio/).
-
-To run Studio locally:
-
-```
-cd studio
-pnpm install
-pnpm run dev
-```
-
-<img width="2288" height="1132" alt="image" src="https://github.com/user-attachments/assets/b609259b-7b81-4ff5-ba2b-4fd7da7b4559" />
-
-
-<!-- <img width="2288" height="1132" alt="image" src="https://github.com/user-attachments/assets/ffa43486-27f6-4dd1-9f18-68545a0cb781" /> -->
-
-
-<!-- <img alt="image" src="https://github.com/user-attachments/assets/6964f2b3-dea7-4ce3-8ea8-8d028db15b85" /> -->
 
 ### Design Principles
 
@@ -203,6 +181,24 @@ This will automatically build your `.orca` files, generate the `build/` director
 - **Readable generated code** — Python output is clean and debuggable, with source mapping back to `.orca` files
 - **Token-efficient output** — TODO: leverage TOON (Token-Oriented Object Notation) and Caveman for compact, efficient token representations in generated code and LLM prompts
 - **Extensible** — generated code is meant to be customized and extended for your use case
+
+
+## Orca Studio
+
+
+**Orca Studio** is an in-browser companion to the text-based language: a [Next.js](https://nextjs.org/) app that lays out Orca concepts — models, agents, tools, tasks, workflows, and the edges between them — on an interactive canvas.
+
+Try it online: [Orca Studio (GitHub Pages)](https://thakeenathees.github.io/orca/studio/).
+
+To run Studio locally:
+
+```
+cd studio
+pnpm install
+pnpm run dev
+```
+
+<img alt="image" src="https://github.com/user-attachments/assets/b609259b-7b81-4ff5-ba2b-4fd7da7b4559" />
 
 
 ## Editor Support

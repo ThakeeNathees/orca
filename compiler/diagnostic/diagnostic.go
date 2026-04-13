@@ -3,7 +3,12 @@
 // and the LSP server converts them to LSP protocol format for editors.
 package diagnostic
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/token"
+)
 
 // Severity indicates how serious a diagnostic is.
 type Severity int
@@ -59,6 +64,36 @@ type Diagnostic struct {
 // Error implements the error interface so a Diagnostic can be used as a Go error.
 func (d Diagnostic) Error() string {
 	return fmt.Sprintf("%s:%d:%d: [%s] %s", d.Source, d.Position.Line, d.Position.Column, d.Code, d.Message)
+}
+
+// PositionOf returns the start Position of a token.
+func PositionOf(t token.Token) Position {
+	return Position{Line: t.Line, Column: t.Column}
+}
+
+// EndPositionOf returns the exclusive end Position of a token — the column
+// just past its last character. The lexer stores EndLine/EndCol as the
+// *inclusive* position of the token's last character, so this adds 1 to
+// produce the half-open range convention used by Diagnostic.EndPosition.
+// Falls back to Column + len(Literal) for tokens that didn't populate the
+// end fields.
+func EndPositionOf(t token.Token) Position {
+	if t.EndLine != 0 {
+		return Position{Line: t.EndLine, Column: t.EndCol + 1}
+	}
+	if t.EndCol != 0 {
+		return Position{Line: t.Line, Column: t.EndCol + 1}
+	}
+	return Position{Line: t.Line, Column: t.Column + len(t.Literal)}
+}
+
+// RangeOf returns the (start, end) positions covering the full source
+// range of an AST node, derived from its Start/End tokens. Use this when
+// building a Diagnostic from a node so EndPosition is always filled in —
+// previously many call sites built Position manually and left EndPosition
+// zero, producing single-caret underlines even when the range was known.
+func RangeOf(n ast.Node) (Position, Position) {
+	return PositionOf(n.Start()), EndPositionOf(n.End())
 }
 
 // String returns a human-readable representation of the severity.

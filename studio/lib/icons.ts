@@ -14,6 +14,7 @@ import {
   Database,
   Brain,
   Wrench,
+  Split,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,4 +35,5 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Database,
   Brain,
   Wrench,
+  Split,
 };

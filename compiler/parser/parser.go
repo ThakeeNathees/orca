@@ -64,14 +64,12 @@ func (p *Parser) nextToken() {
 // addErrorAt records a parse error at a specific token's position.
 func (p *Parser) addErrorAt(tok token.Token, msg string) {
 	p.diagnostics = append(p.diagnostics, diagnostic.Diagnostic{
-		Severity: diagnostic.Error,
-		Code:     diagnostic.CodeSyntax,
-		Position: diagnostic.Position{
-			Line:   tok.Line,
-			Column: tok.Column,
-		},
-		Message: msg,
-		Source:  "parser",
+		Severity:    diagnostic.Error,
+		Code:        diagnostic.CodeSyntax,
+		Position:    diagnostic.PositionOf(tok),
+		EndPosition: diagnostic.EndPositionOf(tok),
+		Message:     msg,
+		Source:      "parser",
 	})
 }
 

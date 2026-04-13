@@ -97,12 +97,14 @@ func foldMapLiteral(ml *ast.MapLiteral, ap AnalyzedProgram) (ConstValue, []diagn
 			partial = true
 		}
 		if keyValue.Kind != ConstString {
+			start, end := diagnostic.RangeOf(ent.Key)
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeTypeMismatch,
-				Position: diagnostic.Position{Line: ent.Key.Start().Line, Column: ent.Key.Start().Column},
-				Message:  fmt.Sprintf("map key must be a string, identifier, or integer, got %T", ent.Key),
-				Source:   "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeTypeMismatch,
+				Position:    start,
+				EndPosition: end,
+				Message:     fmt.Sprintf("map key must be a string, identifier, or integer, got %T", ent.Key),
+				Source:      "analyzer",
 			})
 		}
 		out[keyValue.Str] = valueValue
@@ -272,23 +274,26 @@ func foldMemberAccess(e *ast.MemberAccess, ap AnalyzedProgram) (ConstValue, []di
 
 	case ConstNull:
 		diags = append(diags, diagnostic.Diagnostic{
-			Severity: diagnostic.Error,
-			Code:     diagnostic.CodeUnexpectedExpr,
-			Position: diagnostic.Position{Line: e.Dot.Line, Column: e.Dot.Column},
-			Message:  "member access on null",
-			Source:   "analyzer",
+			Severity:    diagnostic.Error,
+			Code:        diagnostic.CodeUnexpectedExpr,
+			Position:    diagnostic.PositionOf(e.Dot),
+			EndPosition: diagnostic.EndPositionOf(e.Dot),
+			Message:     "member access on null",
+			Source:      "analyzer",
 		})
 		return ConstValue{Kind: ConstUnknown}, diags
 
 	case ConstBlock:
 		value, ok := left.KeyValue[e.Member]
 		if !ok {
+			memberStart, memberEnd := diagnostic.PositionOf(e.End()), diagnostic.EndPositionOf(e.End())
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUnknownMember,
-				Position: diagnostic.Position{Line: e.End().Line, Column: e.End().Column},
-				Message:  fmt.Sprintf("unknown field %q in constant block value", e.Member),
-				Source:   "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeUnknownMember,
+				Position:    memberStart,
+				EndPosition: memberEnd,
+				Message:     fmt.Sprintf("unknown field %q in constant block value", e.Member),
+				Source:      "analyzer",
 			})
 			return ConstValue{Kind: ConstUnknown}, diags
 		}
@@ -315,11 +320,13 @@ func foldSubscription(e *ast.Subscription, ap AnalyzedProgram) (ConstValue, []di
 	}
 	switch left.Kind {
 	case ConstMap:
+		idxStart, idxEnd := diagnostic.RangeOf(e.Indices[0])
 		if index.Kind != ConstString {
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeTypeMismatch,
-				Position: diagnostic.Position{Line: e.Indices[0].Start().Line, Column: e.Indices[0].Start().Column},
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeTypeMismatch,
+				Position:    idxStart,
+				EndPosition: idxEnd,
 				Message: fmt.Sprintf(
 					"map subscript requires a string key, got constant %s",
 					constKindLabel(index.Kind),
@@ -331,21 +338,24 @@ func foldSubscription(e *ast.Subscription, ap AnalyzedProgram) (ConstValue, []di
 		value, ok := left.KeyValue[index.Str]
 		if !ok {
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUnknownMember,
-				Position: diagnostic.Position{Line: e.Indices[0].Start().Line, Column: e.Indices[0].Start().Column},
-				Message:  fmt.Sprintf("unknown map key %q", index.Str),
-				Source:   "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeUnknownMember,
+				Position:    idxStart,
+				EndPosition: idxEnd,
+				Message:     fmt.Sprintf("unknown map key %q", index.Str),
+				Source:      "analyzer",
 			})
 			return ConstValue{Kind: ConstUnknown}, diags
 		}
 		return value, diags
 	case ConstList:
+		idxStart, idxEnd := diagnostic.RangeOf(e.Indices[0])
 		if (index.Kind != ConstNumber) || (index.Number != math.Floor(index.Number)) {
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeInvalidSubscript,
-				Position: diagnostic.Position{Line: e.Indices[0].Start().Line, Column: e.Indices[0].Start().Column},
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeInvalidSubscript,
+				Position:    idxStart,
+				EndPosition: idxEnd,
 				Message: fmt.Sprintf(
 					"list subscript requires an integer index, got constant %s",
 					constKindLabel(index.Kind),
@@ -358,9 +368,10 @@ func foldSubscription(e *ast.Subscription, ap AnalyzedProgram) (ConstValue, []di
 		n := int64(len(left.List))
 		if idx < 0 || idx >= n {
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeInvalidSubscript,
-				Position: diagnostic.Position{Line: e.Indices[0].Start().Line, Column: e.Indices[0].Start().Column},
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeInvalidSubscript,
+				Position:    idxStart,
+				EndPosition: idxEnd,
 				Message: fmt.Sprintf(
 					"list index %d out of range (length %d)",
 					idx, n,

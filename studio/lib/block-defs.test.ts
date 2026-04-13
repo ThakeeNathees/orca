@@ -7,7 +7,7 @@ describe("BLOCK_DEFS", () => {
     const kinds: BlockKind[] = [
       "model", "agent", "web_search", "code_exec", "api_request",
       "sql_query", "knowledge", "memory", "workflow", "input",
-      "schema", "cron", "webhook", "chat", "custom_tool",
+      "schema", "cron", "webhook", "chat", "custom_tool", "branch",
     ];
     for (const kind of kinds) {
       expect(BLOCK_DEFS[kind], `Missing BlockDef for "${kind}"`).toBeDefined();

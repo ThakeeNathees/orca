@@ -21,14 +21,46 @@ func withRunDependencies(
 
 	previousCompile := compileForRun
 	previousExec := executeCommandInDir
+	previousLookup := lookupUV
 
 	compileForRun = compileFn
 	executeCommandInDir = execFn
+	lookupUV = func() (string, error) { return "uv", nil }
 
 	t.Cleanup(func() {
 		compileForRun = previousCompile
 		executeCommandInDir = previousExec
+		lookupUV = previousLookup
 	})
+}
+
+func TestRunRunFailsWithHelpfulMessageWhenUvMissing(t *testing.T) {
+	withRunDependencies(
+		t,
+		func() (compileResult, error) {
+			return compileResult{FileCount: 1, OutputDir: "build"}, nil
+		},
+		func(dir, name string, args ...string) error {
+			t.Fatalf("executeCommandInDir should not run when uv is missing")
+			return nil
+		},
+	)
+	lookupUV = func() (string, error) { return "", errors.New("not found") }
+
+	err := runRun(nil, nil)
+	if err == nil {
+		t.Fatal("expected error when uv is missing")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "uv not found on PATH") {
+		t.Errorf("expected 'uv not found on PATH' in error, got %q", msg)
+	}
+	if !strings.Contains(msg, "TODO: auto-download uv binary to ~/.orcalang/bin/uv") {
+		t.Errorf("expected TODO auto-download line in error, got %q", msg)
+	}
+	if !strings.Contains(msg, "install uv manually") {
+		t.Errorf("expected manual install hint in error, got %q", msg)
+	}
 }
 
 func TestRunRunExecutesUvSyncThenUvRunWithArgs(t *testing.T) {

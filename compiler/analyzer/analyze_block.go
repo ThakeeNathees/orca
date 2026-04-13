@@ -55,15 +55,14 @@ func analyzeBlockBody(
 
 	} else {
 		// Probably a bug cause all block bodies should be in the symbol table.
+		start, end := diagnostic.RangeOf(body)
 		return []diagnostic.Diagnostic{{
-			Severity: diagnostic.Error,
-			Code:     diagnostic.CodeUndefinedRef,
-			Position: diagnostic.Position{
-				Line:   body.Start().Line,
-				Column: body.Start().Column,
-			},
-			Message: fmt.Sprintf("undefined reference %q", name),
-			Source:  "analyzer",
+			Severity:    diagnostic.Error,
+			Code:        diagnostic.CodeUndefinedRef,
+			Position:    start,
+			EndPosition: end,
+			Message:     fmt.Sprintf("undefined reference %q", name),
+			Source:      "analyzer",
 		}}
 	}
 
@@ -71,19 +70,14 @@ func analyzeBlockBody(
 	fieldSeen := make(map[string]token.Token, len(body.Assignments))
 	for _, assign := range body.Assignments {
 		if prevTok, exists := fieldSeen[assign.Name]; exists {
+			start, end := diagnostic.RangeOf(assign)
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeDuplicateField,
-				Position: diagnostic.Position{
-					Line:   assign.Start().Line,
-					Column: assign.Start().Column,
-				},
-				EndPosition: diagnostic.Position{
-					Line:   assign.End().Line,
-					Column: assign.End().Column,
-				},
-				Message: fmt.Sprintf("duplicate field %q (previously defined at line %d, column %d)", assign.Name, prevTok.Line, prevTok.Column),
-				Source:  "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeDuplicateField,
+				Position:    start,
+				EndPosition: end,
+				Message:     fmt.Sprintf("duplicate field %q (previously defined at line %d, column %d)", assign.Name, prevTok.Line, prevTok.Column),
+				Source:      "analyzer",
 			})
 		} else {
 			fieldSeen[assign.Name] = assign.NameToken
@@ -120,15 +114,14 @@ func analyzeBlockBody(
 	if onlyAssignments := types.HasAnnotation(blockSchema.Annotations, types.AnnotationOnlyAssignments); onlyAssignments {
 		for _, expr := range body.Expressions {
 			// TODO: once assignments become expressions, we need to check that here.
+			start, end := diagnostic.RangeOf(expr)
 			diags = append(diags, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUnexpectedExpr,
-				Position: diagnostic.Position{
-					Line:   expr.Start().Line,
-					Column: expr.Start().Column,
-				},
-				Message: fmt.Sprintf("unexpected expression in %s block", body.Kind),
-				Source:  "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeUnexpectedExpr,
+				Position:    start,
+				EndPosition: end,
+				Message:     fmt.Sprintf("unexpected expression in %s block", body.Kind),
+				Source:      "analyzer",
 			})
 		}
 	}
@@ -159,18 +152,12 @@ func analyzeBlockBody(
 		for fieldName, fieldSchema := range blockSchema.Schema.Fields {
 			if fieldSchema.Required && !seen[fieldName] {
 				diags = append(diags, diagnostic.Diagnostic{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeMissingField,
-					Position: diagnostic.Position{
-						Line:   openBrace.Line,
-						Column: openBrace.Column,
-					},
-					EndPosition: diagnostic.Position{
-						Line:   endToken.Line,
-						Column: endToken.Column + 1,
-					},
-					Message: fmt.Sprintf("block %q is missing required field %q", name, fieldName),
-					Source:  "analyzer",
+					Severity:    diagnostic.Error,
+					Code:        diagnostic.CodeMissingField,
+					Position:    diagnostic.PositionOf(openBrace),
+					EndPosition: diagnostic.EndPositionOf(endToken),
+					Message:     fmt.Sprintf("block %q is missing required field %q", name, fieldName),
+					Source:      "analyzer",
 				})
 			}
 		}
@@ -184,15 +171,14 @@ func analyzeBlockBody(
 func validateField(assign *ast.Assignment, kind string, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
 	fieldSchema, ok := schema.Fields[assign.Name]
 	if !ok {
+		start, end := diagnostic.RangeOf(assign)
 		return []diagnostic.Diagnostic{{
-			Severity: diagnostic.Error,
-			Code:     diagnostic.CodeUnknownField,
-			Position: diagnostic.Position{
-				Line:   assign.Start().Line,
-				Column: assign.Start().Column,
-			},
-			Message: fmt.Sprintf("unknown field %q in %s block", assign.Name, kind),
-			Source:  "analyzer",
+			Severity:    diagnostic.Error,
+			Code:        diagnostic.CodeUnknownField,
+			Position:    start,
+			EndPosition: end,
+			Message:     fmt.Sprintf("unknown field %q in %s block", assign.Name, kind),
+			Source:      "analyzer",
 		}}
 	}
 
@@ -214,18 +200,12 @@ func validateField(assign *ast.Assignment, kind string, schema types.BlockSchema
 
 	expected := fieldSchema.Type
 	if !types.IsCompatible(exprType, expected) {
-		end := assign.Value.End()
+		start, end := diagnostic.RangeOf(assign.Value)
 		return []diagnostic.Diagnostic{{
-			Severity: diagnostic.Error,
-			Code:     diagnostic.CodeTypeMismatch,
-			Position: diagnostic.Position{
-				Line:   assign.Value.Start().Line,
-				Column: assign.Value.Start().Column,
-			},
-			EndPosition: diagnostic.Position{
-				Line:   end.EndLine,
-				Column: end.EndCol + 1,
-			},
+			Severity:    diagnostic.Error,
+			Code:        diagnostic.CodeTypeMismatch,
+			Position:    start,
+			EndPosition: end,
 			Message: fmt.Sprintf("field %q expects type %s, got %s",
 				assign.Name, expected.String(), exprType.String()),
 			Source: "analyzer",
@@ -247,15 +227,14 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 			return nil
 		}
 		if _, found := symbols.Lookup(e.Value); !found {
+			start, end := diagnostic.RangeOf(e)
 			return []diagnostic.Diagnostic{{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUndefinedRef,
-				Position: diagnostic.Position{
-					Line:   e.Start().Line,
-					Column: e.Start().Column,
-				},
-				Message: fmt.Sprintf("undefined reference %q", e.Value),
-				Source:  "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeUndefinedRef,
+				Position:    start,
+				EndPosition: end,
+				Message:     fmt.Sprintf("undefined reference %q", e.Value),
+				Source:      "analyzer",
 			}}
 		}
 	case *ast.MemberAccess:
@@ -279,14 +258,12 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		}
 		if _, ok := objType.Block.Fields[e.Member]; !ok {
 			return []diagnostic.Diagnostic{{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUnknownMember,
-				Position: diagnostic.Position{
-					Line:   e.End().Line,
-					Column: e.End().Column,
-				},
-				Message: fmt.Sprintf("%q has no field %q", objType.BlockName, e.Member),
-				Source:  "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeUnknownMember,
+				Position:    diagnostic.PositionOf(e.End()),
+				EndPosition: diagnostic.EndPositionOf(e.End()),
+				Message:     fmt.Sprintf("%q has no field %q", objType.BlockName, e.Member),
+				Source:      "analyzer",
 			}}
 		}
 	case *ast.ListLiteral:
@@ -323,15 +300,14 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		objType := types.TypeOf(e.Object, symbols)
 		if types.IsCompatible(objType, types.Type{Kind: types.List}) && len(e.Indices) > 0 {
 			if len(e.Indices) > 1 {
+				start, end := diagnostic.RangeOf(e.Indices[1])
 				return []diagnostic.Diagnostic{{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeInvalidSubscript,
-					Position: diagnostic.Position{
-						Line:   e.Indices[1].Start().Line,
-						Column: e.Indices[1].Start().Column,
-					},
-					Message: fmt.Sprintf("list subscript expects a single index, got %d", len(e.Indices)),
-					Source:  "analyzer",
+					Severity:    diagnostic.Error,
+					Code:        diagnostic.CodeInvalidSubscript,
+					Position:    start,
+					EndPosition: end,
+					Message:     fmt.Sprintf("list subscript expects a single index, got %d", len(e.Indices)),
+					Source:      "analyzer",
 				}}
 			}
 			idxType := types.TypeOf(e.Indices[0], symbols)
@@ -339,28 +315,26 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 			// TODO: Const fold and validate out of bounds errors.
 
 			if !idxType.IsAny() && !types.IsCompatible(idxType, types.IdentType(0, types.BlockKindNumber, symbols)) {
+				start, end := diagnostic.RangeOf(e.Indices[0])
 				return []diagnostic.Diagnostic{{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeInvalidSubscript,
-					Position: diagnostic.Position{
-						Line:   e.Indices[0].Start().Line,
-						Column: e.Indices[0].Start().Column,
-					},
-					Message: fmt.Sprintf("list subscript requires an integer index, got %s", idxType.String()),
-					Source:  "analyzer",
+					Severity:    diagnostic.Error,
+					Code:        diagnostic.CodeInvalidSubscript,
+					Position:    start,
+					EndPosition: end,
+					Message:     fmt.Sprintf("list subscript requires an integer index, got %s", idxType.String()),
+					Source:      "analyzer",
 				}}
 			}
 		}
 		if types.IsCompatible(objType, types.Type{Kind: types.Map}) && len(e.Indices) > 1 {
+			start, end := diagnostic.RangeOf(e.Indices[1])
 			return []diagnostic.Diagnostic{{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeInvalidSubscript,
-				Position: diagnostic.Position{
-					Line:   e.Indices[1].Start().Line,
-					Column: e.Indices[1].Start().Column,
-				},
-				Message: fmt.Sprintf("map subscript expects a single index, got %d", len(e.Indices)),
-				Source:  "analyzer",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeInvalidSubscript,
+				Position:    start,
+				EndPosition: end,
+				Message:     fmt.Sprintf("map subscript expects a single index, got %d", len(e.Indices)),
+				Source:      "analyzer",
 			}}
 		}
 	case *ast.CallExpression:
@@ -440,19 +414,14 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 			got := types.TypeOf(e.Body, symbols)
 			if !types.IsCompatible(got, expected) {
 				symbols.PopScope()
+				start, end := diagnostic.RangeOf(e.Body)
 				return []diagnostic.Diagnostic{{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeTypeMismatch,
-					Position: diagnostic.Position{
-						Line:   e.Body.Start().Line,
-						Column: e.Body.Start().Column,
-					},
-					EndPosition: diagnostic.Position{
-						Line:   e.Body.End().Line,
-						Column: e.Body.End().Column + len(e.Body.End().Literal),
-					},
-					Message: fmt.Sprintf("lambda body type %s does not match declared return type %s", got.String(), expected.String()),
-					Source:  "analyzer",
+					Severity:    diagnostic.Error,
+					Code:        diagnostic.CodeTypeMismatch,
+					Position:    start,
+					EndPosition: end,
+					Message:     fmt.Sprintf("lambda body type %s does not match declared return type %s", got.String(), expected.String()),
+					Source:      "analyzer",
 				}}
 			}
 		}

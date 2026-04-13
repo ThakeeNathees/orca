@@ -29,6 +29,10 @@ export function getEdgeAccentColor(
 ): string {
   const node = nodes.find((n) => n.id === sourceNodeId);
   if (!node || !sourceHandleId) return HANDLE_COLOR_FALLBACK;
+  // Dynamic branch route handles aren't in BLOCK_DEFS — they're agent edges.
+  if (node.data.kind === "branch" && sourceHandleId.startsWith("route-")) {
+    return AGENT_HANDLE_COLOR;
+  }
   const def = BLOCK_DEFS[node.data.kind];
   const handle = def.handles.find((h) => h.id === sourceHandleId);
   if (!handle) return HANDLE_COLOR_FALLBACK;

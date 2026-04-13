@@ -111,12 +111,14 @@ func (b *LangGraphBackend) resolveProviders() {
 		}
 
 		if _, known := providerRegistry[v.Str]; !known {
+			start, end := diagnostic.RangeOf(expr)
 			b.Program.Diagnostics = append(b.Program.Diagnostics, diagnostic.Diagnostic{
-				Severity: diagnostic.Error,
-				Code:     diagnostic.CodeUnknownProvider,
-				Position: diagnostic.Position{Line: expr.Start().Line, Column: expr.Start().Column},
-				Message:  fmt.Sprintf("unknown provider %q", v.Str),
-				Source:   "codegen",
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeUnknownProvider,
+				Position:    start,
+				EndPosition: end,
+				Message:     fmt.Sprintf("unknown provider %q", v.Str),
+				Source:      "codegen",
 			})
 			continue
 		}

@@ -109,15 +109,13 @@ func buildSymbolTable(ap *AnalyzedProgram) {
 			codes, all := suppressedCodes(block.Annotations)
 			if !all && !codes[diagnostic.CodeDuplicateBlock] {
 				ap.Diagnostics = append(ap.Diagnostics, diagnostic.Diagnostic{
-					Severity: diagnostic.Error,
-					Code:     diagnostic.CodeDuplicateBlock,
-					Position: diagnostic.Position{
-						Line:   block.NameToken.Line,
-						Column: block.NameToken.Column,
-					},
-					Message: fmt.Sprintf("duplicate block name %q", block.Name),
-					Source:  "analyzer",
-					File:    block.SourceFile,
+					Severity:    diagnostic.Error,
+					Code:        diagnostic.CodeDuplicateBlock,
+					Position:    diagnostic.PositionOf(block.NameToken),
+					EndPosition: diagnostic.EndPositionOf(block.NameToken),
+					Message:     fmt.Sprintf("duplicate block name %q", block.Name),
+					Source:      "analyzer",
+					File:        block.SourceFile,
 				})
 			}
 		}
