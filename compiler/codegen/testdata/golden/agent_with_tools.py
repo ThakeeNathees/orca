@@ -122,11 +122,11 @@ gpt4 = _orca__block("model",
 )
 
 web_search = _orca__block("tool", 
-    invoke=lambda query: "",
+    invoke=(lambda query: ""),
 )
 
 calculator = _orca__block("tool", 
-    invoke=lambda expr: "",
+    invoke=(lambda expr: ""),
 )
 
 researcher = _orca__block("agent", 

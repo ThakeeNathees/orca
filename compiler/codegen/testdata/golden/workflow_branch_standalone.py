@@ -143,7 +143,7 @@ def _orca__node__orca__anon_1(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping '_orca__anon_1'."""
     _predecessors = []
     _input = _orca__gather(state, _predecessors)
-    _route_key = (lambda payload: payload)(_input)
+    _route_key = ((lambda payload: payload))(_input)
     return {"_orca__anon_1": _input, "_orca__route___orca__anon_1": _route_key}
 
 def _orca__node_handler_a(state: _orca__state_pipeline) -> dict:
@@ -182,7 +182,7 @@ pipeline.add_edge("handler_b", END)
 pipeline = pipeline.compile()
 
 _orca__anon_1 = _orca__block("branch", 
-    transform=lambda payload: payload,
+    transform=(lambda payload: payload),
     route={"a": handler_a, "b": handler_b},
 )
 

@@ -116,15 +116,15 @@ def _orca__invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 
 
 go = _orca__block("tool", 
-    invoke=lambda inp: "branch1",
+    invoke=(lambda inp: "branch1"),
 )
 
 echo1 = _orca__block("tool", 
-    invoke=lambda inp: "echo1: ",
+    invoke=(lambda inp: "echo1: "),
 )
 
 echo2 = _orca__block("tool", 
-    invoke=lambda inp: "echo2: ",
+    invoke=(lambda inp: "echo2: "),
 )
 
 vars = _orca__block("let", 

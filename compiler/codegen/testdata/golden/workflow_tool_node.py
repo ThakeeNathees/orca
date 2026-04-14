@@ -128,7 +128,7 @@ drafter = _orca__block("agent",
 
 validate = _orca__block("tool", 
     desc="Validate report against style guide",
-    invoke=lambda report: report,
+    invoke=(lambda report: report),
 )
 
 reviewer = _orca__block("agent", 

@@ -138,7 +138,7 @@ writer = _orca__block("agent",
 )
 
 validate = _orca__block("tool", 
-    invoke=lambda report: report,
+    invoke=(lambda report: report),
 )
 
 class _orca__state_pipeline(TypedDict):
