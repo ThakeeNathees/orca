@@ -1348,6 +1348,62 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			"expects type",
 		},
 		{
+			"null instance accepted where nulltype expected in union",
+			`schema S { x = string | nulltype }
+			 S s { x = null }`,
+			false,
+			"",
+		},
+		{
+			"null instance accepted where nulltype expected directly",
+			`schema S { x = nulltype }
+			 S s { x = null }`,
+			false,
+			"",
+		},
+		{
+			"null instance rejected where string expected",
+			`schema S { x = string }
+			 S s { x = null }`,
+			true,
+			"expects type",
+		},
+		{
+			"string accepted in string | nulltype union",
+			`schema S { x = string | nulltype }
+			 S s { x = "hello" }`,
+			false,
+			"",
+		},
+		{
+			"number rejected in string | nulltype union",
+			`schema S { x = string | nulltype }
+			 S s { x = 42 }`,
+			true,
+			"expects type",
+		},
+		{
+			"homogeneous list literal accepted for list[string]",
+			`schema S { tags = list[string] }
+			 S s { tags = ["a", "b", "c"] }`,
+			false,
+			"",
+		},
+		{
+			"heterogeneous list literal falls back to any (permissive)",
+			`schema S { tags = list[string] }
+			 S s { tags = ["a", 1] }`,
+			false,
+			"",
+		},
+		{
+			"list literal element type mismatch",
+			`schema S { tags = list[string] }
+			 S s { tags = [1, 2] }`,
+			true,
+			"expects type",
+		},
+		{
 			"branch route accepts workflow_node block (agent)",
 			`model m { provider = "openai" model_name = "gpt-4o" }
 			 agent a { model = m persona = "You are a helpful assistant." }

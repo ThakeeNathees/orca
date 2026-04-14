@@ -16,6 +16,13 @@ schema schema {}
 
 @suppress("duplicate-block")
 @strict_check
+schema nulltype {}
+
+@suppress("duplicate-block")
+nulltype null {}
+
+@suppress("duplicate-block")
+@strict_check
 schema bool {}
 
 @suppress("duplicate-block")
@@ -54,16 +61,12 @@ schema any {}
 
 @suppress("duplicate-block")
 @strict_check
-schema null {}
-
-@suppress("duplicate-block")
-@strict_check
 schema workflow {
   @desc("The name of the workflow.")
-  name = string | null
+  name = string | nulltype
 
   @desc("The description of the workflow.")
-  desc = string | null
+  desc = string | nulltype
 }
 
 @suppress("duplicate-block")
@@ -76,13 +79,13 @@ schema model {
   model_name = string
 
   @desc("The API key to use for this model.")
-  api_key = string | null
+  api_key = string | nulltype
 
   @desc("The base URL to use for this model.")
-  base_url = string | null
+  base_url = string | nulltype
 
   @desc("Sampling temperature between 0 and 1.")
-  temperature = number | null
+  temperature = number | nulltype
 }
 
 @suppress("duplicate-block")
@@ -90,13 +93,13 @@ schema model {
 @workflow_node
 schema tool {
   @desc("The description of the tool.")
-  desc = string | null
+  desc = string | nulltype
 
   @desc("The input schema for the tool.")
-  input_schema = schema | null
+  input_schema = schema | nulltype
 
   @desc("The output schema for the tool.")
-  output_schema = schema | null
+  output_schema = schema | nulltype
 
   @desc("The callable to invoke for the tool.")
   invoke = callable
@@ -113,13 +116,13 @@ schema agent {
   persona = string
 
   @desc("The tools to use for this agent.")
-  tools = list[tool] | null
+  tools = list[tool] | nulltype
 
   @desc("Whether to use thinking tokens for the agent.")
-  thinking = bool | null
+  thinking = bool | nulltype
 
   @desc("The structured output schema for this agent.")
-  output_schema = schema | null
+  output_schema = schema | nulltype
 }
 
 @suppress("duplicate-block")
@@ -131,7 +134,7 @@ schema cron {
   schedule = string
 
   @desc("IANA timezone name (e.g. \"America/New_York\"). Defaults to UTC when unset.")
-  timezone = string | null
+  timezone = string | nulltype
 }
 
 @suppress("duplicate-block")
@@ -143,7 +146,7 @@ schema webhook {
   path = string
 
   @desc("HTTP method (e.g. \"POST\").")
-  method = string | null
+  method = string | nulltype
 }
 
 
@@ -165,7 +168,7 @@ schema branch {
     }
   }
   ```)
-  transform = callable | null
+  transform = callable | nulltype
 
   @desc("The routes to take based on the input.")
   route = map[string | number | bool, annotated["workflow_node"]]

@@ -70,7 +70,7 @@ func newFieldSchema(assign *ast.Assignment, typ Type) FieldSchema {
 	// A union containing null makes the field optional.
 	if typ.Kind == Union {
 		for _, m := range typ.Members {
-			if m.IsNull() {
+			if m.IsNullType() {
 				fs.Required = false
 			}
 		}

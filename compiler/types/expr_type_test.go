@@ -38,11 +38,19 @@ func TestExprTypeFromExpr(t *testing.T) {
 // TestExprTypeFromExprList verifies list literal type inference.
 func TestExprTypeFromExprList(t *testing.T) {
 	st := bootstrapSymtab(t)
+	stringT := IdentType(0, BlockKindString, st)
+	anyT := IdentType(0, BlockKindAny, st)
+
+	// Empty list: no element type.
 	got := EvalType(&ast.ListLiteral{}, st)
 	if got.Kind != List {
 		t.Fatalf("Kind = %v, want List", got.Kind)
 	}
+	if got.ElementType != nil {
+		t.Error("empty list ElementType should be nil")
+	}
 
+	// Homogeneous list: element type inferred from entries.
 	list := &ast.ListLiteral{
 		Elements: []ast.Expression{
 			&ast.StringLiteral{Value: "a"},
@@ -53,8 +61,20 @@ func TestExprTypeFromExprList(t *testing.T) {
 	if got.Kind != List {
 		t.Fatalf("Kind = %v, want List", got.Kind)
 	}
-	if got.ElementType != nil {
-		t.Fatal("ElementType should be nil until list[T] inference is implemented")
+	if got.ElementType == nil || !got.ElementType.Equals(stringT) {
+		t.Errorf("homogeneous ElementType = %v, want %s", got.ElementType, stringT.String())
+	}
+
+	// Heterogeneous list: element type falls back to any.
+	mixed := &ast.ListLiteral{
+		Elements: []ast.Expression{
+			&ast.StringLiteral{Value: "a"},
+			&ast.NumberLiteral{Value: 1},
+		},
+	}
+	got = EvalType(mixed, st)
+	if got.ElementType == nil || !got.ElementType.Equals(anyT) {
+		t.Errorf("heterogeneous ElementType = %v, want %s", got.ElementType, anyT.String())
 	}
 }
 
@@ -240,22 +260,22 @@ func TestExprTypeFromExprSubscription(t *testing.T) {
 		expected Type
 	}{
 		{
-			"list[str] subscript returns any (untyped list)",
+			"list[string] subscript returns string",
 			&ast.ListLiteral{Elements: []ast.Expression{
 				&ast.StringLiteral{Value: "a"},
 				&ast.StringLiteral{Value: "b"},
 			}},
 			&ast.NumberLiteral{Value: 0},
-			anyTyp,
+			IdentType(0, BlockKindString, st),
 		},
 		{
-			"list[number] subscript returns any (untyped list)",
+			"list[number] subscript returns number",
 			&ast.ListLiteral{Elements: []ast.Expression{
 				&ast.NumberLiteral{Value: 1},
 				&ast.NumberLiteral{Value: 2},
 			}},
 			&ast.NumberLiteral{Value: 0},
-			anyTyp,
+			IdentType(0, BlockKindNumber, st),
 		},
 		{
 			"map[string, string] subscript returns string",

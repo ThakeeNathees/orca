@@ -126,29 +126,29 @@ func NewBlockRefType(blockName string, block *BlockSchema) Type {
 	return Type{Kind: BlockRef, BlockName: blockName, Block: block}
 }
 
+func isTypeNamed(t Type, name string) bool {
+	if t.Kind != BlockRef {
+		return false
+	}
+	if t.Block != nil {
+		return t.Block.BlockName == name
+	}
+	return t.BlockName == name
+}
+
 // FIXME: I dont like null/any being some special thing and hardcoded, fix it.
 // IsAny returns true if this type is the "any" type (matches everything).
 func (t Type) IsAny() bool {
-	if t.Kind != BlockRef {
-		return false
-	}
-	if t.Block != nil {
-		return t.Block.BlockName == "any"
-	}
-	// Unresolved identifier "any" (bootstrap / before schema resolution).
-	return t.BlockName == "any"
+	return isTypeNamed(t, BlockKindAny)
 }
 
 // IsNull returns true if this type is the "null" type.
-func (t Type) IsNull() bool {
-	if t.Kind != BlockRef {
-		return false
-	}
-	if t.Block != nil {
-		return t.Block.BlockName == "null"
-	}
-	// Unresolved identifier "null" so newFieldSchema can strip `| null` from unions.
-	return t.BlockName == "null"
+func (t Type) IsNullType() bool {
+	return isTypeNamed(t, BlockKindNulltype)
+}
+
+func (t Type) IsNullInst() bool {
+	return isTypeNamed(t, BlockKindNull)
 }
 
 // String returns a human-readable representation of a type using Orca syntax.

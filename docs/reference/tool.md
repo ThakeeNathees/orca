@@ -18,9 +18,9 @@ tool <name> {
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | `string` | Yes | The tool's identifier |
-| `desc` | `string \| null` | No | A description of what the tool does |
-| `input_schema` | `schema \| null` | No | Schema describing the tool's input parameters |
-| `invoke` | `string \| null` | No | Fully-qualified Python function to call when the tool is invoked |
+| `desc` | `string \| nulltype` | No | A description of what the tool does |
+| `input_schema` | `schema \| nulltype` | No | Schema describing the tool's input parameters |
+| `invoke` | `string \| nulltype` | No | Fully-qualified Python function to call when the tool is invoked |
 
 ## Examples
 
@@ -48,7 +48,7 @@ tool slack {
 ```orca
 schema search_input {
   query   = string
-  max_results = int | null
+  max_results = number | nulltype
 }
 
 tool search {

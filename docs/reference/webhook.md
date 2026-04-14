@@ -16,7 +16,7 @@ webhook <name> {
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `path` | `string` | Yes | URL path (e.g. `"/hooks/job"`) |
-| `method` | `string \| null` | No | HTTP method (e.g. `"POST"`). Omitted in generated code when unset |
+| `method` | `string \| nulltype` | No | HTTP method (e.g. `"POST"`). Omitted in generated code when unset |
 
 ## Workflow usage
 

@@ -6,6 +6,7 @@ const (
 
 	BlockKindAny       = "any"
 	BlockKindNull      = "null"
+	BlockKindNulltype  = "nulltype"
 	BlockKindNumber    = "number"
 	BlockKindString    = "string"
 	BlockKindList      = "list"

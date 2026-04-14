@@ -13,14 +13,14 @@ schema <name> {
 
 ## Field types
 
-Each field is assigned a type. Use `| null` to make a field optional:
+Each field is assigned a type. Use `| nulltype` to make a field optional — `nulltype` is the type whose only value is `null`:
 
 ```orca
 schema report {
-  title    = string           // required
-  summary  = string           // required
-  sources  = list[string]     // required
-  word_count = int | null  // optional
+  title      = string                // required
+  summary    = string                // required
+  sources    = list[string]          // required
+  word_count = number | nulltype     // optional
 }
 ```
 
@@ -48,7 +48,7 @@ schema report {
 ```orca
 schema analysis {
   sentiment  = string
-  confidence = float
+  confidence = number
   keywords   = list[string]
 }
 

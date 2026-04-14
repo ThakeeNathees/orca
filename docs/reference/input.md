@@ -18,9 +18,9 @@ input <name> {
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | `schema` | Yes | The type of the input (primitive, schema reference, or inline schema) |
-| `desc` | `string \| null` | No | Description of the input |
-| `default` | `any \| null` | No | Default value if not provided at runtime |
-| `sensitive` | `bool \| null` | No | Whether this input contains sensitive data (e.g., API keys) |
+| `desc` | `string \| nulltype` | No | Description of the input |
+| `default` | `any \| nulltype` | No | Default value if not provided at runtime |
+| `sensitive` | `bool \| nulltype` | No | Whether this input contains sensitive data (e.g., API keys) |
 
 ## Examples
 
@@ -54,8 +54,8 @@ input network {
 input config {
   type = schema {
     region   = string
-    replicas = int
-    debug    = bool | null
+    replicas = number
+    debug    = bool | nulltype
   }
   desc = "Runtime configuration"
 }

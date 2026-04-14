@@ -31,11 +31,12 @@ model gpt4 {
 | Type | Description |
 |------|-------------|
 | `string` | String |
-| `int` | Integer |
-| `float` | Floating-point number |
+| `number` | Numeric value (integer or floating-point) |
 | `bool` | Boolean (`true` / `false`) |
-| `null` | Null value |
+| `nulltype` | The type whose sole instance is `null` |
 | `any` | Matches any type |
+
+`nulltype` is the *type*; `null` is its singleton *value*. Use `nulltype` in type positions (field declarations, unions) and `null` in value positions (assignments).
 
 ### Collections
 
@@ -59,11 +60,48 @@ headers = {
 Use the pipe operator `|` to allow multiple types:
 
 ```orca
-model_name = stringing | model    // accepts a string or a model reference
-temperature = float | null  // optional field (null means it can be omitted)
+model_name  = string | model      // accepts a string or a model reference
+temperature = number | nulltype   // optional field (null means it can be omitted)
 ```
 
-A field with `| null` in its type is optional.
+A field with `| nulltype` in its type is optional — the field may either hold a value of the other arm or the singleton `null`.
+
+### Structural (duck) typing
+
+Two schemas are compatible when the providing schema has every required field declared in the expected schema, with matching types. Extra fields are ignored.
+
+```orca
+schema quackable { quack = string }
+schema duck      { quack = string }   // extra fields allowed
+
+duck mike { quack = "quack mike quack" }
+
+schema S { x = quackable }
+S s { x = mike }                      // ok — `duck` implements `quackable`
+```
+
+Add `@strict_check` to a schema to require a nominal match instead — only blocks whose schema is exactly that schema (or an instance of it) are accepted:
+
+```orca
+@strict_check
+schema quackable { quack = string }
+
+S s { x = mike }                      // error: duck is not quackable
+```
+
+Primitive schemas (`string`, `number`, `bool`, `nulltype`, `list`, `map`, `callable`, `any`, `schema`) are declared with `@strict_check` so unrelated primitives don't match each other structurally.
+
+### Annotated types
+
+Use `annotated["<name>"]` in a type position to accept any block whose schema carries the `@<name>` annotation. This is how `branch.route` and `workflow_chain.left`/`right` declare "any workflow-node-like block":
+
+```orca
+schema branch {
+  route = map[string | number | bool, annotated["workflow_node"]]
+}
+```
+
+A block is compatible with `annotated["foo"]` when its defining schema carries `@foo`. Annotated types are nominal: only the annotation name is checked, not the fields.
 
 ### References
 
@@ -105,10 +143,10 @@ first_tool = my_tools[0]
 
 ```orca
 name     = "hello"       // string
-count    = 42            // integer
-rate     = 0.7           // float
-enabled  = true          // boolean
-nothing  = null          // null
+count    = 42            // number (integer)
+rate     = 0.7           // number (float)
+enabled  = true          // bool
+nothing  = null          // nulltype (the singleton null value)
 ```
 
 ### Arithmetic
@@ -255,7 +293,7 @@ schema report {
   title = string
 
   @desc("Word count limit")
-  max_words = int | null
+  max_words = number | nulltype
 }
 ```
 

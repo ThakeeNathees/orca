@@ -79,15 +79,15 @@ func TestLoadSchemasFieldTypes(t *testing.T) {
 		required bool
 		wantStr  string
 	}{
-		{"agent.tools", "agent", "tools", Union, false, "list[tool] | null"},
+		{"agent.tools", "agent", "tools", Union, false, "list[tool] | nulltype"},
 		{"model.model_name", "model", "model_name", BlockRef, true, "string"},
 		{"agent.model", "agent", "model", Union, true, "string | model"},
 		{"model.provider", "model", "provider", BlockRef, true, "string"},
-		{"model.temperature", "model", "temperature", Union, false, "number | null"},
+		{"model.temperature", "model", "temperature", Union, false, "number | nulltype"},
 		{"agent.persona", "agent", "persona", BlockRef, true, "string"},
-		{"tool.desc", "tool", "desc", Union, false, "string | null"},
+		{"tool.desc", "tool", "desc", Union, false, "string | nulltype"},
 		{"tool.invoke", "tool", "invoke", BlockRef, true, "callable"},
-		{"workflow.name", "workflow", "name", Union, false, "string | null"},
+		{"workflow.name", "workflow", "name", Union, false, "string | nulltype"},
 	}
 
 	for _, tt := range tests {
@@ -326,14 +326,14 @@ func TestFieldSchemaOptionalNullInUnion(t *testing.T) {
 		memberCount int
 	}{
 		{
-			"string | null optional, union retains null",
-			"schema test_strip {\n  @suppress(\"duplicate-block\")\n  field = string | null\n}",
-			false, Union, "string | null", 2,
+			"string | nulltype optional, union retains null",
+			"schema test_strip {\n  @suppress(\"duplicate-block\")\n  field = string | nulltype\n}",
+			false, Union, "string | nulltype", 2,
 		},
 		{
-			"string | model | null optional, full union",
-			"schema test_strip2 {\n  @suppress(\"duplicate-block\")\n  field = string | model | null\n}",
-			false, Union, "string | model | null", 3,
+			"string | model | nulltype optional, full union",
+			"schema test_strip2 {\n  @suppress(\"duplicate-block\")\n  field = string | model | nulltype\n}",
+			false, Union, "string | model | nulltype", 3,
 		},
 		{
 			"string (no union) is required BlockRef",

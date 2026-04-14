@@ -120,7 +120,7 @@ def _orca__invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 
 class report(BaseModel):
     content: str = Field(description="The report content")
-    score: int = Field(description="Quality score")
+    score: float = Field(description="Quality score")
 
 gpt4 = _orca__block("model", 
     provider="openai",
