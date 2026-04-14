@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>A declarative language for AI agent orchestration.</strong><br>
-  A research agents-as-a-code language for expressing agentic systems as declarative programs
+  A DSL for expressing agentic systems as declarative programs
 </p>
 
 <p align="center">
@@ -140,14 +140,14 @@ model gemini {
 }
 
 agent math_expr_generator {
-  model = gemini
+  model   = gemini
   persona = "Generate a simple math expression"
 }
 
 agent math_expr_solver {
-  model = gemini
-  persona = "Solve the given math expression"
-  chain_of_thought = true
+  model         = gemini
+  persona       = "Solve the given math expression"
+  thinking      = true
   output_schema = number
 }
 

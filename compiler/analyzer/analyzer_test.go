@@ -1348,6 +1348,21 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			"expects type",
 		},
 		{
+			"branch route accepts workflow_node block (agent)",
+			`model m { provider = "openai" model_name = "gpt-4o" }
+			 agent a { model = m persona = "You are a helpful assistant." }
+			 branch b { route = { "route_1": a } }`,
+			false,
+			"",
+		},
+		{
+			"branch route rejects non-workflow_node block (model)",
+			`model m { provider = "openai" model_name = "gpt-4o" }
+			 branch b { route = { "route_1": m } }`,
+			true,
+			`annotated["workflow_node"]`,
+		},
+		{
 			"nested branch routes are recursively validated",
 			`cron daily { schedule = "0 9 * * *" }
 			 agent A { model = gpt4 persona = "hi" }

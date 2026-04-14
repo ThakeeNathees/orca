@@ -69,10 +69,8 @@ func TestCollectBlocksByKind(t *testing.T) {
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindModel, Name: "m1"}},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindAgent, Name: "a1"}},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindModel, Name: "m2"}},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindLet, Name: "vars"}},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindCron, Name: "daily"}},
 			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindSchema, Name: "cfg"}},
-			&ast.BlockStatement{BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT}}, BlockBody: ast.BlockBody{Kind: types.BlockKindKnowledge, Name: "kb"}},
 		},
 	}
 
@@ -83,10 +81,8 @@ func TestCollectBlocksByKind(t *testing.T) {
 	}{
 		{"models", types.BlockKindModel, 2},
 		{"agents", types.BlockKindAgent, 1},
-		{"lets", types.BlockKindLet, 1},
 		{"crons", types.BlockKindCron, 1},
 		{"schemas", types.BlockKindSchema, 1},
-		{"knowledge", types.BlockKindKnowledge, 1},
 	}
 
 	for _, tt := range tests {
@@ -128,15 +124,6 @@ func TestWriteBlocksInOrder(t *testing.T) {
 			wantSubstrings: []string{
 				`a1 = _orca__block("agent", `,
 				`a2 = _orca__block("agent", `,
-			},
-		},
-		// Schema blocks are handled separately by writeSchemaSection, not writeBlocksInOrder.
-		{
-			name:    "knowledge block",
-			program: &ast.Program{Statements: []ast.Statement{knowledgeBlock("docs", "Company wiki")}},
-			wantSubstrings: []string{
-				`docs = _orca__block("knowledge", `,
-				`    desc="Company wiki",`,
 			},
 		},
 	}
@@ -455,53 +442,6 @@ func TestWriteSchema(t *testing.T) {
 			for _, want := range tt.contains {
 				if !strings.Contains(result, want) {
 					t.Errorf("expected output to contain %q, got:\n%s", want, result)
-				}
-			}
-		})
-	}
-}
-
-// TestWriteKnowledge verifies Python knowledge block generation via _orca__knowledge().
-func TestWriteKnowledge(t *testing.T) {
-	tests := []struct {
-		name        string
-		block       *ast.BlockStatement
-		contains    []string
-		notContains []string
-	}{
-		{
-			name:  "with desc",
-			block: knowledgeBlock("docs", "Company knowledge base"),
-			contains: []string{
-				`docs = _orca__block("knowledge", ` + "\n",
-				`    desc="Company knowledge base",`,
-				")\n",
-			},
-		},
-		{
-			name:  "no desc",
-			block: knowledgeBlock("refs", ""),
-			contains: []string{
-				"refs = _orca__block(\"knowledge\", )\n",
-			},
-			notContains: []string{"desc="},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var s strings.Builder
-			b := &LangGraphBackend{}
-			fmt.Fprintf(&s, "%s = %s\n", tt.block.Name, topLevelBlockSource(b, tt.block))
-			result := s.String()
-			for _, want := range tt.contains {
-				if !strings.Contains(result, want) {
-					t.Errorf("expected output to contain %q, got:\n%s", want, result)
-				}
-			}
-			for _, sub := range tt.notContains {
-				if strings.Contains(result, sub) {
-					t.Errorf("expected output to not contain %q, got:\n%s", sub, result)
 				}
 			}
 		})
@@ -962,25 +902,6 @@ func schemaBlock(name string, fields ...schemaField) *ast.BlockStatement {
 			Kind:        types.BlockKindSchema,
 			Assignments: assigns,
 			Name:        name,
-		},
-	}
-}
-
-// knowledgeBlock creates a knowledge block with an optional desc string field.
-func knowledgeBlock(blockName, descValue string) *ast.BlockStatement {
-	var assigns []*ast.Assignment
-	if descValue != "" {
-		assigns = append(assigns, &ast.Assignment{
-			Name:  "desc",
-			Value: &ast.StringLiteral{Value: descValue},
-		})
-	}
-	return &ast.BlockStatement{
-		BaseNode: ast.BaseNode{TokenStart: token.Token{Type: token.IDENT, Literal: "knowledge"}},
-		BlockBody: ast.BlockBody{
-			Kind:        types.BlockKindKnowledge,
-			Assignments: assigns,
-			Name:        blockName,
 		},
 	}
 }

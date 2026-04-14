@@ -6,7 +6,6 @@ import (
 	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/diagnostic"
-	"github.com/thakee/orca/compiler/types"
 )
 
 // CodegenOutput holds the complete output from a code generation backend.
@@ -71,11 +70,6 @@ func (b *BaseBackend) CollectBlocksByKind(kind string) []*ast.BlockStatement {
 		}
 	}
 	return blocks
-}
-
-// CollectLets returns all let block statements.
-func (b *BaseBackend) CollectLets() []*ast.BlockStatement {
-	return b.CollectBlocksByKind(types.BlockKindLet)
 }
 
 // BlockByName returns the block statement with the given name, or nil if not found.

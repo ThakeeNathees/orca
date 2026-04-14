@@ -59,39 +59,53 @@ func TestExprTypeFromExprList(t *testing.T) {
 }
 
 // TestExprTypeFromExprMapLiteral verifies map literal type inference.
+// Homogeneous entries flow through as map[K, V] with concrete types;
+// heterogeneous entries fall back to any on the non-uniform axis.
 func TestExprTypeFromExprMapLiteral(t *testing.T) {
 	st := bootstrapSymtab(t)
-	anyTyp := IdentType(0, "any", st)
+	stringT := IdentType(0, "string", st)
+	numberT := IdentType(0, "number", st)
+	anyT := IdentType(0, "any", st)
+
 	tests := []struct {
 		name    string
 		entries []ast.MapEntry
 		hasVal  bool
+		keyTyp  Type
 		valTyp  Type
 	}{
-		{"empty map", nil, false, Type{}},
+		{"empty map", nil, false, Type{}, Type{}},
 		{
 			"uniform string values",
 			[]ast.MapEntry{
-				{Key: &ast.Identifier{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
-				{Key: &ast.Identifier{Value: "b"}, Value: &ast.StringLiteral{Value: "y"}},
+				{Key: &ast.StringLiteral{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
+				{Key: &ast.StringLiteral{Value: "b"}, Value: &ast.StringLiteral{Value: "y"}},
 			},
-			true, anyTyp,
+			true, stringT, stringT,
 		},
 		{
-			"uniform int values",
+			"uniform number values",
 			[]ast.MapEntry{
-				{Key: &ast.Identifier{Value: "a"}, Value: &ast.NumberLiteral{Value: 1}},
-				{Key: &ast.Identifier{Value: "b"}, Value: &ast.NumberLiteral{Value: 2}},
+				{Key: &ast.StringLiteral{Value: "a"}, Value: &ast.NumberLiteral{Value: 1}},
+				{Key: &ast.StringLiteral{Value: "b"}, Value: &ast.NumberLiteral{Value: 2}},
 			},
-			true, anyTyp,
+			true, stringT, numberT,
 		},
 		{
-			"mixed values",
+			"mixed values fall back to any",
 			[]ast.MapEntry{
-				{Key: &ast.Identifier{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
-				{Key: &ast.Identifier{Value: "b"}, Value: &ast.NumberLiteral{Value: 1}},
+				{Key: &ast.StringLiteral{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
+				{Key: &ast.StringLiteral{Value: "b"}, Value: &ast.NumberLiteral{Value: 1}},
 			},
-			true, anyTyp,
+			true, stringT, anyT,
+		},
+		{
+			"mixed keys fall back to any",
+			[]ast.MapEntry{
+				{Key: &ast.StringLiteral{Value: "a"}, Value: &ast.StringLiteral{Value: "x"}},
+				{Key: &ast.NumberLiteral{Value: 1}, Value: &ast.StringLiteral{Value: "y"}},
+			},
+			true, anyT, stringT,
 		},
 	}
 
@@ -109,8 +123,11 @@ func TestExprTypeFromExprMapLiteral(t *testing.T) {
 				if !got.ValueType.Equals(tt.valTyp) {
 					t.Errorf("ValueType = %s, want %s", got.ValueType.String(), tt.valTyp.String())
 				}
-				if got.KeyType == nil || !got.KeyType.Equals(IdentType(0, "string", st)) {
-					t.Error("KeyType should be string (Orca primitive)")
+				if got.KeyType == nil {
+					t.Fatal("KeyType should not be nil")
+				}
+				if !got.KeyType.Equals(tt.keyTyp) {
+					t.Errorf("KeyType = %s, want %s", got.KeyType.String(), tt.keyTyp.String())
 				}
 			} else if got.ValueType != nil {
 				t.Error("ValueType should be nil for untyped map")
@@ -241,12 +258,12 @@ func TestExprTypeFromExprSubscription(t *testing.T) {
 			anyTyp,
 		},
 		{
-			"map subscript returns any (value type any)",
+			"map[string, string] subscript returns string",
 			&ast.MapLiteral{Entries: []ast.MapEntry{
-				{Key: &ast.Identifier{Value: "k"}, Value: &ast.StringLiteral{Value: "v"}},
+				{Key: &ast.StringLiteral{Value: "k"}, Value: &ast.StringLiteral{Value: "v"}},
 			}},
 			&ast.StringLiteral{Value: "k"},
-			anyTyp,
+			IdentType(0, "string", st),
 		},
 		{
 			"untyped list subscript returns any",

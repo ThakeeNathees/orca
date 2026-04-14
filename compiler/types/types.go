@@ -5,6 +5,10 @@
 // (List, Map, Union) are separate kinds.
 package types
 
+import (
+	"strconv"
+)
+
 // TypeKind classifies the broad category of a type.
 type TypeKind int
 
@@ -22,15 +26,20 @@ const (
 	Map
 	// Callable represents a function type with parameter types and a return type.
 	Callable
+	// Annotated represents a type that is annotated with a given annotation.
+	// Example: annotated["workflow_node"], annotated["trigger_node"], etc
+	// And that compatible with any @workflow_node, @trigger_node, etc.
+	Annotated
 )
 
 // kindStrings maps each TypeKind to its human-readable name.
 var kindStrings = map[TypeKind]string{
-	BlockRef: "blockref",
-	List:     "list",
-	Map:      "map",
-	Union:    "union",
-	Callable: "callable",
+	BlockRef:  "blockref",
+	List:      "list",
+	Map:       "map",
+	Union:     "union",
+	Callable:  "callable",
+	Annotated: "annotated",
 }
 
 // String returns the human-readable name of this type kind.
@@ -82,6 +91,9 @@ type Type struct {
 	// non-nil for Callable types
 	ParamTypes []Type
 	ReturnType *Type
+
+	// non-nil for Annotated types
+	AnnotatedName string
 }
 
 // NewListType creates a list type with the given element type.
@@ -97,6 +109,11 @@ func NewMapType(key, value Type) Type {
 // NewCallableType creates a callable type with the given parameter and return types.
 func NewCallableType(params []Type, ret Type) Type {
 	return Type{Kind: Callable, ParamTypes: params, ReturnType: &ret}
+}
+
+// NewAnnotatedType creates an annotated type with the given annotation name.
+func NewAnnotatedType(annotationName string) Type {
+	return Type{Kind: Annotated, AnnotatedName: annotationName}
 }
 
 // NewUnionType creates a union type that accepts any of the given member types.
@@ -172,6 +189,8 @@ func (t Type) String() string {
 		}
 		s += "]"
 		return s
+	case Annotated:
+		return "annotated[" + strconv.Quote(t.AnnotatedName) + "]"
 	case Union:
 		s := ""
 		for i, m := range t.Members {
@@ -192,7 +211,7 @@ func (t Type) String() string {
 func IsCompatible(got Type, expected Type) bool {
 
 	// Any is compatible with everything in both directions.
-	if got.IsAny() || expected.IsAny() {
+	if expected.IsAny() || got.IsAny() {
 		return true
 	}
 
@@ -219,8 +238,8 @@ func IsCompatible(got Type, expected Type) bool {
 	}
 
 	// Lists are compatible if element types are compatible (or untyped).
-	if got.Kind == List && expected.Kind == List {
-		if got.ElementType != nil && expected.ElementType != nil {
+	if expected.Kind == List && got.Kind == List {
+		if expected.ElementType != nil && got.ElementType != nil {
 			// FIXME:
 			//
 			// list<Cat> is actually not compatible with list<Pet> even thought
@@ -240,8 +259,8 @@ func IsCompatible(got Type, expected Type) bool {
 	}
 
 	// Maps are compatible if value types are compatible (or untyped).
-	if got.Kind == Map && expected.Kind == Map {
-		if got.ValueType != nil && expected.ValueType != nil {
+	if expected.Kind == Map && got.Kind == Map {
+		if expected.ValueType != nil && got.ValueType != nil {
 			return IsCompatible(*got.ValueType, *expected.ValueType)
 		}
 		return true
@@ -249,7 +268,7 @@ func IsCompatible(got Type, expected Type) bool {
 
 	// Callables: a bare callable (no params/return) accepts any callable.
 	// Typed callables check param count, param types, and return type.
-	if got.Kind == Callable && expected.Kind == Callable {
+	if expected.Kind == Callable && got.Kind == Callable {
 		// Bare callable accepts any callable.
 		if len(expected.ParamTypes) == 0 && expected.ReturnType == nil {
 			return true
@@ -268,10 +287,15 @@ func IsCompatible(got Type, expected Type) bool {
 		return true
 	}
 
+	// Annotated types are compatible if the annotated name is the same.
+	if expected.Kind == Annotated && got.Kind == BlockRef && got.Block != nil {
+		return HasAnnotation(got.Block.Annotations, expected.AnnotatedName)
+	}
+
 	// Unresolved block refs with the same name are the same type (literals, IdentType in
 	// bootstrap mode). Without this, IsCompatible never succeeds for lazy string/string or
 	// number/number, and arithmeticResultType falls through to any.
-	if got.Kind == BlockRef && expected.Kind == BlockRef {
+	if expected.Kind == BlockRef && got.Kind == BlockRef {
 		if got.Block == nil && expected.Block == nil && got.BlockName == expected.BlockName {
 			return true
 		}

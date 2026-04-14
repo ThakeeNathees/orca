@@ -201,7 +201,8 @@ func resolveBlockSchemaReferences(ap *AnalyzedProgram) {
 // Returns the set of suppressed codes, and whether all codes are suppressed.
 func suppressedCodes(annotations []*ast.Annotation) (codes map[string]bool, all bool) {
 	for _, ann := range annotations {
-		if ann.Name != "suppress" {
+
+		if ann.Name != types.AnnotationSuppress {
 			continue
 		}
 		if len(ann.Arguments) == 0 {
