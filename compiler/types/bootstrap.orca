@@ -46,6 +46,10 @@ schema callable {}
 
 @suppress("duplicate-block")
 @strict_check
+schema annotated {}
+
+@suppress("duplicate-block")
+@strict_check
 schema any {}
 
 @suppress("duplicate-block")
@@ -111,8 +115,8 @@ schema agent {
   @desc("The tools to use for this agent.")
   tools = list[tool] | null
 
-  @desc("Whether to use chain of thought for the agent.")
-  chain_of_thought = bool | null
+  @desc("Whether to use thinking tokens for the agent.")
+  thinking = bool | null
 
   @desc("The structured output schema for this agent.")
   output_schema = schema | null
@@ -163,22 +167,8 @@ schema branch {
   ```)
   transform = callable | null
 
-  // TODO: Remove the any here and it should be workflow_node
-  // but workflow_node should be a schema and we should support
-  // structural similarity instead of strict schema match.
-  //
-  // i.e.
-  // schema_1 = schema { a = str b = bool c = number }
-  // schema_2 = schema { a = str b = bool }
-  // here schema_1 is compatible with schema_2 because it has
-  // all the fields that schema_2 requires (we shouldn't care about c).
-  //
-  // The problem is that `schema bool {}` will match with all schema,
-  // so we maybe introduce @strict_check annotation to enforce strict schema match.
-  //
-  // This is more or less duck typing. It can quack so it's a duck.
   @desc("The routes to take based on the input.")
-  route = map[string | number | bool, any]
+  route = map[string | number | bool, annotated["workflow_node"]]
 }
 
 // The Type of `<expr> -> <expr>`
@@ -187,13 +177,9 @@ schema branch {
 @workflow_node
 schema workflow_chain {
 
-  // FIXME: This should not be any and something like workflow_node.
-  // And we should support structural similarity instead of strict schema match.
-  // Read the comments of branch block above.
-
   @desc("The left side of the workflow chain.")
-  left = any
+  left = annotated["workflow_node"]
 
   @desc("The right side of the workflow chain.")
-  right = any
+  right = annotated["workflow_node"]
 }

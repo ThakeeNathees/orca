@@ -346,19 +346,29 @@ func subscriptionType(depth int, e *ast.Subscription, symtab *SymbolTable) Type 
 	// Bootstrap: try parameterized type like list[tool] or map[string].
 	if baseIdent, ok := e.Object.(*ast.Identifier); ok && len(e.Indices) > 0 {
 		switch baseIdent.Value {
-		case "list":
+		case BlockKindList:
 			elemType := schemaFromExprWithDepth(depth, e.Indices[0], symtab)
 			return NewListType(elemType)
-		case "map":
+		case BlockKindMap:
 			if len(e.Indices) == 2 {
 				keyType := schemaFromExprWithDepth(depth, e.Indices[0], symtab)
 				valType := schemaFromExprWithDepth(depth, e.Indices[1], symtab)
 				return NewMapType(keyType, valType)
 			}
+			// FIXME: validate it has either 0 indecies or 2. (map, map[k,v])
 			// map requires exactly 2 indices: map[key_type, value_type].
 			return anyType(symtab)
-		case "callable":
+		case BlockKindCallable:
 			return callableTypeFromIndices(depth, e.Indices, symtab)
+		case BlockKindAnnotated:
+			// TODO: This needs to be either const foldable or error out with message
+			// only literal string is allowed.
+			// Also we need to validate like the number of indices is exactly 1.
+			// also that needs to be done for list and map as well.
+			if stringLit, ok := e.Indices[0].(*ast.StringLiteral); ok {
+				return NewAnnotatedType(stringLit.Value)
+			}
+			return anyType(symtab)
 		}
 	}
 	return subscriptResultType(depth, schemaFromExprWithDepth(depth, e.Object, symtab), symtab)
@@ -459,25 +469,35 @@ func subscriptResultType(depth int, t Type, symtab *SymbolTable) Type {
 	}
 }
 
-// mapLiteralType infers the type of a map literal. Keys are always strings.
-// If all values have the same type, returns map[T]. Otherwise returns
-// an untyped map.
+// mapLiteralType infers the type of a map literal by unifying the key and
+// value types across all entries at the caller's depth. If every entry's
+// key type matches the first entry's, that type is used as the map key
+// type; otherwise the key type falls back to the untyped/any sentinel.
+// Same applies to value types. A homogeneous map literal therefore carries
+// precise element types into IsCompatible, while a heterogeneous one stays
+// permissive rather than encoding a possibly-unsound union.
 func mapLiteralType(depth int, m *ast.MapLiteral, symtab *SymbolTable) Type {
 	if len(m.Entries) == 0 {
 		return Type{Kind: Map}
 	}
 
-	// TODO: depth is not used here but it should be.
+	keyT := schemaFromExprWithDepth(depth, m.Entries[0].Key, symtab)
+	valT := schemaFromExprWithDepth(depth, m.Entries[0].Value, symtab)
 
-	// TODO: Check if the first element's type is compatible with
-	// all the other elements' types. in that case, that can be the
-	// map value type.
-	//
-	// first := ExprType(m.Entries[0].Value, symbols)
-	// for _, entry := range m.Entries[1:] {
-	// }
+	for _, entry := range m.Entries[1:] {
+		if k := schemaFromExprWithDepth(depth, entry.Key, symtab); !k.Equals(keyT) {
+			keyT = anyType(symtab)
+			break
+		}
+	}
+	for _, entry := range m.Entries[1:] {
+		if v := schemaFromExprWithDepth(depth, entry.Value, symtab); !v.Equals(valT) {
+			valT = anyType(symtab)
+			break
+		}
+	}
 
-	return NewMapType(IdentType(0, "string", symtab), anyType(symtab))
+	return NewMapType(keyT, valT)
 }
 
 // listLiteralType infers the type of a list literal. If all elements
