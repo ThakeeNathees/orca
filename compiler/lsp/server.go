@@ -983,7 +983,7 @@ func updateDocument(uri, text string) *documentState {
 		// an empty File originate from the current file (no SourceFile
 		// set); diagnostics with a File set come from sibling files.
 		for _, d := range result.Diagnostics {
-			if d.File == "" || d.File == filePath {
+			if d.Position.File == "" || d.Position.File == filePath {
 				diags = append(diags, d)
 			}
 		}

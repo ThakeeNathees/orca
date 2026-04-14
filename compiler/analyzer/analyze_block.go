@@ -20,10 +20,6 @@ func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagn
 		block.TokenEnd,
 		symbols,
 	)
-	// Tag diagnostics with the source file for multi-file compilation.
-	for i := range diags {
-		diags[i].File = block.SourceFile
-	}
 	return diags
 }
 
@@ -349,6 +345,9 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 				return diags
 			}
 		}
+
+		// TODO: Check if the e.Callee is callable and validate argument match parameters.
+
 	case *ast.MapLiteral:
 		if e == nil {
 			return nil

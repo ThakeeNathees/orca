@@ -196,6 +196,78 @@ func IsCompatible(got Type, expected Type) bool {
 		return true
 	}
 
+	// If expected is a union, got must be compatible with at least one member.
+	if expected.Kind == Union {
+		for _, m := range expected.Members {
+			if IsCompatible(got, m) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// TODO: If got is a union, and one of the member matching with expected
+	// That should be ok with a warning.
+	// If got is a union, at least one member must be compatible with expected.
+	if got.Kind == Union {
+		for _, m := range got.Members {
+			if IsCompatible(m, expected) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Lists are compatible if element types are compatible (or untyped).
+	if got.Kind == List && expected.Kind == List {
+		if got.ElementType != nil && expected.ElementType != nil {
+			// FIXME:
+			//
+			// list<Cat> is actually not compatible with list<Pet> even thought
+			// Cat is a subtype of Pet. (see: https://en.wikipedia.org/wiki/Type_variance)
+			//
+			// Here both of the bellow insertions are semantically valid:
+			//   pets.insert(cat)
+			//   pets.insert(dog)
+			//
+			// However if we say list<Cat> is a list<Pet> then the above will be.
+			//   cats.insert(cat)
+			//   cats.insert(dog)  <---- OOPS
+			//
+			return IsCompatible(*got.ElementType, *expected.ElementType)
+		}
+		return true
+	}
+
+	// Maps are compatible if value types are compatible (or untyped).
+	if got.Kind == Map && expected.Kind == Map {
+		if got.ValueType != nil && expected.ValueType != nil {
+			return IsCompatible(*got.ValueType, *expected.ValueType)
+		}
+		return true
+	}
+
+	// Callables: a bare callable (no params/return) accepts any callable.
+	// Typed callables check param count, param types, and return type.
+	if got.Kind == Callable && expected.Kind == Callable {
+		// Bare callable accepts any callable.
+		if len(expected.ParamTypes) == 0 && expected.ReturnType == nil {
+			return true
+		}
+		if len(got.ParamTypes) != len(expected.ParamTypes) {
+			return false
+		}
+		for i := range got.ParamTypes {
+			if !IsCompatible(got.ParamTypes[i], expected.ParamTypes[i]) {
+				return false
+			}
+		}
+		if got.ReturnType != nil && expected.ReturnType != nil {
+			return IsCompatible(*got.ReturnType, *expected.ReturnType)
+		}
+		return true
+	}
+
 	// Unresolved block refs with the same name are the same type (literals, IdentType in
 	// bootstrap mode). Without this, IsCompatible never succeeds for lazy string/string or
 	// number/number, and arithmeticResultType falls through to any.
@@ -269,78 +341,6 @@ func IsCompatible(got Type, expected Type) bool {
 		}
 
 		return false
-	}
-
-	// If expected is a union, got must be compatible with at least one member.
-	if expected.Kind == Union {
-		for _, m := range expected.Members {
-			if IsCompatible(got, m) {
-				return true
-			}
-		}
-		return false
-	}
-
-	// TODO: If got is a union, and one of the member matching with expected
-	// That should be ok with a warning.
-	// If got is a union, at least one member must be compatible with expected.
-	if got.Kind == Union {
-		for _, m := range got.Members {
-			if IsCompatible(m, expected) {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Lists are compatible if element types are compatible (or untyped).
-	if got.Kind == List && expected.Kind == List {
-		if got.ElementType != nil && expected.ElementType != nil {
-			// FIXME:
-			//
-			// list<Cat> is actually not compatible with list<Pet> even thought
-			// Cat is a subtype of Pet. (see: https://en.wikipedia.org/wiki/Type_variance)
-			//
-			// Here both of the bellow insertions are semantically valid:
-			//   pets.insert(cat)
-			//   pets.insert(dog)
-			//
-			// However if we say list<Cat> is a list<Pet> then the above will be.
-			//   cats.insert(cat)
-			//   cats.insert(dog)  <---- OOPS
-			//
-			return IsCompatible(*got.ElementType, *expected.ElementType)
-		}
-		return true
-	}
-
-	// Maps are compatible if value types are compatible (or untyped).
-	if got.Kind == Map && expected.Kind == Map {
-		if got.ValueType != nil && expected.ValueType != nil {
-			return IsCompatible(*got.ValueType, *expected.ValueType)
-		}
-		return true
-	}
-
-	// Callables: a bare callable (no params/return) accepts any callable.
-	// Typed callables check param count, param types, and return type.
-	if got.Kind == Callable && expected.Kind == Callable {
-		// Bare callable accepts any callable.
-		if len(expected.ParamTypes) == 0 && expected.ReturnType == nil {
-			return true
-		}
-		if len(got.ParamTypes) != len(expected.ParamTypes) {
-			return false
-		}
-		for i := range got.ParamTypes {
-			if !IsCompatible(got.ParamTypes[i], expected.ParamTypes[i]) {
-				return false
-			}
-		}
-		if got.ReturnType != nil && expected.ReturnType != nil {
-			return IsCompatible(*got.ReturnType, *expected.ReturnType)
-		}
-		return true
 	}
 
 	// Unreachable code.

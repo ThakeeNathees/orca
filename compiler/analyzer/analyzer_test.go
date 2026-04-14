@@ -933,6 +933,15 @@ func TestAnalyzeLambdaReturnTypeMismatch(t *testing.T) {
 		errorSubstr string
 	}{
 		{
+			"recursive lambda matches declared number return",
+			`let vars {
+				fib = \(n number) number ->
+					(n > 1) ? vars.fib(n-1) + vars.fib(n-2) : n
+			}`,
+			false,
+			"",
+		},
+		{
 			"return type mismatch",
 			`let v { f = \(n number) string -> n }`,
 			true,

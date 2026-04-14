@@ -665,7 +665,8 @@ func (p *Parser) parseSubscription(object ast.Expression) *ast.Subscription {
 // The '(' token must be the current token. Arguments are comma-separated expressions.
 func (p *Parser) parseCallExpression(callee ast.Expression) *ast.CallExpression {
 	call := &ast.CallExpression{
-		Callee: callee,
+		Callee:    callee,
+		Arguments: []ast.Expression{},
 	}
 	call.TokenStart = callee.Start()
 	p.nextToken() // consume the (

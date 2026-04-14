@@ -75,9 +75,6 @@ func compileCurrentDir() (compileResult, error) {
 
 		if len(p.Diagnostics()) > 0 {
 			for _, d := range p.Diagnostics() {
-				// Parser diagnostics don't carry File — inject it so
-				// Render's location header is accurate.
-				d.File = file
 				fmt.Fprintln(os.Stderr, diagnostic.Render(src, d))
 			}
 			return compileResult{}, fmt.Errorf("compilation failed with parse errors")
@@ -122,7 +119,7 @@ func compileCurrentDir() (compileResult, error) {
 func reportDiagnostics(diags []diagnostic.Diagnostic, sources map[string]string) bool {
 	hasError := false
 	for _, d := range diags {
-		if src, ok := sources[d.File]; ok && src != "" {
+		if src, ok := sources[d.Position.File]; ok && src != "" {
 			fmt.Fprintln(os.Stderr, diagnostic.Render(src, d))
 		} else {
 			fmt.Fprintln(os.Stderr, d.Error())

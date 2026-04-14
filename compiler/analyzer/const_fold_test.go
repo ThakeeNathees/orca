@@ -484,52 +484,6 @@ func TestConstFoldSubscription(t *testing.T) {
 	}
 }
 
-// constValueEqual reports whether two ConstValues are semantically equal,
-// ignoring the Expr field at every level of the tree.
-//
-// We can't use reflect.DeepEqual directly: ConstFold now stores the source
-// ast.Expression on each ConstValue (and on every nested List element and
-// Keys/Values entry) so the emitter can fall back to the AST when a folded
-// child is ConstUnknown. That AST pointer is metadata for codegen, not part
-// of the fold's semantic output, and the hand-written `want` literals in
-// these tests leave Expr as nil. A direct DeepEqual therefore always fails
-// on the Expr mismatch even when the folded value is correct.
-//
-// Zeroing Expr on a copy before comparing is unsafe because ConstValue.List
-// and ConstValue.Values are reference types — mutating the copy would
-// corrupt the cache entry the caller still holds. Hence this recursive
-// walk, which compares every scalar field explicitly and skips Expr.
-func constValueEqual(a, b ConstValue) bool {
-	if a.Kind != b.Kind ||
-		a.Str != b.Str ||
-		a.Number != b.Number ||
-		a.Bool != b.Bool ||
-		a.BlockKind != b.BlockKind ||
-		a.Partial != b.Partial {
-		return false
-	}
-	if len(a.List) != len(b.List) {
-		return false
-	}
-	for i := range a.List {
-		if !constValueEqual(a.List[i], b.List[i]) {
-			return false
-		}
-	}
-	if len(a.Keys) != len(b.Keys) || len(a.Values) != len(b.Values) {
-		return false
-	}
-	for i := range a.Keys {
-		if a.Keys[i] != b.Keys[i] {
-			return false
-		}
-		if !constValueEqual(a.Values[i], b.Values[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 // assertConstFoldDiagCodes checks diagnostic codes when exp is nil (expect none) or a list of expected codes in order.
 func assertConstFoldDiagCodes(t *testing.T, diags []diagnostic.Diagnostic, exp []string) {
 	t.Helper()
@@ -581,6 +535,106 @@ func TestConstFoldBinary(t *testing.T) {
 		{name: "mixed int float", expr: bin(token.PLUS, i(1), f(2.5)), want: ConstValue{Kind: ConstNumber, Number: 3.5}},
 		{name: "string concat", expr: bin(token.PLUS, s("a"), s("b")), want: ConstValue{Kind: ConstString, Str: "ab"}},
 		{name: "arrow not folded", expr: bin(token.ARROW, idExpr("a"), idExpr("b")), want: ConstValue{Kind: ConstUnknown}},
+
+		// Equality / inequality on scalars.
+		{name: "number eq equal", expr: bin(token.EQ, i(42), i(42)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "number eq not equal", expr: bin(token.EQ, i(1), i(2)), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "number neq equal", expr: bin(token.NEQ, i(1), i(1)), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "number neq not equal", expr: bin(token.NEQ, i(1), i(2)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "string eq equal", expr: bin(token.EQ, s("hi"), s("hi")), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "string eq not equal", expr: bin(token.EQ, s("hi"), s("bye")), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "cross kind number vs string", expr: bin(token.EQ, i(1), s("1")), want: ConstValue{Kind: ConstBool, Bool: false}},
+
+		// Equality on lists.
+		{
+			name: "list eq equal",
+			expr: bin(token.EQ,
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(2), i(3)}},
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(2), i(3)}}),
+			want: ConstValue{Kind: ConstBool, Bool: true},
+		},
+		{
+			name: "list eq different length",
+			expr: bin(token.EQ,
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(2), i(3)}},
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(2)}}),
+			want: ConstValue{Kind: ConstBool, Bool: false},
+		},
+		{
+			name: "list eq different element",
+			expr: bin(token.EQ,
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(2), i(3)}},
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(9), i(3)}}),
+			want: ConstValue{Kind: ConstBool, Bool: false},
+		},
+		{
+			name: "list order matters",
+			expr: bin(token.EQ,
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(2)}},
+				&ast.ListLiteral{Elements: []ast.Expression{i(2), i(1)}}),
+			want: ConstValue{Kind: ConstBool, Bool: false},
+		},
+		{
+			name: "list neq different",
+			expr: bin(token.NEQ,
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(2)}},
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(3)}}),
+			want: ConstValue{Kind: ConstBool, Bool: true},
+		},
+
+		// Equality on maps — order-insensitive.
+		{
+			name: "map eq same order",
+			expr: bin(token.EQ,
+				&ast.MapLiteral{Entries: []ast.MapEntry{{Key: s("a"), Value: i(1)}, {Key: s("b"), Value: i(2)}}},
+				&ast.MapLiteral{Entries: []ast.MapEntry{{Key: s("a"), Value: i(1)}, {Key: s("b"), Value: i(2)}}}),
+			want: ConstValue{Kind: ConstBool, Bool: true},
+		},
+		{
+			name: "map eq reordered keys",
+			expr: bin(token.EQ,
+				&ast.MapLiteral{Entries: []ast.MapEntry{{Key: s("a"), Value: i(1)}, {Key: s("b"), Value: i(2)}}},
+				&ast.MapLiteral{Entries: []ast.MapEntry{{Key: s("b"), Value: i(2)}, {Key: s("a"), Value: i(1)}}}),
+			want: ConstValue{Kind: ConstBool, Bool: true},
+		},
+		{
+			name: "map eq missing key",
+			expr: bin(token.EQ,
+				&ast.MapLiteral{Entries: []ast.MapEntry{{Key: s("a"), Value: i(1)}}},
+				&ast.MapLiteral{Entries: []ast.MapEntry{{Key: s("b"), Value: i(1)}}}),
+			want: ConstValue{Kind: ConstBool, Bool: false},
+		},
+
+		// Equality involving unknown / partial operands — defers to runtime.
+		{
+			name: "unknown operand yields unknown",
+			expr: bin(token.EQ, i(1), idExpr("x")),
+			want: ConstValue{Kind: ConstUnknown},
+		},
+		{
+			name: "partial list operand yields unknown",
+			expr: bin(token.EQ,
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), idExpr("x")}},
+				&ast.ListLiteral{Elements: []ast.Expression{i(1), i(2)}}),
+			want: ConstValue{Kind: ConstUnknown},
+		},
+
+		// Ordered numeric comparisons.
+		{name: "lt true", expr: bin(token.LT, i(1), i(2)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "lt false equal", expr: bin(token.LT, i(2), i(2)), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "lt false greater", expr: bin(token.LT, i(3), i(2)), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "gt true", expr: bin(token.GT, i(3), i(2)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "gt false equal", expr: bin(token.GT, i(2), i(2)), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "gt false less", expr: bin(token.GT, i(1), i(2)), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "lte true less", expr: bin(token.LTE, i(1), i(2)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "lte true equal", expr: bin(token.LTE, i(2), i(2)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "lte false", expr: bin(token.LTE, i(3), i(2)), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "gte true greater", expr: bin(token.GTE, i(3), i(2)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "gte true equal", expr: bin(token.GTE, i(2), i(2)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "gte false", expr: bin(token.GTE, i(1), i(2)), want: ConstValue{Kind: ConstBool, Bool: false}},
+		{name: "float comparison", expr: bin(token.LT, f(1.5), f(2.5)), want: ConstValue{Kind: ConstBool, Bool: true}},
+		{name: "lt non-numeric operand", expr: bin(token.LT, s("a"), s("b")), want: ConstValue{Kind: ConstUnknown}},
+		{name: "gt unknown operand", expr: bin(token.GT, i(1), idExpr("x")), want: ConstValue{Kind: ConstUnknown}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -786,6 +840,42 @@ model gpt {
 	want := ConstValue{Kind: ConstString, Str: "openai"}
 	if !constValueEqual(v, want) {
 		t.Errorf("ConstFold(provider) = %#v, want %#v", v, want)
+	}
+}
+
+// TestConstFoldRecursiveLambdaCall verifies that a recursive lambda call with
+// a constant argument folds to the final numeric result at compile time.
+// Concretely, `vars.fib(10)` should fold to 55 via repeated lambda-body
+// evaluation, exercising: member access through a let block, lambda callee
+// resolution, constant-argument binding, ternary condition folding on `>`,
+// numeric binary folding, and recursive self-call through `vars.fib`.
+func TestConstFoldRecursiveLambdaCall(t *testing.T) {
+	input := `let vars {
+  fib = \(n number) number ->
+    (n > 1) ? vars.fib(n-1) + vars.fib(n-2) : n
+
+  f10 = vars.fib(10)
+}`
+	prog := parseProgram(t, input)
+	ap := Analyze(prog)
+	if len(ap.Diagnostics) > 0 {
+		t.Fatalf("Analyze: %v", ap.Diagnostics)
+	}
+	vars := prog.FindBlockWithName("vars")
+	if vars == nil {
+		t.Fatal("let vars not found")
+	}
+	expr, ok := vars.GetFieldExpression("f10")
+	if !ok {
+		t.Fatal("f10 field missing")
+	}
+	got, diags := ConstFold(expr, &ap)
+	if len(diags) != 0 {
+		t.Errorf("unexpected diags: %v", diags)
+	}
+	want := ConstValue{Kind: ConstNumber, Number: 55}
+	if !constValueEqual(got, want) {
+		t.Errorf("ConstFold(f10) = %#v, want %#v", got, want)
 	}
 }
 

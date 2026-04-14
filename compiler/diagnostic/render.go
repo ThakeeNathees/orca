@@ -30,7 +30,7 @@ func Render(source string, d Diagnostic) string {
 	b.WriteString(d.Message)
 	b.WriteByte('\n')
 
-	fmt.Fprintf(&b, "  --> %s:%d:%d\n", d.File, d.Position.Line, d.Position.Column)
+	fmt.Fprintf(&b, "  --> %s:%d:%d\n", d.Position.File, d.Position.Line, d.Position.Column)
 
 	// Split source into lines and drop a trailing empty element produced
 	// by a final newline, so len(lines) matches 1-based line counts.
