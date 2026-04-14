@@ -158,7 +158,7 @@ _orca__anon_2 = _orca__block("model",
 )
 
 _orca__anon_3 = _orca__block("tool", 
-    invoke=lambda inp: "password: " + inp,
+    invoke=(lambda inp: "password: " + inp),
 )
 
 if __name__ == "__main__":

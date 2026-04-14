@@ -97,9 +97,9 @@ func (b *LangGraphBackend) exprToSource(expr ast.Expression) string {
 			params = append(params, p.Name.Value)
 		}
 		if len(params) == 0 {
-			return "lambda: " + b.exprToSource(e.Body)
+			return "(lambda: " + b.exprToSource(e.Body) + ")"
 		}
-		return "lambda " + strings.Join(params, ", ") + ": " + b.exprToSource(e.Body)
+		return "(lambda " + strings.Join(params, ", ") + ": " + b.exprToSource(e.Body) + ")"
 	case *ast.BlockExpression:
 		return blockCallSource(b, &e.BlockBody, "")
 	default:

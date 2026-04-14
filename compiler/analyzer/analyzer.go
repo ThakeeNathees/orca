@@ -27,6 +27,13 @@ type AnalyzedProgram struct {
 	// ConstFoldCache is a cache of constant fold results for expressions.
 	// This is used to avoid redundant constant folding calculations.
 	ConstFoldCache map[ast.Expression]ConstValue
+	// FIXME: This doesnt belong here but for now easy to have it, but move it
+	// inside cost fold module with like ConstFoldCtx struct or something.
+	// This supposted to keep track of the const folded parameter passed to the lambda.
+	// We push parameter values when entering a lambda scope and pop them when leaving.
+	// So this is basically a working stack of parameter values then any analyzer results.
+	// that depends on the parameter values.
+	ConstFoldLambdaArgs map[string]ConstValue
 }
 
 // Analyze walks the AST and performs semantic analysis.
@@ -40,10 +47,11 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 	bootstrapResult := types.Bootstrap(types.BootstrapSource)
 
 	ap := AnalyzedProgram{
-		Ast:            program,
-		SymbolTable:    bootstrapResult.Symtab,
-		Diagnostics:    []diagnostic.Diagnostic{},
-		ConstFoldCache: make(map[ast.Expression]ConstValue),
+		Ast:                 program,
+		SymbolTable:         bootstrapResult.Symtab,
+		Diagnostics:         []diagnostic.Diagnostic{},
+		ConstFoldCache:      make(map[ast.Expression]ConstValue),
+		ConstFoldLambdaArgs: make(map[string]ConstValue),
 	}
 
 	// These function should run in this order

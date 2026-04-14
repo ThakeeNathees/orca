@@ -164,7 +164,7 @@ def _orca__node__orca__anon_1(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping '_orca__anon_1'."""
     _predecessors = ["classifier"]
     _input = _orca__gather(state, _predecessors)
-    _route_key = (lambda out: out)(_input)
+    _route_key = ((lambda out: out))(_input)
     return {"_orca__anon_1": _input, "_orca__route___orca__anon_1": _route_key}
 
 def _orca__node_handler_a(state: _orca__state_pipeline) -> dict:
@@ -178,7 +178,7 @@ def _orca__node__orca__anon_2(state: _orca__state_pipeline) -> dict:
     """Workflow node wrapping '_orca__anon_2'."""
     _predecessors = ["_orca__anon_1"]
     _input = _orca__gather(state, _predecessors)
-    _route_key = (lambda out: out)(_input)
+    _route_key = ((lambda out: out))(_input)
     return {"_orca__anon_2": _input, "_orca__route___orca__anon_2": _route_key}
 
 def _orca__node_handler_b1(state: _orca__state_pipeline) -> dict:
@@ -230,12 +230,12 @@ pipeline.add_edge("handler_b2", END)
 pipeline = pipeline.compile()
 
 _orca__anon_1 = _orca__block("branch", 
-    transform=lambda out: out,
-    route={"a": handler_a, "b": _orca__block("branch", transform=lambda out: out, route={"1": handler_b1, "2": handler_b2}, )},
+    transform=(lambda out: out),
+    route={"a": handler_a, "b": _orca__block("branch", transform=(lambda out: out), route={"1": handler_b1, "2": handler_b2}, )},
 )
 
 _orca__anon_2 = _orca__block("branch", 
-    transform=lambda out: out,
+    transform=(lambda out: out),
     route={"1": handler_b1, "2": handler_b2},
 )
 
