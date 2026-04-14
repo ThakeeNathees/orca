@@ -19,8 +19,8 @@ agent <name> {
 |-------|------|----------|-------------|
 | `model` | `string \| model` | Yes | Reference to a model block or a model string |
 | `persona` | `string` | Yes | The agent's system prompt / behavior description |
-| `tools` | `list[tool] \| null` | No | List of tool references the agent can use |
-| `output_schema` | `schema \| null` | No | Structured output schema for the agent's response |
+| `tools` | `list[tool] \| nulltype` | No | List of tool references the agent can use |
+| `output_schema` | `schema \| nulltype` | No | Structured output schema for the agent's response |
 
 ## Examples
 

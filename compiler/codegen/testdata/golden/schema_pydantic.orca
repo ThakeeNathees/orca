@@ -4,7 +4,7 @@ schema research_report {
   @desc("Key findings from research")
   findings = list[string]
   @desc("Confidence score")
-  score    = float | null
+  score    = number | nulltype
 }
 
 agent researcher {

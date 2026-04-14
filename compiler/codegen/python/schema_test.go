@@ -21,42 +21,40 @@ func TestOrcaTypeToPythonTypeName(t *testing.T) {
 		expected string
 	}{
 		// Primitives (lazy block refs by name).
-		{"string", lazyRef("string"), "str"},
-		{"int", lazyRef("int"), "int"},
-		{"float", lazyRef("float"), "float"},
+		{"string", lazyRef(types.BlockKindString), "str"},
+		{"number", lazyRef(types.BlockKindNumber), "float"},
 		{"bool", lazyRef("bool"), "bool"},
-		{"any → Any", lazyRef("any"), "Any"},
-		{"null → None", lazyRef("null"), "None"},
+		{"any → Any", lazyRef(types.BlockKindAny), "Any"},
+		{"nulltype → None", lazyRef(types.BlockKindNulltype), "None"},
 
 		// User-defined schema refs.
 		{"user schema", lazyRef("article"), "article"},
 		{"user schema snake_case", lazyRef("vpc_data_t"), "vpc_data_t"},
 
 		// List types.
-		{"list[str]", types.NewListType(lazyRef("string")), "list[str]"},
-		{"list[int]", types.NewListType(lazyRef("int")), "list[int]"},
+		{"list[str]", types.NewListType(lazyRef(types.BlockKindString)), "list[str]"},
+		{"list[float]", types.NewListType(lazyRef(types.BlockKindNumber)), "list[float]"},
 		{"list[article]", types.NewListType(lazyRef("article")), "list[article]"},
-		{"list[list[str]]", types.NewListType(types.NewListType(lazyRef("string"))), "list[list[str]]"},
+		{"list[list[str]]", types.NewListType(types.NewListType(lazyRef(types.BlockKindString))), "list[list[str]]"},
 		{"untyped list", types.Type{Kind: types.List}, "list"},
 
 		// Map types.
-		{"dict[str, int]", types.NewMapType(lazyRef("string"), lazyRef("int")), "dict[str, int]"},
-		{"dict[str, article]", types.NewMapType(lazyRef("string"), lazyRef("article")), "dict[str, article]"},
-		{"dict[str, list[str]]", types.NewMapType(lazyRef("string"), types.NewListType(lazyRef("string"))), "dict[str, list[str]]"},
+		{"dict[str, float]", types.NewMapType(lazyRef(types.BlockKindString), lazyRef(types.BlockKindNumber)), "dict[str, float]"},
+		{"dict[str, article]", types.NewMapType(lazyRef(types.BlockKindString), lazyRef("article")), "dict[str, article]"},
+		{"dict[str, list[str]]", types.NewMapType(lazyRef(types.BlockKindString), types.NewListType(lazyRef(types.BlockKindString))), "dict[str, list[str]]"},
 		{"untyped dict", types.Type{Kind: types.Map}, "dict"},
 
 		// Union types.
-		{"str | None", types.NewUnionType(lazyRef("string"), lazyRef("null")), "str | None"},
-		{"str | int", types.NewUnionType(lazyRef("string"), lazyRef("int")), "str | int"},
-		{"float | None", types.NewUnionType(lazyRef("float"), lazyRef("null")), "float | None"},
-		{"str | int | None", types.NewUnionType(lazyRef("string"), lazyRef("int"), lazyRef("null")), "str | int | None"},
-		{"str | int | float", types.NewUnionType(lazyRef("string"), lazyRef("int"), lazyRef("float")), "str | int | float"},
-		{"list[str] | None", types.NewUnionType(types.NewListType(lazyRef("string")), lazyRef("null")), "list[str] | None"},
-		{"article | None", types.NewUnionType(lazyRef("article"), lazyRef("null")), "article | None"},
+		{"str | None", types.NewUnionType(lazyRef(types.BlockKindString), lazyRef(types.BlockKindNulltype)), "str | None"},
+		{"str | float", types.NewUnionType(lazyRef(types.BlockKindString), lazyRef(types.BlockKindNumber)), "str | float"},
+		{"float | None", types.NewUnionType(lazyRef(types.BlockKindNumber), lazyRef(types.BlockKindNulltype)), "float | None"},
+		{"str | float | None", types.NewUnionType(lazyRef(types.BlockKindString), lazyRef(types.BlockKindNumber), lazyRef(types.BlockKindNulltype)), "str | float | None"},
+		{"list[str] | None", types.NewUnionType(types.NewListType(lazyRef(types.BlockKindString)), lazyRef(types.BlockKindNulltype)), "list[str] | None"},
+		{"article | None", types.NewUnionType(lazyRef("article"), lazyRef(types.BlockKindNulltype)), "article | None"},
 
 		// Unresolved block refs with concrete names pass through as annotations (not empty → Any).
-		{"block name model", lazyRef("model"), "model"},
-		{"block name agent", lazyRef("agent"), "agent"},
+		{"block name model", lazyRef(types.BlockKindModel), "model"},
+		{"block name agent", lazyRef(types.BlockKindAgent), "agent"},
 	}
 
 	for _, tt := range tests {
@@ -87,14 +85,14 @@ func TestSchemaBlockToSource(t *testing.T) {
 					Name: "article",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
-						{Name: "title", Value: &ast.Identifier{Value: "string"}},
-						{Name: "count", Value: &ast.Identifier{Value: "int"}},
+						{Name: "title", Value: &ast.Identifier{Value: types.BlockKindString}},
+						{Name: "count", Value: &ast.Identifier{Value: types.BlockKindNumber}},
 					},
 				},
 			},
 			expected: "class article(BaseModel):\n" +
 				"    title: str\n" +
-				"    count: int\n",
+				"    count: float\n",
 		},
 		{
 			name: "all primitive types",
@@ -103,17 +101,15 @@ func TestSchemaBlockToSource(t *testing.T) {
 					Name: "config",
 					Kind: types.BlockKindSchema,
 					Assignments: []*ast.Assignment{
-						{Name: "name", Value: &ast.Identifier{Value: "string"}},
-						{Name: "count", Value: &ast.Identifier{Value: "int"}},
-						{Name: "rate", Value: &ast.Identifier{Value: "float"}},
+						{Name: "name", Value: &ast.Identifier{Value: types.BlockKindString}},
+						{Name: "count", Value: &ast.Identifier{Value: types.BlockKindNumber}},
 						{Name: "enabled", Value: &ast.Identifier{Value: "bool"}},
 					},
 				},
 			},
 			expected: "class config(BaseModel):\n" +
 				"    name: str\n" +
-				"    count: int\n" +
-				"    rate: float\n" +
+				"    count: float\n" +
 				"    enabled: bool\n",
 		},
 		{
@@ -182,7 +178,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Value: &ast.BinaryExpression{
 								Left:     &ast.Identifier{Value: "float"},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "null"},
+								Right:    &ast.Identifier{Value: "nulltype"},
 							},
 						},
 					},
@@ -203,7 +199,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Value: &ast.BinaryExpression{
 								Left:     &ast.Identifier{Value: "float"},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "null"},
+								Right:    &ast.Identifier{Value: "nulltype"},
 							},
 						},
 					},
@@ -224,7 +220,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Value: &ast.BinaryExpression{
 								Left:     &ast.Identifier{Value: "float"},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "null"},
+								Right:    &ast.Identifier{Value: "nulltype"},
 							},
 							Annotations: []*ast.Annotation{
 								{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "Confidence score"}}},
@@ -247,19 +243,19 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Name: "value",
 							Value: &ast.BinaryExpression{
 								Left: &ast.BinaryExpression{
-									Left:     &ast.Identifier{Value: "string"},
+									Left:     &ast.Identifier{Value: types.BlockKindString},
 									Operator: token.Token{Type: token.PIPE, Literal: "|"},
-									Right:    &ast.Identifier{Value: "int"},
+									Right:    &ast.Identifier{Value: types.BlockKindNumber},
 								},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "null"},
+								Right:    &ast.Identifier{Value: types.BlockKindNulltype},
 							},
 						},
 					},
 				},
 			},
 			expected: "class result(BaseModel):\n" +
-				"    value: str | int | None = None\n",
+				"    value: str | float | None = None\n",
 		},
 		{
 			name: "non-optional union",
@@ -271,16 +267,16 @@ func TestSchemaBlockToSource(t *testing.T) {
 						{
 							Name: "value",
 							Value: &ast.BinaryExpression{
-								Left:     &ast.Identifier{Value: "string"},
+								Left:     &ast.Identifier{Value: types.BlockKindString},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "int"},
+								Right:    &ast.Identifier{Value: types.BlockKindNumber},
 							},
 						},
 					},
 				},
 			},
 			expected: "class result(BaseModel):\n" +
-				"    value: str | int\n",
+				"    value: str | float\n",
 		},
 		{
 			name: "nested schema reference",
@@ -310,7 +306,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Value: &ast.BinaryExpression{
 								Left:     &ast.Identifier{Value: "address"},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "null"},
+								Right:    &ast.Identifier{Value: "nulltype"},
 							},
 						},
 					},
@@ -395,8 +391,8 @@ func TestSchemaBlockToSource(t *testing.T) {
 								BlockBody: ast.BlockBody{
 									Kind: types.BlockKindSchema,
 									Assignments: []*ast.Assignment{
-										{Name: "text", Value: &ast.Identifier{Value: "string"}},
-										{Name: "score", Value: &ast.Identifier{Value: "int"}},
+										{Name: "text", Value: &ast.Identifier{Value: types.BlockKindString}},
+										{Name: "score", Value: &ast.Identifier{Value: types.BlockKindNumber}},
 									},
 								},
 							},
@@ -458,9 +454,9 @@ func TestSchemaBlockToSource(t *testing.T) {
 						{
 							Name: "rating",
 							Value: &ast.BinaryExpression{
-								Left:     &ast.Identifier{Value: "int"},
+								Left:     &ast.Identifier{Value: types.BlockKindNumber},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "null"},
+								Right:    &ast.Identifier{Value: types.BlockKindNulltype},
 							},
 							Annotations: []*ast.Annotation{
 								{Name: "desc", Arguments: []ast.Expression{&ast.StringLiteral{Value: "Optional rating"}}},
@@ -479,7 +475,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			expected: "class report(BaseModel):\n" +
 				"    title: str = Field(description=\"Report title\")\n" +
 				"    body: str\n" +
-				"    rating: int | None = Field(default=None, description=\"Optional rating\")\n" +
+				"    rating: float | None = Field(default=None, description=\"Optional rating\")\n" +
 				"    tags: list[str]\n",
 		},
 		{
@@ -494,15 +490,15 @@ func TestSchemaBlockToSource(t *testing.T) {
 							Value: &ast.BinaryExpression{
 								Left:     &ast.Identifier{Value: "string"},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "null"},
+								Right:    &ast.Identifier{Value: "nulltype"},
 							},
 						},
 						{
 							Name: "b",
 							Value: &ast.BinaryExpression{
-								Left:     &ast.Identifier{Value: "int"},
+								Left:     &ast.Identifier{Value: types.BlockKindNumber},
 								Operator: token.Token{Type: token.PIPE, Literal: "|"},
-								Right:    &ast.Identifier{Value: "null"},
+								Right:    &ast.Identifier{Value: types.BlockKindNulltype},
 							},
 						},
 					},
@@ -510,7 +506,7 @@ func TestSchemaBlockToSource(t *testing.T) {
 			},
 			expected: "class opts(BaseModel):\n" +
 				"    a: str | None = None\n" +
-				"    b: int | None = None\n",
+				"    b: float | None = None\n",
 		},
 	}
 

@@ -68,7 +68,7 @@ func OrcaTypeToPythonTypeName(t types.Type) string {
 func isOptional(t types.Type) bool {
 	if t.Kind == types.Union {
 		for _, m := range t.Members {
-			if m.IsNull() {
+			if m.IsNullType() {
 				return true
 			}
 		}
@@ -113,15 +113,15 @@ func orcaSchemaToPythonTypeName(t types.Type) string {
 		return "Any"
 	}
 	switch t.BlockName {
-	case "string":
+	case types.BlockKindString:
 		return "str"
-	case "number":
+	case types.BlockKindNumber:
 		return "float"
 	case "bool":
 		return "bool"
-	case "any":
+	case types.BlockKindAny:
 		return "Any"
-	case "null":
+	case types.BlockKindNulltype:
 		return "None"
 	default:
 		// User-defined schema name.

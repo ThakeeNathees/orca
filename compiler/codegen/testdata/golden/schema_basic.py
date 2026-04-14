@@ -118,4 +118,4 @@ def _orca__invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 
 class vpc_data_t(BaseModel):
     region: str
-    instance_count: int
+    instance_count: float

@@ -500,25 +500,23 @@ func mapLiteralType(depth int, m *ast.MapLiteral, symtab *SymbolTable) Type {
 	return NewMapType(keyT, valT)
 }
 
-// listLiteralType infers the type of a list literal. If all elements
-// have the same type, returns list[T]. Otherwise returns an untyped list.
+// listLiteralType infers the type of a list literal by unifying element
+// types at the caller's depth. If every element's type equals the first
+// element's type, that becomes the list element type; otherwise the
+// element type falls back to any — matching mapLiteralType's approach.
 func listLiteralType(depth int, list *ast.ListLiteral, symbols *SymbolTable) Type {
 	if len(list.Elements) == 0 {
 		return Type{Kind: List}
 	}
 
-	// TODO: depth, symbols is not used here but it should be.
-
-	// TODO: Check if the first element's type is compatible with
-	// first := ExprType(list.Elements[0], symbols)
-	// for _, elem := range list.Elements[1:] {
-	// 	if !ExprType(elem, symbols).Equals(first) {
-	// 		return Type{Kind: List}
-	// 	}
-	// }
-	// return NewListType(first)
-
-	return Type{Kind: List}
+	elemT := schemaFromExprWithDepth(depth, list.Elements[0], symbols)
+	for _, elem := range list.Elements[1:] {
+		if t := schemaFromExprWithDepth(depth, elem, symbols); !t.Equals(elemT) {
+			elemT = anyType(symbols)
+			break
+		}
+	}
+	return NewListType(elemT)
 }
 
 func anyType(symtab *SymbolTable) Type {

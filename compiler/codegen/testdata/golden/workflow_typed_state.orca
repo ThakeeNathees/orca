@@ -2,7 +2,7 @@ schema report {
   @desc("The report content")
   content = string
   @desc("Quality score")
-  score   = int
+  score   = number
 }
 
 model gpt4 {

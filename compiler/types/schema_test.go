@@ -345,10 +345,10 @@ func TestGetFieldSchema(t *testing.T) {
 	}{
 		{"model provider", "model", "provider", true, BlockRef, "string", true},
 		{"model model_name", "model", "model_name", true, BlockRef, "string", true},
-		{"model temperature", "model", "temperature", true, Union, "number | null", false},
+		{"model temperature", "model", "temperature", true, Union, "number | nulltype", false},
 		{"agent model union", "agent", "model", true, Union, "string | model", true},
 		{"agent persona", "agent", "persona", true, BlockRef, "string", true},
-		{"agent tools list", "agent", "tools", true, Union, "list[tool] | null", false},
+		{"agent tools list", "agent", "tools", true, Union, "list[tool] | nulltype", false},
 		{"unknown field", "model", "nonexistent", false, BlockRef, "", false},
 	}
 

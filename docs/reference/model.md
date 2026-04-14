@@ -10,7 +10,7 @@ model <name> {
   model_name  = <string>
   api_key     = <string>  // optional
   base_url    = <string>  // optional
-  temperature = <float>   // optional
+  temperature = <number>  // optional
 }
 ```
 
@@ -20,9 +20,9 @@ model <name> {
 |-------|------|----------|-------------|
 | `provider` | `string` | Yes | LLM provider: `"openai"`, `"anthropic"`, or `"google"` |
 | `model_name` | `string \| model` | Yes | The model identifier (e.g., `"gpt-4o"`, `"claude-sonnet"`) |
-| `api_key` | `string \| null` | No | API key for the provider (overrides environment variable) |
-| `base_url` | `string \| null` | No | Custom base URL for the provider endpoint |
-| `temperature` | `float \| null` | No | Sampling temperature (0.0 – 1.0) |
+| `api_key` | `string \| nulltype` | No | API key for the provider (overrides environment variable) |
+| `base_url` | `string \| nulltype` | No | Custom base URL for the provider endpoint |
+| `temperature` | `number \| nulltype` | No | Sampling temperature (0.0 – 1.0) |
 
 ## Supported providers
 

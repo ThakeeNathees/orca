@@ -265,13 +265,13 @@ func TestIsAny(t *testing.T) {
 
 // TestIsNull verifies the IsNull helper.
 func TestIsNull(t *testing.T) {
-	if !nullResolved().IsNull() {
+	if !nullResolved().IsNullInst() {
 		t.Error("resolved null.IsNull() should be true")
 	}
-	if !ident("null").IsNull() {
+	if !ident("null").IsNullInst() {
 		t.Error("lazy null identifier.IsNull() should be true")
 	}
-	if ident("string").IsNull() {
+	if ident("string").IsNullInst() {
 		t.Error("lazy str.IsNull() should be false")
 	}
 }
