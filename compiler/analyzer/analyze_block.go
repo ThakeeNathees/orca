@@ -106,10 +106,30 @@ func analyzeBlockBody(
 		}
 	}
 
-	// Check if the block support expressions (other than assignments).
-	if onlyAssignments := types.HasAnnotation(blockSchema.Annotations, types.AnnotationOnlyAssignments); onlyAssignments {
+	// Only workflow nodes support expressions (node -> node) at the top level,
+	// this kinda breaks the orthogonality but increases the readability and writability.
+	//
+	// A syntax worth considering (to orthogonalize the language), here comma in list is
+	// optional as we dont have infix operator so [1 2 3+4 foo(5) bar.baz] is valid without
+	// commas.
+	//
+	// workflow my_workflow {
+	//   graph = [
+	//     cron_daily -> researcher -> writer
+	//     writer -> reviewer -> branch { ... }
+	//     writer -> publisher
+	//   ]
+	// }
+	//
+	// But this is clean and in a DSL readability is the king.
+	//
+	// workflow my_workflow {
+	//   cron_daily -> researcher -> writer
+	//   writer -> reviewer -> branch { ... }
+	//   writer -> publisher
+	// }
+	if body.Kind != types.BlockKindWorkflow {
 		for _, expr := range body.Expressions {
-			// TODO: once assignments become expressions, we need to check that here.
 			start, end := diagnostic.RangeOf(expr)
 			diags = append(diags, diagnostic.Diagnostic{
 				Severity:    diagnostic.Error,

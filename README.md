@@ -172,6 +172,7 @@ This will automatically build your `.orca` files, generate the `build/` director
 - **Domain-agnostic DSL** — the entire language is defined by schemas in `bootstrap.orca`; customize it to your domain by redefining block types and fields
 - **Declarative syntax** — models, agents, tools, workflows, and schemas in clean, readable HCL-like syntax
 - **Type-safe by default** — schemas and block references validated at compile time, not runtime
+- **Constant folding** — expressions that reduce to known values are evaluated at compile time and reused in generated code; where list or map access is folded, mistakes like out-of-range indices or missing keys surface as compile errors instead of runtime failures
 - **Multi-agent workflows** — agent chains, fan-out patterns, conditional routing, and complex orchestration graphs
 - **Built-in triggers** — cron schedules and HTTP webhooks for automated or event-driven workflows
 - **Custom schemas** — define strongly-typed, nested schemas with field descriptions and annotations

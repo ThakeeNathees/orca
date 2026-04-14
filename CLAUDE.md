@@ -87,10 +87,9 @@ make lint           # fmt + vet
 | `model` | LLM provider config (provider, version, temperature, etc.) |
 | `agent` | Agent definition (model, tools, prompt) |
 | `tool` | External integrations (gmail, slack, notion, web_search, etc.) |
-| `knowledge` | RAG/data sources |
-| `workflow` | Agent orchestration graphs |
 | `cron` | Cron schedule trigger (referenced as a node in workflows) |
 | `webhook` | HTTP webhook trigger (referenced as a node in workflows) |
+| `workflow` | Agent orchestration graphs |
 
 ## CLI
 
@@ -122,10 +121,3 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **Integration tests**: End-to-end `.orca` → `build/` output, verify generated Python is valid.
 - **No test without assertion**: Every test case must assert something meaningful. No empty or placeholder tests.
 
-## Target audience
-
-Programmers who want a concise, declarative alternative to writing verbose LangGraph Python code. A visual UI (node/edge editor) is planned as a future frontend that generates `.orca` files.
-
-## Important notes
-
-- If the user is wrong, suggest the correct approach rather than just taking orders.
