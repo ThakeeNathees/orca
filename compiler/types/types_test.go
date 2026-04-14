@@ -557,6 +557,142 @@ func TestIsCompatible(t *testing.T) {
 	}
 }
 
+// schemaWithFields builds a resolved schema BlockSchema with the given fields
+// and annotations for SchemaImplements / duck-typing tests.
+func schemaWithFields(name string, annots []string, fields map[string]FieldSchema) *BlockSchema {
+	anns := make([]*ast.Annotation, 0, len(annots))
+	for _, a := range annots {
+		anns = append(anns, &ast.Annotation{Name: a})
+	}
+	return &BlockSchema{
+		BlockName:   name,
+		Ast:         &ast.BlockBody{Kind: BlockKindSchema, Name: name},
+		Annotations: anns,
+		Fields:      fields,
+	}
+}
+
+// schemaRef returns a Type for a schema reference. The schema's own Schema
+// pointer is set to itself, matching the bootstrap invariant that a schema's
+// schema is `schema schema {}`. This satisfies the `got.Block.Schema != nil`
+// guard in IsCompatible so the duck-typing path is exercised.
+func schemaRef(s *BlockSchema) Type {
+	s.Schema = s
+	return NewBlockRefType(s.BlockName, s)
+}
+
+// TestSchemaImplements covers the structural (duck) match helper used by
+// IsCompatible when the expected schema is not @strict_check.
+func TestSchemaImplements(t *testing.T) {
+	str := ident("string")
+	num := ident("number")
+
+	quackable := schemaWithFields("quackable", nil, map[string]FieldSchema{
+		"quack": {Type: str, Required: true},
+	})
+	duckMatch := schemaWithFields("duck", nil, map[string]FieldSchema{
+		"quack": {Type: str, Required: true},
+		"age":   {Type: num, Required: false},
+	})
+	duckWrongType := schemaWithFields("duck_wrong", nil, map[string]FieldSchema{
+		"quack": {Type: num, Required: true},
+	})
+	duckMissing := schemaWithFields("duck_missing", nil, map[string]FieldSchema{
+		"age": {Type: num, Required: true},
+	})
+	// Expected has only optional fields — any block implements it vacuously.
+	optionalExpected := schemaWithFields("opt", nil, map[string]FieldSchema{
+		"desc": {Type: str, Required: false},
+	})
+	empty := schemaWithFields("empty", nil, map[string]FieldSchema{})
+
+	// Expected has two required fields; got must satisfy both.
+	twoReq := schemaWithFields("two", nil, map[string]FieldSchema{
+		"a": {Type: str, Required: true},
+		"b": {Type: num, Required: true},
+	})
+	twoReqOK := schemaWithFields("two_ok", nil, map[string]FieldSchema{
+		"a": {Type: str, Required: true},
+		"b": {Type: num, Required: true},
+	})
+	twoReqPartial := schemaWithFields("two_partial", nil, map[string]FieldSchema{
+		"a": {Type: str, Required: true},
+	})
+
+	tests := []struct {
+		name     string
+		got      *BlockSchema
+		expected *BlockSchema
+		want     bool
+	}{
+		{"duck implements quackable", duckMatch, quackable, true},
+		{"wrong field type fails", duckWrongType, quackable, false},
+		{"missing required field fails", duckMissing, quackable, false},
+		{"optional-only expected matches anything", empty, optionalExpected, true},
+		{"empty expected always satisfied", duckMatch, empty, true},
+		{"all required satisfied", twoReqOK, twoReq, true},
+		{"partial required fails", twoReqPartial, twoReq, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SchemaImplements(tt.got, tt.expected); got != tt.want {
+				t.Errorf("SchemaImplements() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestIsCompatibleDuckTyping verifies IsCompatible accepts structurally-
+// matching instance blocks against non-strict schemas, and rejects them
+// when the expected schema carries @strict_check.
+func TestIsCompatibleDuckTyping(t *testing.T) {
+	str := ident("string")
+	num := ident("number")
+
+	quackable := schemaWithFields("quackable", nil, map[string]FieldSchema{
+		"quack": {Type: str, Required: true},
+	})
+	quackableStrict := schemaWithFields("quackable_strict", []string{AnnotationStrictCheck},
+		map[string]FieldSchema{
+			"quack": {Type: str, Required: true},
+		})
+
+	duck := schemaRef(schemaWithFields("duck", nil, map[string]FieldSchema{
+		"quack": {Type: str, Required: true},
+	}))
+	cow := schemaRef(schemaWithFields("cow", nil, map[string]FieldSchema{
+		"moo": {Type: str, Required: true},
+	}))
+	badDuck := schemaRef(schemaWithFields("bad_duck", nil, map[string]FieldSchema{
+		"quack": {Type: num, Required: true},
+	}))
+
+	expectedQuackable := schemaRef(quackable)
+	expectedStrict := schemaRef(quackableStrict)
+
+	tests := []struct {
+		name   string
+		got    Type
+		expect Type
+		want   bool
+	}{
+		{"duck implements quackable", duck, expectedQuackable, true},
+		{"cow does not implement quackable", cow, expectedQuackable, false},
+		{"wrong field type fails duck check", badDuck, expectedQuackable, false},
+		{"strict_check rejects structural match", duck, expectedStrict, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsCompatible(tt.got, tt.expect); got != tt.want {
+				t.Errorf("IsCompatible(%s, %s) = %v, want %v",
+					tt.got.String(), tt.expect.String(), got, tt.want)
+			}
+		})
+	}
+}
+
 // TestTernaryExprType verifies the type resolution of ternary expressions.
 func TestTernaryExprType(t *testing.T) {
 	symtab := NewSymbolTable()

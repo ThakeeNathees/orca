@@ -22,10 +22,10 @@ const (
 	BlockKindWebhook   = "webhook"
 	BlockKindBranch    = "branch"
 
-	AnnotationOnlyAssignments = "only_assignments"
-	AnnotationWorkflowNode    = "workflow_node"
-	AnnotationWorkflowChain   = "workflow_chain"
-	AnnotationTriggerNode     = "trigger_node"
+	AnnotationWorkflowNode  = "workflow_node"
+	AnnotationWorkflowChain = "workflow_chain"
+	AnnotationTriggerNode   = "trigger_node"
+	AnnotationStrictCheck   = "strict_check"
 
 	LangTagMarkdown   = "md"
 	LangTagPython     = "py"

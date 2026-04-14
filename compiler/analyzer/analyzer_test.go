@@ -1153,6 +1153,34 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			"unexpected expression in model block",
 		},
 		{
+			"expression in agent block",
+			`agent A { model = gpt4 persona = "hi" "hello" }
+			 model gpt4 { provider = "openai" model_name = "gpt-4o" }`,
+			true,
+			"unexpected expression in agent block",
+		},
+		{
+			"expression in schema block",
+			`schema my_t { name = string 42 }`,
+			true,
+			"unexpected expression in schema block",
+		},
+		{
+			"expression in cron block",
+			`cron daily { schedule = "0 9 * * *" 1 }`,
+			true,
+			"unexpected expression in cron block",
+		},
+		{
+			"workflow allows top-level expressions",
+			`agent A { model = gpt4 persona = "hi" }
+			 agent B { model = gpt4 persona = "hi" }
+			 model gpt4 { provider = "openai" model_name = "gpt-4o" }
+			 workflow run { A -> B }`,
+			false,
+			"",
+		},
+		{
 			"valid workflow edges",
 			`agent A { model = gpt4 }
 			 agent B { model = gpt4 }
@@ -1277,6 +1305,47 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			 workflow run { A -> branch { route = { "x": cron { schedule = "0 9 * * *" }, "y": B } } }`,
 			true,
 			"Triggers can only be workflow entry points",
+		},
+		{
+			"duck-typed instance satisfies structural schema",
+			`schema quackable { quack = string }
+			 schema duck      { quack = string }
+			 duck mike { quack = "quack mike quack" }
+			 schema S { x = quackable }
+			 S s { x = mike }`,
+			false,
+			"",
+		},
+		{
+			"duck-typed instance with wrong field type fails",
+			`schema quackable { quack = string }
+			 schema duck      { quack = number }
+			 duck mike { quack = 42 }
+			 schema S { x = quackable }
+			 S s { x = mike }`,
+			true,
+			"expects type",
+		},
+		{
+			"duck-typed instance missing required field fails",
+			`schema quackable { quack = string }
+			 schema cow { moo = string }
+			 cow bessie { moo = "moo" }
+			 schema S { x = quackable }
+			 S s { x = bessie }`,
+			true,
+			"expects type",
+		},
+		{
+			"strict_check rejects structural match",
+			`@strict_check
+			 schema quackable { quack = string }
+			 schema duck { quack = string }
+			 duck mike { quack = "quack" }
+			 schema S { x = quackable }
+			 S s { x = mike }`,
+			true,
+			"expects type",
 		},
 		{
 			"nested branch routes are recursively validated",

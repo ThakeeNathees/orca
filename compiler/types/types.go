@@ -323,21 +323,35 @@ func IsCompatible(got Type, expected Type) bool {
 			return kindStrings[got.Kind] == expected.BlockName
 		}
 
-		// When got has an unresolved block pointer (e.g. from an inline block
-		// expression), fall back to name-based matching against the expected schema.
-		if got.Block == nil {
-			return got.BlockName == expected.BlockName
-		}
-
 		// Validate: block `schema kgot {...}`'s Schema should be `schema exp {...}`
 		if got.Block == expected.Block {
 			return true
 		}
 
-		// When got is an instance block (e.g. `model o {}`), check if its
-		// schema matches expected (e.g. `schema model {}`).
-		if got.Block.Schema != nil && got.Block.Schema == expected.Block {
-			return true
+		if got.Block.Schema != nil {
+
+			// When got is an instance block (e.g. `model o {}`), check if its
+			// schema matches expected (e.g. `schema model {}`).
+			if got.Block.Schema == expected.Block {
+				return true
+			}
+
+			// If the schema is not strict and what we got follows the schema (duck typing)
+			// we should allow it.
+			//
+			// Example:
+			// expected:  schema quackable { quack = string }
+			// got:       schema duck { quack = string }
+			// got value: duck mike { quack = "quack mike quack" }
+			//
+			// SchemaImplements(`schema duck {...}`, `schema quackable {...}`)
+			//
+			if !HasAnnotation(expected.Block.Annotations, AnnotationStrictCheck) {
+				if SchemaImplements(got.Block, expected.Block) {
+					return true
+				}
+			}
+
 		}
 
 		return false
@@ -399,4 +413,17 @@ func (t Type) Equals(other Type) bool {
 	default:
 		return true
 	}
+}
+
+func SchemaImplements(got *BlockSchema, expected *BlockSchema) bool {
+	for name, expField := range expected.Fields {
+		if !expField.Required {
+			continue
+		}
+		gotField, ok := got.Fields[name]
+		if !ok || !expField.Type.Equals(gotField.Type) {
+			return false
+		}
+	}
+	return true
 }

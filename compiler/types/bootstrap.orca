@@ -1,33 +1,21 @@
-// Schema definitions for all block types.
 
-// Annotations are not limited to a predefined set of names; they can be any
-// identifiers and may be passed to tools that analyze the AST.
+// +------------+
+// | Schema     | <-+
+// +------------+   | (schema is the schema of the schema itself)
+//    ^   |_________|
+//    |
+//    | (Any `schema foo {}`'s schema is `schema schema {}`)
+// +-------------------+      +------------------+
+// | Schema Definition | <--- | Block Definition |
+// +-------------------+      +------------------+
+//                          (all `foo bar {}`'s schema are `schema foo {}`)
 //
-// Here are the internally recognized annotations:
-//   @suppress: Suppresses compiler diagnostics.
-//   @desc: Adds a description to a field.
-//   @workflow_node: Indicates that the block is a workflow node.
-//   @trigger_node: Indicates that its a workflow trigger.
-//   @only_assignments: Indicates that the block only supports assignments.
-
-// TODO: Add an ascii diagram of how the schema works.
-
-
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 schema schema {}
 
-// Primitive type schemas — these define the built-in types.
 @suppress("duplicate-block")
-@only_assignments
-schema string {}
-
-@suppress("duplicate-block")
-@only_assignments
-schema number {}
-
-@suppress("duplicate-block")
-@only_assignments
+@strict_check
 schema bool {}
 
 @suppress("duplicate-block")
@@ -37,26 +25,35 @@ bool true {}
 bool false {}
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
+schema string {}
+
+@suppress("duplicate-block")
+@strict_check
+schema number {}
+
+@suppress("duplicate-block")
+@strict_check
 schema list {}
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 schema map {}
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 schema callable {}
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 schema any {}
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 schema null {}
 
 @suppress("duplicate-block")
+@strict_check
 schema workflow {
   @desc("The name of the workflow.")
   name = string | null
@@ -66,7 +63,7 @@ schema workflow {
 }
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 schema model {
   @desc("The LLM provider to use (e.g. openai, anthropic).")
   provider = string
@@ -85,7 +82,7 @@ schema model {
 }
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 @workflow_node
 schema tool {
   @desc("The description of the tool.")
@@ -102,7 +99,7 @@ schema tool {
 }
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 @workflow_node
 schema agent {
   @desc("The model to use. Can be a reference to a model block or a string.")
@@ -122,14 +119,7 @@ schema agent {
 }
 
 @suppress("duplicate-block")
-@only_assignments
-schema knowledge {
-  @desc("The description of the knowledge source.")
-  desc = string | null
-}
-
-@suppress("duplicate-block")
-@only_assignments
+@strict_check
 @workflow_node
 @trigger_node
 schema cron {
@@ -141,7 +131,7 @@ schema cron {
 }
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 @workflow_node
 @trigger_node
 schema webhook {
@@ -154,7 +144,7 @@ schema webhook {
 
 
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 @workflow_node
 schema branch {
   @desc(```
@@ -193,7 +183,7 @@ schema branch {
 
 // The Type of `<expr> -> <expr>`
 @suppress("duplicate-block")
-@only_assignments
+@strict_check
 @workflow_node
 schema workflow_chain {
 
