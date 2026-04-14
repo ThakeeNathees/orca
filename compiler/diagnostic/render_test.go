@@ -25,11 +25,10 @@ func TestRender(t *testing.T) {
 			diag: Diagnostic{
 				Severity:    Error,
 				Code:        CodeSyntax,
-				Position:    Position{Line: 3, Column: 6},
-				EndPosition: Position{Line: 3, Column: 10},
+				Position:    Position{Line: 3, Column: 6, File: "foo.orca"},
+				EndPosition: Position{Line: 3, Column: 10, File: "foo.orca"},
 				Message:     "expected }",
 				Source:      "parser",
-				File:        "foo.orca",
 			},
 			expected: "" +
 				"error[syntax]: expected }\n" +
@@ -48,9 +47,8 @@ func TestRender(t *testing.T) {
 			diag: Diagnostic{
 				Severity: Error,
 				Code:     CodeSyntax,
-				Position: Position{Line: 1, Column: 1},
+				Position: Position{Line: 1, Column: 1, File: "foo.orca"},
 				Message:  "bad start",
-				File:     "foo.orca",
 			},
 			expected: "" +
 				"error[syntax]: bad start\n" +
@@ -67,9 +65,8 @@ func TestRender(t *testing.T) {
 			diag: Diagnostic{
 				Severity: Error,
 				Code:     CodeSyntax,
-				Position: Position{Line: 5, Column: 1},
+				Position: Position{Line: 5, Column: 1, File: "foo.orca"},
 				Message:  "trailing",
-				File:     "foo.orca",
 			},
 			expected: "" +
 				"error[syntax]: trailing\n" +
@@ -86,10 +83,9 @@ func TestRender(t *testing.T) {
 			diag: Diagnostic{
 				Severity:    Error,
 				Code:        CodeSyntax,
-				Position:    Position{Line: 2, Column: 6},
-				EndPosition: Position{Line: 4, Column: 3},
+				Position:    Position{Line: 2, Column: 6, File: "foo.orca"},
+				EndPosition: Position{Line: 4, Column: 3, File: "foo.orca"},
 				Message:     "unterminated block",
-				File:        "foo.orca",
 			},
 			expected: "" +
 				"error[syntax]: unterminated block\n" +
@@ -107,10 +103,9 @@ func TestRender(t *testing.T) {
 			diag: Diagnostic{
 				Severity:    Error,
 				Code:        CodeSyntax,
-				Position:    Position{Line: 2, Column: 2},
-				EndPosition: Position{Line: 2, Column: 5},
+				Position:    Position{Line: 2, Column: 2, File: "foo.orca"},
+				EndPosition: Position{Line: 2, Column: 5, File: "foo.orca"},
 				Message:     "bad token",
-				File:        "foo.orca",
 			},
 			expected: "" +
 				"error[syntax]: bad token\n" +
@@ -127,9 +122,8 @@ func TestRender(t *testing.T) {
 			diag: Diagnostic{
 				Severity: Warning,
 				Code:     CodeUndefinedRef,
-				Position: Position{Line: 2, Column: 1},
+				Position: Position{Line: 2, Column: 1, File: "foo.orca"},
 				Message:  "unused",
-				File:     "foo.orca",
 			},
 			expected: "" +
 				"warning[undefined-ref]: unused\n" +

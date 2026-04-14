@@ -64,7 +64,7 @@ func (l *Lexer) NextToken() token.Token {
 	l.skipWhitespace()
 	l.skipComment()
 
-	tok := token.Token{Line: l.line, Column: l.column}
+	tok := token.Token{Line: l.line, Column: l.column, SourceFile: l.SourceFile}
 
 	switch l.ch {
 	case '=':
@@ -400,7 +400,7 @@ func dedentRawString(raw string, baseline int) string {
 // with a digit or a dot (e.g., ".5"). If a dot is encountered mid-number,
 // the token is classified as FLOAT; otherwise INT.
 func (l *Lexer) readNumber() token.Token {
-	tok := token.Token{Line: l.line, Column: l.column}
+	tok := token.Token{Line: l.line, Column: l.column, SourceFile: l.SourceFile}
 	pos := l.position
 
 	for isDigit(l.ch) || (l.ch == '.' && isDigit(l.peekChar())) {

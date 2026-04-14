@@ -22,9 +22,12 @@ const (
 
 // Position represents a source location in an .orca file.
 // Line and Column are 1-based, matching the lexer's convention.
+// File is the origin .orca path, propagated from the token's SourceFile;
+// it's empty for in-memory/test inputs.
 type Position struct {
 	Line   int
 	Column int
+	File   string
 }
 
 // Diagnostic codes identify each kind of diagnostic for suppression
@@ -59,17 +62,22 @@ type Diagnostic struct {
 	EndPosition Position // end of the diagnostic range (zero value means same as Position)
 	Message     string
 	Source      string // which stage produced this: "parser", "analyzer", etc.
-	File        string // source .orca file this diagnostic originates from (set by multi-file compilation)
 }
 
 // Error implements the error interface so a Diagnostic can be used as a Go error.
+// Prefers the origin file for the location prefix, falling back to the
+// producing stage (Source) only when no file is known.
 func (d Diagnostic) Error() string {
-	return fmt.Sprintf("%s:%d:%d: [%s] %s", d.Source, d.Position.Line, d.Position.Column, d.Code, d.Message)
+	loc := d.Position.File
+	if loc == "" {
+		loc = d.Source
+	}
+	return fmt.Sprintf("%s:%d:%d: [%s] %s", loc, d.Position.Line, d.Position.Column, d.Code, d.Message)
 }
 
 // PositionOf returns the start Position of a token.
 func PositionOf(t token.Token) Position {
-	return Position{Line: t.Line, Column: t.Column}
+	return Position{Line: t.Line, Column: t.Column, File: t.SourceFile}
 }
 
 // EndPositionOf returns the exclusive end Position of a token — the column
@@ -80,12 +88,12 @@ func PositionOf(t token.Token) Position {
 // end fields.
 func EndPositionOf(t token.Token) Position {
 	if t.EndLine != 0 {
-		return Position{Line: t.EndLine, Column: t.EndCol + 1}
+		return Position{Line: t.EndLine, Column: t.EndCol + 1, File: t.SourceFile}
 	}
 	if t.EndCol != 0 {
-		return Position{Line: t.Line, Column: t.EndCol + 1}
+		return Position{Line: t.Line, Column: t.EndCol + 1, File: t.SourceFile}
 	}
-	return Position{Line: t.Line, Column: t.Column + len(t.Literal)}
+	return Position{Line: t.Line, Column: t.Column + len(t.Literal), File: t.SourceFile}
 }
 
 // RangeOf returns the (start, end) positions covering the full source

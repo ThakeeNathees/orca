@@ -115,7 +115,7 @@ def _orca__invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 
 
 vars = _orca__block("let", 
-    label=("yes" if True else "no"),
-    nested=(("a" if False else "b") if True else "c"),
-    with_arith=(12 if 3 else 5),
+    label="yes",
+    nested="b",
+    with_arith=12,
 )

@@ -61,12 +61,13 @@ const (
 // and source position. Line and Column enable source mapping from generated
 // code back to the original .orca file.
 type Token struct {
-	Type    TokenType
-	Literal string
-	Line    int // 1-based line number in source
-	Column  int // 1-based column number in source
-	EndLine int // end position for multi-line tokens (0 means same as Line)
-	EndCol  int // end column for multi-line tokens (0 means same as Column)
+	Type       TokenType
+	Literal    string
+	Line       int    // 1-based line number in source
+	Column     int    // 1-based column number in source
+	EndLine    int    // end position for multi-line tokens (0 means same as Line)
+	EndCol     int    // end column for multi-line tokens (0 means same as Column)
+	SourceFile string // the .orca file this token was lexed from; empty for in-memory inputs
 }
 
 // Describe returns a human-readable description of a token type,

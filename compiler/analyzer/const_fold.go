@@ -25,6 +25,7 @@ const (
 	ConstList
 	ConstMap
 	ConstBlock
+	ConstLambda
 )
 
 // ConstValue holds a single folded constant. Only the field that matches
@@ -36,6 +37,9 @@ type ConstValue struct {
 	Str    string
 	Number float64
 	Bool   bool
+
+	// Lambda is the original lambda expression when Kind == ConstLambda.
+	Lambda *ast.Lambda
 
 	// BlockKind is the original block kind name (e.g. "model", "agent") when
 	// Kind == ConstBlock. Empty for other kinds.
@@ -49,6 +53,61 @@ type ConstValue struct {
 	// codegen output.
 	Keys   []string     // Map keys
 	Values []ConstValue // Map values
+}
+
+// ConstFoldingLambdaArgs is a scope-stack of lambda parameter bindings used
+// during constant folding. Each active lambda call pushes a fresh scope,
+// defines its params in that scope, folds the body, then pops.
+//
+// Lookup walks scopes from top to bottom, so inner scopes shadow outer ones
+// naturally (and restore them on pop). This is what lets recursive calls —
+// e.g. fib(10) → fib(9) → fib(8) — re-use the same param name `n` without
+// the inner call wiping the outer's binding.
+type ConstFoldingLambdaArgs struct {
+	scopes []map[string]ConstValue
+}
+
+// NewConstFoldingLambdaArgs returns an empty scope stack.
+func NewConstFoldingLambdaArgs() *ConstFoldingLambdaArgs {
+	return &ConstFoldingLambdaArgs{}
+}
+
+// PushScope starts a new innermost scope for a lambda-call frame.
+func (c *ConstFoldingLambdaArgs) PushScope() {
+	c.scopes = append(c.scopes, map[string]ConstValue{})
+}
+
+// PopScope drops the innermost scope. No-op when empty.
+func (c *ConstFoldingLambdaArgs) PopScope() {
+	if len(c.scopes) == 0 {
+		return
+	}
+	c.scopes = c.scopes[:len(c.scopes)-1]
+}
+
+// Define binds a parameter name to a folded argument value in the innermost
+// scope. Silently ignored if no scope has been pushed.
+func (c *ConstFoldingLambdaArgs) Define(name string, val ConstValue) {
+	if len(c.scopes) == 0 {
+		return
+	}
+	c.scopes[len(c.scopes)-1][name] = val
+}
+
+// Lookup searches scopes from innermost to outermost and returns the first
+// match. Missing names return the zero value and false. Nil-safe so callers
+// holding a bare AnalyzedProgram (tests, LSP snippet folds) don't have to
+// initialize the stack just to resolve identifiers that aren't lambda args.
+func (c *ConstFoldingLambdaArgs) Lookup(name string) (ConstValue, bool) {
+	if c == nil {
+		return ConstValue{}, false
+	}
+	for i := len(c.scopes) - 1; i >= 0; i-- {
+		if v, ok := c.scopes[i][name]; ok {
+			return v, true
+		}
+	}
+	return ConstValue{}, false
 }
 
 // ConstFold performs compile-time constant folding on an expression.
@@ -101,14 +160,13 @@ func constFold(expr ast.Expression, ap *AnalyzedProgram) (ConstValue, []diagnost
 	case *ast.CallExpression:
 		return foldCallExpression(e, ap)
 	case *ast.Lambda:
-		return ConstValue{Kind: ConstUnknown}, diags // Lambdas are not constant-foldable.
+		return ConstValue{Kind: ConstLambda, Lambda: e, Expr: e}, diags
 	case *ast.MapLiteral:
 		return foldMapLiteral(e, ap)
 	case *ast.ListLiteral:
 		return foldListLiteral(e, ap)
 	case *ast.TernaryExpression:
-		// TODO: If the condition is a constant, we can fold the ternary.
-		return ConstValue{Kind: ConstUnknown}, diags
+		return foldTernary(e, ap)
 	case *ast.BlockExpression:
 		return foldBlockBody(&e.BlockBody, ap)
 	default:
@@ -167,6 +225,41 @@ func foldListLiteral(ll *ast.ListLiteral, ap *AnalyzedProgram) (ConstValue, []di
 	return ConstValue{Kind: ConstList, List: out, Partial: partial}, diags
 }
 
+// foldTernary folds the ternary expression.
+func foldTernary(e *ast.TernaryExpression, ap *AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
+	cond, diags := ConstFold(e.Condition, ap)
+	if cond.Kind == ConstUnknown {
+		return ConstValue{Kind: ConstUnknown}, diags
+	}
+	if isConstBoolTruthy(cond) {
+		return ConstFold(e.TrueExpr, ap)
+	}
+
+	return ConstFold(e.FalseExpr, ap)
+}
+
+func isConstBoolTruthy(cond ConstValue) bool {
+	switch cond.Kind {
+	case ConstString:
+		return cond.Str != ""
+	case ConstNumber:
+		return cond.Number != 0
+	case ConstBool:
+		return cond.Bool
+	case ConstNull:
+		return false
+	case ConstList:
+		return len(cond.List) > 0
+	case ConstMap:
+		return len(cond.Keys) > 0
+	case ConstBlock:
+		return true
+	case ConstLambda:
+		return true
+	}
+	panic(fmt.Sprintf("isConstBoolTruthy: unsupported analyzer.ConstKind %d", cond.Kind))
+}
+
 // foldBlockBody builds ConstBlock when the block body has no workflow edge
 // expressions and every assignment value folds to a constant.
 func foldBlockBody(body *ast.BlockBody, ap *AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
@@ -210,6 +303,38 @@ func foldBinary(e *ast.BinaryExpression, ap *AnalyzedProgram) (ConstValue, []dia
 		return foldNumericBinary(e.Operator.Type, left, right, diags)
 	case token.MINUS, token.STAR, token.SLASH:
 		return foldNumericBinary(e.Operator.Type, left, right, diags)
+	case token.EQ, token.NEQ:
+		// Partial values (lists/maps/blocks containing unknown children) can't
+		// be decided at compile time — their runtime shape may differ — so
+		// defer to runtime by returning ConstUnknown.
+		if left.Partial || right.Partial {
+			return ConstValue{Kind: ConstUnknown}, diags
+		}
+		eq := constValueEqual(left, right)
+		if e.Operator.Type == token.NEQ {
+			eq = !eq
+		}
+		return ConstValue{Kind: ConstBool, Bool: eq}, diags
+	case token.LT, token.GT, token.LTE, token.GTE:
+		// Ordered comparison is only defined for numbers today. String
+		// lexicographic comparison can be added later if Orca needs it.
+		lhs, lok := constAsNumber(left)
+		rhs, rok := constAsNumber(right)
+		if !lok || !rok {
+			return ConstValue{Kind: ConstUnknown}, diags
+		}
+		var result bool
+		switch e.Operator.Type {
+		case token.LT:
+			result = lhs < rhs
+		case token.GT:
+			result = lhs > rhs
+		case token.LTE:
+			result = lhs <= rhs
+		case token.GTE:
+			result = lhs >= rhs
+		}
+		return ConstValue{Kind: ConstBool, Bool: result}, diags
 	case token.ARROW, token.PIPE:
 		return ConstValue{Kind: ConstUnknown}, diags
 	default:
@@ -280,7 +405,7 @@ func foldIdentifier(e *ast.Identifier, ap *AnalyzedProgram) (ConstValue, []diagn
 	}
 
 	// Check if the identifier is a const fold lambda argument.
-	if arg, ok := ap.ConstFoldLambdaArgs[e.Value]; ok {
+	if arg, ok := ap.ConstFoldLambdaArgs.Lookup(e.Value); ok {
 		return arg, nil
 	}
 
@@ -317,6 +442,40 @@ func findMemberInConstKeyValue(block ConstValue, member string) (ConstValue, boo
 // ConstUnknown (no constant member projection for those yet).
 func foldMemberAccess(e *ast.MemberAccess, ap *AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	var diags []diagnostic.Diagnostic
+
+	// Fast path: obj.field where obj is an Identifier naming a top-level
+	// BlockStatement. Folding the whole block body (via foldIdentifier →
+	// foldBlockBody) would evaluate every sibling assignment, which is both
+	// wasteful and a cycle hazard: sibling assignments can reference the same
+	// block, causing infinite recursion inside lambda-body evaluation where
+	// the cache sentinel is disabled.
+	//
+	// Instead, look up the matching assignment directly and fold only that one.
+	if ident, ok := e.Object.(*ast.Identifier); ok && ap != nil && ap.Ast != nil {
+		if block := ap.Ast.FindBlockWithName(ident.Value); block != nil {
+			for _, assign := range block.Assignments {
+				if assign == nil || assign.Name != e.Member {
+					continue
+				}
+				val, d := ConstFold(assign.Value, ap)
+				return val, append(diags, d...)
+			}
+			// Block exists but field doesn't — emit the same diagnostic the
+			// ConstBlock projection path does below so the error surface is
+			// consistent across both paths.
+			memberStart, memberEnd := diagnostic.PositionOf(e.End()), diagnostic.EndPositionOf(e.End())
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity:    diagnostic.Error,
+				Code:        diagnostic.CodeUnknownMember,
+				Position:    memberStart,
+				EndPosition: memberEnd,
+				Message:     fmt.Sprintf("unknown field %q in constant block value", e.Member),
+				Source:      "analyzer",
+			})
+			return ConstValue{Kind: ConstUnknown}, diags
+		}
+	}
+
 	left, d1 := ConstFold(e.Object, ap)
 	diags = append(diags, d1...)
 
@@ -442,13 +601,12 @@ func foldSubscription(e *ast.Subscription, ap *AnalyzedProgram) (ConstValue, []d
 func foldCallExpression(e *ast.CallExpression, ap *AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	callee, diags := ConstFold(e.Callee, ap)
 
-	if ap == nil || ap.SymbolTable == nil {
+	if ap == nil || ap.SymbolTable == nil || ap.ConstFoldLambdaArgs == nil {
 		return ConstValue{Kind: ConstUnknown}, diags
 	}
 
 	// Calling lambda function.
-	if isConstValueLambda(callee) {
-
+	if callee.Kind == ConstLambda {
 		ap.SymbolTable.PushScope()
 		defer ap.SymbolTable.PopScope()
 
@@ -460,13 +618,17 @@ func foldCallExpression(e *ast.CallExpression, ap *AnalyzedProgram) (ConstValue,
 			ap.ConstFoldCache = savedCache
 		}()
 
-		// ConstFoldLambdaArgs Also needs a push, pop scope cause a lambda can override the
-		// parameter name of another lambda.
-		// Example: \(x string) -> \(x -> number) -> x + 1
-		// Wait maybe i dont need to do it.
+		// Push a fresh lambda-args scope for this call. Pop on exit so the
+		// caller's bindings are restored — essential for recursion where the
+		// inner and outer frames reuse the same param name (e.g. fib's `n`).
+		ap.ConstFoldLambdaArgs.PushScope()
+		defer ap.ConstFoldLambdaArgs.PopScope()
 
-		lambda := callee.Expr.(*ast.Lambda)
-		paramCount := len(lambda.Params)
+		lambda := callee.Lambda
+		paramCount := 0
+		if lambda.Params != nil {
+			paramCount = len(lambda.Params)
+		}
 		argCount := len(e.Arguments)
 
 		if paramCount != argCount {
@@ -482,27 +644,16 @@ func foldCallExpression(e *ast.CallExpression, ap *AnalyzedProgram) (ConstValue,
 			return ConstValue{Kind: ConstUnknown}, diags
 		}
 
-		for i, param := range callee.Expr.(*ast.Lambda).Params {
+		for i, param := range lambda.Params {
 			paramType := types.EvalType(param.TypeExpr, ap.SymbolTable)
 			ap.SymbolTable.Define(param.Name.Value, paramType, param.Name.Start())
 			arg, argDiags := ConstFold(e.Arguments[i], ap)
 			diags = append(diags, argDiags...)
-			ap.ConstFoldLambdaArgs[param.Name.Value] = arg
+			ap.ConstFoldLambdaArgs.Define(param.Name.Value, arg)
 		}
 
 		val, bodyDiags := ConstFold(lambda.Body, ap)
 		diags = append(diags, bodyDiags...)
-
-		// Remove the lambda parameters from the const fold lambda args.
-		// TODO: This is broken for nested lambdas that reuse a param name — e.g.
-		// `(\(x string) -> (\(x number) -> x + 1)(2) + x)("foo")`. When the inner
-		// call exits, this delete wipes the outer `x` binding, so the outer body's
-		// trailing `+ x` folds to Unknown instead of `"foo"`. Fix: snapshot each
-		// param's prior binding on entry and restore (or delete if absent) on exit,
-		// instead of always deleting.
-		for _, param := range lambda.Params {
-			delete(ap.ConstFoldLambdaArgs, param.Name.Value)
-		}
 
 		return val, diags
 	}
@@ -543,10 +694,51 @@ func constAsNumber(v ConstValue) (float64, bool) {
 	}
 }
 
-func isConstValueLambda(v ConstValue) bool {
-	if v.Kind != ConstUnknown || v.Expr == nil {
+// constValueEqual reports semantic equality between two folded constants.
+// Callers must filter ConstUnknown and Partial values upfront — both
+// foldBinary's `==` path and the tests do — because an unknown operand
+// has no defensible compile-time equality answer. This helper assumes
+// both inputs are fully determined and compares them by value.
+//
+// The walk is recursive:
+//   - Scalars (string, number, bool, null, blockKind) compared by value.
+//   - Lists compared element-wise in order.
+//   - Maps and blocks compared by key set — order-insensitive, matching user
+//     expectations for `{a:1,b:2} == {b:2,a:1}`.
+//
+// The Expr field is deliberately skipped at every level: it's metadata for
+// the codegen AST-fallback path, not part of the value's semantic identity.
+func constValueEqual(a, b ConstValue) bool {
+	if a.Kind != b.Kind ||
+		a.Str != b.Str ||
+		a.Number != b.Number ||
+		a.Bool != b.Bool ||
+		a.BlockKind != b.BlockKind {
 		return false
 	}
-	_, ok := v.Expr.(*ast.Lambda)
-	return ok
+	if len(a.List) != len(b.List) {
+		return false
+	}
+	for i := range a.List {
+		if !constValueEqual(a.List[i], b.List[i]) {
+			return false
+		}
+	}
+	if len(a.Keys) != len(b.Keys) || len(a.Values) != len(b.Values) {
+		return false
+	}
+	// Map/block equality is order-insensitive: index b by key, then look up
+	// each of a's keys. This matches how users intuitively read `{a:1,b:2}`
+	// as a set of named fields rather than an ordered sequence.
+	bIndex := make(map[string]ConstValue, len(b.Keys))
+	for i, k := range b.Keys {
+		bIndex[k] = b.Values[i]
+	}
+	for i, k := range a.Keys {
+		bv, ok := bIndex[k]
+		if !ok || !constValueEqual(a.Values[i], bv) {
+			return false
+		}
+	}
+	return true
 }

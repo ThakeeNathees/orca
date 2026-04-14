@@ -28,7 +28,7 @@ func (b *LangGraphBackend) exprToSource(expr ast.Expression) string {
 	// Source order is provider then model_name in both cases. constValToSource's ConstMap and ConstBlock cases iterate constVal.KeyValue which is a
 	// map[string]ConstValue — Go map iteration is randomized, so every codegen run produces different Python. Goldens will flake.
 	constVal, ok := b.Program.ConstFoldCache[expr]
-	if ok && constVal.Kind != analyzer.ConstUnknown && constVal.Kind != analyzer.ConstBlock {
+	if ok && constVal.Kind != analyzer.ConstUnknown && constVal.Kind != analyzer.ConstBlock && constVal.Kind != analyzer.ConstLambda {
 		return constValToSource(b, constVal)
 	}
 
@@ -246,7 +246,9 @@ func constValToSource(b *LangGraphBackend, constVal analyzer.ConstValue) string 
 	// TODO:
 	// Cost folded blocks are not inlined, Rethink this situaion.
 	// Also a lambda can return a block that has const value (compile time known) how to handle that?
-	if constVal.Kind == analyzer.ConstUnknown || constVal.Kind == analyzer.ConstBlock {
+	if constVal.Kind == analyzer.ConstUnknown ||
+		constVal.Kind == analyzer.ConstBlock ||
+		constVal.Kind == analyzer.ConstLambda {
 		return b.exprToSource(constVal.Expr)
 	}
 

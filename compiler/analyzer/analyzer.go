@@ -33,7 +33,7 @@ type AnalyzedProgram struct {
 	// We push parameter values when entering a lambda scope and pop them when leaving.
 	// So this is basically a working stack of parameter values then any analyzer results.
 	// that depends on the parameter values.
-	ConstFoldLambdaArgs map[string]ConstValue
+	ConstFoldLambdaArgs *ConstFoldingLambdaArgs
 }
 
 // Analyze walks the AST and performs semantic analysis.
@@ -51,7 +51,7 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 		SymbolTable:         bootstrapResult.Symtab,
 		Diagnostics:         []diagnostic.Diagnostic{},
 		ConstFoldCache:      make(map[ast.Expression]ConstValue),
-		ConstFoldLambdaArgs: make(map[string]ConstValue),
+		ConstFoldLambdaArgs: NewConstFoldingLambdaArgs(),
 	}
 
 	// These function should run in this order
@@ -98,6 +98,9 @@ func injectAnonBlocks(ap *AnalyzedProgram) {
 					NameToken: e.Start(), // Actually they dont have a name token (cause anon)
 				}
 				bs.BlockBody = e.BlockBody
+				// Propagate the origin file so diagnostics inside this synthetic
+				// block still resolve to the correct source for pretty-rendering.
+				bs.SourceFile = e.SourceFile
 				ap.Ast.Statements = append(ap.Ast.Statements, &bs)
 			}
 		}
@@ -129,7 +132,6 @@ func buildSymbolTable(ap *AnalyzedProgram) {
 					EndPosition: diagnostic.EndPositionOf(block.NameToken),
 					Message:     fmt.Sprintf("duplicate block name %q", block.Name),
 					Source:      "analyzer",
-					File:        block.SourceFile,
 				})
 			}
 		}
@@ -239,7 +241,8 @@ func filterSuppressed(diags []diagnostic.Diagnostic, codes map[string]bool, supp
 func foldConstants(ap *AnalyzedProgram) {
 	ast.Walk(ap.Ast, func(n ast.Node) bool {
 		if expr, ok := n.(ast.Expression); ok {
-			ConstFold(expr, ap)
+			_, diags := ConstFold(expr, ap)
+			ap.Diagnostics = append(ap.Diagnostics, diags...)
 		}
 		return true
 	})
