@@ -3,3 +3,7 @@
 # 0_ prefixed so that it'll displaied at the top of the list.
 0_ignore/
 
+# Python (codegen experiments / langgraph)
+__pycache__/
+*.pyc
+

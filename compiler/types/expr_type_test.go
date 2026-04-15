@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/lexer"
+	"github.com/thakee/orca/compiler/parser"
 	"github.com/thakee/orca/compiler/token"
 )
 
@@ -369,6 +371,51 @@ func TestExprTypeFromExprBinaryArithmetic(t *testing.T) {
 			got := EvalType(expr, st)
 			if !got.Equals(tt.expected) {
 				t.Errorf("ExprTypeFromExpr() = %s, want %s", got.String(), tt.expected.String())
+			}
+		})
+	}
+}
+
+// TestTypeOfSelfReferentialBlock regresses the stack overflow that occurred
+// when a block field expression referenced the enclosing block — identType's
+// anon-schema synthesis re-entered itself without a cycle guard.
+func TestTypeOfSelfReferentialBlock(t *testing.T) {
+	tests := []struct {
+		name      string
+		src       string
+		fieldIdx  int
+		wantKind  TypeKind
+		wantElem  string
+	}{
+		{
+			name:     "member access back into same block",
+			src:      "let vars {\n  some_list = [1, 2, 3]\n  val = vars.some_list\n}\n",
+			fieldIdx: 1,
+			wantKind: List,
+			wantElem: BlockKindNumber,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lexer.New(tt.src, "")
+			p := parser.New(l)
+			program := p.ParseProgram()
+			if len(p.Errors()) > 0 {
+				t.Fatalf("parse errors: %v", p.Errors())
+			}
+
+			st := bootstrapSymtab(t)
+			block := program.Statements[0].(*ast.BlockStatement)
+			schema := NewBlockSchema(block.Annotations, block.Name, &block.BlockBody, st)
+			st.Define(block.Name, NewBlockRefType(block.Name, &schema), block.NameToken)
+
+			got := TypeOf(block.BlockBody.Assignments[tt.fieldIdx].Value, st)
+			if got.Kind != tt.wantKind {
+				t.Fatalf("Kind = %v, want %v (%s)", got.Kind, tt.wantKind, got.String())
+			}
+			if got.ElementType == nil || got.ElementType.BlockName != tt.wantElem {
+				t.Errorf("type = %s, want element %s", got.String(), tt.wantElem)
 			}
 		})
 	}

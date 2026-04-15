@@ -356,17 +356,35 @@ body {
   color: var(--orca-error) !important;
 }
 
-/* Search box pill */
+/* Search box — wider, rounded, keeps its default position in the nav bar */
 .VPNavBarSearch .DocSearch-Button {
   background: var(--orca-cream-300);
   border: 1px solid var(--orca-ink-10);
-  border-radius: 9999px;
+  border-radius: 8px;
   color: var(--orca-ink-60);
-  padding: 6px 12px;
+  padding: 8px 14px;
+  min-width: 320px;
+  max-width: 420px;
+  width: 100%;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between !important;
+}
+.VPNavBarSearch .DocSearch-Button-Container {
+  flex: 0 0 auto;
+}
+.VPNavBarSearch .DocSearch-Button-Keys {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 .VPNavBarSearch .DocSearch-Button:hover {
   background: var(--orca-cream-400);
   border-color: var(--orca-ink-20);
+}
+@media (max-width: 768px) {
+  .VPNavBarSearch .DocSearch-Button {
+    min-width: 0;
+  }
 }
 .VPNavBarSearch .DocSearch-Button-Keys {
   background: transparent;
@@ -460,7 +478,7 @@ body {
 }
 
 .VPHero {
-  padding-top: 80px !important;
+  padding-top: 140px !important;
   padding-bottom: 80px !important;
 }
 
@@ -749,7 +767,233 @@ body {
 .dark .VPSidebar { background: var(--orca-cream-300) !important; }
 
 /* --------------------------------------------------------------------------
-   10. Scrollbar — hidden, scroll still works
+   10. Blog — index + post layouts
+   -------------------------------------------------------------------------- */
+
+/* ---- Blog index ---- */
+.blog {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 24px 96px;
+}
+
+.blog-header {
+  margin-bottom: 40px;
+}
+.blog-title {
+  font-family: var(--orca-font-display);
+  font-weight: 500;
+  font-size: clamp(2.25rem, 5vw, 3.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--orca-ink);
+  margin: 0;
+}
+.blog-tagline {
+  font-family: var(--orca-font-serif);
+  font-size: 1.1rem;
+  line-height: 1.5;
+  color: var(--orca-ink-60);
+  margin: 8px 0 0;
+  max-width: 560px;
+  font-feature-settings: 'swsh', 'ss01';
+}
+
+.blog-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--orca-ink-10);
+  margin-bottom: 8px;
+}
+.blog-tab {
+  background: transparent;
+  border: none;
+  padding: 10px 14px;
+  font-family: var(--orca-font-sans);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--orca-ink-55);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+.blog-tab:hover { color: var(--orca-error); }
+.blog-tab.active {
+  color: var(--orca-ink);
+  border-bottom-color: var(--orca-error);
+}
+
+.blog-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.blog-row-item {
+  border-bottom: 1px solid var(--orca-ink-10);
+}
+.blog-row {
+  display: grid;
+  grid-template-columns: minmax(180px, max-content) 1fr minmax(120px, max-content) minmax(30px, max-content);
+  align-items: baseline;
+  gap: 24px;
+  padding: 18px 8px;
+  text-decoration: none;
+  color: var(--orca-ink);
+  transition: background 150ms ease;
+}
+.blog-row:hover {
+  background: var(--orca-ink-06);
+}
+.blog-row-meta {
+  display: inline-flex;
+  gap: 8px;
+  font-family: var(--orca-font-sans);
+  font-size: 13px;
+  color: var(--orca-ink-55);
+  white-space: nowrap;
+}
+.blog-row-sep { opacity: 0.5; }
+.blog-row-title {
+  font-family: var(--orca-font-display);
+  font-weight: 500;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--orca-ink);
+  transition: color 150ms ease;
+}
+.blog-row:hover .blog-row-title { color: var(--orca-error); }
+.blog-row-author {
+  font-family: var(--orca-font-sans);
+  font-size: 13px;
+  color: var(--orca-ink-55);
+  text-align: right;
+  white-space: nowrap;
+}
+.blog-row-read {
+  font-family: var(--orca-font-mono);
+  font-size: 12px;
+  color: var(--orca-ink-40);
+  text-align: right;
+  white-space: nowrap;
+}
+.blog-empty {
+  padding: 48px 8px;
+  color: var(--orca-ink-55);
+  font-family: var(--orca-font-serif);
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .blog-row {
+    grid-template-columns: 1fr auto;
+    gap: 4px 16px;
+    padding: 16px 4px;
+  }
+  .blog-row-meta { grid-column: 1 / -1; order: 1; font-size: 12px; }
+  .blog-row-title { grid-column: 1; order: 2; font-size: 17px; }
+  .blog-row-read { grid-column: 2; order: 2; align-self: start; }
+  .blog-row-author { display: none; }
+}
+
+/* ---- Blog post header (injected via doc-before slot) ---- */
+.blog-post-header {
+  max-width: 680px;
+  margin: 0 auto 48px;
+  padding-top: 24px;
+  text-align: left;
+}
+.blog-post-crumb {
+  font-family: var(--orca-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--orca-ink-55);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 20px;
+}
+.blog-post-title {
+  font-family: var(--orca-font-display);
+  font-weight: 500;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.028em;
+  color: var(--orca-ink);
+  margin: 0 0 24px;
+}
+.blog-post-byline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--orca-font-sans);
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--orca-ink-10);
+}
+.blog-post-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  border: 1px solid var(--orca-ink-10);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.blog-post-byline-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
+}
+.blog-post-author {
+  color: var(--orca-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+.blog-post-meta {
+  display: flex;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--orca-ink-55);
+}
+.blog-post-sep { opacity: 0.5; }
+
+/* ---- Blog post footer (doc-after slot) ---- */
+.blog-post-footer {
+  max-width: 680px;
+  margin: 64px auto 0;
+}
+.blog-post-rule {
+  border: none;
+  border-top: 1px solid var(--orca-ink-10);
+  margin: 0 0 28px;
+}
+.blog-post-more {
+  display: inline-block;
+  font-family: var(--orca-font-display);
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--orca-error);
+  text-decoration: none;
+  transition: transform 180ms ease;
+}
+.blog-post-more:hover {
+  transform: translateX(2px);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--orca-error);
+}
+
+/* Narrow the body of blog posts and drop the h1 that doc-layout would
+   normally print from the page title — BlogPostHeader already renders it. */
+.vp-doc:has(> .blog-post-header) > h1 { display: none; }
+.VPDoc:has(.blog-post-header) .content-container,
+.VPDoc:has(.blog-post-header) .content {
+  max-width: 680px !important;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* --------------------------------------------------------------------------
+   11. Scrollbar — hidden, scroll still works
    -------------------------------------------------------------------------- */
 * {
   scrollbar-width: none;        /* Firefox */

@@ -316,13 +316,23 @@ func identType(depth int, name string, symtab *SymbolTable) (Type, bool) {
 			// kind the user has choosen, and it could be `foo bar {}` as well. so we construct
 			// the block schema from the Ast.
 
+			// Cycle guard: a field expression inside this body may resolve
+			// back to the same block (e.g. `let vars { val = vars.x }`).
+			// Break the loop by returning any for the re-entrant reference.
+			body := blockRef.Block.Ast
+			if symtab.resolvingSchema[body] {
+				return anyType(symtab), true
+			}
+			symtab.resolvingSchema[body] = true
+			defer delete(symtab.resolvingSchema, body)
+
 			// TODO: we may not need the counter here because the name is already made unique
 			// and if two blocks have the same name it'll be an error, (the name is the global namespace).
 			newSchemaName := "_orca__anon_schema_of_" + name + "_" + fmt.Sprintf("%d", symtab.nextInlineAnonID())
 			blockSchema := NewBlockSchema(
 				blockRef.Block.Annotations,
 				newSchemaName,
-				blockRef.Block.Ast,
+				body,
 				symtab)
 			return NewBlockRefType(newSchemaName, &blockSchema), true
 		}
