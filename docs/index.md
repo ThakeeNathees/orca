@@ -14,9 +14,6 @@ hero:
       text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: Language Reference
-      link: /reference/syntax-overview
-    - theme: alt
       text: Playground
       link: __PLAYGROUND_URL__
       target: _blank

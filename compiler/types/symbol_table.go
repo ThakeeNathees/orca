@@ -1,6 +1,9 @@
 package types
 
-import "github.com/thakee/orca/compiler/token"
+import (
+	"github.com/thakee/orca/compiler/ast"
+	"github.com/thakee/orca/compiler/token"
+)
 
 // Symbol holds the resolved type and definition location for a named block.
 type Symbol struct {
@@ -28,11 +31,27 @@ type SymbolTable struct {
 	// so each compilation gets a fresh counter and the same input always
 	// produces the same names (deterministic golden tests).
 	inlineAnonCounter int64
+
+	// TODO: This is only exists for cycle detection, probably we need a context
+	// object in the expression type evaluator that updates instead of using the
+	// symbol tabel as a context.
+	//
+	// resolvingSchema marks block bodies whose anonymous schema is currently
+	// being synthesized in identType's fallback path. Breaks infinite
+	// recursion for self-referential bodies like:
+	//   let vars { val = vars.some_list }
+	// where resolving `vars`'s schema requires resolving `vars` again. Keyed
+	// by block-body identity rather than name so shadowed/duplicate names
+	// cannot collide.
+	resolvingSchema map[*ast.BlockBody]bool
 }
 
 // NewSymbolTable creates an empty symbol table with a root scope.
 func NewSymbolTable() SymbolTable {
-	return SymbolTable{current: &Scope{symbols: make(map[string]Symbol)}}
+	return SymbolTable{
+		current:         &Scope{symbols: make(map[string]Symbol)},
+		resolvingSchema: make(map[*ast.BlockBody]bool),
+	}
 }
 
 // nextInlineAnonID returns a monotonic per-SymbolTable ID for naming an
