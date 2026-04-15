@@ -13,6 +13,20 @@ from types import SimpleNamespace
 from typing import Any, TypedDict
 
 from langchain.agents import create_agent
+from pydantic import BaseModel, create_model
+
+
+def _orca__coerce_output_schema(schema: Any) -> tuple[type[BaseModel], bool]:
+    """Ensure output_schema is a Pydantic model suitable for LLM structured output.
+
+    LLM providers require the top-level response schema to be an object, so
+    primitive/container types (str, list[int], dict[str, bool], etc.) are
+    wrapped in a synthetic one-field model. Returns (model, wrapped) where
+    wrapped=True means callers should read `.result` to unwrap.
+    """
+    if isinstance(schema, type) and issubclass(schema, BaseModel):
+        return schema, False
+    return create_model("_OrcaOutput", result=(schema, ...)), True
 
 
 def _orca__block(kind: str, **kwargs: Any) -> SimpleNamespace:
@@ -64,19 +78,26 @@ def _orca__provider_from_name(provider: str) -> Any:
         raise ValueError(f"Unknown provider: {provider}")
 
 
-def _orca__resolve_model(model_ns: SimpleNamespace) -> Any:
+def _orca__resolve_model(model_ns: SimpleNamespace, temperature_override: Any = None) -> Any:
     """Instantiate a LangChain ChatModel from a model SimpleNamespace.
 
     The provider_class field is the actual class (e.g. ChatOpenAI), resolved
     at compile time by the codegen. No runtime provider lookup needed.
+
+    temperature_override, when not None, replaces the model block's
+    temperature — used for per-agent overrides.
     """
 
     provider = getattr(model_ns, "provider", "openai")
     provider_class = _orca__provider_from_name(provider)
 
+    temperature = temperature_override
+    if temperature is None:
+        temperature = getattr(model_ns, "temperature", None)
+
     return provider_class(**_orca__fields({
         "model": model_ns.model_name,
-        "temperature": getattr(model_ns, "temperature", None),
+        "temperature": temperature,
         "api_key": getattr(model_ns, "api_key", None),
         "base_url": getattr(model_ns, "base_url", None),
     }))
@@ -84,14 +105,17 @@ def _orca__resolve_model(model_ns: SimpleNamespace) -> Any:
 
 def _orca__invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
     """Invoke an agent node using create_agent (works with or without tools)."""
-    llm = _orca__resolve_model(agent.model)
+    llm = _orca__resolve_model(agent.model, getattr(agent, "temperature", None))
     tools = [t.invoke for t in getattr(agent, "tools", None) or []]
     output_schema = getattr(agent, "output_schema", None)
 
+    kwargs = {}
+    wrapped = False
     if output_schema is not None:
-        llm = llm.with_structured_output(output_schema)
+        model, wrapped = _orca__coerce_output_schema(output_schema)
+        kwargs["response_format"] = model
 
-    react = create_agent(llm, tools)
+    react = create_agent(llm, tools, **kwargs)
     messages = [{"role": "system", "content": agent.persona}]
     # Use input_data as user message, or default to "Proceed" if empty.
     user_content = str(input_data).strip() if input_data else ""
@@ -101,12 +125,10 @@ def _orca__invoke_agent(agent: SimpleNamespace, input_data: Any) -> Any:
 
     result = react.invoke({"messages": messages})
 
-    # Extract the final AI message content.
-    last_msg = result["messages"][-1]
     if output_schema is not None:
-        # Structured output is attached to the last tool message or parsed content.
-        return getattr(last_msg, "content", last_msg)
-    return last_msg.content
+        resp = result["structured_response"]
+        return resp.result if wrapped else resp
+    return result["messages"][-1].content
 
 
 def _orca__invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
