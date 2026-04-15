@@ -10,6 +10,7 @@ agent <name> {
   persona       = <string>
   tools         = [<tool_ref>, ...]  // optional
   output_schema = <schema_ref>       // optional
+  temperature   = <number>           // optional
 }
 ```
 
@@ -21,6 +22,7 @@ agent <name> {
 | `persona` | `string` | Yes | The agent's system prompt / behavior description |
 | `tools` | `list[tool] \| nulltype` | No | List of tool references the agent can use |
 | `output_schema` | `schema \| nulltype` | No | Structured output schema for the agent's response |
+| `temperature` | `number \| nulltype` | No | Sampling temperature override. Takes precedence over the `temperature` set on the referenced `model` block |
 
 ## Examples
 
@@ -72,6 +74,32 @@ agent analyst {
   model         = gpt4
   persona       = "You analyze data and produce structured reports."
   output_schema = report
+}
+```
+
+### Per-agent temperature override
+
+A `model` block sets a default sampling temperature. An `agent` referencing
+that model can override it for itself — useful when the same model is reused
+at different temperatures for different tasks:
+
+```orca
+model gpt4 {
+  provider    = "openai"
+  model_name  = "gpt-4o"
+  temperature = 0.7
+}
+
+agent classifier {
+  model       = gpt4
+  persona     = "You are a precise classifier."
+  temperature = 0.0  // overrides gpt4's 0.7 for this agent
+}
+
+agent writer {
+  model   = gpt4
+  persona = "You are a creative writer."
+  // inherits temperature = 0.7 from gpt4
 }
 ```
 

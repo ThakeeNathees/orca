@@ -140,14 +140,16 @@ def _orca__invoke_tool(tool: SimpleNamespace, input_data: Any) -> Any:
 gpt4 = _orca__block("model", 
     provider="openai",
     model_name="gpt-4o",
+    temperature=0.2,
+)
+
+classifier = _orca__block("agent", 
+    model=gpt4,
+    persona="You are a precise classifier.",
+    temperature=0,
 )
 
 writer = _orca__block("agent", 
-    model=_orca__with_meta(
-        gpt4,
-        [
-            _orca__meta("desc", "Chat model ref"),
-        ],
-    ),
-    persona="You are a helpful writer.",
+    model=gpt4,
+    persona="You are a creative writer.",
 )

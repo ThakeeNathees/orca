@@ -22,7 +22,7 @@ model <name> {
 | `model_name` | `string \| model` | Yes | The model identifier (e.g., `"gpt-4o"`, `"claude-sonnet"`) |
 | `api_key` | `string \| nulltype` | No | API key for the provider (overrides environment variable) |
 | `base_url` | `string \| nulltype` | No | Custom base URL for the provider endpoint |
-| `temperature` | `number \| nulltype` | No | Sampling temperature (0.0 – 1.0) |
+| `temperature` | `number \| nulltype` | No | Sampling temperature (0.0 – 1.0). Can be overridden per-agent — see [agent.temperature](./agent.md#per-agent-temperature-override) |
 
 ## Supported providers
 

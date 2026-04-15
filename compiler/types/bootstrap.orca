@@ -123,6 +123,9 @@ schema agent {
 
   @desc("The structured output schema for this agent.")
   output_schema = schema | nulltype
+
+  @desc("Sampling temperature override. When set, takes precedence over the model block's temperature.")
+  temperature = number | nulltype
 }
 
 @suppress("duplicate-block")
