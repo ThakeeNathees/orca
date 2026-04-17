@@ -129,7 +129,7 @@ export default defineConfig({
   },
 
   head: [
-    ['link', { rel: 'icon', type: 'image/png', href: '/orca/favicon.png' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/orca/logo-white.png' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
 
@@ -175,8 +175,8 @@ export default defineConfig({
     },
 
     docFooter: {
-      prev: false,
-      next: false,
+      prev: true,
+      next: true,
     },
   },
 })
