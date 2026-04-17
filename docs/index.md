@@ -6,8 +6,8 @@ hero:
   text: AI agents as code.
   tagline: A declarative language for defining agents, tools, and workflows. Concise HCL-like syntax that compiles to Python — so you never have to write the glue yourself.
   image:
-    light: /logo.png
-    dark: /logo-dark.png
+    light: /logo-black.png
+    dark: /logo-white.png
     alt: Orca
   actions:
     - theme: brand

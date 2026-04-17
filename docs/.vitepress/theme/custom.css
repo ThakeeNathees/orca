@@ -527,12 +527,49 @@ body {
   gap: 12px;
 }
 
-.VPHero .VPImage {
-  max-width: 520px !important;
-  max-height: 520px !important;
+/* Hero image: fill its column responsively and never overflow into the text.
+   VitePress absolutely-positions the <img> inside .image-container and sets
+   fixed px widths at each breakpoint; override to a fluid, aspect-locked box
+   so the logo scales with the viewport instead of sitting at its intrinsic
+   size. */
+.VPHero.has-image .image {
+  max-width: 100%;
 }
-.VPHero .image-bg {
-  opacity: 0.9;
+.VPHero.has-image .image-container {
+  position: relative;
+  width: 100% !important;
+  max-width: 420px;
+  height: auto !important;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+}
+.VPHero.has-image .image-bg {
+  display: none;
+}
+.VPHero .VPImage,
+.VPHero .image-src {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain;
+  transform: none !important;
+}
+
+/* Hero: image left, text right (default theme is text | image on wide screens) */
+@media (min-width: 960px) {
+  .VPHero.has-image .main {
+    order: 2;
+  }
+  .VPHero.has-image .image {
+    order: 1;
+  }
+  .VPHero.has-image .image-container {
+    max-width: 440px;
+    transform: translateY(-16px);
+  }
 }
 
 /* Buttons — refine radius and tracking per DESIGN.md */
@@ -621,25 +658,53 @@ body {
 
 /* VitePress already renders a top border on .VPDocFooter; don't double it. */
 .VPDocFooter { padding-top: 24px; }
+
+/* Prev/next pager — borderless text links with an arrow in the signature red.
+   VitePress ships a bordered card with a "Previous/Next" desc + title stack;
+   we strip the chrome and hide the desc so only the page title shows. */
+.VPDocFooter .pager-link,
 .pager-link {
-  background: var(--orca-cream-100) !important;
-  border: 1px solid var(--orca-ink-10) !important;
-  border-radius: 10px !important;
-  transition: border-color 150ms ease, box-shadow 200ms ease;
-}
-.pager-link:hover {
-  border-color: var(--orca-ink-20) !important;
-  box-shadow: rgba(0, 0, 0, 0.04) 0px 12px 28px;
-}
-.pager-link .title {
-  color: var(--orca-orange) !important;
-  font-family: var(--orca-font-display);
-  font-weight: 600;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  transition: color 150ms ease, transform 180ms ease;
 }
 .pager-link .desc {
-  color: var(--orca-ink-55) !important;
-  font-family: var(--orca-font-sans);
-  font-size: 13px;
+  display: none !important;
+}
+.pager-link .title {
+  font-family: var(--orca-font-display) !important;
+  font-weight: 500 !important;
+  font-size: 15px !important;
+  color: var(--orca-error) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  line-height: 1.4 !important;
+}
+.pager-link.next {
+  text-align: right;
+}
+.pager-link.next .title::after {
+  content: '→';
+  transition: transform 180ms ease;
+}
+.pager-link.prev .title::before {
+  content: '←';
+  transition: transform 180ms ease;
+}
+.pager-link:hover .title {
+  text-decoration: underline;
+  text-decoration-color: var(--orca-error);
+  text-underline-offset: 4px;
+}
+.pager-link.next:hover .title::after {
+  transform: translateX(3px);
+}
+.pager-link.prev:hover .title::before {
+  transform: translateX(-3px);
 }
 
 /* Footer */

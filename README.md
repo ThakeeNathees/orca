@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="docs/img/logo-bg-white.png" alt="Orca">
+  <img src="docs/public/cover.png" alt="Orca">
 </p>
 
 <p align="center">
-  <strong>A declarative language for AI agent orchestration.</strong><br>
-  A DSL for expressing agentic systems as declarative programs
+  <strong>A DSL for AI agent orchestration.</strong><br>
+  Language for expressing agentic systems as declarative programs
 </p>
 
 <p align="center">
