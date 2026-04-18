@@ -42,7 +42,7 @@ interface StudioState {
   deleteProject: (id: string) => Promise<void>;
   setActiveProject: (id: string) => void;
 
-  createWorkflow: () => Promise<void>;
+  createWorkflow: (name?: string) => Promise<void>;
   openWorkflow: (id: string) => Promise<void>;
   renameWorkflow: (id: string, name: string) => Promise<void>;
   deleteWorkflow: (id: string) => Promise<void>;
@@ -418,10 +418,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({ activeProjectId: id });
   },
 
-  createWorkflow: async () => {
+  createWorkflow: async (name?: string) => {
     const adapter = getStorageAdapter();
     const projectId = get().activeProjectId;
-    const wf = await adapter.createWorkflow(projectId, "Untitled Workflow");
+    const wfName = name?.trim() || "Untitled Workflow";
+    const wf = await adapter.createWorkflow(projectId, wfName);
     const color = randomPastelColor();
     // Seed with the example graph so new workflows open on a non-empty
     // canvas — users can edit or clear it as a starting point.
