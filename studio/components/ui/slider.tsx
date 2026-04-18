@@ -34,9 +34,13 @@ function Slider({
         step={step}
         value={current}
         onChange={(e) => onValueChange?.([Number(e.target.value)])}
-        className="orca-slider h-1 w-full cursor-pointer appearance-none rounded-full bg-muted outline-none"
+        className="orca-slider h-1 w-full cursor-pointer appearance-none bg-muted outline-none"
         style={{
-          background: `linear-gradient(to right, oklch(0.93 0 0) 0%, oklch(0.93 0 0) ${pct}%, oklch(0.22 0 0) ${pct}%, oklch(0.22 0 0) 100%)`,
+          // Two-segment track: filled portion uses the Linear accent
+          // (violet), remainder uses the app's muted surface so the thumb
+          // reads against a consistent background. Tokens sourced from
+          // globals.css.
+          background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, var(--bg-secondary) ${pct}%, var(--bg-secondary) 100%)`,
         }}
       />
     </div>

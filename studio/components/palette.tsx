@@ -232,7 +232,7 @@ export function Palette() {
 
       {!collapsed && (
         <div className="px-3 pb-1">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+          <span className="text-micro uppercase tracking-wider text-muted-foreground/60">
             Components
           </span>
         </div>

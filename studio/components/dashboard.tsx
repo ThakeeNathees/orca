@@ -163,8 +163,9 @@ export function Dashboard() {
             </Button>
             <Button
               size="sm"
+              variant="destructive"
               onClick={confirmDelete}
-              className="bg-red-500 text-white hover:bg-red-600 cursor-pointer"
+              className="cursor-pointer"
             >
               Delete
             </Button>

@@ -17,6 +17,7 @@ import { BLOCK_DEFS, canConnect } from "@/lib/block-defs";
 import type { BlockKind } from "@/lib/types";
 import { nodeTypes } from "@/components/nodes";
 import { StudioEdge } from "@/components/studio-edge";
+import { CANVAS_DOT_COLOR, CANVAS_EDGE_STROKE } from "@/lib/canvas-colors";
 
 const edgeTypes = { default: StudioEdge };
 
@@ -137,7 +138,7 @@ export function Canvas() {
           deletable: true,
           focusable: true,
           interactionWidth: 24,
-          style: { strokeWidth: 1.5, stroke: "oklch(0.50 0 0)" },
+          style: { strokeWidth: 1.5, stroke: CANVAS_EDGE_STROKE },
         }}
         className="bg-background"
       >
@@ -145,7 +146,7 @@ export function Canvas() {
           gap={20}
           size={2}
           variant={BackgroundVariant.Dots}
-          color="oklch(1 0 0 / 25%)"
+          color={CANVAS_DOT_COLOR}
         />
         <Controls
           showInteractive={false}

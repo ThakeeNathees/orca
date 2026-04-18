@@ -3,143 +3,294 @@
 @import "shadcn/tailwind.css";
 
 /*
- * Z-index stacking order:
+ * Design system — Linear-inspired dark theme.
+ *
+ * All raw colors, fonts, and elevation treatments live in this file as CSS
+ * variables and are surfaced to Tailwind via `@theme inline`. Components must
+ * never hard-code hex/rgb/oklch values — pick a token (`bg-surface`,
+ * `text-tertiary`, `border-border-subtle`) or a typography utility
+ * (`text-body`, `text-caption`).
+ *
+ * Light mode is deliberately removed for now: `:root` mirrors `.dark`. To
+ * re-introduce a light theme, restore the old `:root` block with inverted
+ * values — every component already consumes semantic tokens, so nothing else
+ * needs to change.
+ *
+ * Z-index stacking:
  *   z-10  — ReactFlow handles (base-node)
  *   z-50  — Overlays: dropdown-menu, tooltip, select, sheet, view-mode-toggle
- *   z-100 — Dialog (modal, needs to sit above all overlays)
+ *   z-100 — Dialog (modal, sits above all overlays)
  */
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Fonts — Inter Variable for UI, JetBrains Mono for code. The OpenType
+     features `cv01`+`ss03` that give Inter its Linear-ish character are
+     applied globally in `@layer base` below. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo,
+    monospace;
+  --font-heading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Design-system semantic tokens — Linear palette. */
+  --color-bg-marketing: var(--bg-marketing);
+  --color-bg-panel: var(--bg-panel);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-secondary: var(--bg-secondary);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-quaternary: var(--text-quaternary);
+
+  --color-brand: var(--brand);
+  --color-accent-violet: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-success: var(--success);
+  --color-success-strong: var(--success-strong);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-standard: var(--border-standard);
+  --color-border-solid: var(--border-solid);
+
+  /* shadcn-compatible aliases — UI primitives (button/input/etc.) read these. */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent-surface);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Radius scale — spec §5. Studio variant is sharp-cornered everywhere;
+     rectangular surfaces must have 0 radius. Only functional circles
+     (react-flow handles, slider thumbs, status dots) use 50%, applied
+     directly where needed rather than through a token. Every `rounded-*`
+     Tailwind utility resolves to 0 via these tokens; arbitrary
+     `rounded-full` usages must be avoided in components. */
+  --radius-micro: 0;
+  --radius-standard: 0;
+  --radius-comfortable: 0;
+  --radius-card: 0;
+  --radius-panel: 0;
+  --radius-large: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-3xl: 0;
+  --radius-4xl: 0;
 }
 
+/*
+ * Dark theme — the only theme at the moment. See `:root` note above; today
+ * :root aliases .dark so the app renders correctly even if the `dark` class
+ * is ever removed from <html>.
+ */
+.dark,
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  /* Raw Linear palette. */
+  --bg-marketing: #08090a;
+  --bg-panel: #0a0a0a;
+  --bg-surface: #191a1b;
+  --bg-secondary: #28282c;
 
-.dark {
-  --background: oklch(0.13 0 0);
-  --foreground: oklch(0.93 0 0);
-  --card: oklch(0.17 0 0);
-  --card-foreground: oklch(0.93 0 0);
-  --popover: oklch(0.17 0 0);
-  --popover-foreground: oklch(0.93 0 0);
-  --primary: oklch(0.93 0 0);
-  --primary-foreground: oklch(0.17 0 0);
-  --secondary: oklch(0.22 0 0);
-  --secondary-foreground: oklch(0.93 0 0);
-  --muted: oklch(0.22 0 0);
-  --muted-foreground: oklch(0.60 0 0);
-  --accent: oklch(0.22 0 0);
-  --accent-foreground: oklch(0.93 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.50 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  /* Left palette panel (Orca Studio sidebar). */
-  --sidebar: #27272A;
-  --sidebar-foreground: oklch(0.93 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.93 0 0);
-  --sidebar-accent: oklch(0.22 0 0);
-  --sidebar-accent-foreground: oklch(0.93 0 0);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.50 0 0);
+  --text-primary: #f7f8f8;
+  --text-secondary: #d0d6e0;
+  --text-tertiary: #8a8f98;
+  --text-quaternary: #62666d;
+
+  --brand: #5e6ad2;
+  --accent: #7170ff;
+  --accent-hover: #828fff;
+  --success: #10b981;
+  --success-strong: #27a644;
+
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-standard: #262626;
+  --border-solid: #262626;
+
+  /* shadcn role-based tokens mapped to Linear palette. Most component
+     primitives (button, input, dialog) already read these names.
+     `accent-surface` is renamed from shadcn's `accent` so the Linear
+     `--accent` (violet) is not shadowed. */
+  --background: var(--bg-marketing);
+  --foreground: var(--text-primary);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: var(--bg-secondary);
+  --secondary-foreground: var(--text-primary);
+  --muted: #16171a;
+  --muted-foreground: var(--text-tertiary);
+  --accent-surface: #1e1f22;
+  --accent-foreground: var(--text-primary);
+  --destructive: #ef4444;
+  --border: var(--border-standard);
+  --input: var(--border-standard);
+  --ring: var(--accent);
+
+  --sidebar: var(--bg-panel);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1a1b1e;
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--accent);
+
+  --chart-1: var(--accent);
+  --chart-2: var(--success);
+  --chart-3: var(--text-secondary);
+  --chart-4: var(--text-tertiary);
+  --chart-5: var(--text-quaternary);
+
+  --radius: 0;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
   }
+  /* OpenType features per spec §3 — this is what gives Inter its Linear
+     character (single-story 'a' via cv01, geometric stylistic set ss03). */
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }
 
-/* React Flow overrides */
+/*
+ * Typography scale — spec §3 table. Each utility is a complete text recipe
+ * (size/weight/line-height/tracking). Use these instead of composing raw
+ * Tailwind font-size/weight/tracking classes so the scale stays consistent.
+ *
+ * Negative tracking values follow Linear's rule: "-1.584px at 72px" etc.
+ * Converted to em so they scale with font-size overrides.
+ */
+@layer utilities {
+  .text-display-xl {
+    font-size: 4.5rem;
+    line-height: 1;
+    font-weight: 510;
+    letter-spacing: -0.022em;
+  }
+  .text-display-lg {
+    font-size: 4rem;
+    line-height: 1;
+    font-weight: 510;
+    letter-spacing: -0.022em;
+  }
+  .text-display {
+    font-size: 3rem;
+    line-height: 1;
+    font-weight: 510;
+    letter-spacing: -0.022em;
+  }
+  .text-h1 {
+    font-size: 2rem;
+    line-height: 1.13;
+    font-weight: 510;
+    letter-spacing: -0.022em;
+  }
+  .text-h2 {
+    font-size: 1.5rem;
+    line-height: 1.33;
+    font-weight: 510;
+    letter-spacing: -0.012em;
+  }
+  .text-h3 {
+    font-size: 1.25rem;
+    line-height: 1.33;
+    font-weight: 590;
+    letter-spacing: -0.012em;
+  }
+  .text-body-lg {
+    font-size: 1.125rem;
+    line-height: 1.6;
+    font-weight: 400;
+    letter-spacing: -0.009em;
+  }
+  .text-body {
+    font-size: 1rem;
+    line-height: 1.5;
+    font-weight: 400;
+  }
+  .text-body-medium {
+    font-size: 1rem;
+    line-height: 1.5;
+    font-weight: 510;
+  }
+  .text-small {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    font-weight: 400;
+    letter-spacing: -0.011em;
+  }
+  .text-small-medium {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    font-weight: 510;
+    letter-spacing: -0.011em;
+  }
+  .text-caption {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    font-weight: 510;
+    letter-spacing: -0.01em;
+  }
+  .text-label {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    font-weight: 510;
+  }
+  .text-micro {
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    font-weight: 510;
+  }
+}
+
+/* React Flow overrides — use design tokens, not literal colors. */
 .react-flow__minimap {
-  border-radius: 0.5rem;
+  border-radius: 0;
 }
 
 .react-flow__edge-path {
@@ -169,9 +320,6 @@
   border-radius: 50%;
 }
 
-/*
- * Hover: glow on the dot; --handle-color is set inline on each Handle.
- */
 .react-flow__handle.react-flow__handle-left:hover,
 .react-flow__handle.react-flow__handle-right:hover,
 .react-flow__handle.react-flow__handle-top:hover,
@@ -179,27 +327,27 @@
   box-shadow: 0 0 10px var(--handle-color);
 }
 
-/* Connection line while dragging */
+/* Connection line while dragging — uses the Linear brand accent. */
 .react-flow__connection-path {
-  stroke: oklch(0.65 0.15 270);
+  stroke: var(--accent);
   stroke-width: 1.5;
 }
 
-/* Slider thumb */
+/* Slider thumb (native range input styled in slider.tsx). */
 .orca-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: white;
-  border: 1px solid oklch(0.50 0 0);
+  background: var(--text-primary);
+  border: 1px solid var(--border-solid);
   cursor: pointer;
 }
 .orca-slider::-moz-range-thumb {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: white;
-  border: 1px solid oklch(0.50 0 0);
+  background: var(--text-primary);
+  border: 1px solid var(--border-solid);
   cursor: pointer;
 }

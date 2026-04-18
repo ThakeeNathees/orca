@@ -23,7 +23,7 @@ export function ViewModeToggle({ mode, onModeChange }: ViewModeToggleProps) {
     <div
       role="tablist"
       aria-label="Editor view"
-      className="flex items-center gap-0.5 rounded-full border border-border bg-sidebar/95 px-1 py-0.5 shadow-md backdrop-blur-sm dark:bg-zinc-900/95"
+      className="flex items-center gap-0.5 border border-border bg-sidebar/95 px-1 py-0.5 shadow-md backdrop-blur-sm"
     >
       <button
         type="button"
@@ -36,7 +36,7 @@ export function ViewModeToggle({ mode, onModeChange }: ViewModeToggleProps) {
         className={cn(
           segmentClass,
           mode === "ui"
-            ? "bg-neutral-200 text-sidebar-foreground shadow-sm dark:bg-zinc-600 dark:text-zinc-50"
+            ? "bg-secondary text-foreground shadow-sm"
             : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
         )}
       >
@@ -54,7 +54,7 @@ export function ViewModeToggle({ mode, onModeChange }: ViewModeToggleProps) {
         className={cn(
           segmentClass,
           mode === "code"
-            ? "bg-neutral-200 text-sidebar-foreground shadow-sm dark:bg-zinc-600 dark:text-zinc-50"
+            ? "bg-secondary text-foreground shadow-sm"
             : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
         )}
       >
