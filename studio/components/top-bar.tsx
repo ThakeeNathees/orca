@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Hammer, Play, Plus, Workflow } from "lucide-react";
+import { ArrowLeft, Hammer, Play, Workflow } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,6 @@ const DEFAULT_WORKFLOW_NAME = "My Workflow";
 export function TopBar() {
   const currentView = useStudioStore((s) => s.currentView);
   const goToDashboard = useStudioStore((s) => s.goToDashboard);
-  const createWorkflow = useStudioStore((s) => s.createWorkflow);
   const renameWorkflow = useStudioStore((s) => s.renameWorkflow);
   const activeWorkflowId = useStudioStore((s) => s.activeWorkflowId);
   const workflows = useStudioStore((s) => s.workflows);
@@ -214,16 +213,7 @@ export function TopBar() {
               </svg>
             </a>
           </>
-        ) : (
-          <Button
-            onClick={createWorkflow}
-            size="sm"
-            className="gap-1.5 cursor-pointer"
-          >
-            <Plus className="size-4" />
-            New Workflow
-          </Button>
-        )}
+        ) : null}
       </div>
     </header>
   );

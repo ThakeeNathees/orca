@@ -8,7 +8,11 @@ import { Palette } from "@/components/palette";
 import { Canvas } from "@/components/canvas";
 import { Inspector } from "@/components/inspector";
 import { NavSidebar } from "@/components/nav-sidebar";
-import { ProjectSidebar } from "@/components/project-sidebar";
+import {
+  ProjectSidebar,
+  SECTION_LABELS,
+  type SidebarSection,
+} from "@/components/project-sidebar";
 import { Dashboard } from "@/components/dashboard";
 import {
   ViewModeToggle,
@@ -86,10 +90,21 @@ function WorkflowEditor() {
   );
 }
 
+function ComingSoon({ label }: { label: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center bg-sidebar text-muted-foreground">
+      <p className="text-base font-medium text-foreground">{label}</p>
+      <p className="mt-1 text-sm">Coming soon</p>
+    </div>
+  );
+}
+
 export default function Home() {
   const currentView = useStudioStore((s) => s.currentView);
   const hydrated = useStudioStore((s) => s.hydrated);
   const hydrate = useStudioStore((s) => s.hydrate);
+  const [sidebarSection, setSidebarSection] =
+    useState<SidebarSection>("workflows");
 
   // Kick off storage hydration once on mount. Runs on the client only
   // (this is a client component), so IndexedDB is guaranteed available.
@@ -114,15 +129,22 @@ export default function Home() {
         <NavSidebar />
         {currentView === "dashboard" && (
           <ErrorBoundary>
-            <ProjectSidebar />
+            <ProjectSidebar
+              activeSection={sidebarSection}
+              onSectionChange={setSidebarSection}
+            />
           </ErrorBoundary>
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopBar />
           {currentView === "dashboard" ? (
-            <ErrorBoundary>
-              <Dashboard />
-            </ErrorBoundary>
+            sidebarSection === "workflows" ? (
+              <ErrorBoundary>
+                <Dashboard />
+              </ErrorBoundary>
+            ) : (
+              <ComingSoon label={SECTION_LABELS[sidebarSection]} />
+            )
           ) : (
             <WorkflowEditor />
           )}

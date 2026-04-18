@@ -17,7 +17,7 @@ import type {
 } from "./types";
 
 const DB_NAME = "orca-studio";
-const DB_VERSION = 1;
+const DB_VERSION = 5;
 const STORE_PROJECTS = "projects";
 const STORE_WORKFLOWS = "workflows";
 const INDEX_BY_PROJECT = "by_project";

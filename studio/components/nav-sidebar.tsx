@@ -31,8 +31,8 @@ export function NavSidebar() {
               className={cn(
                 "flex size-9 items-center justify-center rounded-md transition-colors",
                 isActive
-                  ? "bg-sidebar-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
                 props.className
               )}
               aria-label="Dashboard"
