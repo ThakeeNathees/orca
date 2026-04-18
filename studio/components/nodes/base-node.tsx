@@ -163,14 +163,8 @@ function BaseNodeComponent({ data, selected }: NodeProps<BlockNode>) {
 
   return (
     <div
-      className="relative w-[240px] overflow-visible rounded-lg border transition-all"
-      style={{
-        backgroundColor: "oklch(0.17 0 0)",
-        borderColor: selected ? "oklch(0.45 0 0)" : "oklch(1 0 0 / 8%)",
-        boxShadow: selected
-          ? "0 0 0 1px oklch(0.45 0 0), 0 4px 20px oklch(0 0 0 / 40%)"
-          : "0 2px 8px oklch(0 0 0 / 30%)",
-      }}
+      data-selected={selected ? "true" : undefined}
+      className="relative w-[240px] overflow-visible rounded-lg border border-border-standard bg-card shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-all data-[selected=true]:border-border-solid data-[selected=true]:shadow-[0_0_0_1px_var(--border-solid),0_4px_20px_rgba(0,0,0,0.4)]"
     >
       {hasTopHandles && <TopHandlesRow handles={topHandles} />}
 
@@ -211,12 +205,11 @@ function BaseNodeComponent({ data, selected }: NodeProps<BlockNode>) {
                     {f.label}
                   </div>
                   <div
-                    className={`truncate rounded-md px-2 py-1 text-[11px] ${
+                    className={`truncate rounded-md bg-white/5 px-2 py-1 text-[11px] ${
                       hasValue
                         ? "text-foreground/80"
                         : "text-muted-foreground/40 italic"
                     }`}
-                    style={{ backgroundColor: "oklch(1 0 0 / 5%)" }}
                   >
                     {hasValue ? String(f.value) : f.placeholder || "..."}
                   </div>

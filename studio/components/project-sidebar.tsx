@@ -128,7 +128,9 @@ export function ProjectSidebar() {
     <aside className="flex w-[220px] shrink-0 flex-col border-r border-border bg-sidebar">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
-        <span className="text-sm font-semibold text-foreground">Projects</span>
+        <span className="text-caption text-foreground uppercase tracking-wider">
+          Projects
+        </span>
         <button
           type="button"
           onClick={createProject}

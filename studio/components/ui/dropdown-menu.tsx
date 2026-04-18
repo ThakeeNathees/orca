@@ -116,7 +116,7 @@ export function DropdownMenuItem({
       type="button"
       className={cn(
         "flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer",
-        variant === "destructive" ? "text-red-400" : "text-foreground",
+        variant === "destructive" ? "text-destructive" : "text-foreground",
         className
       )}
       onClick={(e) => {

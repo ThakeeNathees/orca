@@ -3,8 +3,9 @@
 import { memo } from "react";
 import { BezierEdge, type EdgeProps } from "@xyflow/react";
 import { HANDLE_COLORS } from "@/lib/handle-colors";
+import { CANVAS_EDGE_STROKE } from "@/lib/canvas-colors";
 
-const DEFAULT_STROKE = "oklch(0.50 0 0)";
+const DEFAULT_STROKE = CANVAS_EDGE_STROKE;
 
 export type StudioEdgeData = { accentColor?: string };
 

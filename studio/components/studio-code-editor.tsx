@@ -2,6 +2,11 @@
 
 import Editor from "@monaco-editor/react";
 import { Info } from "lucide-react";
+import {
+  MONACO_FONT_FAMILY,
+  ORCA_MONACO_THEME,
+  registerOrcaTheme,
+} from "@/lib/monaco-theme";
 
 type StudioCodeEditorProps = {
   /** Generated `.orca` source derived from the current graph. */
@@ -32,7 +37,8 @@ export function StudioCodeEditor({ value }: StudioCodeEditorProps) {
       <Editor
         height="100%"
         language="hcl"
-        theme="vs-dark"
+        theme={ORCA_MONACO_THEME}
+        beforeMount={registerOrcaTheme}
         value={value}
         options={{
           readOnly: true,
@@ -41,8 +47,7 @@ export function StudioCodeEditor({ value }: StudioCodeEditorProps) {
           domReadOnly: true,
           minimap: { enabled: false },
           fontSize: 13,
-          fontFamily:
-            "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace",
+          fontFamily: MONACO_FONT_FAMILY,
           scrollBeyondLastLine: false,
           wordWrap: "on",
           padding: { top: 12 },

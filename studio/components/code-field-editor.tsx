@@ -4,6 +4,11 @@ import { useState, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { Maximize2 } from "lucide-react";
 import { Dialog, DialogHeader, DialogBody } from "@/components/ui/dialog";
+import {
+  MONACO_FONT_FAMILY,
+  ORCA_MONACO_THEME,
+  registerOrcaTheme,
+} from "@/lib/monaco-theme";
 
 interface CodeFieldEditorProps {
   value: string;
@@ -15,8 +20,7 @@ interface CodeFieldEditorProps {
 const EDITOR_OPTIONS = {
   minimap: { enabled: false },
   fontSize: 12,
-  fontFamily:
-    "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace",
+  fontFamily: MONACO_FONT_FAMILY,
   scrollBeyondLastLine: false,
   wordWrap: "on" as const,
   tabSize: 4,
@@ -35,8 +39,7 @@ const EDITOR_OPTIONS = {
 const MODAL_EDITOR_OPTIONS = {
   minimap: { enabled: false },
   fontSize: 13,
-  fontFamily:
-    "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace",
+  fontFamily: MONACO_FONT_FAMILY,
   scrollBeyondLastLine: false,
   wordWrap: "on" as const,
   padding: { top: 12 },
@@ -69,7 +72,8 @@ export function CodeFieldEditor({
         <Editor
           height="120px"
           language="python"
-          theme="vs-dark"
+          theme={ORCA_MONACO_THEME}
+          beforeMount={registerOrcaTheme}
           value={displayValue}
           onChange={handleChange}
           options={EDITOR_OPTIONS}
@@ -97,7 +101,8 @@ export function CodeFieldEditor({
           <Editor
             height="60vh"
             language="python"
-            theme="vs-dark"
+            theme={ORCA_MONACO_THEME}
+            beforeMount={registerOrcaTheme}
             value={displayValue}
             onChange={handleChange}
             options={MODAL_EDITOR_OPTIONS}

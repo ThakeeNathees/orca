@@ -107,7 +107,7 @@ export function TopBar() {
             <ArrowLeft className="size-4" />
           </Button>
         )}
-        <span className="text-base font-semibold tracking-tight">
+        <span className="text-[15px] font-[590] tracking-[-0.012em] text-foreground">
           {isEditor ? "Orca Studio" : "Workflows"}
         </span>
       </div>
