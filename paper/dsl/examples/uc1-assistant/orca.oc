@@ -1,0 +1,9 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+agent assistant {
+  model   = gpt4
+  persona = "You are a helpful assistant."
+}

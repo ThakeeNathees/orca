@@ -1,0 +1,9 @@
+version: "1"
+models:
+  gpt4:
+    provider: openai
+    model: gpt-4o
+agents:
+  assistant:
+    model: gpt4
+    instruction: You are a helpful assistant.
