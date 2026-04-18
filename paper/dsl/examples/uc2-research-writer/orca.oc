@@ -1,0 +1,19 @@
+model claude {
+  provider   = "anthropic"
+  model_name = "claude-opus-4.6"
+}
+
+agent researcher {
+  model   = claude
+  tools   = [builtins.web_search]
+  persona = "You research tech trends."
+}
+
+agent writer {
+  model   = claude
+  persona = "You write concise reports."
+}
+
+workflow research_and_write {
+  researcher -> writer
+}

@@ -1,0 +1,1586 @@
+\documentclass[sigconf,nonacm]{acmart}
+
+% Citations need BibTeX: \texttt{references.bib} must sit beside \texttt{main.tex}.
+% With \texttt{-output-directory=out}, run \texttt{bibtex out/main} after the first
+% \texttt{pdflatex}, then \texttt{pdflatex} twice more (or \texttt{make build} / \texttt{latexmk}).
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{tcolorbox}
+\usepackage{multicol}
+\usepackage{enumitem}
+
+\tcbuselibrary{skins,breakable}
+
+% ── TODO box ──────────────────────────────────────────────────────────────────
+\newtcolorbox{todobox}[1][]{
+  colback=yellow!10,
+  colframe=orange!80!black,
+  fonttitle=\bfseries,
+  title={TODO},
+  #1
+}
+
+% ── Image placeholder box ────────────────────────────────────────────────────
+\newtcolorbox{imgplaceholder}[1][]{
+  colback=gray!10,
+  colframe=gray!60!black,
+  fonttitle=\bfseries,
+  title={Figure Placeholder},
+  #1
+}
+
+% ── Code listing style ───────────────────────────────────────────────────────
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{keyword}{RGB}{0,0,180}
+\definecolor{string}{RGB}{0,128,0}
+\definecolor{comment}{RGB}{128,128,128}
+\definecolor{pykey}{RGB}{175,0,219}
+
+\lstdefinelanguage{orca}{
+  keywords={model, agent, tool, task, knowledge, workflow, trigger, schema, input, let, edge, true, false, null},
+  keywordstyle=\color{keyword}\bfseries,
+  commentstyle=\color{comment}\itshape,
+  stringstyle=\color{string},
+  morecomment=[l]{//},
+  morecomment=[l]{\#},
+  morestring=[b]",
+  morestring=[s]{```}{```},
+  sensitive=true,
+}
+
+\lstdefinestyle{orcaStyle}{
+  language=orca,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!50},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  tabsize=2,
+  captionpos=b,
+  aboveskip=6pt,
+  belowskip=4pt,
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em,
+  showspaces=false,
+  showstringspaces=false,
+}
+
+\lstdefinestyle{pythonStyle}{
+  language=Python,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!50},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  tabsize=2,
+  captionpos=b,
+  aboveskip=6pt,
+  belowskip=4pt,
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em,
+  keywordstyle=\color{pykey}\bfseries,
+  stringstyle=\color{string},
+  commentstyle=\color{comment}\itshape,
+}
+
+\lstset{style=orcaStyle}
+
+% ── Metadata ─────────────────────────────────────────────────────────────────
+\title{Orca: A Declarative Domain-Specific Language for AI Agent Orchestration}
+
+\author{Thakee Nathees}
+\email{t.abdulmaj@student.curtin.edu.au}
+\affiliation{%
+  \institution{Curtin University}
+  \department{Department of Computing}
+  \city{Perth}
+  \country{Australia}
+}
+
+\begin{document}
+
+\begin{abstract}
+This paper presents \textbf{Orca}, a declarative domain-specific language
+(DSL) tailored for the orchestration of autonomous AI agents. Orca is
+developed as a robust abstraction over general-purpose host languages such
+as Python~\cite{vanrossum2009python} and libraries such as
+LangGraph~\cite{langgraph2024}, which form a common programming stack for
+LLM-based and agentic systems~\cite{crewai2024,autogen2024}. Orca treats
+agent configurations, tool bindings, and execution graphs as first-class
+primitives in a declarative notation, enabling compile-time validation of
+agent topologies and tool-binding constraints. The Orca compiler implements
+a four-stage pipeline (lexer, Pratt parser, semantic analyzer, code
+generator) in Go, embeds a self-hosted schema system, and generates
+source-mapped Python/LangGraph code. We position Orca against imperative
+frameworks and YAML-first configuration approaches, and summarize the
+language design and implementation features that support static analysis,
+extensibility, and IDE integration. An evaluation across four use cases of
+increasing complexity shows that Orca reduces physical source lines of
+code by roughly $27\%$ against Python/LangGraph and $44\%$ against
+CrewAI, while statically catching four classes of
+misconfiguration---reference, type, schema, and workflow
+errors---that the imperative baselines surface only at runtime.
+\end{abstract}
+
+\maketitle
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Introduction}
+\label{sec:intro}
+% ══════════════════════════════════════════════════════════════════════════════
+
+This paper presents Orca, a declarative, domain-specific language tailored
+for the orchestration of autonomous AI agents. Orca is a novel programming
+language developed as a more robust abstraction to languages such as
+Python~\cite{vanrossum2009python} and libraries such as
+LangGraph~\cite{langgraph2024}, which form the modern programming stack when
+it comes to LLMs and agentic systems~\cite{crewai2024,autogen2024}. It aims
+to address the limitations of the current imperative
+approach~\cite{docker2025cagent} by introducing an alternative paradigm
+where agent configurations, tool bindings and execution graphs are treated
+as first-class primitives and represented in a declarative manner. This
+shift eliminates a significant amount of boilerplate code necessitated by
+the incumbent frameworks and facilitates the lifting of dynamic
+misconfiguration errors into the static domain, allowing for compile-time
+validation of agent topologies and tool-binding constraints.
+
+Orca adopts an HCL-inspired~\cite{terraform2024} declarative block syntax
+where developers simply describe the desired state of the system, and the
+Orca compiler translates these declarations into fully functional
+Python/LangGraph code, performing static analysis along the way. This paper
+makes the following contributions:
+\begin{enumerate}[leftmargin=*]
+  \item Declarative language design for AI agent orchestration, with a
+        uniform block syntax covering models, agents, tools, tasks,
+        workflows, and triggers.
+  \item Four-stage compiler (lexer, Pratt parser, semantic analyzer, code
+        generator) implemented in Go, featuring error-tolerant parsing and a
+        unified type system.
+  \item Static analysis framework that catches reference errors, type
+        mismatches, and schema violations at compile time, with diagnostic
+        codes suitable for IDE integration.
+  \item Source-mapped code generation that annotates every line of
+        generated Python with its originating source location, enabling
+        DSL-level debugging.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Background}
+\label{sec:background}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\subsection{The Problem}
+\label{sec:background:problem}
+
+\subsubsection{Rise of Agentic Systems}
+\label{sec:background:rise}
+
+With the mainstreaming of the LLM (Large Language Model) in
+2023~\cite{benaich2023stateofai}, there was a significant shift in the
+software systems created~\cite{autogen2024}. There has been a significant
+increase in AI-based systems developed, and the need for AI features has
+risen tremendously. This has led to rapid developments in the industry,
+culminating in more inherently complex systems being built using innovative
+LLM technologies. To further accentuate this complexity, there has been a
+rising number of inference provisioning methods~\cite{autogen2024}.
+
+When considering the LLM-related technologies that have been developed, it
+would be natural to start with AI Agents. These are autonomous software
+systems which have the ability to perceive and interact with their
+environment~\cite{crewai2024}. Agents can be created by---among other
+things---providing an LLM access to a set of ``tools''~\cite{schick2023toolformer}.
+These tools may include web search, terminal access, browser automation,
+etc.~\cite{schick2023toolformer}. Similarly, there have been other
+techniques, such as RAG (Retrieval-Augmented Generation), which attempt to
+intelligently manage the LLM context to produce more robust output by
+pairing it with ever-evolving knowledge sources such as vector databases
+(e.g., Qdrant)~\cite{lewis2020rag}. Further, there have been developments
+in techniques such as MCP (Model Context Protocol)~\cite{anthropic2024mcp},
+Semantic Routing~\cite{wang2025semanticrouter}, and Agent
+Skills~\cite{manias2024skills}. The development of all these technologies has
+enabled the creation of many useful AI applications, and they continue to
+evolve as time goes on. However, as more such technologies are introduced,
+the complexity of the ecosystem continues to trend upwards. This
+constitutes the primary gap of the current thesis: a robust abstraction
+layer for the orchestration of these technologies.
+
+This need is further amplified by the volume and nature of inference in the
+current market. At the time of this writing, LLM inference is provided by
+many sources, including OpenAI, Anthropic, Azure, AWS Bedrock, Moonshot AI,
+and self-hosted options, just to name a few~\cite{litellm2024}. The array of
+provider options has been so wide that there have been many projects to
+build singular adapters to multiple providers, such as
+LiteLLM~\cite{litellm2024}. This further highlights the need for a robust
+AI orchestration abstraction layer.
+
+\subsubsection{AI Agentic Frameworks}
+\label{sec:background:frameworks}
+
+Before presenting the case for a further abstraction, the current methods
+for the orchestration of agentic systems have to be considered. The key
+feature shared among all these technologies is their imperative
+nature~\cite{docker2025cagent}.
+
+At the foundational level, many developers initially orchestrate LLMs using
+raw Python combined with provider-specific SDKs. This approach requires
+engineers to manually wire together API calls, manage execution state,
+handle retry logic, and parse unstructured outputs. While this offers
+maximum granular control, it rapidly devolves into brittle, unmaintainable
+codebase architectures as system complexity scales. Tool binding, context
+window management, and memory must be explicitly coded, resulting in vast
+amounts of boilerplate simply to establish a basic ReAct (Reasoning and
+Acting) loop~\cite{yao2023react}.
+
+To impose structure on this complexity, graph-based frameworks like
+LangGraph emerged as an industry standard~\cite{langgraph2024}. LangGraph
+treats agent workflows as state machines, explicitly defining nodes
+(computational steps) and edges (conditional routing). However, defining
+these graphs natively in Python remains highly verbose. The developer is
+forced to write extensive imperative code to declare node functions, manage
+shared state dictionaries, and compile the graph. Crucially, because the
+execution topology is defined at runtime, structural errors---such as
+dangling edges, malformed state updates, or incorrect tool schemas---often
+fail silently or crash only during active execution.
+
+Parallel to graph-based approaches, multi-agent frameworks such as CrewAI
+and Microsoft's AutoGen attempt to simplify orchestration through
+role-playing paradigms~\cite{crewai2024,autogen2024}. These libraries allow
+developers to define ``personas'' and assign tasks sequentially or
+hierarchically. While they mask some of the underlying wiring, they are
+still constrained by their imperative host language. Developers must
+instantiate classes, pass objects, and handle control flow manually.
+Furthermore, these abstractions often obscure the actual execution graph,
+making it exceedingly difficult to debug state transitions or trace logic
+when an autonomous agent deviates from the expected
+path~\cite{crewai2024,autogen2024}.
+
+Ultimately, relying on imperative languages for agent orchestration proves
+inefficient and error-prone as these systems evolve. Forcing developers to
+manually construct execution graphs and handle low-level wiring obscures the
+core intent of the agentic system. The lack of compile-time validation
+means that architectural misconfigurations are only caught at runtime,
+severely increasing development friction and debugging overhead. This
+structural limitation necessitates a shift toward a declarative paradigm,
+where the underlying compiler abstracts the ``how'' of execution, allowing
+the developer to safely and concisely define the ``what.''
+
+\subsubsection{Domain-Specific Languages}
+\label{sec:background:dsl}
+
+To resolve the friction inherent in imperative agent orchestration, the
+architectural bottleneck must be addressed at the abstraction layer itself.
+This naturally points toward the adoption of a Domain-Specific Language
+(DSL) designed explicitly for declarative configuration. A DSL allows
+developers to elevate their focus from the mechanics of control
+flow---such as manually wiring state dictionaries and handling API retry
+logic---to the expression of pure intent. By defining the ``what'' rather
+than the ``how,'' a declarative DSL inherently strips away the boilerplate
+required to manage execution topologies, shifting the burden of building
+the underlying graph to a compiler.
+
+Further, it is interesting to note that this current state of agentic
+development closely mirrors the historical evolution of cloud
+infrastructure provisioning. In the early days of cloud computing,
+engineers relied on imperative scripts to sequentially deploy and configure
+resources. These scripts were brittle, difficult to debug, and prone to
+state drift, as the developer had to manually account for dependency
+resolution and execution order. The paradigm shifted dramatically with the
+introduction of Infrastructure as Code (IaC) tools, which allowed
+engineers to declare the desired end-state of a system using specialized,
+intent-driven languages. The underlying engine then calculated the execution
+graph required to achieve that state, fundamentally stabilizing how complex
+cloud architectures were deployed.
+
+In the realm of IaC, HashiCorp Configuration Language (HCL), the driving
+force behind Terraform, stands out as a highly effective model for this type
+of abstraction~\cite{terraform2024}. HCL popularized a block-based syntax
+that successfully bridges the gap between human readability and strict
+machine validation. It treats infrastructure components (like virtual
+machines, subnets, and policies) as first-class primitives. Crucially, it
+allows for static validation before execution; resource references, type
+constraints, and schema bindings are checked at the compilation stage,
+preventing costly dynamic failures during deployment.
+
+Consequently, the ideal solution for the current complexities in AI agent
+orchestration could in some way mirror this ``shape.'' The authors hence
+concluded that the ecosystem could benefit from an HCL-inspired,
+declarative DSL where models, tools, prompts, and execution workflows are
+treated as native primitives. Such a language would allow developers to
+define agent topologies through concise block structures while a dedicated
+compiler handles the translation into the verbose, underlying imperative
+frameworks. By enforcing strict semantic analysis---catching type mismatches,
+dangling references, and schema violations at compile time---this abstraction
+would bring the rigorous, predictable engineering standards of modern
+DevOps directly to the orchestration of autonomous AI systems.
+
+\subsection{Similar Works}
+\label{sec:background:similar}
+
+\subsubsection{YAML-Based Configurations}
+\label{sec:background:yaml}
+
+To bridge the gap between imperative codebase complexity and declarative
+intent, several frameworks have introduced YAML-based configuration layers
+as a stopgap measure. For instance, modern iterations of multi-agent
+frameworks like CrewAI now encourage developers to define agent personas and
+task assignments in YAML files, which are parsed at runtime to hydrate
+underlying Python objects~\cite{docker2025cagent}. Similarly, open-source
+initiatives such as Docker's cagent provide a standalone YAML-driven runtime
+for agent execution~\cite{docker2025cagent}, while enterprise solutions
+like Microsoft's Semantic Kernel utilize YAML definitions for prompt
+templating and I/O schema constraints~\cite{docker2025cagent}.
+
+While the rapid adoption of YAML configurations clearly validates the
+industry's demand for declarative orchestration, YAML remains fundamentally
+inadequate as a robust engineering abstraction. Because YAML is purely a
+data serialization format, it possesses no native semantics for variables,
+reference tracking, or type safety. If a YAML-defined agent attempts to
+invoke a non-existent tool, or if a variable assignment violates a type
+constraint, the YAML parser remains completely agnostic to the error.
+Consequently, these structural misconfigurations are entirely invisible
+until the application is actively running, leading to costly dynamic
+failures. This highlights the critical necessity for a true compiled DSL like
+Orca, which replaces runtime parsing with rigorous, compile-time static
+analysis.
+
+\subsubsection{LLM Provider Adapters}
+\label{sec:background:adapters}
+
+For the sake of a comprehensive review, the role of LLM provider adapters
+within the current orchestration stack must also be acknowledged. As the
+landscape of inference providers has fragmented across entities like
+OpenAI, Anthropic, and various self-hosted open-source models, libraries
+such as LiteLLM have emerged to establish a unified
+interface~\cite{litellm2024}. These tools allow developers to hot-swap
+underlying language models by simply changing a string reference, completely
+abstracting the boilerplate required to manage disparate API endpoints,
+authentication headers, and network retry logic~\cite{litellm2024}.
+
+The widespread adoption of these adapters demonstrates the undeniable
+success and necessity of abstraction layers in reducing LLM integration
+friction. However, their scope is strictly constrained to standardizing model
+API routing. Provider adapters do not attempt to solve the broader, more
+complex challenges of agent orchestration, such as managing execution state,
+wiring deterministic tool graphs, or orchestrating multi-agent workflows.
+While adapters successfully standardize the isolated ``inference'' node of
+a given system, Orca extends this philosophy to abstract and validate the
+entire execution topology.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Literature Review}
+\label{sec:litreview}
+% ══════════════════════════════════════════════════════════════════════════════
+
+The field of artificial intelligence is currently undergoing a significant
+paradigm shift, transitioning from monolithic large language model (LLM)
+interactions to sophisticated, autonomous multi-agent systems (MAS) capable
+of executing complex, multi-step tasks~\cite{crewai2024,autogen2024}. This
+evolution represents a move beyond passive text generation toward active
+participants in problem-solving that perceive their environment, make
+decisions, and take actions to achieve specific goals~\cite{crewai2024,autogen2024}.
+At the heart of this transition lies the challenge of orchestration---the
+management of coordination, communication, and state across diverse agents
+and tools~\cite{autogen2024,anthropic2024mcp}. While imperative frameworks
+such as LangGraph and multi-agent libraries like CrewAI have provided the
+initial foundation for this era, they introduce significant cognitive
+overhead, boilerplate code, and reliability risks due to their
+runtime-heavy, imperative nature~\cite{docker2025cagent,crewai2024}. This
+report evaluates the current state of the agentic stack and establishes the
+technical necessity for Orca, a declarative domain-specific language (DSL)
+designed to bring the rigorous standards of infrastructure engineering to
+the world of AI agents.
+
+\subsection{The Genesis of the Agentic Era and the 2023 LLM Inflection Point}
+\label{sec:litreview:genesis}
+
+The mainstreaming of Large Language Models in 2023 served as the primary
+catalyst for a fundamental change in software
+architecture~\cite{benaich2023stateofai}. According to industry analysis,
+the rapid adoption of products like ChatGPT transformed LLMs into one of
+the fastest-growing internet products in history, leading more than
+two-thirds of organizations to plan increased AI
+investments~\cite{benaich2023stateofai}. This surge in interest has
+culminated in the development of inherently complex systems that leverage
+LLMs not just as information retrieval tools, but as reasoning
+engines~\cite{crewai2024}.
+
+As the ecosystem matured throughout 2023 and 2024, the limitations of
+standalone models became apparent, particularly regarding factual recall and
+real-world grounding~\cite{lewis2020rag}. This led to the rise of
+``agentic'' systems---autonomous software entities that utilize LLMs to plan
+and execute actions via external tools~\cite{yao2023react,schick2023toolformer}.
+The integration of these components has necessitated a robust orchestration
+layer capable of managing the ever-increasing complexity of inference
+provisioning and model interaction~\cite{autogen2024}.
+
+\begin{table}[t]
+  \centering
+  \caption{Agentic capabilities and supporting literature.}
+  \label{tab:agentic-capabilities}
+  \small
+  \begin{tabular}{@{}p{0.28\linewidth}p{0.52\linewidth}p{0.14\linewidth}@{}}
+    \toprule
+    \textbf{Capability} & \textbf{Description} & \textbf{Source} \\
+    \midrule
+    Reasoning Traces & Internal ``thoughts'' that allow a model to plan before acting & \cite{yao2023react} \\
+    Tool Interaction & Ability to invoke APIs, search the web, or execute code & \cite{schick2023toolformer} \\
+    Environment Perception & Processing feedback from external actions to update internal state & \cite{crewai2024} \\
+    Stateful Persistence & Maintaining conversation and task history over long horizons & \cite{langgraph2024} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The rise of agentic systems has also been supported by specialized
+techniques such as Retrieval-Augmented Generation (RAG), which pairs LLMs
+with dynamic knowledge sources like vector databases to reduce hallucinations
+and improve contextual accuracy~\cite{lewis2020rag}. However, as the number
+of available technologies---including the Model Context Protocol (MCP),
+Semantic Routing, and Agent Skills---continues to trend upwards, the primary
+gap remains a robust abstraction layer to coordinate these disparate parts
+into a stable whole~\cite{anthropic2024mcp,wang2025semanticrouter}.
+
+\subsection{Paradigms of Orchestration: The Limitations of Imperative Frameworks}
+\label{sec:litreview:imperative}
+
+The current software stack for LLM applications is heavily reliant on
+Python~\cite{vanrossum2009python} and specialized SDKs~\cite{autogen2024}.
+Python's dominance in the field stems from its clear syntax and extensive
+library ecosystem, which has made it the de-facto language for machine
+learning and data science~\cite{vanrossum2009python}. However, when applied
+to the orchestration of autonomous agents, the imperative nature of Python
+introduces significant challenges~\cite{docker2025cagent,crewai2024}.
+
+\subsubsection{The Burden of Imperative Manual Wiring}
+\label{sec:litreview:wiring}
+
+In the initial stages of agent development, engineers often rely on raw
+Python combined with provider-specific SDKs to handle API calls, retry
+logic, and state management. This approach, while offering granular control,
+forces developers to manually handle low-level mechanics that are
+peripheral to the core logic of the agent~\cite{docker2025cagent}. The
+necessity of explicitly coding tool bindings, context window management, and
+memory results in vast amounts of boilerplate code just to establish a basic
+Reasoning and Acting (ReAct) loop~\cite{yao2023react}.
+
+Imperative orchestration requires the developer to define exactly how a
+system should reach a state, rather than what the state should
+be~\cite{docker2025cagent}. This ``fire and forget'' logic is particularly
+fragile in the face of transient errors~\cite{docker2025cagent}. If an
+external API encounters a brief period of latency or failure, an imperative
+script often crashes or enters an inconsistent state, requiring manual
+intervention to reconcile processed data against output
+tables~\cite{docker2025cagent}.
+
+\subsubsection{Graph-Based Frameworks: LangGraph and Sequential Chains}
+\label{sec:litreview:langgraph}
+
+To impose structure on this imperative complexity, graph-based frameworks
+like LangGraph~\cite{langgraph2024} have emerged as a standard for building
+stateful agents. LangGraph models workflows as state machines, utilizing a
+graph-based architecture to manage the intricate relationships between
+various nodes (computational steps) and edges (transitions)~\cite{langgraph2024}.
+
+\begin{table}[t]
+  \centering
+  \caption{LangGraph components and structural constraints.}
+  \label{tab:langgraph-components}
+  \small
+  \begin{tabular}{@{}p{0.18\linewidth}p{0.42\linewidth}p{0.34\linewidth}@{}}
+    \toprule
+    \textbf{Component} & \textbf{Technical Role} & \textbf{Structural Constraint} \\
+    \midrule
+    Nodes & Python functions encoding agent logic & Must accept and return state \\
+    Edges & Determine the next node based on transitions & Fixed or conditional branching \\
+    State & Shared data structure acting as memory & Typically a TypedDict or Pydantic model \\
+    Compilation & Validates graph structure at runtime & Checks for orphaned nodes \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Despite its power, LangGraph remains a low-level orchestration
+framework~\cite{langgraph2024}. Defining these graphs in native Python is
+highly verbose and often obscures the intent of the agentic system.
+Crucially, because the execution topology is defined and compiled at
+runtime, structural errors such as malformed state updates or incorrect tool
+schemas often fail to be detected until active execution, increasing
+development friction and debugging overhead~\cite{langgraph2024,docker2025cagent}.
+
+\subsection{Multi-Agent Systems and Role-Based Collaboration}
+\label{sec:litreview:mas}
+
+Beyond single-agent orchestration, the industry has embraced multi-agent
+systems (MAS) that divide labor among teams of specialized
+agents~\cite{crewai2024,autogen2024}. Frameworks like CrewAI~\cite{crewai2024}
+and AutoGen~\cite{autogen2024} provide high-level abstractions for this
+collaboration.
+
+\subsubsection{AutoGen: Conversational and Adaptive Frameworks}
+\label{sec:litreview:autogen}
+
+Microsoft's AutoGen~\cite{autogen2024} introduces a multi-agent conversation
+framework where agents interact through automated chats. AutoGen agents are
+highly customizable and can operate in various modes, combining LLMs with
+tools and human feedback~\cite{autogen2024}. Research indicates that
+AutoGen's conversational approach allows agents to exchange information and
+opinions to solve complex tasks, often outperforming single-agent
+solutions~\cite{autogen2024}. However, the open-ended nature of
+conversational agents can make it difficult to trace the actual execution
+graph or debug state transitions when an agent deviates from the expected
+path~\cite{crewai2024,autogen2024}.
+
+\subsubsection{CrewAI: Hierarchical Orchestration and Roles}
+\label{sec:litreview:crewai}
+
+CrewAI~\cite{crewai2024} emphasizes a role-based collaboration paradigm. In
+this framework, independent agents are organized into a ``crew,'' where each
+member has a specific role (e.g., Researcher, Analyst, Writer) and a
+goal~\cite{crewai2024}.
+
+\begin{table}[t]
+  \centering
+  \caption{CrewAI philosophy and reliability impact.}
+  \label{tab:crewai-philosophy}
+  \small
+  \begin{tabular}{@{}p{0.22\linewidth}p{0.38\linewidth}p{0.34\linewidth}@{}}
+    \toprule
+    \textbf{Feature} & \textbf{CrewAI Philosophy} & \textbf{Impact on Reliability} \\
+    \midrule
+    Delegation & Manager agents autonomously assign subtasks & Enables complex, hierarchical work \\
+    Processes & Supports sequential and hierarchical execution & Increases predictability \\
+    Tools & Extensive library of pre-built tool integrations & Accelerates common development \\
+    Memory & Vector database integration for context & Improves long-horizon task coherence \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+While CrewAI simplifies orchestration, it remains constrained by the
+imperative nature of its host language. Developers must still manually
+instantiate classes and handle control flow, and structural
+misconfigurations are typically only caught during runtime~\cite{crewai2024}.
+
+\subsection{Technical Necessity for Orca: The Case for Declarative Orchestration}
+\label{sec:litreview:necessity}
+
+To resolve the friction inherent in current agent orchestration, the
+architectural bottleneck must be addressed at the abstraction layer itself.
+The evolution of agentic systems has reached a point where reliance on
+imperative scripts is no longer sufficient for production-grade
+reliability~\cite{docker2025cagent,manias2024skills}. The following factors
+establish the core technical necessity for the Orca language:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Desired-State Management and Reconciliation.} The current
+        state of agent development closely mirrors the historical evolution
+        of cloud infrastructure~\cite{docker2025cagent}. Early
+        cloud engineering relied on imperative scripts that were brittle and
+        prone to state drift~\cite{burns2016borg}. The introduction of
+        Infrastructure as Code (IaC) tools like Terraform and
+        Kubernetes~\cite{burns2016borg} allowed operators to declare a
+        desired end-state. Kubernetes solved the infrastructure crisis
+        through a ``reconciliation loop''---a continuous control loop that
+        monitors actual state, compares it to the declared state, and takes
+        corrective action~\cite{burns2016borg,docker2025cagent}. This model is
+        essential for AI agents because transient LLM failures or API errors
+        are unavoidable; a declarative system like Orca handles retries and
+        state recovery as architectural invariants~\cite{docker2025cagent}.
+
+  \item \textbf{Resolving the ``Spec Gap.''} Engineering teams using AI
+        agents frequently encounter the ``spec gap''---a drift problem where
+        the natural language specification and the actual implementation in
+        code begin to diverge~\cite{docker2025cagent}. Because AI generation
+        is non-deterministic, vagueness in the specification leads agents to
+        fill gaps with assumptions~\cite{docker2025cagent}. By using a
+        formal DSL like Orca, the specification is the implementation.
+        Declarative outcomes produce more stable agent behavior because they
+        describe desired constraints rather than prescribing every step,
+        allowing the agent to reason within established boundaries while the
+        compiler ensures structural integrity~\cite{docker2025cagent,wang2025semanticrouter}.
+
+  \item \textbf{Compile-Time Static Analysis.} The critical necessity for Orca
+        is the ability to perform rigorous compile-time static analysis. In
+        imperative frameworks, reference errors, type mismatches, and schema
+        violations are invisible until the application crashes during
+        execution~\cite{docker2025cagent,terraform2024}. Orca's compiler
+        facilitates the lifting of these dynamic misconfiguration errors into
+        the static domain, catching:
+        \begin{itemize}[leftmargin=*]
+          \item \textbf{Reference Errors:} Ensuring all agents, tools, and
+                workflows referenced in a manifest exist~\cite{terraform2024}.
+          \item \textbf{Type Mismatches:} Validating that I/O schemas between
+                agents and tools are compatible before generation~\cite{schick2023toolformer}.
+          \item \textbf{Schema Violations:} Checking that block configurations
+                adhere to the expected structure~\cite{terraform2024}.
+        \end{itemize}
+        This shift toward compile-time validation brings the predictable
+        engineering standards of DevOps~\cite{terraform2024} directly to the
+        orchestration of autonomous AI systems.
+\end{enumerate}
+
+\subsection{Comparative Review of Stopgap Measures: YAML and Adapters}
+\label{sec:litreview:stopgap}
+
+The industry's demand for declarative orchestration has led to several
+stopgap measures, most notably YAML-based configuration layers and LLM
+provider adapters~\cite{litellm2024,docker2025cagent}.
+
+\subsubsection{YAML-Based Configurations: Data without Semantics}
+\label{sec:litreview:yaml-semantics}
+
+Frameworks like Docker's cagent~\cite{docker2025cagent} and Semantic Kernel
+utilize YAML to decouple agent personas and task assignments from
+underlying code. This configuration-first philosophy is designed for
+portability and execution speed~\cite{docker2025cagent}. However, YAML is a
+data serialization format, not a programming language~\cite{terraform2024}. It
+possesses no native semantics for variables or reference tracking. A
+YAML-defined agent misconfiguration remains invisible until runtime, leading
+to costly dynamic failures~\cite{docker2025cagent}. Orca replaces runtime
+parsing with a dedicated compiler that understands the semantic relationships
+between agents and their environment.
+
+\subsubsection{LLM Provider Adapters: Standardizing the Inference Node}
+\label{sec:litreview:litellm}
+
+The role of LLM provider adapters, such as LiteLLM~\cite{litellm2024},
+demonstrates the success of abstraction layers. LiteLLM provides a unified
+interface to call 100+ LLMs, abstracting authentication, API endpoints, and
+retry logic~\cite{litellm2024}. While adapters successfully standardize the
+``inference'' node, they do not solve the broader challenges of agent
+coordination or execution state~\cite{litellm2024}. Orca extends this
+standardization to the entire execution topology.
+
+\subsection{Standardized Protocols and Reusable Agentic Primitives}
+\label{sec:litreview:protocols}
+
+The development of Orca occurs alongside the broader movement toward
+standardization, particularly the Model Context Protocol
+(MCP)~\cite{anthropic2024mcp} and ``Agent Skills''~\cite{crewai2024}.
+
+\subsubsection{Model Context Protocol (MCP): The Universal Interface}
+\label{sec:litreview:mcp}
+
+Introduced by Anthropic in November 2024, the Model Context Protocol (MCP)
+is an open standard designed to bridge the gap between AI assistants and
+the world of data and tools~\cite{anthropic2024mcp}. MCP provides a universal
+interface for reading files and executing functions, acting as a ``USB-C for
+AI''~\cite{anthropic2024mcp}. For an orchestration language like Orca, MCP
+provides a standardized ``tool binding'' primitive, allowing the compiler
+to validate I/O schemas between models and tools at compile
+time~\cite{anthropic2024mcp,docker2025cagent}.
+
+\subsubsection{Agentic Skills: Modular Procedural Capabilities}
+\label{sec:litreview:skills}
+
+``Agentic Skills'' are reusable, callable modules that package procedural
+knowledge with explicit applicability conditions and execution
+policies~\cite{manias2024skills}. Skills differ from tools in that they
+package multi-step sequences and explicit termination
+criteria~\cite{manias2024skills}. Orca treats these skills as first-class
+primitives, allowing developers to define a uniform block syntax for agents
+that includes specific expertise and activation triggers~\cite{manias2024skills}.
+
+\subsection{Synthesis and Conclusion}
+\label{sec:litreview:synthesis}
+
+The transition toward autonomous multi-agent systems represents the next
+frontier of AI application development, but current imperative orchestration
+frameworks create a ``fragility gap''~\cite{docker2025cagent,manias2024skills}.
+Orca addresses these structural limitations by introducing a declarative
+paradigm where agent configurations and workflows are first-class
+primitives. By adopting an HCL-inspired syntax~\cite{terraform2024} and a
+compiler with rigorous static analysis, Orca provides operational stability,
+structural integrity, and developer productivity~\cite{terraform2024,docker2025cagent}.
+Orca brings the engineering standards of modern DevOps to agentic systems,
+ensuring that the next generation of AI applications is as stable and
+maintainable as the infrastructure they run on~\cite{burns2016borg,terraform2024}.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Design}
+\label{sec:design}
+% ══════════════════════════════════════════════════════════════════════════════
+
+Orca is a declarative domain-specific language designed to abstract the
+structural complexity of AI agent orchestration. Rather than requiring
+developers to manually write procedural execution loops, state management,
+and framework-specific wiring, Orca allows developers to define the desired
+topology of an agentic system. The compiler translates these declarations
+into fully functional, imperative framework code (currently targeting
+LangGraph).
+
+\subsection{Design Principles}
+\label{sec:design:principles}
+
+The architecture of Orca is guided by four core principles designed to
+address the inherent limitations of imperative orchestration:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Declarative Intent:} The language focuses exclusively on the
+        ``what'' rather than the ``how.'' By eliminating general-purpose
+        control flow loops (\texttt{while}, \texttt{for}) and conditional
+        branching outside of explicit graph definitions, developers are
+        constrained to describing state and relationships, producing highly
+        predictable architectures.
+  \item \textbf{Static Safety:} The reliance on late-failing,
+        runtime-heavy dictionaries in Python is replaced with compile-time
+        validation. Reference errors, missing required fields, and type
+        mismatches are caught before execution.
+  \item \textbf{Framework Independence:} While modern orchestration is
+        tightly coupled to specific SDKs (e.g., LangGraph, AutoGen), Orca
+        separates the system definition from the execution environment. The DSL
+        serves as a universal frontend, enabling future compiler backends to
+        target different execution frameworks without altering the source
+        configuration.
+  \item \textbf{Debuggability:} To ensure the abstraction does not obscure
+        underlying execution, Orca is designed with source-mapped code
+        generation, allowing runtime behaviors to be traced directly back to
+        their originating \texttt{.oc} declarations.
+\end{enumerate}
+
+\subsection{Syntax and Program Structure}
+\label{sec:design:syntax}
+
+Orca adopts an HCL-inspired block syntax. An Orca program (an \texttt{.oc}
+file) consists of a flat sequence of named blocks. There are no imports, no
+top-level expressions, and no standalone function definitions. Every
+component of the system is encapsulated within a block consisting of a
+keyword, a unique identifier, and a brace-delimited body of assignments.
+
+\begin{lstlisting}[caption={A standard Orca block definition.},label={lst:orca-block}]
+// A standard Orca block definition
+model gpt4 {
+  provider    = "openai"
+  model_name  = "gpt-4o"
+  temperature = 0.2
+}
+\end{lstlisting}
+
+The language supports standard literals (strings, integers, floats,
+booleans, and null) as well as parameterized collections (lists and maps).
+A notable syntactic feature is the implementation of multi-line raw strings
+(delimited by triple backticks), which feature automatic indentation
+normalization. The compiler utilizes the closing delimiter's column position
+as the baseline, stripping leading whitespace to prevent indentation from
+leaking into system prompts or inline Python code.
+
+\subsection{First-Class Orchestration Primitives}
+\label{sec:design:primitives}
+
+Orca elevates the conceptual components of multi-agent systems into native
+language primitives. There are eight implemented block types, with four
+serving as the primary orchestration mechanisms:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Models and Agents:} The \texttt{model} block configures LLM
+        provider settings (e.g., OpenAI, Anthropic). The \texttt{agent}
+        block defines an autonomous entity, binding a specific model to a
+        system prompt (persona) and a list of callable tools.
+  \item \textbf{Tools:} The \texttt{tool} block defines external
+        integrations. Orca supports both dotted Python import paths for
+        existing libraries and inline Python function definitions (using raw
+        string language tags, e.g., \texttt{py}), which the compiler
+        automatically extracts and injects into the generated environment.
+  \item \textbf{Workflows:} Execution graphs are defined using the
+        \texttt{workflow} block. Rather than utilizing assignments, the body
+        of a workflow consists of bare expressions utilizing the arrow
+        operator (\texttt{->}). This provides a native, highly readable
+        syntax for defining execution topologies:
+\end{itemize}
+
+\begin{lstlisting}[caption={Workflow topology using the arrow operator.},label={lst:orca-workflow}]
+workflow content_pipeline {
+  researcher -> writer -> reviewer
+}
+\end{lstlisting}
+
+\noindent This single line of Orca naturally transpiles to the complex
+node-and-edge state machine definitions required by frameworks like
+LangGraph.
+
+\subsection{The Structural Type System and Schemas}
+\label{sec:design:types}
+
+To provide strict static analysis, Orca utilizes a structural type system
+built around four type kinds: \texttt{BlockRef} (named primitive types and
+block references), parameterized \texttt{List}, parameterized \texttt{Map},
+and \texttt{Union} types (represented by the pipe operator \texttt{|}).
+
+The contract between the developer and the compiler is governed by block
+schemas. Every block type in Orca possesses a rigid schema defining its
+valid fields, required status, and expected types. For example, the
+\texttt{agent} schema strictly requires a model reference and a persona
+string, while \texttt{tools} remains an optional list.
+
+A critical architectural decision in Orca's design is a self-bootstrapped
+type system. The built-in schemas defining the core language constructs
+(such as \texttt{model} and \texttt{agent}) are not hardcoded into the Go
+compiler's source; rather, they are defined in native Orca syntax within an
+embedded \texttt{builtins.oc} file. This self-hosting approach unifies
+primitives and user-defined structures under the \texttt{BlockRef} type,
+resulting in a highly extensible type checker. Developers can define their
+own custom data structures using the \texttt{schema} block, which the
+compiler validates seamlessly alongside standard language primitives.
+
+\subsection{Extensibility and Developer Experience}
+\label{sec:design:dx}
+
+Orca incorporates several features to ensure the language is suitable for
+complex, production-grade engineering:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Variables and Indirection:} The \texttt{let} block allows
+        developers to define named constants and environment configurations.
+        The compiler performs static constant folding, traversing \texttt{let}
+        indirections at compile time to resolve underlying values (e.g.,
+        dynamically resolving LLM provider strings for code generation).
+  \item \textbf{Runtime Inputs:} The \texttt{input} block declares typed
+        parameters required at runtime, preventing hardcoded secrets and
+        facilitating environment-specific deployments.
+  \item \textbf{Annotations:} Blocks and fields can be decorated with
+        metadata. The \texttt{@desc} annotation attaches documentation for IDE
+        hover integration, while the \texttt{@suppress} directive allows
+        developers to selectively bypass specific compiler diagnostics (e.g.,
+        \texttt{@suppress("unknown-field")}), providing necessary flexibility
+        during the active development of new system features.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Implementation}
+\label{sec:implementation}
+% ══════════════════════════════════════════════════════════════════════════════
+
+This section details the practical realization of the Orca language and its
+underlying compiler. The implementation is broken down into the core
+pipeline required to transpile Orca to Python/LangGraph, followed by the
+advanced architectural enhancements that elevate the language into a
+production-ready developer tool.
+
+\subsection{Basic Implementation}
+\label{sec:implementation:basic}
+
+The basic implementation of Orca encompasses the four-stage compiler
+pipeline necessary to convert a declarative \texttt{.oc} source file into an
+imperative, executable LangGraph state machine. The compiler is entirely
+written in Go and operates via a linear, strictly typed pipeline:
+\texttt{Lexer} $\rightarrow$ \texttt{Parser} $\rightarrow$ \texttt{Semantic
+Analyzer} $\rightarrow$ \texttt{Code Generator}.
+
+\paragraph{Features and operation.} The system operates by passing source
+code through distinct transformation phases without relying on a separate
+Intermediate Representation (IR).
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Lexical Analysis:} The scanner processes the raw source text
+        into a stream of typed tokens, mapping precise source coordinates
+        (line, column, end-line, end-column) to enable strict downstream
+        diagnostic reporting.
+  \item \textbf{Parsing:} The parser constructs the Abstract Syntax Tree
+        (AST). It utilizes a hybrid approach: recursive descent for
+        top-level block structures and a Pratt parser to handle expression
+        precedence (such as the \texttt{->} workflow edge operator).
+  \item \textbf{Semantic Analysis:} This phase validates the AST against
+        Orca's structural type system. It operates in three passes: symbol
+        table construction, schema registration, and per-block validation
+        (checking for type mismatches, missing fields, and undefined
+        references).
+  \item \textbf{Code Generation:} The final validated AST is traversed by
+        the LangGraph backend to emit Python code. Blocks are translated into
+        LangGraph constructs, with provider strings mapping to LangChain
+        imports and workflow edges mapping to StateGraph edge definitions.
+\end{enumerate}
+
+\paragraph{Data structures.} The implementation relies heavily on a unified
+interface-driven AST. The central data structure is the \texttt{BlockBody},
+which encapsulates both top-level statements (\texttt{model}, \texttt{agent})
+and inline expressions (\texttt{schema \{ \ldots\ \}}). By sharing this
+structure, the semantic analyzer and code generator can traverse and validate
+both top-level and inline blocks through the same code paths. Additionally,
+the \texttt{SymbolTable} data structure maps identifiers to their resolved
+\texttt{BlockRef} types, enabling robust cross-referencing.
+
+\paragraph{Implementation challenges.} The most significant challenge during
+the basic implementation was the development of the error-tolerant parser.
+Standard parsers halt on syntax errors, but Orca is designed to support
+real-time IDE integration. Implementing recovery
+strategies---specifically the \texttt{syncToBlockEnd} and
+\texttt{syncToNextAssignment} algorithms---was complex. These functions
+allow the parser to skip malformed tokens and generate a partial AST,
+ensuring the semantic analyzer can still provide diagnostics for the rest of
+the file without entering an infinite loop. Additionally, allowing block
+keywords (like \texttt{model} or \texttt{tool}) to also act as valid
+assignment identifiers required careful lookahead logic in the parser to
+avoid syntax ambiguity.
+
+\begin{imgplaceholder}[title={Screenshot: successful \texttt{orca build}}]
+Terminal output showing the \texttt{orca build} command successfully
+generating the \texttt{build/} directory with source-mapped Python output.
+\end{imgplaceholder}
+
+\subsection{Self-Bootstrapped Schema System}
+\label{sec:implementation:bootstrap}
+
+A characteristic design decision of the Orca compiler is that the schemas
+describing built-in block types---\texttt{model}, \texttt{agent},
+\texttt{tool}, \texttt{workflow}, \texttt{input}, and the primitive types
+\texttt{str}, \texttt{int}, \texttt{float}, \texttt{bool}, \texttt{list},
+\texttt{map}, \texttt{any}, \texttt{null}---are not hardcoded as Go
+structures inside the compiler. Instead, they are written in ordinary Orca
+syntax in a file named \texttt{builtins.oc} that is embedded into the
+compiler binary with Go's \texttt{//go:embed} directive and parsed by the
+same lexer, parser, and analyzer that process user code. Listing~\ref{lst:builtins}
+reproduces a fragment of this file: the \texttt{model} schema declares its
+fields and their types using exactly the notation available to end users.
+
+\begin{lstlisting}[caption={Excerpt from the embedded \texttt{builtins.oc}: the \texttt{model} schema is declared in the same language the compiler compiles.},label={lst:builtins}]
+schema str   {}
+schema int   {}
+schema float {}
+schema bool  {}
+
+schema model {
+  provider    = str
+  model_name  = str | model
+  api_key     = str | null
+  base_url    = str | null
+  temperature = float | null
+}
+
+schema agent {
+  model         = str | model
+  persona       = str
+  tools         = list[tool] | null
+  output_schema = schema | null
+}
+\end{lstlisting}
+
+Three properties follow from this self-hosted arrangement. First, primitive
+types and user-defined schemas are represented uniformly as instances of the
+same \texttt{BlockRef} type kind in the analyzer's symbol table; there is no
+two-level type system that distinguishes ``built-in'' from ``user'' types.
+Second, a user's \texttt{schema Ticket \{ \ldots\ \}} block participates in
+the same type-checking pipeline as \texttt{str} or \texttt{agent}, which
+makes custom structured I/O first-class rather than bolted on. Third,
+evolving the language---adding an optional field to \texttt{agent} or
+introducing a new block kind---is an edit to a single \texttt{.oc} file
+rather than to analyzer Go code, which keeps the type system discoverable
+from within the language it describes. The \texttt{@suppress("duplicate-block")}
+annotations visible in Listing~\ref{lst:builtins} illustrate a secondary
+benefit: the same diagnostic-suppression mechanism exposed to users is what
+the language uses to bootstrap itself.
+
+\subsection{The Pratt Parser and the Arrow Operator}
+\label{sec:implementation:pratt}
+
+Orca's expression grammar is parsed with a Pratt (top-down operator
+precedence) parser~\cite{kladov2020pratt}, embedded inside a recursive
+descent driver that handles block-level structure. Each token carries a
+binding power, declared in a compact table with entries for
+\texttt{PrecArrow} (\texttt{->}), \texttt{PrecPipe} (\texttt{|}),
+\texttt{PrecSum} (\texttt{+ -}), \texttt{PrecProduct} (\texttt{* /}), and
+\texttt{PrecAccess} (\texttt{.}, \texttt{[}, \texttt{(}). The parser
+consumes a primary expression on the left and then repeatedly folds in
+higher-precedence binary operators, producing a left-associative expression
+tree without mutual-recursion between per-operator parse functions.
+
+This design earned its place because of three Orca-specific requirements.
+\emph{First}, the workflow edge operator \texttt{->} had to be a real
+infix expression rather than a specialized sub-grammar, so that
+\texttt{researcher -> writer -> reviewer} would parse as a binary
+expression tree and later lower to a chain of LangGraph \texttt{add\_edge}
+calls in the code generator. \emph{Second}, the union type operator
+\texttt{|} (used pervasively in \texttt{builtins.oc}---for example in
+\texttt{temperature = float | null}) had to share the same expression
+machinery as \texttt{->}, so type expressions and value expressions could
+reuse a single parser rather than diverging into two grammars.
+\emph{Third}, member access (\texttt{builtins.web\_search}) and
+subscripting (\texttt{list[tool]}) needed to bind more tightly than any
+binary operator; making them left-denotation entries in the Pratt table
+gave them the correct precedence without special casing.
+
+The same framework supports \emph{error-tolerant parsing}. The parser
+records a \texttt{Diagnostic} at an offending token and then invokes one of
+two recovery routines---\texttt{syncToBlockEnd}, which advances to the next
+matching right brace, and \texttt{syncToNextAssignment}, which advances to
+the next identifier-equals pattern---so a single malformed field does not
+discard the rest of the file. The analyzer can therefore still validate the
+well-formed portion, and the Language Server Protocol integration described
+in Section~\ref{sec:implementation:enhancements} can surface real-time
+diagnostics after every keystroke rather than only on complete documents.
+
+\subsection{Enhancements}
+\label{sec:implementation:enhancements}
+
+Beyond the mandatory transpilation pipeline, several advanced features were
+implemented to provide a superior developer experience and stabilize the
+architecture.
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Embedded Zero-Dependency Runtime:} Rather than requiring
+        developers to install an external Python package via pip, the
+        runtime support library (\texttt{orca.py}) is embedded directly into
+        the Go compiler binary using the \texttt{//go:embed} directive.
+        During code generation, this file is written to the output directory,
+        ensuring the generated code is completely self-contained.
+  \item \textbf{Compile-Time Constant Folding:} The analyzer includes a
+        constant folder that evaluates expressions at compile time. This is
+        critical for provider resolution; if a \texttt{model} block
+        dynamically references a provider string through a \texttt{let}
+        variable, the constant folder traces the indirection so the code
+        generator knows exactly which LangChain library to import.
+  \item \textbf{Language Server Protocol (LSP) Integration:} The compiler's
+        partial-AST tolerance enables a fully functional LSP server built on
+        glsp. The server re-parses the document on every keystroke,
+        providing real-time diagnostics, hover documentation (reading from
+        \texttt{@desc} annotations), and cross-file go-to-definition
+        resolution.
+\end{itemize}
+
+\begin{imgplaceholder}[title={Screenshot: Orca in VS Code}]
+VS Code editor demonstrating an Orca file with hover documentation and
+real-time semantic error highlighting provided by the LSP.
+\end{imgplaceholder}
+
+\subsection{Orca Studio: Visual Editing on the Canvas}
+\label{sec:implementation:studio}
+
+Textual source is the authoritative representation of an Orca program, but
+for certain workflows---particularly early design of multi-agent topologies
+or explaining a system to non-engineer stakeholders---a visual surface is
+more appropriate. \emph{Orca Studio} is a browser-based companion to the
+command-line compiler that presents the same \texttt{.oc} source as an
+interactive canvas of nodes and edges. It is implemented as a Next.js
+application built on the React Flow library~\cite{reactflow}, with the
+canvas, inspector, and code-editor panels driven by a shared client-side
+store. Models, agents, tools, and workflow steps appear as typed nodes
+whose handle colours mirror the structural type they expose; workflow
+arrows become React Flow edges whose endpoints are validated against the
+same schema as the textual \texttt{->} operator.
+
+Studio is designed around a bidirectional round-trip against the textual
+source. When the user drags a node, edits a field in the inspector, or
+connects two handles, the change is serialized back into canonical
+\texttt{.oc} syntax and reflected in an embedded code editor; conversely,
+pasting new \texttt{.oc} source into the editor re-populates the canvas.
+The user interface therefore operates as a view over the DSL rather than a
+parallel language, and users can move between representations without
+losing fidelity. Because the serialization boundary is a syntactic surface
+rather than a runtime structure, Studio inherits the static safety of the
+compiler: any edit that would produce a reference error, schema violation,
+or type mismatch surfaces as a diagnostic in the inspector before the user
+invokes any backend.
+
+\begin{imgplaceholder}[title={Screenshot: Orca Studio canvas}]
+The Studio canvas displaying a two-agent workflow. Models, agents, and
+tools appear as typed nodes; the workflow \texttt{->} operator is rendered
+as a directed edge between agent handles.
+\end{imgplaceholder}
+
+\begin{imgplaceholder}[title={Screenshot: Studio inspector and code round-trip}]
+The inspector panel beside the embedded code editor, showing a field edit
+reflected both in the canvas node and in the serialized \texttt{.oc}
+source on the right.
+\end{imgplaceholder}
+
+\subsection{Commenting Your Code}
+\label{sec:implementation:comments}
+
+The source code of the Orca compiler is comprehensively documented in
+accordance with standard project guidelines. Because the implementation
+language is Go, standard godoc formatting conventions are utilized. Every
+package (e.g., \texttt{lexer}, \texttt{parser}, \texttt{analyzer},
+\texttt{codegen}) contains package-level documentation explaining its role
+in the compilation pipeline. Furthermore, all exported structs, interfaces
+(such as the \texttt{Node} interface), and public methods include block
+comments detailing their behavior, parameters, and return states. This
+documentation is automatically extracted into a searchable HTML format
+using Go's native documentation tooling, ensuring the architecture is easily
+navigable for inspection and future maintenance.
+
+\subsection{Coding Conventions}
+\label{sec:implementation:conventions}
+
+To ensure high code legibility, fewer bugs, and overall structural quality,
+the Orca compiler strictly adheres to standard Go idiomatic conventions.
+\begin{itemize}[leftmargin=*]
+  \item All source code is formatted automatically using the \texttt{gofmt}
+        tool prior to compilation, ensuring uniform indentation and spacing.
+  \item The codebase enforces strict package isolation. There are no cyclic
+        dependencies between the four pipeline stages; data flows strictly
+        sequentially from lexing to code generation.
+  \item Interfaces are used to cleanly separate statement nodes from
+        expression nodes in the AST, leveraging Go's type system to prevent
+        illegal AST constructions at the implementation level.
+  \item Error handling follows Go conventions, where errors are returned
+        explicitly alongside data, rather than relying on exceptions. This
+        makes the error-recovery mechanisms in the parser highly explicit and
+        traceable.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Evaluation}
+\label{sec:evaluation}
+% ══════════════════════════════════════════════════════════════════════════════
+
+The central empirical claims of Orca are that the declarative surface
+reduces the authoring effort required to express an agentic system and
+that its compiler surfaces misconfigurations earlier than comparable
+imperative or data-only approaches. This section evaluates both claims
+using four use cases of increasing structural complexity, compared across
+four stacks, and an analysis of the compile-time error classes that Orca
+catches.
+
+\subsection{Methodology}
+\label{sec:evaluation:methodology}
+
+\paragraph{Research question.} \emph{Does the declarative DSL reduce
+authoring effort and surface misconfigurations earlier than imperative
+baselines?}
+
+\paragraph{Baselines.} Orca is compared against three representative stacks
+drawn from the orchestration landscape surveyed in
+Section~\ref{sec:litreview}: Python with
+LangGraph~\cite{langgraph2024}, which is the imperative target that Orca
+itself currently compiles to; Python with CrewAI~\cite{crewai2024}, a
+role-based multi-agent framework; and Docker
+cagent~\cite{docker2025cagent}, a YAML-driven declarative runtime.
+Together these span the three design points that Orca positions itself
+against: low-level graph orchestration, high-level role-based
+orchestration, and format-level declarative configuration.
+
+\paragraph{Metrics.} Three complementary metrics are reported:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Physical source lines of code} (SLOC), counted after
+        stripping blank lines and pure-comment lines, using a single awk
+        filter applied uniformly to all four variants of every use case so
+        that comment density and blank-line style cannot distort the
+        comparison.
+  \item \textbf{Boilerplate share}, defined as the subset of SLOC whose
+        purpose is framework wiring rather than domain description:
+        imports, state-dictionary declarations, graph builder calls, and
+        scheduler setup. This captures the portion of the program that a
+        declarative compiler should be able to generate.
+  \item \textbf{Error-class coverage}, a qualitative measure of which
+        categories of misconfiguration each stack rejects at author time
+        versus first execution.
+\end{itemize}
+
+\paragraph{Artefacts.} Each use case is implemented in all four stacks.
+The source files live under \texttt{paper/dsl/examples/} and are the
+direct inputs to the SLOC measurement, so the numbers below are
+reproducible by re-running the line-counting script on the same tree.
+Implementations are deliberately written to be idiomatic rather than
+minimal; shortcuts that are not representative of production code
+(collapsing multi-line definitions, omitting required imports) are
+avoided.
+
+\paragraph{Limitations taken up front.} SLOC is a proxy for authoring
+effort, not a direct measure of it. It ignores cognitive load, the cost
+of discovering framework conventions, and the long-term compounding
+effect of refactoring imperative wiring. It also does not capture
+readability, which the side-by-side examples in the next subsection are
+intended to make qualitatively visible. Section~\ref{sec:evaluation:validity}
+returns to these threats.
+
+\subsection{Use Cases}
+\label{sec:evaluation:usecases}
+
+Four use cases of increasing structural complexity are evaluated. Each
+exercises a progressively larger slice of the language: single agent,
+sequential multi-agent, tool use with a scheduled trigger, and finally a
+multi-agent pipeline carrying a user-defined typed payload.
+
+\begin{description}[leftmargin=*,style=nextline]
+  \item[UC1 Single-agent assistant.] A single model bound to a single
+        agent with a short persona. Establishes the lower bound for every
+        stack---if Orca does not reduce SLOC here, no more complex case
+        will reveal a genuine saving.
+  \item[UC2 Two-agent sequential pipeline.] A \emph{researcher} agent
+        equipped with a web-search tool feeding a \emph{writer} agent.
+        This is the workflow shown on the project landing page and is the
+        canonical scenario in which Orca's \texttt{->} operator is
+        expected to replace explicit LangGraph edge construction.
+  \item[UC3 Scheduled tool-using agent.] A single agent invoking a custom
+        Python tool, wired to a cron schedule. This case exercises the
+        \texttt{tool} block alongside Orca's first-class \texttt{cron}
+        trigger, which neither LangGraph nor CrewAI provide natively; YAML
+        cagent likewise requires an external scheduler.
+  \item[UC4 Typed multi-agent pipeline.] Three agents---triager,
+        responder, quality-assurance---pipelined through a
+        \texttt{support\_pipeline} workflow and exchanging a user-defined
+        \texttt{Resolution} record. Exercises user-defined \texttt{schema}
+        blocks, \texttt{output\_schema} binding on an agent, and the
+        typed \texttt{input} mechanism.
+\end{description}
+
+For brevity, Figure~\ref{fig:uc2-sidebyside} reproduces only the Orca and
+LangGraph implementations of UC2 side by side; the remaining twelve
+variants are included in the replication package.
+
+\begin{figure*}[t]
+\begin{minipage}[t]{0.46\linewidth}
+\begin{lstlisting}[caption={UC2 in Orca (16 SLOC).},label={lst:uc2-orca}]
+model claude {
+  provider   = "anthropic"
+  model_name = "claude-opus-4.6"
+}
+
+agent researcher {
+  model   = claude
+  tools   = [builtins.web_search]
+  persona = "You research tech trends."
+}
+
+agent writer {
+  model   = claude
+  persona = "You write concise reports."
+}
+
+workflow research_and_write {
+  researcher -> writer
+}
+\end{lstlisting}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.50\linewidth}
+\begin{lstlisting}[style=pythonStyle,caption={UC2 in Python + LangGraph (22 SLOC).},label={lst:uc2-langgraph}]
+from langchain_anthropic import ChatAnthropic
+from langchain_community.tools import TavilySearchResults
+from langchain_core.messages import SystemMessage
+from langgraph.graph import StateGraph, MessagesState
+
+claude = ChatAnthropic(model="claude-opus-4.6")
+search = TavilySearchResults()
+claude_with_tools = claude.bind_tools([search])
+
+def researcher(state: MessagesState):
+    sys = "You research tech trends."
+    msgs = [SystemMessage(content=sys)] + state["messages"]
+    return {"messages": [claude_with_tools.invoke(msgs)]}
+
+def writer(state: MessagesState):
+    sys = "You write concise reports."
+    msgs = [SystemMessage(content=sys)] + state["messages"]
+    return {"messages": [claude.invoke(msgs)]}
+
+graph = StateGraph(MessagesState)
+graph.add_node("researcher", researcher)
+graph.add_node("writer", writer)
+graph.add_edge("__start__", "researcher")
+graph.add_edge("researcher", "writer")
+graph.add_edge("writer", "__end__")
+app = graph.compile()
+\end{lstlisting}
+\end{minipage}
+\caption{Side-by-side comparison for UC2. The Orca version on the left
+expresses the same wiring as the Python version on the right while
+eliminating all state, import, and graph-construction boilerplate.}
+\label{fig:uc2-sidebyside}
+\end{figure*}
+
+\subsection{Lines-of-Code Results}
+\label{sec:evaluation:loc}
+
+Table~\ref{tab:loc-results} reports the SLOC measured for each use case
+across all four stacks. Numbers are obtained with a single awk filter
+(\texttt{NF \&\& \$0 !\textasciitilde\ /\textasciicircum [[:space:]]*(\# \textbar\textbar\ //)/})
+applied to the example sources.
+
+\begin{table}[t]
+  \centering
+  \caption{Physical SLOC per use case and stack. Lower is better.
+  Percentages in the final row are the mean reduction achieved by Orca
+  relative to the baseline in each column.}
+  \label{tab:loc-results}
+  \small
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    \textbf{Use case} & \textbf{Orca} & \textbf{LangGraph} & \textbf{CrewAI} & \textbf{cagent} \\
+    \midrule
+    UC1 Assistant              & 8  & 13  & 19  & 9  \\
+    UC2 Research/Writer        & 16 & 22  & 34  & 21 \\
+    UC3 Scheduled tool         & 20 & 27  & 33  & 19 \\
+    UC4 Typed multi-agent      & 35 & 47  & 55  & 28 \\
+    \midrule
+    \textbf{Total}             & \textbf{79} & \textbf{109} & \textbf{141} & \textbf{77} \\
+    \textit{Mean reduction vs.\ Orca} & --- & $27.5\%$ & $44.0\%$ & $-2.6\%$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Three observations follow from the data. First, Orca produces the smallest
+or second-smallest program in every use case, and the gap widens as the
+structural complexity grows: UC4 shows a $25.5\%$ reduction against
+LangGraph and $36.4\%$ against CrewAI, compared to $38.5\%$/$57.9\%$ in
+UC1. The super-linear behaviour reflects that imperative stacks pay a
+fixed per-node wiring cost (state dictionaries, add-node calls,
+add-edge calls) that Orca collapses into a single \texttt{->} expression
+regardless of workflow length.
+
+Second, the comparison against Docker cagent YAML deserves separate
+treatment. YAML is within a few lines of Orca for every use case, and is
+slightly shorter in aggregate ($77$ vs.\ $79$ SLOC), because both stacks
+share the declarative philosophy that eliminates imports and graph-building
+calls. The two-line deficit is more than explained by Orca's inline
+\texttt{let} and \texttt{@desc} conveniences. What the LOC metric does not
+show is that the YAML version of UC4 expresses the \texttt{Resolution}
+schema as an inline JSON-schema fragment with no static validation, and
+that all four YAML files accept an undefined \texttt{tool} reference or a
+misspelled field name without complaint until the runtime loads them. The
+next subsection quantifies this difference.
+
+Third, CrewAI's overhead is structural rather than incidental: the
+role-based abstraction adds a \texttt{Task} object per agent and requires
+an explicit \texttt{context} parameter to wire sequential data flow.
+This explains the consistent $40$--$60\%$ SLOC premium over Orca across
+use cases.
+
+\subsection{Compile-Error Taxonomy}
+\label{sec:evaluation:taxonomy}
+
+The second half of the evaluation concerns \emph{when} errors are caught.
+Orca's analyzer emits structured \texttt{Diagnostic} values with a short
+machine-readable code, a severity, and a source position (the full
+catalogue is given in Appendix~\ref{sec:appendix:diagnostics}). The
+diagnostics partition naturally into four buckets; this subsection gives a
+minimal broken \texttt{.oc} example from each bucket together with the
+Orca diagnostic and the observable failure mode in the imperative
+equivalents.
+
+\paragraph{Bucket 1: reference errors.} A workflow or field names an
+identifier that is not bound in the symbol table.
+
+\begin{lstlisting}[caption={Reference error: \texttt{writer} is never declared.},label={lst:err-ref}]
+agent researcher { model = gpt4 persona = "..." }
+workflow pipeline {
+  researcher -> writer
+}
+\end{lstlisting}
+
+\noindent Orca reports \texttt{[undefined-ref] unknown identifier 'writer'}
+at parse time. The equivalent LangGraph program
+(\texttt{graph.add\_edge("researcher", "writer")}) compiles cleanly and
+only fails on the first \texttt{app.invoke}, surfacing as a KeyError
+during message routing.
+
+\paragraph{Bucket 2: type mismatches.} A field is assigned a value whose
+type is incompatible with the schema entry for that field.
+
+\begin{lstlisting}[caption={Type mismatch: \texttt{temperature} requires \texttt{float}.},label={lst:err-type}]
+model gpt4 {
+  provider    = "openai"
+  temperature = "hot"
+}
+\end{lstlisting}
+
+\noindent Orca reports \texttt{[type-mismatch] expected float|null, got
+str}. The LangGraph equivalent (\texttt{ChatOpenAI(temperature="hot")})
+raises a Pydantic \texttt{ValidationError} only when the model client is
+instantiated at runtime, inside framework code.
+
+\paragraph{Bucket 3: schema violations.} A required field is absent, an
+unknown field is present, or a block is duplicated.
+
+\begin{lstlisting}[caption={Schema violation: required field \texttt{persona} missing.},label={lst:err-schema}]
+agent assistant {
+  model = gpt4
+}
+\end{lstlisting}
+
+\noindent Orca reports \texttt{[missing-field] agent requires field
+'persona'}. LangGraph's equivalent omission is silent---the node function
+is defined without a system prompt---and surfaces only as empty or
+malformed LLM output, which is difficult to attribute to a
+misconfiguration. cagent YAML accepts an unknown field such as
+\texttt{persoan:} without any warning.
+
+\paragraph{Bucket 4: workflow errors.} An arrow expression points at a
+member that is not a valid workflow node, or attempts to subscript into a
+non-list.
+
+\begin{lstlisting}[caption={Workflow error: \texttt{tools} is not an agent.},label={lst:err-wf}]
+tool search { invoke = "pkg.search" }
+workflow pipeline {
+  search -> writer
+}
+\end{lstlisting}
+
+\noindent Orca reports \texttt{[unexpected-expr] workflow step must be an
+agent}. LangGraph does not distinguish nodes by role, so the same
+structural error is expressible only by convention and fails at runtime
+with a type error inside the node function body.
+
+\begin{imgplaceholder}[title={Screenshot: VS Code diagnostics on a broken \texttt{.oc}}]
+LSP-driven diagnostics showing \texttt{[undefined-ref]},
+\texttt{[type-mismatch]}, and \texttt{[missing-field]} highlights inline
+within the editor as the file is typed.
+\end{imgplaceholder}
+
+Table~\ref{tab:error-coverage} summarizes which of the four buckets each
+stack catches at author time versus first execution.
+
+\begin{table}[t]
+  \centering
+  \caption{Stage at which each error class is caught (AT = author time
+  via static analysis, RT = run time). cagent YAML is parsed at runtime
+  and performs no cross-field validation, so all four classes surface as
+  runtime failures.}
+  \label{tab:error-coverage}
+  \small
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    \textbf{Error class} & \textbf{Orca} & \textbf{LangGraph} & \textbf{CrewAI} & \textbf{cagent} \\
+    \midrule
+    Reference errors  & AT & RT & RT & RT \\
+    Type mismatches   & AT & RT & RT & RT \\
+    Schema violations & AT & RT & RT & RT \\
+    Workflow errors   & AT & RT & RT & RT \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The asymmetry in Table~\ref{tab:error-coverage} is the qualitative claim
+that the SLOC numbers alone cannot capture: the two-line difference
+between Orca and cagent in Table~\ref{tab:loc-results} is purchased by a
+four-class difference in static guarantees.
+
+\subsection{Threats to Validity}
+\label{sec:evaluation:validity}
+
+Several factors constrain the strength of these results. The use-case
+implementations are hand-written by the authors and may inadvertently
+favour Orca; a team that routinely writes LangGraph might factor common
+node patterns into helper functions and recover part of the boilerplate
+deficit. SLOC further ignores the cognitive load of framework conventions,
+the cost of reading third-party documentation, and the differential
+maintenance burden of imperative code as requirements evolve. The
+evaluation is also non-empirical in the user-study sense: no developers
+other than the authors have been timed on equivalent tasks, so authoring
+effort is inferred from structural measurements rather than observed.
+Finally, the error-class coverage table describes categories of failures
+and not their relative frequency in production agentic systems, which
+remains an open question.
+
+Despite these caveats, the combination of the LOC reduction (especially
+its super-linear growth across UC1--UC4), the structural asymmetry
+between Orca and cagent on error coverage, and the side-by-side
+comparison in Figure~\ref{fig:uc2-sidebyside} supports the two central
+claims of the paper: the declarative DSL meaningfully reduces authoring
+effort on non-trivial agentic systems and shifts classes of
+misconfiguration that are traditionally runtime failures into compile-time
+diagnostics.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+% ══════════════════════════════════════════════════════════════════════════════
+
+This paper introduced Orca, a declarative domain-specific language for AI
+agent orchestration, and validated it along three complementary axes. The
+design (Section~\ref{sec:design}) promotes agent configurations, tool
+bindings, workflow topologies, and structured schemas to first-class
+language primitives, with a structural type system that unifies primitive
+types and user-defined records under a single \texttt{BlockRef} kind. The
+implementation (Section~\ref{sec:implementation}) realises the language as
+a four-stage Go compiler with a self-bootstrapped schema file, a Pratt
+expression parser that makes the \texttt{->} workflow operator and the
+\texttt{|} union operator share a single grammar, error-tolerant recovery
+that drives a Language Server Protocol integration, and a browser-based
+\emph{Orca Studio} canvas that treats the textual source as its single
+authoritative representation. The evaluation
+(Section~\ref{sec:evaluation}) demonstrated on four use cases of
+increasing complexity that Orca achieves mean source-line reductions of
+roughly $27.5\%$ against Python/LangGraph and $44.0\%$ against CrewAI,
+with the saving growing super-linearly as workflow complexity increases,
+and that it statically catches all four classes of misconfiguration in
+the error taxonomy that the imperative and YAML baselines surface only at
+runtime.
+
+Several extensions are worth pursuing in future work.
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Additional code-generation backends.} The code generator
+        currently targets LangGraph. Emitting CrewAI Python or Docker
+        cagent YAML from the same validated AST would decouple the DSL
+        from any single runtime and position Orca as a portable
+        interchange format for agentic systems.
+  \item \textbf{Richer workflow primitives.} Conditional edges,
+        loops, and parallel fan-out are expressible in LangGraph but not
+        yet in Orca's \texttt{->} grammar. Extending the Pratt expression
+        language with guarded-edge and iteration constructs would close
+        this expressiveness gap while preserving static analysability.
+  \item \textbf{Empirical user study.} The Section~\ref{sec:evaluation:validity}
+        threats to validity can only be fully discharged by timing
+        developers on equivalent UC1--UC4 tasks and comparing authoring
+        time, defect rate, and subjective cognitive load across the four
+        stacks, rather than inferring effort from SLOC.
+  \item \textbf{Studio feature expansion.} Surfacing live compile
+        diagnostics directly on the canvas, visual diffing of two
+        \texttt{.oc} versions, and SVG export for documentation would
+        further strengthen the canvas as a collaboration surface for
+        non-engineer stakeholders.
+  \item \textbf{Package-level imports.} First-class module boundaries
+        would let schemas, tools, and reusable agent templates be shared
+        across \texttt{.oc} files and across teams, which is a
+        prerequisite for an ecosystem of reusable orchestration building
+        blocks.
+\end{enumerate}
+
+Taken together, the results support the thesis that agent orchestration is
+amenable to the same language-design toolkit that previous waves of
+infrastructure-as-code applied to cloud deployment: moving configuration
+from imperative scripts into a declarative, statically-validated surface
+yields measurable authoring-effort and reliability dividends without
+sacrificing expressiveness.
+
+% ══════════════════════════════════════════════════════════════════════════════
+% References
+% ══════════════════════════════════════════════════════════════════════════════
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\appendix
+\section{Diagnostic-Code Catalogue}
+\label{sec:appendix:diagnostics}
+% ══════════════════════════════════════════════════════════════════════════════
+
+Table~\ref{tab:diagnostics} lists every diagnostic code produced by the
+parser and analyzer stages of the current Orca compiler. Each code can be
+individually silenced at source level with
+\texttt{@suppress("\textit{code}")}. Codes are stable across releases and
+form the contract between the compiler and editor integrations.
+
+\begin{table}[!ht]
+  \centering
+  \small
+  \caption{Diagnostic codes emitted by the Orca compiler, grouped by
+  bucket from Section~\ref{sec:evaluation:taxonomy}.}
+  \label{tab:diagnostics}
+  \begin{tabular}{@{}p{0.26\linewidth}p{0.19\linewidth}p{0.45\linewidth}@{}}
+    \toprule
+    \textbf{Code} & \textbf{Bucket} & \textbf{Condition} \\
+    \midrule
+    \texttt{syntax}            & ---           & Any parse-level error; used by the parser for malformed tokens and unrecovered recovery points. \\
+    \midrule
+    \texttt{undefined-ref}     & Reference     & Identifier not present in the symbol table. \\
+    \texttt{unknown-member}    & Reference     & Member access on a block type that does not export that name. \\
+    \midrule
+    \texttt{type-mismatch}     & Type          & Field value's inferred type is incompatible with its schema-declared type. \\
+    \texttt{invalid-subscript} & Type          & Non-integer expression used as a subscript on a list-typed value. \\
+    \texttt{invalid-value}     & Type          & Field value is not a member of an enumerated allowed set. \\
+    \midrule
+    \texttt{missing-field}     & Schema        & Required field absent from a block body. \\
+    \texttt{unknown-field}     & Schema        & Field name present but not declared by the block's schema. \\
+    \texttt{duplicate-field}   & Schema        & Same field assigned twice within one block. \\
+    \texttt{duplicate-block}   & Schema        & Two top-level blocks sharing the same identifier. \\
+    \midrule
+    \texttt{unexpected-expr}   & Workflow      & Expression used in a position where its kind is disallowed (e.g.\ non-agent as a workflow step). \\
+    \texttt{unknown-provider}  & Backend       & Model provider string not supported by the selected code-generation backend. \\
+    \texttt{unsupported-lang}  & Backend       & Raw-string language tag not recognized by the backend. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\end{document}
