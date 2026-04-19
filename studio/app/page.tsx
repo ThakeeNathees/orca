@@ -137,11 +137,9 @@ export default function Home() {
       <CommandPalette />
       <div className="flex h-full">
         <NavSidebar />
-        {currentView !== "editor" && (
-          <ErrorBoundary>
-            <ProjectSidebar />
-          </ErrorBoundary>
-        )}
+        <ErrorBoundary>
+          <ProjectSidebar />
+        </ErrorBoundary>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopBar />
           {currentView === "dashboard" ? (
