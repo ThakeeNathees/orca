@@ -17,12 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, Trash2 } from "lucide-react";
+import { AlertCircle, ExternalLink, X, Trash2 } from "lucide-react";
 import {
   FIELD_INPUT_CLASS,
   FIELD_TEXTAREA_CLASS,
   FIELD_SELECT_TRIGGER_CLASS,
 } from "@/lib/styles";
+import { ModelSelect } from "@/components/model-select";
+import type { BlockNode } from "@/lib/types";
 
 const CodeFieldEditor = dynamic(
   () =>
@@ -162,10 +164,10 @@ export function Inspector() {
   }
 
   const def = BLOCK_DEFS[selectedNode.data.kind];
+  const isAgent = selectedNode.data.kind === "agent";
 
   return (
     <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground">
-      {/* Header */}
       <div className="flex items-start justify-between px-4 pt-4 pb-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -195,39 +197,41 @@ export function Inspector() {
 
       <ScrollArea className="flex-1">
         <div className="space-y-4 p-4">
-          {/* Name */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground/80">
-              Name
-            </Label>
-            <Input
-              value={selectedNode.data.label}
-              onChange={(e) =>
-                updateNodeLabel(selectedNode.id, e.target.value)
-              }
-              className={FIELD_INPUT_CLASS}
-            />
-          </div>
-
-          {/* Dynamic fields */}
-          {def.fields.map((field) => (
-            <div key={field.key} className="space-y-1.5">
-              <Label className="text-[11px] font-medium text-muted-foreground/80">
-                {field.label}
-              </Label>
-              <FieldRenderer
-                field={field}
-                value={selectedNode.data.fields[field.key] ?? ""}
-                onChange={(val) =>
-                  updateNodeData(selectedNode.id, { [field.key]: val })
-                }
-              />
-            </div>
-          ))}
+          {isAgent ? (
+            <AgentInspector node={selectedNode} />
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-medium text-muted-foreground/80">
+                  Name
+                </Label>
+                <Input
+                  value={selectedNode.data.label}
+                  onChange={(e) =>
+                    updateNodeLabel(selectedNode.id, e.target.value)
+                  }
+                  className={FIELD_INPUT_CLASS}
+                />
+              </div>
+              {def.fields.map((field) => (
+                <div key={field.key} className="space-y-1.5">
+                  <Label className="text-[11px] font-medium text-muted-foreground/80">
+                    {field.label}
+                  </Label>
+                  <FieldRenderer
+                    field={field}
+                    value={selectedNode.data.fields[field.key] ?? ""}
+                    onChange={(val) =>
+                      updateNodeData(selectedNode.id, { [field.key]: val })
+                    }
+                  />
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </ScrollArea>
 
-      {/* Delete */}
       <div className="border-t border-border/50 p-3">
         <button
           onClick={() => removeNode(selectedNode.id)}
@@ -238,5 +242,108 @@ export function Inspector() {
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Inspector panel for an `agent`-kind node. Fields are bound to the
+ * underlying AgentSummary entity — edits are two-way synced across every
+ * node that references the same agent. When the referenced entity is
+ * missing, a relink dropdown is shown so the user can adopt another.
+ */
+function AgentInspector({ node }: { node: BlockNode }) {
+  const agents = useStudioStore((s) => s.agents);
+  const activeProjectId = useStudioStore((s) => s.activeProjectId);
+  const models = useStudioStore((s) => s.models);
+  const renameAgent = useStudioStore((s) => s.renameAgent);
+  const updateAgentPersona = useStudioStore((s) => s.updateAgentPersona);
+  const updateAgentModels = useStudioStore((s) => s.updateAgentModels);
+  const openAgent = useStudioStore((s) => s.openAgent);
+  const relinkAgentNode = useStudioStore((s) => s.relinkAgentNode);
+
+  const projectAgents = agents.filter((a) => a.projectId === activeProjectId);
+  const projectModels = models.filter((m) => m.projectId === activeProjectId);
+  const agent = agents.find((a) => a.id === node.data.agentId) ?? null;
+
+  if (!agent) {
+    // Broken link — entity was deleted. Offer a relink dropdown so the
+    // node can be salvaged without recreating the edge wiring.
+    return (
+      <div className="space-y-3">
+        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Agent was deleted</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Link this node to another agent or remove it.
+            </p>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-medium text-muted-foreground/80">
+            Relink to agent
+          </Label>
+          <Select
+            value=""
+            onValueChange={(id) => id && relinkAgentNode(node.id, id)}
+          >
+            <SelectTrigger className={FIELD_SELECT_TRIGGER_CLASS}>
+              <SelectValue placeholder="Pick an agent…" />
+            </SelectTrigger>
+            <SelectContent>
+              {projectAgents.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-medium text-muted-foreground/80">
+          Name
+        </Label>
+        <Input
+          value={agent.name}
+          onChange={(e) => void renameAgent(agent.id, e.target.value)}
+          className={FIELD_INPUT_CLASS}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-medium text-muted-foreground/80">
+          Persona
+        </Label>
+        <Textarea
+          value={agent.persona ?? ""}
+          onChange={(e) => void updateAgentPersona(agent.id, e.target.value)}
+          placeholder="You're a helpful assistant..."
+          className={`${FIELD_TEXTAREA_CLASS} font-mono`}
+          rows={6}
+        />
+      </div>
+      <ModelSelect
+        label="Model"
+        value={agent.modelId ?? ""}
+        models={projectModels}
+        placeholder="Select a model"
+        onChange={(id) =>
+          void updateAgentModels(agent.id, id, agent.fallbackModelId)
+        }
+      />
+      <button
+        type="button"
+        onClick={() => openAgent(agent.id)}
+        className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-foreground/90 transition-colors cursor-pointer hover:bg-accent/40"
+      >
+        <ExternalLink className="size-3.5" />
+        Open in Agents section
+      </button>
+    </div>
   );
 }

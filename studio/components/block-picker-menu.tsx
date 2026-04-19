@@ -1,30 +1,41 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BLOCK_DEFS, PALETTE_GROUPS } from "@/lib/block-defs";
-import type { BlockKind } from "@/lib/types";
-import { ICON_MAP } from "@/lib/icons";
 
 /** Pixel offset from the edge of the viewport to keep the menu fully on-screen. */
 const EDGE_PADDING = 8;
 const MENU_WIDTH = 260;
 const MENU_MAX_HEIGHT = 420;
 
+export interface PickerItem {
+  id: string;
+  label: string;
+  icon?: LucideIcon;
+  /** Optional search terms beyond the visible label. */
+  keywords?: string[];
+  onSelect: () => void;
+}
+
+export interface PickerGroup {
+  label: string;
+  items: PickerItem[];
+}
+
 export function BlockPickerMenu({
   anchor,
-  onPick,
+  groups,
   onClose,
 }: {
   /** Screen-space anchor point (clientX/clientY). */
   anchor: { x: number; y: number };
-  onPick: (kind: BlockKind) => void;
+  groups: PickerGroup[];
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(PALETTE_GROUPS.map((g) => [g.label, true]))
+    Object.fromEntries(groups.map((g) => [g.label, true]))
   );
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -46,19 +57,19 @@ export function BlockPickerMenu({
 
   const filteredGroups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return PALETTE_GROUPS.map((g) => ({
-      ...g,
-      kinds: q
-        ? g.kinds.filter((k) => {
-            const def = BLOCK_DEFS[k];
-            return (
-              def.label.toLowerCase().includes(q) ||
-              def.description.toLowerCase().includes(q)
-            );
-          })
-        : g.kinds,
-    })).filter((g) => g.kinds.length > 0);
-  }, [query]);
+    return groups
+      .map((g) => ({
+        ...g,
+        items: q
+          ? g.items.filter(
+              (it) =>
+                it.label.toLowerCase().includes(q) ||
+                (it.keywords ?? []).some((k) => k.toLowerCase().includes(q))
+            )
+          : g.items,
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [groups, query]);
 
   // Search forces every matching group open so results are visible without
   // extra clicks; the user's manual open/close state resumes once they
@@ -106,7 +117,7 @@ export function BlockPickerMenu({
         <div className="flex-1 overflow-y-auto p-1">
           {filteredGroups.length === 0 ? (
             <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-              No blocks match “{query}”.
+              No blocks match &ldquo;{query}&rdquo;.
             </p>
           ) : (
             filteredGroups.map((group) => {
@@ -133,12 +144,8 @@ export function BlockPickerMenu({
                   </button>
                   {open && (
                     <div className="flex flex-col">
-                      {group.kinds.map((kind) => (
-                        <BlockRow
-                          key={kind}
-                          kind={kind}
-                          onPick={() => onPick(kind)}
-                        />
+                      {group.items.map((item) => (
+                        <Row key={item.id} item={item} />
                       ))}
                     </div>
                   )}
@@ -152,23 +159,16 @@ export function BlockPickerMenu({
   );
 }
 
-function BlockRow({
-  kind,
-  onPick,
-}: {
-  kind: BlockKind;
-  onPick: () => void;
-}) {
-  const def = BLOCK_DEFS[kind];
-  const Icon = ICON_MAP[def.icon];
+function Row({ item }: { item: PickerItem }) {
+  const Icon = item.icon;
   return (
     <button
       type="button"
-      onClick={onPick}
+      onClick={item.onSelect}
       className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground/90 transition-colors cursor-pointer hover:bg-accent/40"
     >
       {Icon && <Icon className="size-4 shrink-0 text-muted-foreground/70" />}
-      <span className="min-w-0 flex-1 truncate">{def.label}</span>
+      <span className="min-w-0 flex-1 truncate">{item.label}</span>
     </button>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Workflow } from "lucide-react";
+import { Pencil, Workflow } from "lucide-react";
 import { useStudioStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,9 +82,11 @@ export function WorkflowDetail() {
             <Button
               onClick={() => void openWorkflowEditor(workflow.id)}
               size="sm"
-              className="cursor-pointer bg-[#E2E2E2] text-zinc-900 hover:bg-[#E2E2E2]/90"
+              variant="light"
+              className="cursor-pointer gap-1.5"
             >
-              Edit Workflow
+              <Pencil className="size-3.5" />
+              Edit
             </Button>
             <DeleteButton onClick={() => setDeleteOpen(true)} />
           </>

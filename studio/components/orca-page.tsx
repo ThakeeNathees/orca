@@ -1,15 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import {
-  AlertCircle,
-  MessageCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus,
-  RefreshCw,
-  Send,
-} from "lucide-react";
+import { AlertCircle, MessageCircle, RefreshCw, Send } from "lucide-react";
 import { useStudioStore } from "@/lib/store";
 import {
   ComingSoonTab,
@@ -42,15 +34,6 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   { id: "greeting", role: "assistant", block: { kind: "greeting" } },
 ];
 
-/** Hardcoded conversation history. Swap for a store-backed list when the
- *  chat backend lands and real threads start getting persisted. */
-const RECENT_CHATS: { id: string; title: string }[] = [
-  { id: "r1", title: "How do I create an agent?" },
-  { id: "r2", title: "Budget strategy for models" },
-  { id: "r3", title: "Debugging a failed workflow" },
-  { id: "r4", title: "Schedule a daily digest cron" },
-  { id: "r5", title: "Wire a skill to my writer agent" },
-];
 
 /** Bordered transparent frame for assistant replies so they blend with the
  *  chat viewport. Only user bubbles carry a filled background. */
@@ -78,16 +61,18 @@ function GreetingBlock({
       <div className="mt-3 flex flex-wrap gap-2">
         <Button
           size="sm"
+          variant="light"
           disabled={disabled}
-          className="bg-[#E2E2E2] text-zinc-900 hover:bg-[#E2E2E2]/90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+          className="disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
           onClick={() => onQuickPrompt("Help me create a workflow")}
         >
           Create Workflow
         </Button>
         <Button
           size="sm"
+          variant="light"
           disabled={disabled}
-          className="bg-[#E2E2E2] text-zinc-900 hover:bg-[#E2E2E2]/90 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+          className="disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
           onClick={() => onQuickPrompt("Help me create an agent")}
         >
           Create Agent
@@ -205,15 +190,8 @@ function ChatTab() {
     pushExchange(draft, orcaModelId ? { kind: "error" } : { kind: "no-model" });
   };
 
-  const newChat = () => {
-    setMessages(INITIAL_MESSAGES);
-    setDraft("");
-  };
-
   return (
-    <div className="flex min-h-0 flex-1 gap-3">
-      <ChatSidebar onNewChat={newChat} />
-      <div className="flex min-w-0 min-h-0 flex-1 flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <ScrollArea className="min-h-0 flex-1 rounded-lg border border-border bg-card">
         <ul className="space-y-3 p-4">
           {messages.map((m) => {
@@ -263,68 +241,7 @@ function ChatTab() {
           <Send className="size-3.5" />
         </button>
       </form>
-      </div>
     </div>
-  );
-}
-
-function ChatSidebar({ onNewChat }: { onNewChat: () => void }) {
-  const [collapsed, setCollapsed] = useState(false);
-
-  if (collapsed) {
-    return (
-      <aside className="flex w-10 shrink-0 flex-col items-center rounded-lg border border-border bg-card p-1.5">
-        <button
-          type="button"
-          onClick={() => setCollapsed(false)}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors cursor-pointer hover:bg-accent/30 hover:text-foreground"
-          aria-label="Expand chat sidebar"
-          title="Expand"
-        >
-          <PanelLeftOpen className="size-4" />
-        </button>
-      </aside>
-    );
-  }
-
-  return (
-    <aside className="flex w-[220px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-      <div className="flex items-center gap-1 p-1.5">
-        <button
-          type="button"
-          onClick={onNewChat}
-          className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors cursor-pointer hover:bg-accent/30"
-        >
-          <Plus className="size-4 shrink-0" />
-          New chat
-        </button>
-        <button
-          type="button"
-          onClick={() => setCollapsed(true)}
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors cursor-pointer hover:bg-accent/30 hover:text-foreground"
-          aria-label="Collapse chat sidebar"
-          title="Collapse"
-        >
-          <PanelLeftClose className="size-4" />
-        </button>
-      </div>
-      <div className="border-t border-border" />
-      <div className="px-3 pt-2 pb-1 text-caption uppercase tracking-wider text-muted-foreground">
-        Recent
-      </div>
-      <ul className="flex-1 overflow-y-auto p-1">
-        {RECENT_CHATS.map((r) => (
-          <li key={r.id}>
-            <button
-              type="button"
-              className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors cursor-pointer hover:bg-accent/30 hover:text-foreground"
-            >
-              <span className="min-w-0 truncate">{r.title}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </aside>
   );
 }
 

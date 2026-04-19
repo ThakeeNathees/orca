@@ -19,7 +19,7 @@ import type {
   SkillSummary,
   WorkflowSummary,
 } from "./types";
-import { BLOCK_DEFS, HANDLE_IDS } from "./block-defs";
+import { BLOCK_DEFS } from "./block-defs";
 import { AGENT_HANDLE_COLOR } from "./handle-colors";
 import { getStorageAdapter } from "./storage";
 import type { WorkflowData } from "./storage/types";
@@ -141,8 +141,18 @@ interface StudioState {
   onEdgesChange: OnEdgesChange<BlockEdge>;
   onConnect: (connection: Connection) => void;
 
-  addNode: (kind: BlockKind, position: { x: number; y: number }) => void;
+  addNode: (kind: BlockKind, position: { x: number; y: number }) => string;
+  /** Creates a new agent entity + places a node wired to its id. Returns the new node id. */
+  spawnNewAgent: (position: { x: number; y: number }) => Promise<string>;
+  /** Places a node wired to an existing agent entity id. Returns the new node id. */
+  spawnAgentRef: (agentId: string, position: { x: number; y: number }) => string;
+  /** Points an existing agent node at a different agent entity (used to
+   *  recover from a deleted-entity broken state). */
+  relinkAgentNode: (nodeId: string, agentId: string) => void;
   removeNode: (id: string) => void;
+  /** Merges into `data.fields` only. Top-level `data` keys (label,
+   *  agentId, routes, kind) have dedicated setters so the persisted
+   *  shape stays explicit. */
   updateNodeData: (
     id: string,
     fields: Partial<BlockNodeData["fields"]>
@@ -191,104 +201,28 @@ function nextEdgeId(): string {
   return `edge-${++edgeIdCounter}-${Date.now().toString(36)}`;
 }
 
-/* ── Seed graph ──────────────────────────────────────────────────────── */
-// Example pipeline used only to seed fresh workflows. Every edge is a
-// purple flow connection; model/memory/tools live on the agent entity
-// itself (Agents section) and are no longer part of the canvas.
-//
-//   webhook → researcher → web_search → writer → sql_query
+/** Builds the canonical agent-node shape. Shared by the two spawn paths
+ *  (fresh entity + existing reference) so the node data stays in lockstep. */
+function buildAgentNode(
+  agentId: string,
+  label: string,
+  position: { x: number; y: number }
+): BlockNode {
+  return {
+    id: nextNodeId(),
+    type: "agent",
+    position,
+    data: { kind: "agent", label, fields: {}, agentId },
+  };
+}
 
-const ROW_Y = 48;
-const X_STRIDE = 300;
+/* ── Seed graph ──────────────────────────────────────────────────────── */
+// New workflows start empty. The editor surfaces a centred "add your
+// first node" affordance that opens the block picker when the graph is
+// empty, so there's nothing to seed.
 
 export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
-  const nodes: BlockNode[] = [
-    {
-      id: "seed-webhook",
-      type: "webhook",
-      position: { x: 40, y: ROW_Y },
-      data: {
-        kind: "webhook",
-        label: "Webhook",
-        fields: { path: "/api/research", method: "POST" },
-      },
-    },
-    {
-      id: "seed-researcher",
-      type: "agent",
-      position: { x: 40 + X_STRIDE, y: ROW_Y },
-      data: {
-        kind: "agent",
-        label: "researcher",
-        fields: { persona: "You find and summarize information." },
-      },
-    },
-    {
-      id: "seed-web-search",
-      type: "web_search",
-      position: { x: 40 + X_STRIDE * 2, y: ROW_Y },
-      data: {
-        kind: "web_search",
-        label: "Web Search",
-        fields: { provider: "tavily", max_results: 5 },
-      },
-    },
-    {
-      id: "seed-writer",
-      type: "agent",
-      position: { x: 40 + X_STRIDE * 3, y: ROW_Y },
-      data: {
-        kind: "agent",
-        label: "writer",
-        fields: {
-          persona:
-            "You turn research notes into a polished article, then store it.",
-        },
-      },
-    },
-    {
-      id: "seed-sql",
-      type: "sql_query",
-      position: { x: 40 + X_STRIDE * 4, y: ROW_Y },
-      data: {
-        kind: "sql_query",
-        label: "Articles DB",
-        fields: {
-          connection: "postgresql://user:pass@host/db",
-          dialect: "postgresql",
-          max_rows: 100,
-        },
-      },
-    },
-  ];
-
-  const mkEdge = (
-    id: string,
-    source: string,
-    target: string,
-    sourceHandle: string,
-    targetHandle: string
-  ): BlockEdge => ({
-    id,
-    source,
-    target,
-    sourceHandle,
-    targetHandle,
-    data: { accentColor: AGENT_HANDLE_COLOR },
-  });
-
-  const edges: BlockEdge[] = [
-    mkEdge("seed-edge-trigger", "seed-webhook", "seed-researcher",
-      HANDLE_IDS.triggerOut, HANDLE_IDS.agentIn),
-    mkEdge("seed-edge-flow-1", "seed-researcher", "seed-web-search",
-      HANDLE_IDS.agentOut, HANDLE_IDS.agentIn),
-    mkEdge("seed-edge-flow-2", "seed-web-search", "seed-writer",
-      HANDLE_IDS.agentOut, HANDLE_IDS.agentIn),
-    mkEdge("seed-edge-flow-3", "seed-writer", "seed-sql",
-      HANDLE_IDS.agentOut, HANDLE_IDS.agentIn),
-  ];
-
-  return { nodes, edges };
+  return { nodes: [], edges: [] };
 }
 
 /* ── Debounced graph saver ───────────────────────────────────────────── */
@@ -298,6 +232,25 @@ export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
 // not need to pass the current graph snapshot.
 
 const SAVE_DEBOUNCE_MS = 500;
+
+/* ── Debounced entity persistence ────────────────────────────────────── */
+// Agents (and future entity types) accept per-keystroke edits from the
+// inspector. We keep optimistic local state but coalesce adapter writes
+// so typing "hello" doesn't issue five disk writes.
+const ENTITY_SAVE_DEBOUNCE_MS = 500;
+const debouncedAgentSavers = new Map<string, () => void>();
+function scheduleAgentSave(id: string) {
+  let saver = debouncedAgentSavers.get(id);
+  if (!saver) {
+    saver = debounce(() => {
+      const agent = useStudioStore.getState().agents.find((a) => a.id === id);
+      if (!agent) return;
+      void getStorageAdapter().saveAgent(agent);
+    }, ENTITY_SAVE_DEBOUNCE_MS);
+    debouncedAgentSavers.set(id, saver);
+  }
+  saver();
+}
 
 const debouncedSaveGraph = debounce(() => {
   const s = useStudioStore.getState();
@@ -466,7 +419,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       workflows: [summary, ...get().workflows],
       activeWorkflowId: wf.id,
       sidebarSection: "workflows",
-      currentView: "detail",
+      currentView: "editor",
+      nodes: seed.nodes,
+      edges: seed.edges,
+      selectedNodeId: null,
     });
   },
 
@@ -845,10 +801,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({
       agents: get().agents.map((a) => (a.id === id ? { ...a, name } : a)),
     });
-    const adapter = getStorageAdapter();
-    const existing = await adapter.getAgent(id);
-    if (!existing) return;
-    await adapter.saveAgent({ ...existing, name });
+    scheduleAgentSave(id);
   },
 
   updateAgentDescription: async (id, description) => {
@@ -858,10 +811,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         a.id === id ? { ...a, description: desc } : a
       ),
     });
-    const adapter = getStorageAdapter();
-    const existing = await adapter.getAgent(id);
-    if (!existing) return;
-    await adapter.saveAgent({ ...existing, description: desc });
+    scheduleAgentSave(id);
   },
 
   updateAgentModels: async (id, modelId, fallbackModelId) => {
@@ -876,14 +826,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           : a
       ),
     });
-    const adapter = getStorageAdapter();
-    const existing = await adapter.getAgent(id);
-    if (!existing) return;
-    await adapter.saveAgent({
-      ...existing,
-      modelId: modelId || undefined,
-      fallbackModelId: fallbackModelId || undefined,
-    });
+    scheduleAgentSave(id);
   },
 
   updateAgentPersona: async (id, persona) => {
@@ -893,10 +836,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         a.id === id ? { ...a, persona: p } : a
       ),
     });
-    const adapter = getStorageAdapter();
-    const existing = await adapter.getAgent(id);
-    if (!existing) return;
-    await adapter.saveAgent({ ...existing, persona: p });
+    scheduleAgentSave(id);
   },
 
   deleteAgent: async (id) => {
@@ -965,6 +905,43 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       },
     };
     set({ nodes: [...get().nodes, newNode] });
+    debouncedSaveGraph();
+    return id;
+  },
+
+  spawnNewAgent: async (position) => {
+    const adapter = getStorageAdapter();
+    const projectId = get().activeProjectId;
+    const created = await adapter.createAgent(projectId, "Untitled Agent");
+    const summary: AgentSummary = {
+      ...created,
+      updatedAt: new Date(created.updatedAt),
+    };
+    const node = buildAgentNode(summary.id, summary.name, position);
+    set({
+      agents: [summary, ...get().agents],
+      nodes: [...get().nodes, node],
+    });
+    debouncedSaveGraph();
+    return node.id;
+  },
+
+  spawnAgentRef: (agentId, position) => {
+    const agent = get().agents.find((a) => a.id === agentId);
+    const node = buildAgentNode(agentId, agent?.name ?? "Agent", position);
+    set({ nodes: [...get().nodes, node] });
+    debouncedSaveGraph();
+    return node.id;
+  },
+
+  relinkAgentNode: (nodeId, agentId) => {
+    set({
+      nodes: get().nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, agentId } }
+          : n
+      ),
+    });
     debouncedSaveGraph();
   },
 

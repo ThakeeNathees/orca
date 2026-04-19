@@ -166,12 +166,12 @@ describe("Store", () => {
   });
 
   describe("createWorkflow", () => {
-    it("creates a workflow and switches to detail", async () => {
+    it("creates a workflow and opens it in the editor", async () => {
       const before = getState().workflows.length;
       await getState().createWorkflow();
 
       expect(getState().workflows.length).toBe(before + 1);
-      expect(getState().currentView).toBe("detail");
+      expect(getState().currentView).toBe("editor");
       expect(getState().activeWorkflowId).toBeTruthy();
     });
 
@@ -277,10 +277,10 @@ describe("Store", () => {
 
       expect(getState().activeWorkflowId).toBe(wfId);
       expect(getState().currentView).toBe("editor");
-      // Seed graph: webhook → researcher → web_search → writer → sql (5 nodes).
-      expect(getState().nodes.length).toBe(5);
-      // Flow edges: trigger + 3 agent-to-next = 4.
-      expect(getState().edges.length).toBe(4);
+      // New workflows start empty — the canvas exposes an add-first-node
+      // affordance until the user places something.
+      expect(getState().nodes.length).toBe(0);
+      expect(getState().edges.length).toBe(0);
     });
   });
 });

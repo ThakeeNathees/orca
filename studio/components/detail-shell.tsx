@@ -274,12 +274,15 @@ export function DetailShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Delete button that opens a confirm dialog — used on every detail page. */
+/** Delete button that opens a confirm dialog — used on every detail page.
+ *  Styled as a neutral light-chip matching the sibling Edit button so the
+ *  header action row reads as a pair; the actual destructive styling lives
+ *  on the confirm button inside the dialog. */
 export function DeleteButton({ onClick }: { onClick: () => void }) {
   return (
     <Button
-      variant="destructive"
       size="sm"
+      variant="light"
       onClick={onClick}
       className="cursor-pointer gap-1.5"
     >
