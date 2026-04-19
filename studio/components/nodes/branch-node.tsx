@@ -3,8 +3,8 @@
 import { memo, useCallback, useMemo, type CSSProperties } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
-import { BLOCK_DEFS } from "@/lib/block-defs";
-import { HANDLE_COLORS, HANDLE_COLOR_FALLBACK } from "@/lib/handle-colors";
+import { BLOCK_DEFS, HANDLE_IDS } from "@/lib/block-defs";
+import { AGENT_HANDLE_COLOR } from "@/lib/handle-colors";
 import type { BlockNode, BranchRoute, HandleDef } from "@/lib/types";
 import { ICON_MAP } from "@/lib/icons";
 import { useStudioStore } from "@/lib/store";
@@ -26,7 +26,7 @@ function handleStyle(color: string, extra?: CSSProperties): CSSProperties {
 
 /** Mirrors base-node's left-side input handle style. */
 function LeftHandle({ handle }: { handle: HandleDef }) {
-  const color = HANDLE_COLORS[handle.type] || HANDLE_COLOR_FALLBACK;
+  const color = AGENT_HANDLE_COLOR;
   return (
     <Handle
       id={handle.id}
@@ -53,7 +53,7 @@ function RouteRow({
   onChangeKey: (key: string) => void;
   onDelete: () => void;
 }) {
-  const color = HANDLE_COLORS.agent || HANDLE_COLOR_FALLBACK;
+  const color = AGENT_HANDLE_COLOR;
   return (
     <div className="relative flex items-center gap-1.5 px-3 py-1.5">
       <button
@@ -72,7 +72,7 @@ function RouteRow({
         className="nodrag min-w-0 flex-1 rounded-md border border-transparent bg-white/5 px-2 py-1 text-[11px] text-foreground/90 outline-none transition focus:border-border focus:bg-white/10"
       />
       <Handle
-        id={`route-${route.id}`}
+        id={`${HANDLE_IDS.routePrefix}${route.id}`}
         type="source"
         position={Position.Right}
         // Key the node id into the DOM id so multiple branch nodes don't
@@ -104,7 +104,7 @@ function BranchNodeComponent({ id, data, selected }: NodeProps<BlockNode>) {
   const leftHandle = def.handles.find((h) => h.position === "left");
 
   const addRoute = useCallback(() => {
-    const nextId = `route-${Date.now().toString(36)}-${Math.random()
+    const nextId = `${HANDLE_IDS.routePrefix}${Date.now().toString(36)}-${Math.random()
       .toString(36)
       .slice(2, 6)}`;
     updateNodeRoutes(id, [...routes, { id: nextId, key: "" }]);

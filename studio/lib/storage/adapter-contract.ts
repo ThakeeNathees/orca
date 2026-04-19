@@ -101,9 +101,9 @@ export function runStorageAdapterContract(
             nodes: [
               {
                 id: "n1",
-                type: "model",
+                type: "agent",
                 position: { x: 0, y: 0 },
-                data: { kind: "model", label: "gpt4", fields: {} },
+                data: { kind: "agent", label: "researcher", fields: {} },
               },
             ],
             edges: [],

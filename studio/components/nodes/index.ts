@@ -8,14 +8,15 @@ import { BranchNode } from "./branch-node";
  * from node data to decide colors, handles, and inline summary.
  */
 export const nodeTypes: NodeTypes = {
-  model: BaseNode,
   agent: BaseNode,
   web_search: BaseNode,
   code_exec: BaseNode,
   api_request: BaseNode,
   sql_query: BaseNode,
   knowledge: BaseNode,
-  memory: BaseNode,
+  workflow: BaseNode,
+  input: BaseNode,
+  schema: BaseNode,
   cron: BaseNode,
   webhook: BaseNode,
   chat: BaseNode,

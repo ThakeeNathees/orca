@@ -14,7 +14,7 @@ import "@xyflow/react/dist/style.css";
 import { Maximize2, Plus } from "lucide-react";
 
 import { useStudioStore } from "@/lib/store";
-import { BLOCK_DEFS, canConnect } from "@/lib/block-defs";
+import { BLOCK_DEFS, HANDLE_IDS, canConnect } from "@/lib/block-defs";
 import type { BlockKind } from "@/lib/types";
 import { nodeTypes } from "@/components/nodes";
 import { StudioEdge } from "@/components/studio-edge";
@@ -57,7 +57,7 @@ export function Canvas() {
     // rendered dynamically per-row; treat them as agent-typed sources.
     const sourceType =
       sourceNode.data.kind === "branch" &&
-      connection.sourceHandle?.startsWith("route-")
+      connection.sourceHandle?.startsWith(HANDLE_IDS.routePrefix)
         ? "agent"
         : sourceDef.handles.find((h) => h.id === connection.sourceHandle)?.type;
     const targetHandle = targetDef.handles.find(

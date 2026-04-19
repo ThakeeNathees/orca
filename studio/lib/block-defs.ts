@@ -4,95 +4,34 @@ export interface BlockDef {
   kind: BlockKind;
   label: string;
   description: string;
-  color: string;
-  colorMuted: string;
   icon: string;
   handles: HandleDef[];
   fields: FieldDef[];
 }
 
-// Handles shared by all tool-type nodes: green connector on top for agent tool
-// slots, purple connectors left/right for direct workflow edges.
-const TOOL_NODE_HANDLES: HandleDef[] = [
-  { id: "tool-out", label: "Tool", type: "tool", position: "top" },
-  { id: "agent-in", label: "Input", type: "agent", position: "left", multiple: true },
-  { id: "agent-out", label: "Output", type: "agent", position: "right" },
+/** Handle id constants. Keep every handle reference going through this
+ *  map so a typo in a string literal can't silently break edge wiring. */
+export const HANDLE_IDS = {
+  agentIn: "agent-in",
+  agentOut: "agent-out",
+  triggerOut: "trigger-out",
+  /** Branch route handles are dynamic, named `route-<routeId>`. */
+  routePrefix: "route-",
+} as const;
+
+// Every non-trigger node exposes the same purple in/out connector pair.
+const FLOW_HANDLES: HandleDef[] = [
+  { id: HANDLE_IDS.agentIn, label: "Input", type: "agent", position: "left", multiple: true },
+  { id: HANDLE_IDS.agentOut, label: "Output", type: "agent", position: "right" },
 ];
 
 export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
-  model: {
-    kind: "model",
-    label: "Model",
-    description: "LLM provider configuration",
-    color: "#3b82f6",
-    colorMuted: "#3b82f620",
-    icon: "Cpu",
-    handles: [
-      { id: "model-out", label: "Model", type: "model", position: "top" },
-    ],
-    fields: [
-      {
-        key: "provider",
-        label: "Provider",
-        type: "select",
-        options: [
-          { value: "openai", label: "OpenAI" },
-          { value: "anthropic", label: "Anthropic" },
-          { value: "google", label: "Google" },
-          { value: "ollama", label: "Ollama" },
-        ],
-        defaultValue: "openai",
-      },
-      {
-        key: "model_name",
-        label: "Model Name",
-        type: "text",
-        placeholder: "gpt-4o",
-      },
-      {
-        key: "temperature",
-        label: "Temperature",
-        type: "slider",
-        min: 0,
-        max: 2,
-        step: 0.1,
-        defaultValue: 1,
-      },
-      {
-        key: "api_key",
-        label: "API Key",
-        type: "password",
-        placeholder: "sk-...",
-      },
-    ],
-  },
-
   agent: {
     kind: "agent",
     label: "Agent",
-    description: "AI agent with model, memory, and tools",
-    color: "#8b5cf6",
-    colorMuted: "#8b5cf620",
+    description: "AI agent — model, memory, and tools are configured in the Agents section",
     icon: "Bot",
-    handles: [
-      {
-        id: "agent-in",
-        label: "Input",
-        type: "agent",
-        position: "left",
-        multiple: true,
-      },
-      { id: "model-in", label: "Model", type: "model", position: "bottom" },
-      { id: "memory-in", label: "Memory", type: "memory", position: "bottom" },
-      {
-        id: "tools-in",
-        label: "Tools",
-        type: "tool",
-        position: "bottom",
-        multiple: true,
-      },
-      { id: "agent-out", label: "Output", type: "agent", position: "right" },
-    ],
+    handles: [...FLOW_HANDLES],
     fields: [
       {
         key: "persona",
@@ -107,10 +46,8 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "web_search",
     label: "Web Search",
     description: "Search the web for real-time information",
-    color: "#22c55e",
-    colorMuted: "#22c55e20",
     icon: "Search",
-    handles: [...TOOL_NODE_HANDLES],
+    handles: [...FLOW_HANDLES],
     fields: [
       {
         key: "provider",
@@ -138,10 +75,8 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "code_exec",
     label: "Code Interpreter",
     description: "Execute Python code and capture output",
-    color: "#22c55e",
-    colorMuted: "#22c55e20",
     icon: "Terminal",
-    handles: [...TOOL_NODE_HANDLES],
+    handles: [...FLOW_HANDLES],
     fields: [
       {
         key: "timeout",
@@ -168,10 +103,8 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "api_request",
     label: "API Request",
     description: "Make HTTP requests to external APIs",
-    color: "#22c55e",
-    colorMuted: "#22c55e20",
     icon: "Send",
-    handles: [...TOOL_NODE_HANDLES],
+    handles: [...FLOW_HANDLES],
     fields: [
       {
         key: "url",
@@ -204,10 +137,8 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "sql_query",
     label: "SQL Query",
     description: "Query a database and return results",
-    color: "#22c55e",
-    colorMuted: "#22c55e20",
     icon: "Database",
-    handles: [...TOOL_NODE_HANDLES],
+    handles: [...FLOW_HANDLES],
     fields: [
       {
         key: "connection",
@@ -239,18 +170,9 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
   knowledge: {
     kind: "knowledge",
     label: "Knowledge",
-    description: "RAG or data source",
-    color: "#f59e0b",
-    colorMuted: "#f59e0b20",
+    description: "RAG or data source — participates in the graph like a workflow node",
     icon: "BookOpen",
-    handles: [
-      {
-        id: "knowledge-out",
-        label: "Knowledge",
-        type: "knowledge",
-        position: "right",
-      },
-    ],
+    handles: [...FLOW_HANDLES],
     fields: [
       {
         key: "name",
@@ -267,38 +189,10 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     ],
   },
 
-  memory: {
-    kind: "memory",
-    label: "Memory",
-    description: "Long-term or session memory store",
-    color: "#f59e0b",
-    colorMuted: "#f59e0b20",
-    icon: "Brain",
-    handles: [
-      { id: "memory-out", label: "Memory", type: "memory", position: "top" },
-    ],
-    fields: [
-      {
-        key: "name",
-        label: "Name",
-        type: "text",
-        placeholder: "session_store",
-      },
-      {
-        key: "desc",
-        label: "Description",
-        type: "textarea",
-        placeholder: "Conversation and tool-call history",
-      },
-    ],
-  },
-
   workflow: {
     kind: "workflow",
     label: "Workflow",
     description: "Agent orchestration graph",
-    color: "#f43f5e",
-    colorMuted: "#f43f5e20",
     icon: "GitBranch",
     handles: [
       {
@@ -329,11 +223,9 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "input",
     label: "Input",
     description: "External input parameter",
-    color: "#06b6d4",
-    colorMuted: "#06b6d420",
     icon: "ArrowRightToLine",
     handles: [
-      { id: "input-out", label: "Output", type: "any", position: "right" },
+      { id: HANDLE_IDS.agentOut, label: "Output", type: "agent", position: "right" },
     ],
     fields: [
       {
@@ -366,11 +258,9 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "cron",
     label: "Cron",
     description: "Schedule-based trigger",
-    color: "#f97316",
-    colorMuted: "#f9731620",
     icon: "Clock",
     handles: [
-      { id: "trigger-out", label: "Trigger", type: "trigger", position: "right" },
+      { id: HANDLE_IDS.triggerOut, label: "Trigger", type: "trigger", position: "right" },
     ],
     fields: [
       {
@@ -392,11 +282,9 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "webhook",
     label: "Webhook",
     description: "HTTP webhook trigger",
-    color: "#f97316",
-    colorMuted: "#f9731620",
     icon: "Globe",
     handles: [
-      { id: "trigger-out", label: "Trigger", type: "trigger", position: "right" },
+      { id: HANDLE_IDS.triggerOut, label: "Trigger", type: "trigger", position: "right" },
     ],
     fields: [
       {
@@ -423,11 +311,9 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "chat",
     label: "Chat",
     description: "Conversational chat trigger",
-    color: "#f97316",
-    colorMuted: "#f9731620",
     icon: "MessageCircle",
     handles: [
-      { id: "trigger-out", label: "Trigger", type: "trigger", position: "right" },
+      { id: HANDLE_IDS.triggerOut, label: "Trigger", type: "trigger", position: "right" },
     ],
     fields: [
       {
@@ -443,10 +329,8 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "custom_tool",
     label: "Custom Tool",
     description: "User-defined tool with inline Python",
-    color: "#22c55e",
-    colorMuted: "#22c55e20",
     icon: "Wrench",
-    handles: [...TOOL_NODE_HANDLES],
+    handles: [...FLOW_HANDLES],
     fields: [
       {
         key: "desc",
@@ -468,8 +352,6 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "branch",
     label: "Branch",
     description: "Conditional routing — transform input to a route key, dispatch to mapped node",
-    color: "#eab308",
-    colorMuted: "#eab30820",
     icon: "Split",
     // Only the left input handle is static. Route handles on the right are
     // rendered dynamically by BranchNode from data.routes — one handle per
@@ -477,7 +359,7 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     // type is implicitly "agent" (see canvas isValidConnection).
     handles: [
       {
-        id: "agent-in",
+        id: HANDLE_IDS.agentIn,
         label: "Input",
         type: "agent",
         position: "left",
@@ -498,16 +380,9 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
     kind: "schema",
     label: "Schema",
     description: "User-defined record type",
-    color: "#64748b",
-    colorMuted: "#64748b20",
     icon: "Braces",
     handles: [
-      {
-        id: "schema-out",
-        label: "Schema",
-        type: "schema",
-        position: "right",
-      },
+      { id: HANDLE_IDS.agentOut, label: "Output", type: "agent", position: "right" },
     ],
     fields: [
       {
@@ -523,21 +398,18 @@ export const BLOCK_DEFS: Record<BlockKind, BlockDef> = {
 export const BLOCK_KINDS = Object.keys(BLOCK_DEFS) as BlockKind[];
 
 export const PALETTE_GROUPS: { label: string; kinds: BlockKind[] }[] = [
-  { label: "Models & Agents", kinds: ["model", "agent"] },
+  { label: "Agents", kinds: ["agent"] },
   { label: "Tools", kinds: ["web_search", "code_exec", "api_request", "sql_query", "custom_tool"] },
-  { label: "Data", kinds: ["knowledge", "memory"] },
+  { label: "Data", kinds: ["knowledge"] },
   { label: "Triggers", kinds: ["cron", "webhook", "chat"] },
   { label: "Control Flow", kinds: ["branch"] },
 ];
 
 /**
- * Returns which source handle types can connect to which target handle types.
- * Used for connection validation on the canvas.
+ * Every non-trigger node exposes `agent`-typed in/out handles; triggers
+ * only output. Any flow connection (agent→agent, trigger→agent) is valid.
  */
 export function canConnect(sourceType: string, targetType: string): boolean {
-  if (targetType === "any") return true;
-  if (sourceType === targetType) return true;
-  // Cron / webhook / chat outputs feed agent (and workflow) graph inputs.
-  if (sourceType === "trigger" && targetType === "agent") return true;
-  return false;
+  if (targetType !== "agent") return false;
+  return sourceType === "agent" || sourceType === "trigger";
 }

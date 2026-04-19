@@ -19,8 +19,8 @@ import type {
   SkillSummary,
   WorkflowSummary,
 } from "./types";
-import { BLOCK_DEFS } from "./block-defs";
-import { getEdgeAccentColor } from "./handle-colors";
+import { BLOCK_DEFS, HANDLE_IDS } from "./block-defs";
+import { AGENT_HANDLE_COLOR } from "./handle-colors";
 import { getStorageAdapter } from "./storage";
 import type { WorkflowData } from "./storage/types";
 import { INBOX_MESSAGES, type InboxMessage } from "./inbox";
@@ -192,34 +192,21 @@ function nextEdgeId(): string {
 }
 
 /* ── Seed graph ──────────────────────────────────────────────────────── */
-// Example pipeline used ONLY to seed fresh workflows. Shows a typical
-// research→write→persist flow:
+// Example pipeline used only to seed fresh workflows. Every edge is a
+// purple flow connection; model/memory/tools live on the agent entity
+// itself (Agents section) and are no longer part of the canvas.
 //
-//   webhook → researcher → writer → sql_query
-//                ↑            ↑
-//                └─── model ──┘   (shared between the two agents)
-//           memory ─┘   web_search ─┘
-//
-// The writer → sql_query edge uses the agent-type handles on the tool
-// (left/right, purple) — NOT the tool-out slot — so it reads as "writer
-// pushes its output into the database" rather than "sql is a tool the
-// writer can invoke".
+//   webhook → researcher → web_search → writer → sql_query
 
-const TOP_Y = 48;
-const BOTTOM_Y = 340;
-
-// Top row: webhook → researcher → writer → sql_query. Node width is
-// 240px so a 300px stride leaves a 60px gap between cards.
-const TOP_X = [40, 340, 640, 940];
-// Bottom row: memory, shared model, web_search — staggered under the agents.
-const BOTTOM_X = [220, 490, 760];
+const ROW_Y = 48;
+const X_STRIDE = 300;
 
 export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
   const nodes: BlockNode[] = [
     {
       id: "seed-webhook",
       type: "webhook",
-      position: { x: TOP_X[0], y: TOP_Y },
+      position: { x: 40, y: ROW_Y },
       data: {
         kind: "webhook",
         label: "Webhook",
@@ -229,7 +216,7 @@ export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
     {
       id: "seed-researcher",
       type: "agent",
-      position: { x: TOP_X[1], y: TOP_Y },
+      position: { x: 40 + X_STRIDE, y: ROW_Y },
       data: {
         kind: "agent",
         label: "researcher",
@@ -237,9 +224,19 @@ export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
       },
     },
     {
+      id: "seed-web-search",
+      type: "web_search",
+      position: { x: 40 + X_STRIDE * 2, y: ROW_Y },
+      data: {
+        kind: "web_search",
+        label: "Web Search",
+        fields: { provider: "tavily", max_results: 5 },
+      },
+    },
+    {
       id: "seed-writer",
       type: "agent",
-      position: { x: TOP_X[2], y: TOP_Y },
+      position: { x: 40 + X_STRIDE * 3, y: ROW_Y },
       data: {
         kind: "agent",
         label: "writer",
@@ -252,7 +249,7 @@ export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
     {
       id: "seed-sql",
       type: "sql_query",
-      position: { x: TOP_X[3], y: TOP_Y },
+      position: { x: 40 + X_STRIDE * 4, y: ROW_Y },
       data: {
         kind: "sql_query",
         label: "Articles DB",
@@ -261,39 +258,6 @@ export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
           dialect: "postgresql",
           max_rows: 100,
         },
-      },
-    },
-    {
-      id: "seed-memory",
-      type: "memory",
-      position: { x: BOTTOM_X[0], y: BOTTOM_Y },
-      data: {
-        kind: "memory",
-        label: "Session memory",
-        fields: {
-          name: "session_store",
-          desc: "Conversation and tool-call history",
-        },
-      },
-    },
-    {
-      id: "seed-model",
-      type: "model",
-      position: { x: BOTTOM_X[1], y: BOTTOM_Y },
-      data: {
-        kind: "model",
-        label: "gpt4",
-        fields: { provider: "openai", model_name: "gpt-4o", temperature: 0.7 },
-      },
-    },
-    {
-      id: "seed-web-search",
-      type: "web_search",
-      position: { x: BOTTOM_X[2], y: BOTTOM_Y },
-      data: {
-        kind: "web_search",
-        label: "Web Search",
-        fields: { provider: "tavily", max_results: 5 },
       },
     },
   ];
@@ -310,66 +274,18 @@ export function buildSeedGraph(): { nodes: BlockNode[]; edges: BlockEdge[] } {
     target,
     sourceHandle,
     targetHandle,
-    data: { accentColor: getEdgeAccentColor(nodes, source, sourceHandle) },
+    data: { accentColor: AGENT_HANDLE_COLOR },
   });
 
   const edges: BlockEdge[] = [
-    // Top-row flow: webhook → researcher → writer → sql (all agent-type handles).
-    mkEdge(
-      "seed-edge-trigger",
-      "seed-webhook",
-      "seed-researcher",
-      "trigger-out",
-      "agent-in"
-    ),
-    mkEdge(
-      "seed-edge-flow-1",
-      "seed-researcher",
-      "seed-writer",
-      "agent-out",
-      "agent-in"
-    ),
-    // writer → sql via the purple left/right handles (not the tool slot),
-    // reading as "writer persists its output into the database".
-    mkEdge(
-      "seed-edge-flow-2",
-      "seed-writer",
-      "seed-sql",
-      "agent-out",
-      "agent-in"
-    ),
-
-    // Shared model fans out to both agents.
-    mkEdge(
-      "seed-edge-model-r",
-      "seed-model",
-      "seed-researcher",
-      "model-out",
-      "model-in"
-    ),
-    mkEdge(
-      "seed-edge-model-w",
-      "seed-model",
-      "seed-writer",
-      "model-out",
-      "model-in"
-    ),
-
-    // Researcher-only memory + web search tool.
-    mkEdge(
-      "seed-edge-memory",
-      "seed-memory",
-      "seed-researcher",
-      "memory-out",
-      "memory-in"
-    ),
-    mkEdge(
-      "seed-edge-tool",
-      "seed-web-search",
-      "seed-researcher",
-      "tool-out",
-      "tools-in"
-    ),
+    mkEdge("seed-edge-trigger", "seed-webhook", "seed-researcher",
+      HANDLE_IDS.triggerOut, HANDLE_IDS.agentIn),
+    mkEdge("seed-edge-flow-1", "seed-researcher", "seed-web-search",
+      HANDLE_IDS.agentOut, HANDLE_IDS.agentIn),
+    mkEdge("seed-edge-flow-2", "seed-web-search", "seed-writer",
+      HANDLE_IDS.agentOut, HANDLE_IDS.agentIn),
+    mkEdge("seed-edge-flow-3", "seed-writer", "seed-sql",
+      HANDLE_IDS.agentOut, HANDLE_IDS.agentIn),
   ];
 
   return { nodes, edges };
@@ -1007,7 +923,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
 
   onConnect: (connection) => {
-    const nodes = get().nodes;
     const newEdge: BlockEdge = {
       id: nextEdgeId(),
       source: connection.source,
@@ -1015,13 +930,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       sourceHandle: connection.sourceHandle,
       targetHandle: connection.targetHandle,
       animated: false,
-      data: {
-        accentColor: getEdgeAccentColor(
-          nodes,
-          connection.source,
-          connection.sourceHandle
-        ),
-      },
+      data: { accentColor: AGENT_HANDLE_COLOR },
     };
     set({ edges: [...get().edges, newEdge] });
     debouncedSaveGraph();
