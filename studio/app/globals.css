@@ -48,6 +48,11 @@
   --color-brand: var(--brand);
   --color-accent-violet: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  /* Pale neutral used as the "light chip" fill on primary-style buttons
+     (Edit / Delete / Create / inbox actions). Paired with --surface-on
+     (near-black) for text on top. */
+  --color-surface-light: var(--surface-light);
+  --color-surface-on: var(--surface-on);
   --color-success: var(--success);
   --color-success-strong: var(--success-strong);
 
@@ -157,7 +162,9 @@
   --muted-foreground: var(--text-tertiary);
   --accent-surface: #1e1f22;
   --accent-foreground: var(--text-primary);
-  --destructive: #ef4444;
+  --destructive: #9a1e25;
+  --surface-light: #e2e2e2;
+  --surface-on: #18181b;
   --border: var(--border-standard);
   --input: var(--border-standard);
   --ring: var(--accent);

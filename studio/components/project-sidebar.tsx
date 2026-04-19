@@ -211,9 +211,10 @@ function NameDescDialog({
         <div className="mt-6 flex justify-end">
           <Button
             size="sm"
+            variant="light"
             onClick={submit}
             disabled={!name.trim()}
-            className="cursor-pointer bg-[#E2E2E2] text-zinc-900 hover:bg-[#E2E2E2]/90"
+            className="cursor-pointer"
           >
             Create
           </Button>
@@ -304,9 +305,10 @@ function NewAgentDialog({
         <div className="mt-6 flex justify-end">
           <Button
             size="sm"
+            variant="light"
             onClick={submit}
             disabled={!name.trim()}
-            className="cursor-pointer bg-[#E2E2E2] text-zinc-900 hover:bg-[#E2E2E2]/90"
+            className="cursor-pointer"
           >
             Create Agent
           </Button>
@@ -416,9 +418,10 @@ function NewModelDialog({
         <div className="mt-6 flex justify-end">
           <Button
             size="sm"
+            variant="light"
             onClick={submit}
             disabled={!name.trim()}
-            className="cursor-pointer bg-[#E2E2E2] text-zinc-900 hover:bg-[#E2E2E2]/90"
+            className="cursor-pointer"
           >
             Create Model
           </Button>
@@ -462,7 +465,6 @@ export function ProjectSidebar() {
   const [modelDialog, setModelDialog] = useState(false);
   const [skillDialog, setSkillDialog] = useState(false);
   const [agentDialog, setAgentDialog] = useState(false);
-  const [workflowDialog, setWorkflowDialog] = useState(false);
   const [cronDialog, setCronDialog] = useState(false);
 
   const activeSection = useStudioStore((s) => s.sidebarSection);
@@ -556,7 +558,7 @@ export function ProjectSidebar() {
 
         <CollapsibleGroup
           label="Workflows"
-          onAdd={() => setWorkflowDialog(true)}
+          onAdd={() => void createWorkflow()}
         >
           {projectWorkflows.map((wf) => (
             <EntityRow
@@ -626,12 +628,6 @@ export function ProjectSidebar() {
         open={agentDialog}
         onClose={() => setAgentDialog(false)}
         onSubmit={(n, d, m, f) => void createAgent(n, d, m, f)}
-      />
-      <NameDescDialog
-        open={workflowDialog}
-        title="New Workflow"
-        onClose={() => setWorkflowDialog(false)}
-        onSubmit={(n, d) => void createWorkflow(n, d)}
       />
       <NameDescDialog
         open={cronDialog}

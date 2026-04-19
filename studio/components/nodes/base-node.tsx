@@ -6,6 +6,7 @@ import { BLOCK_DEFS } from "@/lib/block-defs";
 import { AGENT_HANDLE_COLOR } from "@/lib/handle-colors";
 import type { BlockNode, HandleDef } from "@/lib/types";
 import { ICON_MAP } from "@/lib/icons";
+import { useStudioStore } from "@/lib/store";
 
 /**
  * Handle box must match the visible dot (11×11). XYFlow attaches edges to the handle side
@@ -147,6 +148,18 @@ function BaseNodeComponent({ data, selected }: NodeProps<BlockNode>) {
   const def = BLOCK_DEFS[data.kind];
   const Icon = ICON_MAP[def.icon];
 
+  // Agent nodes are entity-backed: name/persona come live from the store so
+  // renaming/editing the entity updates every node that references it. If
+  // the entity has been deleted the node renders in a broken state.
+  const linkedAgent = useStudioStore((s) =>
+    data.kind === "agent" && data.agentId
+      ? (s.agents.find((a) => a.id === data.agentId) ?? null)
+      : null
+  );
+  const agentMissing = data.kind === "agent" && !!data.agentId && !linkedAgent;
+
+  const displayLabel = linkedAgent?.name ?? data.label;
+
   const leftHandles = def.handles.filter((h) => h.position === "left");
   const rightHandles = def.handles.filter((h) => h.position === "right");
   const topHandles = def.handles.filter((h) => h.position === "top");
@@ -154,17 +167,28 @@ function BaseNodeComponent({ data, selected }: NodeProps<BlockNode>) {
   const hasTopHandles = topHandles.length > 0;
   const hasBottomHandles = bottomHandles.length > 0;
 
-  const summaryFields = def.fields.slice(0, 3).map((f) => ({
-    key: f.key,
-    label: f.label,
-    value: data.fields[f.key],
-    placeholder: f.placeholder,
-  }));
+  const summaryFields =
+    data.kind === "agent" && linkedAgent
+      ? [
+          {
+            key: "persona",
+            label: "Persona",
+            value: linkedAgent.persona ?? "",
+            placeholder: "You are a helpful assistant...",
+          },
+        ]
+      : def.fields.slice(0, 3).map((f) => ({
+          key: f.key,
+          label: f.label,
+          value: data.fields[f.key],
+          placeholder: f.placeholder,
+        }));
 
   return (
     <div
       data-selected={selected ? "true" : undefined}
-      className="relative w-[240px] overflow-visible rounded-lg border border-border-standard bg-card shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-all data-[selected=true]:border-border-solid data-[selected=true]:shadow-[0_0_0_1px_var(--border-solid),0_4px_20px_rgba(0,0,0,0.4)]"
+      data-broken={agentMissing ? "true" : undefined}
+      className="relative w-[240px] overflow-visible rounded-lg border border-border-standard bg-card shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-all data-[selected=true]:border-border-solid data-[selected=true]:shadow-[0_0_0_1px_var(--border-solid),0_4px_20px_rgba(0,0,0,0.4)] data-[broken=true]:!border-destructive data-[broken=true]:shadow-[0_0_0_1px_var(--destructive),0_2px_8px_rgba(0,0,0,0.3)]"
     >
       {hasTopHandles && <TopHandlesRow handles={topHandles} />}
 
@@ -183,7 +207,7 @@ function BaseNodeComponent({ data, selected }: NodeProps<BlockNode>) {
             <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )}
           <span className="flex-1 truncate text-[13px] font-medium text-foreground">
-            {data.label}
+            {agentMissing ? "Unlinked agent" : displayLabel}
           </span>
         </div>
 

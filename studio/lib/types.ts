@@ -58,6 +58,14 @@ export interface BlockNodeData {
   fields: Record<string, string | number>;
   /** Only set on `branch` nodes — per-route handles rendered by BranchNode. */
   routes?: BranchRoute[];
+  /**
+   * Set on `agent` nodes: id of the `AgentSummary` this node represents.
+   * The node is purely a placement of that entity — name/persona/model
+   * are read from the store, not from `fields`. If the entity is deleted
+   * the node renders in a broken state and the inspector shows a relink
+   * dropdown. Multiple nodes in the same workflow may share an id.
+   */
+  agentId?: string;
   [key: string]: unknown;
 }
 

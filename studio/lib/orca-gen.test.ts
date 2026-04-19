@@ -148,22 +148,9 @@ describe("generateOrcaSource", () => {
     expect(out).toContain("webhook webhook_1 {");
   });
 
-  it("emits the full seed graph in the expected canonical form", () => {
+  it("emits nothing for the fresh seed graph (workflows start empty)", () => {
     const seed = buildSeedGraph();
-    const out = generateOrcaSource(seed.nodes, seed.edges);
-
-    // Seed graph: webhook → researcher → web_search → writer → sql_query.
-    expect(out).toContain("// https://github.com/ThakeeNathees/orca");
-    expect(out).toContain("tool web_search {");
-    expect(out).toContain("tool articles_db {");
-    expect(out).toContain("agent researcher {");
-    expect(out).toContain("agent writer {");
-    expect(out).toContain("webhook webhook_1 {");
-    expect(out).toContain("workflow main {");
-    expect(out).toContain("  webhook_1 -> researcher");
-    expect(out).toContain("  researcher -> web_search");
-    expect(out).toContain("  web_search -> writer");
-    expect(out).toContain("  writer -> articles_db");
+    expect(generateOrcaSource(seed.nodes, seed.edges)).toBe("");
   });
 
   it("emits a named branch block with transform and route map, and references it by name in workflow main", () => {

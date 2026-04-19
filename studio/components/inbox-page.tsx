@@ -117,7 +117,8 @@ function InboxDetailDialog({
                 <Button
                   key={a.kind}
                   size="sm"
-                  className="cursor-pointer bg-[#E2E2E2] text-zinc-900 hover:bg-[#E2E2E2]/90"
+                  variant="light"
+                  className="cursor-pointer"
                 >
                   {a.label}
                 </Button>
