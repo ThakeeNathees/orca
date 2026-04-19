@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { TopBar } from "@/components/top-bar";
-import { Palette } from "@/components/palette";
 import { Canvas } from "@/components/canvas";
 import { Inspector } from "@/components/inspector";
 import { NavSidebar } from "@/components/nav-sidebar";
@@ -61,9 +60,6 @@ function WorkflowEditor() {
           </div>
         </div>
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <ErrorBoundary>
-            <Palette />
-          </ErrorBoundary>
           <div
             className="relative flex min-h-0 min-w-0 flex-1 flex-col"
             id="studio-panel-center"
