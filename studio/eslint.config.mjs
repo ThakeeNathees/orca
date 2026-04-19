@@ -16,6 +16,20 @@ const eslintConfig = defineConfig([
             'Avoid role="button" on non-button elements. Use a <button> instead for proper accessibility.',
         },
       ],
+      // Allow leading-underscore names as the "intentionally unused"
+      // convention (destructure-and-discard, unused args for interface
+      // compliance, etc.). Matches @typescript-eslint's recommendation.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          args: "after-used",
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
     },
   },
   // Override default ignores of eslint-config-next.

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, type CSSProperties } from "react";
+import { memo, useCallback, useMemo, type CSSProperties } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
 import { BLOCK_DEFS } from "@/lib/block-defs";
@@ -95,7 +95,9 @@ function BranchNodeComponent({ id, data, selected }: NodeProps<BlockNode>) {
   const Icon = ICON_MAP[def.icon];
   const updateNodeRoutes = useStudioStore((s) => s.updateNodeRoutes);
 
-  const routes = data.routes ?? [];
+  // `data.routes` is optional on BlockNodeData; fall back to a stable empty
+  // array so the useCallback deps below don't churn every render.
+  const routes = useMemo(() => data.routes ?? [], [data.routes]);
   const transform = data.fields.transform;
   const hasTransform = transform !== undefined && transform !== "";
   const transformField = def.fields.find((f) => f.key === "transform");

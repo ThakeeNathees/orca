@@ -32,7 +32,7 @@ export function StudioCodeEditor({ value }: StudioCodeEditorProps) {
         role="note"
       >
         <Info className="size-3.5 shrink-0" aria-hidden />
-        <span>Generated from visual editor. Code editing coming soon.</span>
+        <span>Generated from visual editor. Code editing TODO.</span>
       </div>
       <Editor
         height="100%"

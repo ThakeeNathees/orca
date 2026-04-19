@@ -181,7 +181,7 @@ export function TabBar<T extends string>({
 export function ComingSoonTab() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-20 text-muted-foreground">
-      <p className="text-sm">Coming soon</p>
+      <p className="text-sm">TODO</p>
     </div>
   );
 }

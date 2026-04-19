@@ -12,8 +12,8 @@ import {
   DollarSign,
   Activity,
   Settings,
-  Sparkles,
   MessageCircle,
+  Inbox,
   Plus,
   type LucideIcon,
 } from "lucide-react";
@@ -51,25 +51,31 @@ function SidebarItem({
   item,
   active,
   onClick,
+  badge,
 }: {
   item: NavItem;
   active: boolean;
   onClick: () => void;
+  badge?: number;
 }) {
   const Icon = item.icon;
   return (
     <button
       type="button"
       onClick={onClick}
+      style={{ color: ENTITY_ICON_FG }}
       className={cn(
-        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer",
-        active
-          ? "bg-sidebar-accent text-foreground"
-          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer hover:text-foreground",
+        active && "bg-sidebar-accent text-foreground"
       )}
     >
-      <Icon className="size-3.5 shrink-0 opacity-70" />
+      <Icon className="size-3.5 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+      {badge != null && badge > 0 && (
+        <span className="flex min-w-[22px] shrink-0 items-center justify-center rounded-full bg-accent-violet px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -482,6 +488,9 @@ export function ProjectSidebar() {
   const createAgent = useStudioStore((s) => s.createAgent);
   const openAgent = useStudioStore((s) => s.openAgent);
   const createCronJob = useStudioStore((s) => s.createCronJob);
+  const inboxUnread = useStudioStore(
+    (s) => s.inboxMessages.filter((m) => m.unread).length
+  );
   const openCronJob = useStudioStore((s) => s.openCronJob);
 
   const projectWorkflows = workflows.filter(
@@ -501,6 +510,12 @@ export function ProjectSidebar() {
           item={{ id: "orca", label: "Orca", icon: MessageCircle }}
           active={activeSection === "orca"}
           onClick={() => onSectionChange("orca")}
+        />
+        <SidebarItem
+          item={{ id: "inbox", label: "Inbox", icon: Inbox }}
+          active={activeSection === "inbox"}
+          onClick={() => onSectionChange("inbox")}
+          badge={inboxUnread}
         />
 
         <CollapsibleGroup label="Models" onAdd={() => setModelDialog(true)}>

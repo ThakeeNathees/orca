@@ -5,3 +5,7 @@
 
 export const ENTITY_ICON_BG = "#191A1B";
 export const ENTITY_ICON_FG = "#E2E2E2";
+/** Elevated surface — one step lighter than the base. Used for hover and
+ *  active-row backgrounds so interactive states read cleanly against the
+ *  studio's very-dark neutral. */
+export const ENTITY_ICON_BG_ELEVATED = "#262626";

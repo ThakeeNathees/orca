@@ -351,3 +351,26 @@
   border: 1px solid var(--border-solid);
   cursor: pointer;
 }
+
+/* Custom thin scrollbar applied globally to replace the native scrollbar.
+ * Mirrors the ScrollArea primitive's thumb so any element with overflow
+ * (detail pages, dialogs, popovers, the inbox list) gets the same thin
+ * indicator without having to opt in via a wrapper component. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(from var(--color-muted-foreground) r g b / 0.4) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(from var(--color-muted-foreground) r g b / 0.4);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(from var(--color-muted-foreground) r g b / 0.6);
+}

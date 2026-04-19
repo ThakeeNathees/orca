@@ -22,13 +22,8 @@ import type {
 import { BLOCK_DEFS } from "./block-defs";
 import { getEdgeAccentColor } from "./handle-colors";
 import { getStorageAdapter } from "./storage";
-import type {
-  AgentData,
-  CronJobData,
-  ModelData,
-  SkillData,
-  WorkflowData,
-} from "./storage/types";
+import type { WorkflowData } from "./storage/types";
+import { INBOX_MESSAGES, type InboxMessage } from "./inbox";
 import { debounce } from "./debounce";
 import type { SidebarSection } from "./sidebar-sections";
 
@@ -113,6 +108,17 @@ interface StudioState {
     fallbackModelId?: string
   ) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
+
+  /* ── Orca (chat assistant) ── */
+  orcaModelId: string | null;
+  orcaFallbackModelId: string | null;
+  setOrcaModels: (modelId: string | null, fallbackModelId: string | null) => void;
+
+  /* ── Inbox ── */
+  inboxMessages: InboxMessage[];
+  markInboxRead: (id: string) => void;
+  toggleInboxUnread: (id: string) => void;
+  toggleInboxImportant: (id: string) => void;
 
   /* ── Cron Jobs ── */
   cronJobs: CronJobSummary[];
@@ -690,6 +696,44 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       sidebarSection: "orca",
       ...clearActiveIdsExcept(null),
       selectedNodeId: null,
+    });
+  },
+
+  /* ── Orca ───────────────────────────────────────────────────────── */
+  // Chat-assistant model config is session-only for now; persistence
+  // will be added alongside the backend.
+  orcaModelId: null,
+  orcaFallbackModelId: null,
+  setOrcaModels: (modelId, fallbackModelId) => {
+    set({
+      orcaModelId: modelId || null,
+      orcaFallbackModelId: fallbackModelId || null,
+    });
+  },
+
+  /* ── Inbox ────────────────────────────────────────────────────────── */
+  // Seeded from the hardcoded fixture for now. Persistence will arrive
+  // when the notifications backend lands.
+  inboxMessages: INBOX_MESSAGES,
+  markInboxRead: (id) => {
+    set({
+      inboxMessages: get().inboxMessages.map((m) =>
+        m.id === id && m.unread ? { ...m, unread: false } : m
+      ),
+    });
+  },
+  toggleInboxUnread: (id) => {
+    set({
+      inboxMessages: get().inboxMessages.map((m) =>
+        m.id === id ? { ...m, unread: !m.unread } : m
+      ),
+    });
+  },
+  toggleInboxImportant: (id) => {
+    set({
+      inboxMessages: get().inboxMessages.map((m) =>
+        m.id === id ? { ...m, important: !m.important } : m
+      ),
     });
   },
 
