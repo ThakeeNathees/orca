@@ -15,6 +15,8 @@ import { SkillDetail } from "@/components/skill-detail";
 import { AgentDetail } from "@/components/agent-detail";
 import { CronJobDetail } from "@/components/cron-job-detail";
 import { OrcaPage } from "@/components/orca-page";
+import { InboxPage } from "@/components/inbox-page";
+import { CommandPalette } from "@/components/command-palette";
 import {
   ViewModeToggle,
   type StudioViewMode,
@@ -95,7 +97,7 @@ function ComingSoon({ label }: { label: string }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-sidebar text-muted-foreground">
       <p className="text-base font-medium text-foreground">{label}</p>
-      <p className="mt-1 text-sm">Coming soon</p>
+      <p className="mt-1 text-sm">TODO</p>
     </div>
   );
 }
@@ -136,6 +138,7 @@ export default function Home() {
 
   return (
     <ReactFlowProvider>
+      <CommandPalette />
       <div className="flex h-full">
         <NavSidebar />
         {currentView !== "editor" && (
@@ -149,6 +152,10 @@ export default function Home() {
             sidebarSection === "orca" ? (
               <ErrorBoundary>
                 <OrcaPage />
+              </ErrorBoundary>
+            ) : sidebarSection === "inbox" ? (
+              <ErrorBoundary>
+                <InboxPage />
               </ErrorBoundary>
             ) : // Top-level entity groups (Models/Skills/Agents/Workflows/
             // Cron Jobs) have no landing page — the main area stays empty

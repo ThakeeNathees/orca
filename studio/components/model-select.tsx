@@ -43,7 +43,7 @@ export function ModelSelect({
             }
           </SelectValue>
         </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false} align="start">
+        <SelectContent>
           {empty ? (
             <div className="flex flex-col items-center gap-2 px-6 py-5 text-center">
               <Brain className="size-6 text-muted-foreground/60" aria-hidden />
