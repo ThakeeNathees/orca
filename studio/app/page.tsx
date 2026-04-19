@@ -8,12 +8,13 @@ import { Palette } from "@/components/palette";
 import { Canvas } from "@/components/canvas";
 import { Inspector } from "@/components/inspector";
 import { NavSidebar } from "@/components/nav-sidebar";
-import {
-  ProjectSidebar,
-  SECTION_LABELS,
-  type SidebarSection,
-} from "@/components/project-sidebar";
-import { Dashboard } from "@/components/dashboard";
+import { ProjectSidebar } from "@/components/project-sidebar";
+import { WorkflowDetail } from "@/components/workflow-detail";
+import { ModelDetail } from "@/components/model-detail";
+import { SkillDetail } from "@/components/skill-detail";
+import { AgentDetail } from "@/components/agent-detail";
+import { CronJobDetail } from "@/components/cron-job-detail";
+import { OrcaPage } from "@/components/orca-page";
 import {
   ViewModeToggle,
   type StudioViewMode,
@@ -21,6 +22,10 @@ import {
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useStudioStore } from "@/lib/store";
 import { generateOrcaSource } from "@/lib/orca-gen";
+import {
+  SECTION_LABELS,
+  SECTION_PARENT,
+} from "@/lib/sidebar-sections";
 
 const StudioCodeEditor = dynamic(
   () =>
@@ -40,10 +45,6 @@ function WorkflowEditor() {
   const nodes = useStudioStore((s) => s.nodes);
   const edges = useStudioStore((s) => s.edges);
 
-  // Derive `.orca` source from the current graph on every change. The
-  // generator is pure and cheap for typical graph sizes, so memoising on
-  // the node/edge refs is enough — Zustand hands back stable references
-  // when nothing changed, so this recomputes only on real edits.
   const sourceCode = useMemo(
     () => generateOrcaSource(nodes, edges),
     [nodes, edges]
@@ -99,22 +100,32 @@ function ComingSoon({ label }: { label: string }) {
   );
 }
 
+/** Picks the right detail component based on which entity is active. */
+function DetailView() {
+  const activeWorkflowId = useStudioStore((s) => s.activeWorkflowId);
+  const activeModelId = useStudioStore((s) => s.activeModelId);
+  const activeSkillId = useStudioStore((s) => s.activeSkillId);
+  const activeAgentId = useStudioStore((s) => s.activeAgentId);
+  const activeCronJobId = useStudioStore((s) => s.activeCronJobId);
+
+  if (activeWorkflowId) return <WorkflowDetail />;
+  if (activeModelId) return <ModelDetail />;
+  if (activeSkillId) return <SkillDetail />;
+  if (activeAgentId) return <AgentDetail />;
+  if (activeCronJobId) return <CronJobDetail />;
+  return <ComingSoon label="Detail" />;
+}
+
 export default function Home() {
   const currentView = useStudioStore((s) => s.currentView);
+  const sidebarSection = useStudioStore((s) => s.sidebarSection);
   const hydrated = useStudioStore((s) => s.hydrated);
   const hydrate = useStudioStore((s) => s.hydrate);
-  const [sidebarSection, setSidebarSection] =
-    useState<SidebarSection>("workflows");
 
-  // Kick off storage hydration once on mount. Runs on the client only
-  // (this is a client component), so IndexedDB is guaranteed available.
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
-  // Avoid rendering dashboard/editor with empty placeholder state before
-  // the adapter has loaded. This also sidesteps SSR hydration mismatches
-  // since the server renders an empty shell and the client fills it in.
   if (!hydrated) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -127,24 +138,31 @@ export default function Home() {
     <ReactFlowProvider>
       <div className="flex h-full">
         <NavSidebar />
-        {currentView === "dashboard" && (
+        {currentView !== "editor" && (
           <ErrorBoundary>
-            <ProjectSidebar
-              activeSection={sidebarSection}
-              onSectionChange={setSidebarSection}
-            />
+            <ProjectSidebar />
           </ErrorBoundary>
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopBar />
           {currentView === "dashboard" ? (
-            sidebarSection === "workflows" ? (
+            sidebarSection === "orca" ? (
               <ErrorBoundary>
-                <Dashboard />
+                <OrcaPage />
               </ErrorBoundary>
+            ) : // Top-level entity groups (Models/Skills/Agents/Workflows/
+            // Cron Jobs) have no landing page — the main area stays empty
+            // until the user drills into an item. Leaf sections keep the
+            // "coming soon" placeholder.
+            SECTION_PARENT[sidebarSection] === null ? (
+              <div className="flex-1 bg-sidebar" />
             ) : (
               <ComingSoon label={SECTION_LABELS[sidebarSection]} />
             )
+          ) : currentView === "detail" ? (
+            <ErrorBoundary>
+              <DetailView />
+            </ErrorBoundary>
           ) : (
             <WorkflowEditor />
           )}

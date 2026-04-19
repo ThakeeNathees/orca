@@ -80,12 +80,54 @@ export type BlockEdge = Edge<{ accentColor?: string }>;
 export interface WorkflowSummary {
   id: string;
   name: string;
+  description?: string;
   updatedAt: Date;
-  color: string;
   projectId: string;
 }
 
-/** A project groups related workflows. */
+/** LLM model provider identifier. */
+export type ModelProvider = "openai" | "anthropic" | "gemini" | "ollama";
+
+export interface ModelSummary {
+  id: string;
+  name: string;
+  description?: string;
+  provider: ModelProvider;
+  modelName: string;
+  updatedAt: Date;
+  projectId: string;
+}
+
+export interface SkillSummary {
+  id: string;
+  name: string;
+  description?: string;
+  updatedAt: Date;
+  projectId: string;
+}
+
+export interface AgentSummary {
+  id: string;
+  name: string;
+  description?: string;
+  persona?: string;
+  /** Primary model used by this agent, referenced by `ModelSummary.id`. */
+  modelId?: string;
+  /** Fallback model if the primary fails or is unavailable. */
+  fallbackModelId?: string;
+  updatedAt: Date;
+  projectId: string;
+}
+
+export interface CronJobSummary {
+  id: string;
+  name: string;
+  description?: string;
+  updatedAt: Date;
+  projectId: string;
+}
+
+/** A project groups related workflows, models, skills, and agents. */
 export interface Project {
   id: string;
   name: string;

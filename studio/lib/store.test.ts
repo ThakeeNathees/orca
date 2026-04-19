@@ -59,7 +59,7 @@ describe("Store", () => {
     it("creates a node with correct kind and default fields", async () => {
       // Open the seeded workflow so the editor has an active graph.
       const wfId = getState().workflows[0].id;
-      await getState().openWorkflow(wfId);
+      await getState().openWorkflowEditor(wfId);
 
       const before = getState().nodes.length;
       getState().addNode("model", { x: 100, y: 200 });
@@ -76,7 +76,7 @@ describe("Store", () => {
   describe("removeNode", () => {
     it("removes the node and its connected edges", async () => {
       const wfId = getState().workflows[0].id;
-      await getState().openWorkflow(wfId);
+      await getState().openWorkflowEditor(wfId);
 
       getState().addNode("agent", { x: 0, y: 0 });
       const nodes = getState().nodes;
@@ -102,7 +102,7 @@ describe("Store", () => {
 
     it("clears selectedNodeId if removed node was selected", async () => {
       const wfId = getState().workflows[0].id;
-      await getState().openWorkflow(wfId);
+      await getState().openWorkflowEditor(wfId);
 
       getState().addNode("model", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
@@ -117,7 +117,7 @@ describe("Store", () => {
   describe("updateNodeData", () => {
     it("merges field data correctly", async () => {
       const wfId = getState().workflows[0].id;
-      await getState().openWorkflow(wfId);
+      await getState().openWorkflowEditor(wfId);
 
       getState().addNode("model", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
@@ -134,7 +134,7 @@ describe("Store", () => {
   describe("updateNodeLabel", () => {
     it("updates the label", async () => {
       const wfId = getState().workflows[0].id;
-      await getState().openWorkflow(wfId);
+      await getState().openWorkflowEditor(wfId);
 
       getState().addNode("model", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
@@ -148,7 +148,7 @@ describe("Store", () => {
   describe("onConnect", () => {
     it("creates an edge between nodes", async () => {
       const wfId = getState().workflows[0].id;
-      await getState().openWorkflow(wfId);
+      await getState().openWorkflowEditor(wfId);
 
       const before = getState().edges.length;
       getState().onConnect({
@@ -166,12 +166,12 @@ describe("Store", () => {
   });
 
   describe("createWorkflow", () => {
-    it("creates a workflow and switches to editor", async () => {
+    it("creates a workflow and switches to detail", async () => {
       const before = getState().workflows.length;
       await getState().createWorkflow();
 
       expect(getState().workflows.length).toBe(before + 1);
-      expect(getState().currentView).toBe("editor");
+      expect(getState().currentView).toBe("detail");
       expect(getState().activeWorkflowId).toBeTruthy();
     });
 
@@ -261,7 +261,7 @@ describe("Store", () => {
   describe("goToDashboard", () => {
     it("switches to dashboard view", async () => {
       const wfId = getState().workflows[0].id;
-      await getState().openWorkflow(wfId);
+      await getState().openWorkflowEditor(wfId);
       expect(getState().currentView).toBe("editor");
 
       getState().goToDashboard();
@@ -273,7 +273,7 @@ describe("Store", () => {
   describe("openWorkflow", () => {
     it("loads the workflow's graph from storage", async () => {
       const wfId = getState().workflows[0].id;
-      await getState().openWorkflow(wfId);
+      await getState().openWorkflowEditor(wfId);
 
       expect(getState().activeWorkflowId).toBe(wfId);
       expect(getState().currentView).toBe("editor");
