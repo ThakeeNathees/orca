@@ -62,13 +62,13 @@ describe("Store", () => {
       await getState().openWorkflowEditor(wfId);
 
       const before = getState().nodes.length;
-      getState().addNode("model", { x: 100, y: 200 });
+      getState().addNode("agent", { x: 100, y: 200 });
       const nodes = getState().nodes;
       expect(nodes.length).toBe(before + 1);
 
       const added = nodes[nodes.length - 1];
-      expect(added.data.kind).toBe("model");
-      expect(added.data.label).toBe("Model");
+      expect(added.data.kind).toBe("agent");
+      expect(added.data.label).toBe("Agent");
       expect(added.position).toEqual({ x: 100, y: 200 });
     });
   });
@@ -104,7 +104,7 @@ describe("Store", () => {
       const wfId = getState().workflows[0].id;
       await getState().openWorkflowEditor(wfId);
 
-      getState().addNode("model", { x: 0, y: 0 });
+      getState().addNode("agent", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
       getState().setSelectedNodeId(nodeId);
       expect(getState().selectedNodeId).toBe(nodeId);
@@ -119,7 +119,7 @@ describe("Store", () => {
       const wfId = getState().workflows[0].id;
       await getState().openWorkflowEditor(wfId);
 
-      getState().addNode("model", { x: 0, y: 0 });
+      getState().addNode("agent", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
 
       getState().updateNodeData(nodeId, { provider: "openai" });
@@ -136,7 +136,7 @@ describe("Store", () => {
       const wfId = getState().workflows[0].id;
       await getState().openWorkflowEditor(wfId);
 
-      getState().addNode("model", { x: 0, y: 0 });
+      getState().addNode("agent", { x: 0, y: 0 });
       const nodeId = getState().nodes[getState().nodes.length - 1].id;
 
       getState().updateNodeLabel(nodeId, "my-model");
@@ -277,10 +277,10 @@ describe("Store", () => {
 
       expect(getState().activeWorkflowId).toBe(wfId);
       expect(getState().currentView).toBe("editor");
-      // Seed graph: webhook, researcher, writer, sql, memory, model, web_search.
-      expect(getState().nodes.length).toBe(7);
-      // Edges: trigger + 2 agent-flow + 2 model fanout + memory + tool = 7.
-      expect(getState().edges.length).toBe(7);
+      // Seed graph: webhook → researcher → web_search → writer → sql (5 nodes).
+      expect(getState().nodes.length).toBe(5);
+      // Flow edges: trigger + 3 agent-to-next = 4.
+      expect(getState().edges.length).toBe(4);
     });
   });
 });

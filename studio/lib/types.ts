@@ -1,14 +1,12 @@
 import type { Node, Edge } from "@xyflow/react";
 
 export type BlockKind =
-  | "model"
   | "agent"
   | "web_search"
   | "code_exec"
   | "api_request"
   | "sql_query"
   | "knowledge"
-  | "memory"
   | "workflow"
   | "input"
   | "schema"
@@ -18,23 +16,15 @@ export type BlockKind =
   | "custom_tool"
   | "branch";
 
-export type HandleType =
-  | "model"
-  | "agent"
-  | "tool"
-  | "knowledge"
-  | "memory"
-  | "schema"
-  | "trigger"
-  | "any";
+export type HandleType = "agent" | "trigger";
 
 export interface HandleDef {
   id: string;
   label: string;
   type: HandleType;
   /**
-   * Edge of the node: left/right = graph in/out; bottom = agent model/memory/tools inputs;
-   * top = model/tool/memory node outputs (n8n-style).
+   * Edge of the node: left/right = graph in/out; bottom = agent tool
+   * inputs; top = tool node outputs (n8n-style).
    */
   position: "left" | "right" | "top" | "bottom";
   multiple?: boolean;

@@ -1,40 +1,31 @@
 // Visual graph → `.orca` source generator.
 //
 // Walks the store's (nodes, edges) tuple and emits a textual Orca program
-// that the Go compiler should be able to consume. This is a pure function:
-// no I/O, no mutation — the Studio calls it on every graph change to keep
-// the code tab in sync.
+// that the Go compiler should be able to consume. Pure function — no I/O,
+// no mutation — re-run on every graph change to keep the code tab in sync.
 //
 // Design notes
 // ────────────
-// 1. **Reference resolution via edges.** Studio edges carry semantic meaning
-//    through their `(sourceHandle, targetHandle)` pair. We translate them
-//    into declarative `.orca` references:
-//      - `model-out  → model-in`   → agent's `model = <ident>`
-//      - `memory-out → memory-in`  → agent's `memory = <ident>`
-//      - `tool-out   → tools-in`   → appends to agent's `tools = [...]`
-//      - `trigger-out → agent-in`  → flow edge in `workflow main { ... }`
-//      - `agent-out   → agent-in`  → flow edge in `workflow main { ... }`
-//        (works across agent→agent AND agent→tool when the target is a
-//        tool node connected via its left/right "workflow" handles, not
-//        the top `tool-out` slot — this is how the Studio distinguishes
-//        "use tool from inside agent" from "pipe writer output into DB".)
+// 1. **Edge semantics.** Only two edge kinds survive in the studio: purple
+//    flow edges (`agent-out`/`trigger-out` → `agent-in`) become lines
+//    inside `workflow main { ... }`, and branch route edges
+//    (`route-<routeId>` → `agent-in`) populate a branch's `route = { ... }`
+//    map instead.
 //
 // 2. **Identifier sanitisation.** Node labels are user-facing and can be
 //    anything. We lowercase, snake_case, strip leading digits, and dedupe
 //    collisions with `_2`, `_3`. Reserved Orca keywords are avoided by
 //    starting the dedupe counter at `_1`.
 //
-// 3. **Emission order.** Declarations must precede references, so we
-//    walk a fixed kind order: models → tools → knowledge → memory →
-//    agents → triggers → (synthesized) workflow. Within each kind we
-//    keep node insertion order for deterministic output.
+// 3. **Emission order.** Declarations must precede references, so we walk
+//    `EMIT_ORDER` tuple list; non-agent kinds emit first, then agents
+//    (which may reference knowledge/tools), then branch/triggers/schema.
 //
 // 4. **Field alignment.** Within every block the `=` signs line up on the
 //    longest key. Matches the style in `compiler/codegen/testdata/golden/*.orca`.
 
 import type { BlockNode, BlockEdge, BlockKind } from "./types";
-import { BLOCK_DEFS } from "./block-defs";
+import { BLOCK_DEFS, HANDLE_IDS } from "./block-defs";
 
 // File header prepended to every generated `.orca` source. Tells the user
 // where Orca lives and how to run the downloaded file. Kept intentionally
@@ -68,46 +59,24 @@ const RESERVED = new Set<string>([
   "builtin",
 ]);
 
-// Studio BlockKind → Orca block keyword. Kinds absent from this map
-// are not emitted as top-level blocks (e.g. `input` has no standalone
-// form; `workflow` is synthesized separately after the main loop).
-const KEYWORD_FOR_KIND: Partial<Record<BlockKind, string>> = {
-  model: "model",
-  agent: "agent",
-  web_search: "tool",
-  code_exec: "tool",
-  api_request: "tool",
-  sql_query: "tool",
-  custom_tool: "tool",
-  knowledge: "knowledge",
-  memory: "memory",
-  cron: "cron",
-  webhook: "webhook",
-  chat: "chat",
-  schema: "schema",
-  branch: "branch",
-};
-
-// Emission order — each kind must come AFTER every kind whose idents it
-// may reference. Agents reference models/tools/memory/knowledge, so all
-// of those precede `agent`. Triggers are independent but belong near the
-// workflow block for readability.
-const EMIT_KINDS: BlockKind[] = [
-  "model",
-  "web_search",
-  "code_exec",
-  "api_request",
-  "sql_query",
-  "custom_tool",
-  "knowledge",
-  "memory",
-  "agent",
-  // Branch must follow agent so its route targets are already declared.
-  "branch",
-  "cron",
-  "webhook",
-  "chat",
-  "schema",
+// Ordered BlockKind → Orca keyword mapping. Order is also the emission
+// order (declarations must precede references): tools and knowledge emit
+// first, then agents (which may reference them), then branch (whose route
+// targets must already exist), then triggers and schema. Kinds not in
+// this list (e.g. `input`, `workflow`) have no standalone block form.
+const EMIT_ORDER: [BlockKind, string][] = [
+  ["web_search", "tool"],
+  ["code_exec", "tool"],
+  ["api_request", "tool"],
+  ["sql_query", "tool"],
+  ["custom_tool", "tool"],
+  ["knowledge", "knowledge"],
+  ["agent", "agent"],
+  ["branch", "branch"],
+  ["cron", "cron"],
+  ["webhook", "webhook"],
+  ["chat", "chat"],
+  ["schema", "schema"],
 ];
 
 /** Turns a human-readable label into a snake_case Orca identifier. */
@@ -224,12 +193,6 @@ export function generateOrcaSource(
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
   /* ---------- Edge resolution ---------- */
-  // Per-agent reference maps derived from semantic edges.
-  const modelOfAgent = new Map<string, string>(); // agentId → model ident
-  const memoryOfAgent = new Map<string, string>(); // agentId → memory ident
-  const toolsOfAgent = new Map<string, string[]>(); // agentId → [tool idents]
-  const knowledgeOfAgent = new Map<string, string[]>(); // agentId → [knowledge idents]
-
   // Flow edges that become lines inside `workflow main { ... }`.
   const flowEdges: { fromId: string; toId: string }[] = [];
 
@@ -242,7 +205,6 @@ export function generateOrcaSource(
     const src = nodeById.get(e.source);
     const tgt = nodeById.get(e.target);
     if (!src || !tgt) continue;
-    const srcIdent = idents.get(src.id)!;
     const tgtIdent = idents.get(tgt.id)!;
 
     const sh = e.sourceHandle ?? "";
@@ -252,8 +214,8 @@ export function generateOrcaSource(
     // branch block's `route = { ... }` map instead. The target handle is
     // still `agent-in` (branch routes feed into agents) but the source is
     // a dynamic `route-<routeId>` handle owned by the branch node.
-    if (src.data.kind === "branch" && sh.startsWith("route-")) {
-      const routeId = sh.slice("route-".length);
+    if (src.data.kind === "branch" && sh.startsWith(HANDLE_IDS.routePrefix)) {
+      const routeId = sh.slice(HANDLE_IDS.routePrefix.length);
       let branchMap = routesOfBranch.get(src.id);
       if (!branchMap) {
         branchMap = new Map();
@@ -265,31 +227,11 @@ export function generateOrcaSource(
       continue;
     }
 
-    if (sh === "model-out" && th === "model-in") {
-      modelOfAgent.set(tgt.id, srcIdent);
-      continue;
-    }
-    if (sh === "memory-out" && th === "memory-in") {
-      memoryOfAgent.set(tgt.id, srcIdent);
-      continue;
-    }
-    if (sh === "tool-out" && th === "tools-in") {
-      const list = toolsOfAgent.get(tgt.id) ?? [];
-      if (!list.includes(srcIdent)) list.push(srcIdent);
-      toolsOfAgent.set(tgt.id, list);
-      continue;
-    }
-    if (sh === "knowledge-out" && th === "knowledge-in") {
-      const list = knowledgeOfAgent.get(tgt.id) ?? [];
-      if (!list.includes(srcIdent)) list.push(srcIdent);
-      knowledgeOfAgent.set(tgt.id, list);
-      continue;
-    }
-
-    // Flow edges: triggers into agents, or agent-to-agent / agent-to-tool
-    // via the left/right "workflow" handles. Anything else is ignored.
-    const isTriggerFlow = sh === "trigger-out" && th === "agent-in";
-    const isAgentFlow = sh === "agent-out" && th === "agent-in";
+    // Every remaining edge is a purple agent-typed flow connection: either
+    // a trigger feeding into the first node (`trigger-out` → `agent-in`) or
+    // a node-to-node workflow step (`agent-out` → `agent-in`).
+    const isTriggerFlow = sh === HANDLE_IDS.triggerOut && th === HANDLE_IDS.agentIn;
+    const isAgentFlow = sh === HANDLE_IDS.agentOut && th === HANDLE_IDS.agentIn;
     if (isTriggerFlow || isAgentFlow) {
       flowEdges.push({ fromId: src.id, toId: tgt.id });
     }
@@ -298,24 +240,17 @@ export function generateOrcaSource(
   /* ---------- Emit top-level blocks ---------- */
   const sections: string[] = [];
 
-  for (const kind of EMIT_KINDS) {
-    const keyword = KEYWORD_FOR_KIND[kind];
-    if (!keyword) continue;
-
+  for (const [kind, keyword] of EMIT_ORDER) {
     for (const node of nodes) {
       if (node.data.kind !== kind) continue;
       const name = idents.get(node.id)!;
       const fields: FieldEntry[] = [];
 
       if (kind === "agent") {
-        // Canonical agent field order: model → persona/data → memory →
-        // tools → knowledge. The first and last three come from edges,
-        // persona comes from the node's own field data.
-        const modelIdent = modelOfAgent.get(node.id);
-        if (modelIdent) {
-          fields.push({ key: "model", rendered: modelIdent });
-        }
-
+        // Model, memory, tools, and knowledge now live on the Agent entity
+        // (Agents section) rather than as graph edges. The generated agent
+        // block only carries its persona — the rest is referenced by name
+        // at deploy time via the entity ID.
         const def = BLOCK_DEFS[kind];
         for (const fieldDef of def.fields) {
           const v = node.data.fields[fieldDef.key];
@@ -323,24 +258,6 @@ export function generateOrcaSource(
           fields.push({
             key: fieldDef.key,
             rendered: formatValue(v as string | number),
-          });
-        }
-
-        const memIdent = memoryOfAgent.get(node.id);
-        if (memIdent) {
-          fields.push({ key: "memory", rendered: memIdent });
-        }
-
-        const tools = toolsOfAgent.get(node.id);
-        if (tools && tools.length > 0) {
-          fields.push({ key: "tools", rendered: `[${tools.join(", ")}]` });
-        }
-
-        const know = knowledgeOfAgent.get(node.id);
-        if (know && know.length > 0) {
-          fields.push({
-            key: "knowledge",
-            rendered: `[${know.join(", ")}]`,
           });
         }
       } else if (kind === "branch") {

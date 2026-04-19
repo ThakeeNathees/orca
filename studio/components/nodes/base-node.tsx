@@ -3,7 +3,7 @@
 import { memo, type CSSProperties } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { BLOCK_DEFS } from "@/lib/block-defs";
-import { HANDLE_COLORS, HANDLE_COLOR_FALLBACK } from "@/lib/handle-colors";
+import { AGENT_HANDLE_COLOR } from "@/lib/handle-colors";
 import type { BlockNode, HandleDef } from "@/lib/types";
 import { ICON_MAP } from "@/lib/icons";
 
@@ -38,7 +38,7 @@ function SideHandle({
   handle: HandleDef;
   side: "left" | "right";
 }) {
-  const color = HANDLE_COLORS[handle.type] || HANDLE_COLOR_FALLBACK;
+  const color = AGENT_HANDLE_COLOR;
   const isLeft = side === "left";
 
   return (
@@ -66,7 +66,7 @@ function TopHandlesRow({ handles }: { handles: HandleDef[] }) {
   return (
     <>
       {handles.map((handle, i) => {
-        const color = HANDLE_COLORS[handle.type] || HANDLE_COLOR_FALLBACK;
+        const color = AGENT_HANDLE_COLOR;
         const leftPct = ((i + 0.5) / n) * 100;
         return (
           <Handle
@@ -123,7 +123,7 @@ function BottomHandlesRow({ handles }: { handles: HandleDef[] }) {
         </div>
       </div>
       {handles.map((handle, i) => {
-        const color = HANDLE_COLORS[handle.type] || HANDLE_COLOR_FALLBACK;
+        const color = AGENT_HANDLE_COLOR;
         const leftPct = ((i + 0.5) / n) * 100;
         return (
           <Handle
