@@ -1,19 +1,140 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Hammer, Play, Workflow } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { useCallback, type ReactNode } from "react";
+import { ArrowLeft, Hammer, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { useStudioStore } from "@/lib/store";
 import { generateOrcaSource, sanitizeIdent } from "@/lib/orca-gen";
+import { SECTION_LABELS, SECTION_PARENT } from "@/lib/sidebar-sections";
 
-const DEFAULT_WORKFLOW_NAME = "My Workflow";
+/** Breadcrumb segment — non-interactive by default; pass onClick to make it clickable. */
+function Crumb({
+  children,
+  onClick,
+  active,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  active?: boolean;
+}) {
+  const base =
+    "min-w-0 truncate text-[15px] font-[590] tracking-[-0.012em]";
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${base} cursor-pointer text-muted-foreground hover:text-foreground`}
+      >
+        {children}
+      </button>
+    );
+  }
+  return (
+    <span
+      className={`${base} ${active ? "text-foreground" : "text-muted-foreground"}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Separator() {
+  return <span className="text-muted-foreground/60">/</span>;
+}
+
+/**
+ * Builds the breadcrumb segments for the current view.
+ *
+ * Rules:
+ *   - Editor: `<SectionGroup> > <entity name> > Editor` (first two clickable)
+ *   - Detail: `<SectionGroup> > <entity name>`
+ *   - Dashboard: `<Parent> > <Section>` or just `<Section>` for top-level groups
+ */
+function useBreadcrumb(): { segments: ReactNode[] } {
+  const currentView = useStudioStore((s) => s.currentView);
+  const sidebarSection = useStudioStore((s) => s.sidebarSection);
+  const workflows = useStudioStore((s) => s.workflows);
+  const models = useStudioStore((s) => s.models);
+  const skills = useStudioStore((s) => s.skills);
+  const agents = useStudioStore((s) => s.agents);
+  const activeWorkflowId = useStudioStore((s) => s.activeWorkflowId);
+  const activeModelId = useStudioStore((s) => s.activeModelId);
+  const activeSkillId = useStudioStore((s) => s.activeSkillId);
+  const activeAgentId = useStudioStore((s) => s.activeAgentId);
+  const openWorkflow = useStudioStore((s) => s.openWorkflow);
+
+  const segments: ReactNode[] = [];
+
+  if (currentView === "dashboard") {
+    const parent = SECTION_PARENT[sidebarSection];
+    if (parent) {
+      segments.push(<Crumb key="parent">{parent}</Crumb>);
+      segments.push(<Separator key="sep" />);
+      segments.push(
+        <Crumb key="section" active>
+          {SECTION_LABELS[sidebarSection]}
+        </Crumb>
+      );
+    } else {
+      segments.push(
+        <Crumb key="section" active>
+          {SECTION_LABELS[sidebarSection]}
+        </Crumb>
+      );
+    }
+    return { segments };
+  }
+
+  // Detail and Editor share the `<Group> > <entity>` prefix. The group
+  // name comes from whichever sidebar section the active entity belongs to.
+  let entityName: string | null = null;
+  if (activeWorkflowId) {
+    entityName = workflows.find((w) => w.id === activeWorkflowId)?.name ?? null;
+  } else if (activeModelId) {
+    entityName = models.find((m) => m.id === activeModelId)?.name ?? null;
+  } else if (activeSkillId) {
+    entityName = skills.find((s) => s.id === activeSkillId)?.name ?? null;
+  } else if (activeAgentId) {
+    entityName = agents.find((a) => a.id === activeAgentId)?.name ?? null;
+  }
+
+  // Group names are not clickable — they name a sidebar dropdown, not a page.
+  segments.push(
+    <Crumb key="group">{SECTION_LABELS[sidebarSection]}</Crumb>
+  );
+
+  if (entityName) {
+    segments.push(<Separator key="sep-1" />);
+    if (currentView === "editor" && activeWorkflowId) {
+      // In the editor, the entity name returns to detail; the editor itself
+      // is the last (active) crumb.
+      segments.push(
+        <Crumb key="entity" onClick={() => openWorkflow(activeWorkflowId)}>
+          {entityName}
+        </Crumb>
+      );
+      segments.push(<Separator key="sep-2" />);
+      segments.push(
+        <Crumb key="editor" active>
+          Editor
+        </Crumb>
+      );
+    } else {
+      segments.push(
+        <Crumb key="entity" active>
+          {entityName}
+        </Crumb>
+      );
+    }
+  }
+
+  return { segments };
+}
 
 export function TopBar() {
   const currentView = useStudioStore((s) => s.currentView);
-  const goToDashboard = useStudioStore((s) => s.goToDashboard);
-  const renameWorkflow = useStudioStore((s) => s.renameWorkflow);
+  const openWorkflow = useStudioStore((s) => s.openWorkflow);
   const activeWorkflowId = useStudioStore((s) => s.activeWorkflowId);
   const workflows = useStudioStore((s) => s.workflows);
   const nodes = useStudioStore((s) => s.nodes);
@@ -21,146 +142,46 @@ export function TopBar() {
   const isEditor = currentView === "editor";
 
   const activeWorkflow = workflows.find((w) => w.id === activeWorkflowId);
-  const activeName = activeWorkflow?.name ?? DEFAULT_WORKFLOW_NAME;
-  // Pastel accent — matches the swatch on the dashboard card so the icon
-  // stays visually tied to its workflow across pages.
-  const accentColor = activeWorkflow?.color ?? "#86efac";
+  const activeName = activeWorkflow?.name ?? "Workflow";
 
-  const [draft, setDraft] = useState(activeName);
-  const [editing, setEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Keep the local draft in sync when the active workflow (or its name)
-  // changes from elsewhere — e.g. switching workflows on the dashboard.
-  useEffect(() => {
-    setDraft(activeName);
-  }, [activeName]);
-
-  const commit = useCallback(() => {
-    const t = draft.trim();
-    const next = t.length > 0 ? t : DEFAULT_WORKFLOW_NAME;
-    setDraft(next);
-    setEditing(false);
-    // Only persist if something actually changed and we have a workflow.
-    if (activeWorkflowId && next !== activeName) {
-      void renameWorkflow(activeWorkflowId, next);
-    }
-  }, [draft, activeWorkflowId, activeName, renameWorkflow]);
-
-  const cancel = useCallback(() => {
-    setDraft(activeName);
-    setEditing(false);
-  }, [activeName]);
-
-  useEffect(() => {
-    if (!editing) return;
-    const el = inputRef.current;
-    if (!el) return;
-    el.focus();
-    el.select();
-  }, [editing]);
-
-  // A build is only meaningful when there is something on the canvas.
-  // We also guard against the pre-hydration empty state.
   const canBuild = isEditor && nodes.length > 0;
 
   const handleBuild = useCallback(() => {
     if (!canBuild) return;
     const source = generateOrcaSource(nodes, edges);
-
-    // Derive a safe filename from the workflow name. sanitizeIdent already
-    // enforces snake_case / no weird characters — exactly what we want for
-    // a cross-platform download name.
     const base = sanitizeIdent(activeName) || "workflow";
     const filename = `${base}.orca`;
 
-    // Browser download dance: Blob → object URL → hidden anchor click →
-    // revoke. No backend, no IndexedDB round-trip — the source is
-    // regenerated on the spot from current store state.
     const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
-    // Keep the element off-layout but still click-dispatchable.
     link.style.display = "none";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    // Deferred revoke — some browsers need the URL alive briefly past the
-    // click for the download to register.
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }, [canBuild, nodes, edges, activeName]);
+
+  const { segments } = useBreadcrumb();
 
   return (
     <header className="flex h-12 shrink-0 items-center border-b border-border bg-sidebar px-4 text-sidebar-foreground">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {isEditor && (
+        {isEditor && activeWorkflowId && (
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={goToDashboard}
+            onClick={() => openWorkflow(activeWorkflowId)}
             className="shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
-            aria-label="Back to workflows"
+            aria-label="Back to workflow"
           >
             <ArrowLeft className="size-4" />
           </Button>
         )}
-        <span className="text-[15px] font-[590] tracking-[-0.012em] text-foreground">
-          {isEditor ? "Orca Studio" : "Workflows"}
-        </span>
+        <nav className="flex min-w-0 items-center gap-1.5">{segments}</nav>
       </div>
-
-      {isEditor && (
-        <div className="flex shrink-0 items-center gap-2">
-          <div
-            className="flex size-8 shrink-0 items-center justify-center rounded-md shadow-sm"
-            style={{ backgroundColor: accentColor }}
-            aria-hidden
-          >
-            <Workflow
-              className="size-[15px] text-zinc-900 dark:text-slate-900"
-              strokeWidth={2}
-            />
-          </div>
-          {editing ? (
-            <Input
-              ref={inputRef}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commit}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commit();
-                }
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  cancel();
-                }
-              }}
-              className={cn(
-                "h-8 min-w-[10rem] max-w-[min(24rem,calc(100vw-12rem))] border-border bg-sidebar-accent px-2.5 text-base font-semibold text-sidebar-foreground",
-                "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
-              )}
-              aria-label="Workflow name"
-              maxLength={120}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setDraft(activeName);
-                setEditing(true);
-              }}
-              className="max-w-[min(24rem,calc(100vw-12rem))] truncate rounded-md px-1.5 py-0.5 text-left text-base font-semibold tracking-tight text-sidebar-foreground transition-colors hover:bg-sidebar-accent focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-              title="Click to rename"
-            >
-              {activeName}
-            </button>
-          )}
-        </div>
-      )}
 
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
         {isEditor ? (
