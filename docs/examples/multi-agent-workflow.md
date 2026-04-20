@@ -22,7 +22,7 @@ model claude {
 
 ### `agents.orca`
 
-```orca
+~~~orca
 tool search {
   desc   = "Search the web for information"
   invoke = "tools.search.web_search"
@@ -30,32 +30,32 @@ tool search {
 
 agent researcher {
   model   = gpt4
-  persona = "
+  persona = ```md
     You are a research specialist.
     You search for information and compile
     detailed findings with sources.
-    "
+    ```
   tools   = [search]
 }
 
 agent writer {
   model   = claude
-  persona = "
+  persona = ```md
     You are a technical writer.
     You take research findings and turn them
     into clear, well-structured articles.
-    "
+    ```
 }
 
 agent editor {
   model   = gpt4
-  persona = "
+  persona = ```md
     You are an editor.
     You review articles for clarity, accuracy,
     and grammar. You suggest improvements.
-    "
+    ```
 }
-```
+~~~
 
 ### `workflow.orca`
 

@@ -4,7 +4,7 @@ A minimal Orca project with one model, one tool, and one agent.
 
 ## Source (`main.orca`)
 
-```orca
+~~~orca
 model gpt4 {
   provider    = "openai"
   model_name  = "gpt-4o"
@@ -18,16 +18,16 @@ tool search {
 
 agent researcher {
   model   = gpt4
-  persona = "
+  persona = ```md
     You are a research assistant.
     You search the web for information and
     provide well-sourced answers.
 
     Always cite your sources.
-    "
+    ```
   tools   = [search]
 }
-```
+~~~
 
 ## Build
 
