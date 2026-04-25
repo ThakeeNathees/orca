@@ -1,4 +1,0 @@
-// A workflow using arrow syntax. Entry/exit points are inferred automatically.
-workflow report_pipeline {
-  researcher -> writer -> reviewer
-}

@@ -1,0 +1,4 @@
+model m1 {
+  provider   = 42
+  model_name = "gpt-4o"
+}

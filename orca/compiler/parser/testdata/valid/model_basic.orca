@@ -1,0 +1,7 @@
+// A basic model block with all common fields.
+model gpt4 {
+  provider    = "openai"
+  version     = "gpt-4o"
+  temperature = 0.2
+  max_tokens  = 4096
+}

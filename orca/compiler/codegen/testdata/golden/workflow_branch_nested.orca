@@ -1,0 +1,45 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+agent triage {
+  model   = gpt4
+  persona = "Triage as 'urgent' or 'normal'."
+}
+
+agent urgent_handler {
+  model   = gpt4
+  persona = "Handle urgent requests."
+}
+
+agent sub_classifier {
+  model   = gpt4
+  persona = "Sub-classify normal requests as 'tech' or 'sales'."
+}
+
+agent tech_support {
+  model   = gpt4
+  persona = "Tech support."
+}
+
+agent sales_support {
+  model   = gpt4
+  persona = "Sales support."
+}
+
+workflow pipeline {
+  triage -> branch {
+    transform = \(out string) -> out
+    route = {
+      "urgent": urgent_handler,
+      "normal": sub_classifier -> branch {
+        transform = \(out string) -> out
+        route = {
+          "tech": tech_support,
+          "sales": sales_support,
+        }
+      },
+    }
+  }
+}

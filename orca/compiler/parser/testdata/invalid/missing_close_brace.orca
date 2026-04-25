@@ -1,0 +1,3 @@
+// Error: block body never closed.
+model gpt4 {
+  provider = "openai"

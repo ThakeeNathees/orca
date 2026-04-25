@@ -8,7 +8,11 @@ File extension: `.orca`
 
 ```
 orca/
-├── compiler/          # Go — the Orca compiler
+├── orca/              # Go module root
+│   ├── compiler/      # Go — compiler internals (lexer/parser/analyzer/codegen)
+│   ├── cmd/           # Go — CLI commands (`build`, `run`, `lsp`)
+│   ├── lsp/           # Go — Language Server Protocol implementation
+│   └── main.go        # CLI entrypoint
 ├── docs/              # VitePress documentation site
 ├── editor/            # Editor integrations (VS Code extension)
 ├── experiments/        # Python experiments and prototypes
@@ -43,7 +47,7 @@ Two LaTeX research papers:
 - **Watch**: `make watch` — auto-rebuilds on changes (in either paper directory)
 - Generated files in `*/out/` are gitignored.
 
-## Compiler (`compiler/`)
+## Compiler (`orca/compiler/`)
 
 ### Pipeline
 
@@ -64,12 +68,10 @@ Currently targeting **LangGraph** as the sole codegen backend.
 - `codegen/` — Python/LangGraph code generation from analyzed AST
 - `diagnostic/` — compiler diagnostics (errors, warnings with source locations)
 - `cursor/` — cursor context for editor tooling
-- `lsp/` — Language Server Protocol implementation
-- `cmd/` — CLI commands (`build`, `run`, `lsp`)
 
 ### Commands
 
-Run from `compiler/`:
+Run from `orca/`:
 
 ```
 go build ./...      # build all packages
@@ -120,4 +122,3 @@ Generated Python code must be fully annotated with source mapping back to the `.
 - **Error cases**: Every stage must test invalid input — bad syntax, undefined references, type mismatches.
 - **Integration tests**: End-to-end `.orca` → `build/` output, verify generated Python is valid.
 - **No test without assertion**: Every test case must assert something meaningful. No empty or placeholder tests.
-

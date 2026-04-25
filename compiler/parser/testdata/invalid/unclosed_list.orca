@@ -1,4 +1,0 @@
-// Error: list missing closing bracket.
-agent a {
-  tools = [web_search, gmail
-}

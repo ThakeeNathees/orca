@@ -1,4 +1,0 @@
-// Error: assignment with no value after =.
-model gpt4 {
-  provider =
-}

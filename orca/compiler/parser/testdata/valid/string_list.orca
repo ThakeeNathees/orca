@@ -1,0 +1,5 @@
+// Lists can contain string literals, not just references.
+agent notifier {
+  scopes = ["chat:write", "channels:read"]
+  prompt = "You send notifications."
+}

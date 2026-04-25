@@ -10,11 +10,11 @@ Build from source:
 
 ```bash
 git clone https://github.com/ThakeeNathees/orca.git
-cd orca/compiler
+cd orca/orca
 make build
 ```
 
-This produces a binary at `compiler/bin/orca`. Add it to your PATH or run it directly.
+This produces a binary at `bin/orca`. Add it to your PATH or run it directly.
 
 ## Your first Orca file
 

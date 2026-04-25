@@ -1,9 +1,0 @@
-let vars {
-  name = "orca"
-  count = 42
-  rate = 3.14
-  enabled = false
-  nothing = null
-  items = ["a", "b", "c"]
-  config = {"key": "value", "num": 1}
-}

@@ -1,9 +1,0 @@
-let vars {
-  api_key = "sk-123"
-}
-
-model gpt4 {
-  provider    = "openai"
-  model_name  = "gpt-4o"
-  temperature = 1
-}

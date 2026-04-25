@@ -127,7 +127,7 @@ app = graph.compile()
 
 ```bash
 git clone https://github.com/ThakeeNathees/orca.git
-cd orca/compiler
+cd orca/orca
 make build
 ```
 

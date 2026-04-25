@@ -1,0 +1,5 @@
+model gpt4 {
+  @desc("LLM provider id")
+  provider   = "openai"
+  model_name = "gpt-4o"
+}

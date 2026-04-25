@@ -1,4 +1,0 @@
-// A tool with a callable invoke.
-tool web_search {
-  invoke = \(query string) -> query
-}

@@ -1,6 +1,0 @@
-// An agent that references a model and uses a list of tools.
-agent researcher {
-  model  = gpt4
-  tools  = [web_search, gmail]
-  prompt = "You are a research assistant."
-}
