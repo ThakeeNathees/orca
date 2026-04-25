@@ -46,7 +46,7 @@ func TestGetBlockSchema(t *testing.T) {
 		{"model schema exists", "model", true, 5},
 		{"agent schema exists", "agent", true, 6},
 		{"tool schema exists", "tool", true, 4},
-		{"workflow schema exists", "workflow", true, 2},
+		{"workflow schema exists", "workflow", true, 3},
 		{"cron schema exists", "cron", true, 2},
 		{"webhook schema exists", "webhook", true, 2},
 		{"schema meta-schema exists (bootstrap schema schema {})", BlockKindSchema, true, 0},

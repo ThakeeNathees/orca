@@ -71,7 +71,7 @@ func Analyze(program *ast.Program) AnalyzedProgram {
 
 		// Analyze and get the non-suppressed diagnostics for the block.
 		var blockDiags []diagnostic.Diagnostic
-		blockDiags = analyzeBlock(block, ap.SymbolTable)
+		blockDiags = analyzeBlock(block, &ap)
 		codes, all := suppressedCodes(block.Annotations)
 		blockDiags = filterSuppressed(blockDiags, codes, all)
 

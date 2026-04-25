@@ -41,7 +41,7 @@ func TestLoadSchemas(t *testing.T) {
 		{"model", "model", 5},
 		{"agent", "agent", 6},
 		{"tool", "tool", 4},
-		{"workflow", "workflow", 2},
+		{"workflow", "workflow", 3},
 		{"cron", "cron", 2},
 		{"webhook", "webhook", 2},
 	}

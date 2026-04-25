@@ -1120,6 +1120,19 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 		errContains string
 	}{
 		{
+			"Node explicit and implicity defn",
+			`model m {provider = "openai" model_name = "gpt-4o" }
+			 agent a { model = m persona = "" }
+			 agent b { model = m persona = "" }
+			 workflow run {
+			   nodes = { "a" : b }
+			   a -> b
+			 }
+			 `,
+			true,
+			"Name \"a\" is already present in the nodes map.",
+		},
+		{
 			"inline branch missing required route field",
 			`workflow wf {
 				agent {
@@ -1257,6 +1270,121 @@ func TestAnalyzeWorkflowExpressions(t *testing.T) {
 			`workflow run { "hello" -> "world" }`,
 			true,
 			"not a valid workflow node",
+		},
+		{
+			"workflow string node alias in nodes map resolves duplicate",
+			`agent A { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+				 nodes = {
+					 "b": A
+				 }
+				 A -> "b" -> C
+			 }`,
+			false,
+			"",
+		},
+		{
+			"workflow string node not listed in nodes map is rejected",
+			`agent A { model = gpt4 }
+			 agent C { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+				 A -> "b" -> C
+			 }`,
+			true,
+			"not a valid workflow node",
+		},
+		{
+			"workflow string node as graph entry when listed in nodes map",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+				 nodes = {
+					 "entry": A
+				 }
+				 "entry" -> B
+			 }`,
+			false,
+			"",
+		},
+		{
+			"workflow string entry node not in nodes map is rejected",
+			`agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run { "ghost" -> A }`,
+			true,
+			"not a valid workflow node",
+		},
+		{
+			"workflow chained string node ids via nodes map",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 agent C { model = gpt4 }
+			 let vars { x = "x" y = \() -> "y" }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+				 nodes = {
+					 "x": B,
+					 "y": C
+				 }
+				 A -> vars.x -> vars.y()
+			 }`,
+			false,
+			"",
+		},
+		{
+			"branch route string target resolves via workflow nodes map",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+				 nodes = {
+					 "alt": B
+				 }
+				 A -> branch { route = { "p": "alt" } }
+			 }`,
+			false,
+			"",
+		},
+		{
+			"branch route string target not in nodes map is rejected",
+			`agent A { model = gpt4 }
+			 agent B { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+				 A -> branch { route = { "p": "missing" } }
+			 }`,
+			true,
+			"not a valid workflow node",
+		},
+		{
+			"nodes map rejects non-workflow-node block value",
+			`model gpt4 { provider = "openai" }
+			 agent A { model = gpt4 }
+			 workflow run {
+				 nodes = {
+					 "n": gpt4
+				 }
+				 A
+			 }`,
+			true,
+			"not a valid workflow node",
+		},
+		{
+			"standalone workflow string node expr allowed when in nodes map",
+			`agent A { model = gpt4 }
+			 model gpt4 { provider = "openai" }
+			 workflow run {
+				 nodes = {
+					 "only": A
+				 }
+				 "only"
+			 }`,
+			false,
+			"",
 		},
 		{
 			"valid inline branch",

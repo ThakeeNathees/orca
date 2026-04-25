@@ -97,9 +97,11 @@ Use `annotated["<name>"]` in a type position to accept any block whose schema ca
 
 ```orca
 schema branch {
-  route = map[string | number | bool, annotated["workflow_node"]]
+  route = map[string | number | bool, annotated["workflow_node"] | string]
 }
 ```
+
+The `| string` side lets route values be **graph node ids**: a string must match a key in the enclosing workflow’s optional `nodes` map (see [`workflow`](/reference/workflow)). A block reference still names the implementation directly.
 
 A block is compatible with `annotated["foo"]` when its defining schema carries `@foo`. Annotated types are nominal: only the annotation name is checked, not the fields.
 

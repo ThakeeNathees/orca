@@ -51,7 +51,7 @@ type ConstValue struct {
 	// Go map iteration is randomized, so when we codegen iterating the map the
 	// order is not deterministic, causing golden test flakiness, and unpredictable
 	// codegen output.
-	Keys   []string     // Map keys
+	Keys   []ConstValue // Map keys
 	Values []ConstValue // Map values
 }
 
@@ -178,7 +178,7 @@ func constFold(expr ast.Expression, ap *AnalyzedProgram) (ConstValue, []diagnost
 // (string, identifier, or integer literal) and every value folds to a constant.
 func foldMapLiteral(ml *ast.MapLiteral, ap *AnalyzedProgram) (ConstValue, []diagnostic.Diagnostic) {
 	var diags []diagnostic.Diagnostic
-	keys := make([]string, 0, len(ml.Entries))
+	keys := make([]ConstValue, 0, len(ml.Entries))
 	values := make([]ConstValue, 0, len(ml.Entries))
 	partial := false
 	for _, ent := range ml.Entries {
@@ -189,18 +189,8 @@ func foldMapLiteral(ml *ast.MapLiteral, ap *AnalyzedProgram) (ConstValue, []diag
 		if keyValue.Kind == ConstUnknown || valueValue.Kind == ConstUnknown {
 			partial = true
 		}
-		if keyValue.Kind != ConstString {
-			start, end := diagnostic.RangeOf(ent.Key)
-			diags = append(diags, diagnostic.Diagnostic{
-				Severity:    diagnostic.Error,
-				Code:        diagnostic.CodeTypeMismatch,
-				Position:    start,
-				EndPosition: end,
-				Message:     fmt.Sprintf("map key must be a string, identifier, or integer, got %T", ent.Key),
-				Source:      "analyzer",
-			})
-		}
-		keys = append(keys, keyValue.Str)
+		// TODO: Make sure key is hashable.
+		keys = append(keys, keyValue)
 		values = append(values, valueValue)
 	}
 	return ConstValue{Kind: ConstMap, Keys: keys, Values: values, Partial: partial}, diags
@@ -267,7 +257,7 @@ func foldBlockBody(body *ast.BlockBody, ap *AnalyzedProgram) (ConstValue, []diag
 	if len(body.Expressions) > 0 {
 		return ConstValue{Kind: ConstBlock, BlockKind: body.Kind, Partial: true}, diags
 	}
-	keys := make([]string, 0, len(body.Assignments))
+	keys := make([]ConstValue, 0, len(body.Assignments))
 	values := make([]ConstValue, 0, len(body.Assignments))
 	partial := false
 	for _, a := range body.Assignments {
@@ -279,7 +269,7 @@ func foldBlockBody(body *ast.BlockBody, ap *AnalyzedProgram) (ConstValue, []diag
 		if v.Kind == ConstUnknown {
 			partial = true
 		}
-		keys = append(keys, a.Name)
+		keys = append(keys, ConstValue{Kind: ConstString, Str: a.Name})
 		values = append(values, v)
 	}
 	return ConstValue{Kind: ConstBlock, BlockKind: body.Kind, Keys: keys, Values: values, Partial: partial}, diags
@@ -430,7 +420,7 @@ func foldIdentifier(e *ast.Identifier, ap *AnalyzedProgram) (ConstValue, []diagn
 
 func findMemberInConstKeyValue(block ConstValue, member string) (ConstValue, bool) {
 	for i, key := range block.Keys {
-		if key == member {
+		if key.Kind == ConstString && key.Str == member {
 			return block.Values[i], true
 		}
 	}
@@ -727,18 +717,30 @@ func constValueEqual(a, b ConstValue) bool {
 	if len(a.Keys) != len(b.Keys) || len(a.Values) != len(b.Values) {
 		return false
 	}
+
 	// Map/block equality is order-insensitive: index b by key, then look up
 	// each of a's keys. This matches how users intuitively read `{a:1,b:2}`
 	// as a set of named fields rather than an ordered sequence.
-	bIndex := make(map[string]ConstValue, len(b.Keys))
-	for i, k := range b.Keys {
-		bIndex[k] = b.Values[i]
-	}
-	for i, k := range a.Keys {
-		bv, ok := bIndex[k]
-		if !ok || !constValueEqual(a.Values[i], bv) {
+
+	// TODO: This is O(n^2) in the number of keys, we should optimize this (maybe not
+	// cause 1. this is compile time and expected not to be large / shouldn't be)
+	for idxA, keyA := range a.Keys {
+		found := false
+		for idxB, keyB := range b.Keys {
+			// TODO: We need to add a depth to prevent stack overflow, cause if someone has recursive map
+			// that might crash the cosntValueEqual function.
+			if constValueEqual(keyA, keyB) {
+				if !constValueEqual(a.Values[idxA], b.Values[idxB]) {
+					return false
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
 			return false
 		}
 	}
+
 	return true
 }

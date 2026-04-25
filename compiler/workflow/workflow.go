@@ -4,33 +4,11 @@
 package workflow
 
 import (
+	"github.com/thakee/orca/compiler/analyzer"
 	"github.com/thakee/orca/compiler/ast"
 	"github.com/thakee/orca/compiler/graph"
 	"github.com/thakee/orca/compiler/token"
 	"github.com/thakee/orca/compiler/types"
-)
-
-const (
-	// Graph terminal node names. These are virtual nodes representing the
-	// start and end of a workflow graph — not user-defined blocks.
-	NodeSTART = "START"
-	NodeEND   = "END"
-
-	// BlockKindBranch is the block kind for branch nodes.
-	BlockKindBranch = "branch"
-
-	// Branch schema field names (see compiler/types/bootstrap.orca). If the
-	// schema renames these fields, update here too. Exported because the
-	// analyzer also looks up these fields when validating route values.
-	BranchFieldTransform = "transform"
-	BranchFieldRoute     = "route"
-
-	// BranchRouteKeyDefault is the route key used as the fallback target
-	// when a branch's transform produces a key not in the explicit route
-	// map. Codegen auto-injects {BranchRouteKeyDefault: END} if the user
-	// did not provide a "default" entry, so LangGraph never receives an
-	// unknown key at runtime.
-	BranchRouteKeyDefault = "default"
 )
 
 // Edge represents a single directed edge between two named nodes
@@ -63,9 +41,14 @@ type Branch struct {
 
 // ResolvedWorkflow holds the extracted graph structure for a single workflow block.
 type ResolvedWorkflow struct {
-	Name       string
-	Nodes      []string            // processing node names (triggers excluded), in order of first appearance
-	Edges      []Edge              // edges between processing nodes + inferred END edges (no START edges)
+	Name  string
+	Nodes []string // processing node names (triggers excluded), in order of first appearance
+	Edges []Edge   // edges between processing nodes + inferred END edges (no START edges)
+
+	// All Node names are implicitly registered as "node_name":node_name, however if any explicit block reference is present,
+	// i.e. "foo": bar, in the nodes map, that get registered here as well.
+	NodeToBlockName map[string]string // node name to block name
+
 	EntryNodes []string            // processing nodes with no incoming edges from other processing nodes
 	Triggers   []string            // trigger node names in order of first appearance
 	TriggerMap map[string][]string // trigger name → processing entry node names it connects to
@@ -124,7 +107,7 @@ func (rw *ResolvedWorkflow) Predecessors(node string) []string {
 		}
 	}
 	for _, e := range rw.Edges {
-		if e.To == node && e.From != NodeSTART && e.From != NodeEND {
+		if e.To == node && e.From != types.NodeSTART && e.From != types.NodeEND {
 			add(e.From)
 		}
 	}
@@ -225,13 +208,18 @@ func Resolve(
 	block *ast.BlockStatement,
 	isTrigger func(string) bool,
 	getBranchBody func(string) *ast.BlockBody,
-	symtab *types.SymbolTable,
+	ap *analyzer.AnalyzedProgram,
 ) ResolvedWorkflow {
+	var symtab *types.SymbolTable
+	if ap != nil {
+		symtab = ap.SymbolTable
+	}
 	ctx := newResolveCtx(isTrigger, getBranchBody, symtab)
 
 	rw := ResolvedWorkflow{
-		Name:       block.Name,
-		TriggerMap: make(map[string][]string),
+		Name:            block.Name,
+		TriggerMap:      make(map[string][]string),
+		NodeToBlockName: make(map[string]string),
 	}
 
 	// Walk every top-level workflow expression. The walker accumulates
@@ -297,12 +285,30 @@ func Resolve(
 	// procGraph, conditional or otherwise). Branches with routes have
 	// outgoing conditional edges, so they are not leaves.
 	for _, leaf := range procGraph.LeafNodes() {
-		rw.Edges = append(rw.Edges, Edge{From: leaf, To: NodeEND})
+		rw.Edges = append(rw.Edges, Edge{From: leaf, To: types.NodeEND})
 	}
 
 	// Entry nodes: processing nodes (including branches) with no incoming
 	// edges in procGraph.
 	rw.EntryNodes = procGraph.EntryNodes()
+
+	// Build NodeToBlockName map
+	for _, node := range rw.Nodes {
+		rw.NodeToBlockName[node] = node
+	}
+	if ap != nil {
+		if nodesField, ok := block.GetFieldExpression(types.NodesField); ok {
+			if constVal, _ := analyzer.ConstFold(nodesField, ap); constVal.Kind == analyzer.ConstMap {
+				for idx, entry := range constVal.Keys {
+					valExpr := constVal.Values[idx].Expr
+					// NOTE: Here the expr cannot be string literal / should't be (cause key is string and
+					// value is a block reference) this should be done in the analyzer phase.
+					valName := ExprToNodeName(valExpr, ap.SymbolTable)
+					rw.NodeToBlockName[entry.Str] = valName
+				}
+			}
+		}
+	}
 
 	return rw
 }
@@ -370,7 +376,7 @@ func branchBodyFor(expr ast.Expression, ctx *resolveCtx) *ast.BlockBody {
 	case *ast.Identifier:
 		return ctx.getBranchBody(e.Value)
 	case *ast.BlockExpression:
-		if e.Kind == BlockKindBranch {
+		if e.Kind == types.BlockKindBranch {
 			return &e.BlockBody
 		}
 	}
@@ -394,7 +400,7 @@ func extractBranch(name string, body *ast.BlockBody, ctx *resolveCtx) {
 	ctx.branchSeen[name] = true
 
 	branch := Branch{Name: name}
-	if t, ok := body.GetFieldExpression(BranchFieldTransform); ok {
+	if t, ok := body.GetFieldExpression(types.BranchFieldTransform); ok {
 		branch.Transform = t
 	}
 
@@ -404,7 +410,7 @@ func extractBranch(name string, body *ast.BlockBody, ctx *resolveCtx) {
 	ctx.branches = append(ctx.branches, branch)
 	idx := len(ctx.branches) - 1
 
-	routeExpr, ok := body.GetFieldExpression(BranchFieldRoute)
+	routeExpr, ok := body.GetFieldExpression(types.BranchFieldRoute)
 	if !ok {
 		return
 	}
@@ -455,6 +461,12 @@ func EdgesFromExpr(expr ast.Expression, symtab *types.SymbolTable) []Edge {
 // For inline BlockExpression nodes, generates a synthetic name like "__branch_0".
 // Returns empty string for unrecognized expression types.
 func ExprToNodeName(expr ast.Expression, symtab *types.SymbolTable) string {
+
+	// String literal is a valid node (reference to a node in the nodes map)
+	if strLit, ok := expr.(*ast.StringLiteral); ok {
+		return strLit.Value
+	}
+
 	if symtab != nil {
 		if block := types.ExprToBlockBody(expr, symtab); block != nil {
 			return block.Name

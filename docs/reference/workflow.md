@@ -6,8 +6,9 @@ The `workflow` block orchestrates multiple agents and tools into a directed grap
 
 ```orca
 workflow <name> {
-  name = <string>  // optional
-  desc = <string>  // optional
+  name = <string>   // optional
+  desc = <string>   // optional
+  nodes = { ... }   // optional — explicit graph node names / duplicates
   <node> -> <node> -> <node>
 }
 ```
@@ -18,6 +19,7 @@ workflow <name> {
 |-------|------|----------|-------------|
 | `name` | `string \| nulltype` | No | Display name for the workflow |
 | `desc` | `string \| nulltype` | No | A description of what the workflow does |
+| `nodes` | `map[string, workflow_node] \| nulltype` | No | Optional registry mapping **graph node id** (string key) to the block that implements that node — see [Explicit `nodes` map](#explicit-nodes-map) |
 
 ## Arrow syntax
 
@@ -55,6 +57,7 @@ The following block types can appear as nodes in a workflow:
 | `tool` | A standalone tool execution (not an agent tool call) |
 | `cron` | Cron schedule metadata; use the block’s name as a graph node |
 | `webhook` | Webhook path/method metadata; use the block’s name as a graph node |
+| `branch` | Conditional routing via a constant `route` map |
 
 When a tool appears in a workflow edge, it runs as an independent graph node. This is different from listing a tool in an agent's `tools` field, where it becomes available for the agent to call.
 
@@ -73,6 +76,33 @@ workflow pipeline {
 Each line is a separate edge chain. Nodes referenced across chains are deduplicated — `writer` appears once in the generated graph.
 
 In this example, `researcher` has no incoming edges so it becomes the entry point. Both `reviewer` and `fact_checker` have no outgoing edges, so both become exit points.
+
+## Explicit `nodes` map
+
+By default, every block you reference in an edge chain is added to the graph under its **block name** (the identifier you declare). That is enough when each physical node appears at most once.
+
+When you need the **same** block to appear as **two different graph nodes** (for example, revisit an agent later in the graph), or you want an edge to use a **string id** that is not the block’s name, declare a `nodes` map. Keys are string literals (graph node ids); values are workflow-capable blocks (`agent`, `tool`, `cron`, `webhook`, inline or named `branch`, and so on).
+
+After registration, you can refer to that id as a **string literal** in edges (and in `branch.route` values) instead of using the block identifier:
+
+```orca
+agent A { model = gpt4 }
+agent B { model = gpt4 }
+model gpt4 { provider = "openai" }
+
+workflow run {
+  nodes = {
+    "second_A": A   // second graph node, same implementation as A
+  }
+  A -> B -> "second_A"
+}
+```
+
+Rules enforced by the analyzer:
+
+- `nodes` must be a **compile-time constant** map (literal or foldable to one). Keys must be constant strings.
+- A string used as a workflow node (`"second_A"`) must appear as a key in `nodes` for that workflow. Otherwise you get an error (unknown graph node id).
+- Values in `nodes` must each resolve to a valid `@workflow_node` block, same as a non-string node reference.
 
 ## Examples
 
@@ -164,17 +194,26 @@ pipeline = pipeline.compile()
 Node wrapper function bodies are currently stubs. Actual agent/tool invocation will be implemented in a future release.
 :::
 
-## Planned: Conditional branching
+## Conditional branching (`branch`)
 
-Conditional routing will use a `branch` block inside workflows:
+Use a `branch` block with a constant `route` map (see [Types — Annotated types](/reference/syntax-overview#annotated-types) for `annotated["workflow_node"]`). Route targets may be block references or **strings** that name a key from the workflow’s `nodes` map (same rules as string literals in edges).
 
 ```orca
+agent A { model = gpt4 }
+agent B { model = gpt4 }
+model gpt4 { provider = "openai" }
+
 workflow pipeline {
+  nodes = {
+    "alt": B
+  }
   classifier -> branch {
-    if ctx.category == "technical": tech_writer
-    if ctx.category == "creative": creative_writer
+    route = {
+      "route_1": A,
+      "route_2": "alt",   // same as B, registered under "alt"
+    }
   }
 }
 ```
 
-This will map to LangGraph's `add_conditional_edges()`. This feature is not yet implemented.
+Codegen maps this to LangGraph conditional edges; `transform` on `branch` is optional for shaping the routing input.
