@@ -43,13 +43,17 @@ Map literals are checked structurally against their expected schema. Missing fie
 ### Invalid block wiring
 
 ```orca
+agent researcher { model = gpt4 }
+model gpt4 { provider = "openai" }
+
 workflow main {
-  start = researcher
-  edge researcher -> nonexistent    // error: `nonexistent` is not a node
+  researcher -> nonexistent    // error: unknown block / invalid node
 }
 ```
 
 Workflow edges, trigger bindings, and tool references are all verified before the graph is emitted.
+
+**String node ids.** In a `workflow` block you may write a string literal as a node (for example `A -> "alias" -> B`) only when `"alias"` is registered as a key in that workflow’s `nodes` map. The analyzer rejects unknown string ids the same way it rejects non–workflow-node blocks.
 
 ### Unsupported expressions in the wrong place
 

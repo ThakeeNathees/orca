@@ -11,14 +11,14 @@ import (
 
 // analyzeBlock validates a top-level block statement by delegating to
 // analyzeBlockBody for the core body validation.
-func analyzeBlock(block *ast.BlockStatement, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+func analyzeBlock(block *ast.BlockStatement, ap *AnalyzedProgram) []diagnostic.Diagnostic {
 	diags := analyzeBlockBody(
 		&block.BlockBody,
 		block.Annotations,
 		block.Name,
 		block.OpenBrace,
 		block.TokenEnd,
-		symbols,
+		ap,
 	)
 	return diags
 }
@@ -33,14 +33,19 @@ func analyzeBlockBody(
 	name string,
 	openBrace token.Token,
 	endToken token.Token,
-	symbols *types.SymbolTable,
+	ap *AnalyzedProgram,
 ) []diagnostic.Diagnostic {
 
 	var diags []diagnostic.Diagnostic
 
+	// Just to be safe
+	if ap == nil {
+		return diags
+	}
+
 	// Get the block blockSchema
 	var blockSchema *types.BlockSchema = nil
-	if ty, ok := symbols.Lookup(name); ok {
+	if ty, ok := ap.SymbolTable.Lookup(name); ok {
 		blockSchema = ty.Block
 
 		// This is a bug actually cause the name should exists in the symbol table.
@@ -97,10 +102,10 @@ func analyzeBlockBody(
 		for _, assign := range body.Assignments {
 			fieldCodes, fieldAll := suppressedCodes(assign.Annotations)
 			if hasSchema {
-				fieldDiags := validateField(assign, body.Kind, *blockSchema.Schema, symbols)
+				fieldDiags := validateField(assign, body.Kind, *blockSchema.Schema, ap)
 				diags = append(diags, filterSuppressed(fieldDiags, fieldCodes, fieldAll)...)
 			} else if assign.Value != nil {
-				refDiags := analyzeExpression(assign.Value, symbols)
+				refDiags := analyzeExpression(assign.Value, ap)
 				diags = append(diags, filterSuppressed(refDiags, fieldCodes, fieldAll)...)
 			}
 		}
@@ -144,17 +149,7 @@ func analyzeBlockBody(
 
 	// Validate expressions: only workflow blocks allow bare expressions.
 	if body.Kind == types.BlockKindWorkflow {
-		for _, expr := range body.Expressions {
-			diags = append(diags, validateWorkflowExpr(expr, symbols)...)
-		}
-
-		// TODO: This used to be a function we removed it some time ago while doing some refactoring
-		// search in commit history to bring this back.
-		//
-		// validateWorkflowEntryNodes checks the cardinality rules for workflow entry nodes:
-		//   - 0 triggers + 2+ entry nodes → error (ambiguous start)
-		//   - 1+ triggers + dangling untriggered entry nodes → warning (unreachable)
-		// diags = append(diags, validateWorkflowEntryNodes(name, body.Expressions, symbols)...)
+		diags = append(diags, validateWorkflowBlock(body, ap)...)
 	}
 
 	// Check for missing required fields.
@@ -184,7 +179,11 @@ func analyzeBlockBody(
 
 // validateField checks a single field assignment against the block's schema.
 // Reports unknown fields, undefined identifier references, and type mismatches.
-func validateField(assign *ast.Assignment, kind string, schema types.BlockSchema, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+func validateField(assign *ast.Assignment, kind string, schema types.BlockSchema, ap *AnalyzedProgram) []diagnostic.Diagnostic {
+	if ap == nil {
+		return nil
+	}
+
 	fieldSchema, ok := schema.Fields[assign.Name]
 	if !ok {
 		start, end := diagnostic.RangeOf(assign)
@@ -204,11 +203,11 @@ func validateField(assign *ast.Assignment, kind string, schema types.BlockSchema
 	}
 
 	// Check for undefined references in identifiers and member access.
-	if diags := analyzeExpression(assign.Value, symbols); len(diags) > 0 {
+	if diags := analyzeExpression(assign.Value, ap); len(diags) > 0 {
 		return diags
 	}
 
-	exprType := types.TypeOf(assign.Value, symbols)
+	exprType := types.TypeOf(assign.Value, ap.SymbolTable)
 	// Skip type validation when the expression type is unknown.
 	if exprType.IsAny() {
 		return nil
@@ -233,7 +232,14 @@ func validateField(assign *ast.Assignment, kind string, schema types.BlockSchema
 
 // analyzeExpression recursively validates all identifier and member access
 // expressions, reporting errors for undefined block references and unknown members.
-func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagnostic.Diagnostic {
+func analyzeExpression(expr ast.Expression, ap *AnalyzedProgram) []diagnostic.Diagnostic {
+
+	if ap == nil {
+		return nil
+	}
+
+	symbols := ap.SymbolTable
+
 	if expr == nil {
 		return nil
 	}
@@ -257,7 +263,7 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		if e == nil {
 			return nil
 		}
-		if diags := analyzeExpression(e.Object, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.Object, ap); len(diags) > 0 {
 			return diags
 		}
 		// Skip member validation for incomplete member access (empty Member
@@ -287,7 +293,7 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 			return nil
 		}
 		for _, elem := range e.Elements {
-			if diags := analyzeExpression(elem, symbols); len(diags) > 0 {
+			if diags := analyzeExpression(elem, ap); len(diags) > 0 {
 				return diags
 			}
 		}
@@ -295,21 +301,21 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		if e == nil {
 			return nil
 		}
-		if diags := analyzeExpression(e.Left, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.Left, ap); len(diags) > 0 {
 			return diags
 		}
-		if diags := analyzeExpression(e.Right, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.Right, ap); len(diags) > 0 {
 			return diags
 		}
 	case *ast.Subscription:
 		if e == nil {
 			return nil
 		}
-		if diags := analyzeExpression(e.Object, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.Object, ap); len(diags) > 0 {
 			return diags
 		}
 		for _, idx := range e.Indices {
-			if diags := analyzeExpression(idx, symbols); len(diags) > 0 {
+			if diags := analyzeExpression(idx, ap); len(diags) > 0 {
 				return diags
 			}
 		}
@@ -357,11 +363,11 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		if e == nil {
 			return nil
 		}
-		if diags := analyzeExpression(e.Callee, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.Callee, ap); len(diags) > 0 {
 			return diags
 		}
 		for _, arg := range e.Arguments {
-			if diags := analyzeExpression(arg, symbols); len(diags) > 0 {
+			if diags := analyzeExpression(arg, ap); len(diags) > 0 {
 				return diags
 			}
 		}
@@ -373,10 +379,10 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 			return nil
 		}
 		for _, entry := range e.Entries {
-			if diags := analyzeExpression(entry.Key, symbols); len(diags) > 0 {
+			if diags := analyzeExpression(entry.Key, ap); len(diags) > 0 {
 				return diags
 			}
-			if diags := analyzeExpression(entry.Value, symbols); len(diags) > 0 {
+			if diags := analyzeExpression(entry.Value, ap); len(diags) > 0 {
 				return diags
 			}
 		}
@@ -384,13 +390,13 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		if e == nil {
 			return nil
 		}
-		if diags := analyzeExpression(e.Condition, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.Condition, ap); len(diags) > 0 {
 			return diags
 		}
-		if diags := analyzeExpression(e.TrueExpr, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.TrueExpr, ap); len(diags) > 0 {
 			return diags
 		}
-		if diags := analyzeExpression(e.FalseExpr, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.FalseExpr, ap); len(diags) > 0 {
 			return diags
 		}
 	case *ast.Lambda:
@@ -400,12 +406,12 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		// Check param type expressions and return type against current scope
 		// (before pushing params).
 		for _, p := range e.Params {
-			if diags := analyzeExpression(p.TypeExpr, symbols); len(diags) > 0 {
+			if diags := analyzeExpression(p.TypeExpr, ap); len(diags) > 0 {
 				return diags
 			}
 		}
 		if e.ReturnType != nil {
-			if diags := analyzeExpression(e.ReturnType, symbols); len(diags) > 0 {
+			if diags := analyzeExpression(e.ReturnType, ap); len(diags) > 0 {
 				return diags
 			}
 		}
@@ -423,7 +429,7 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 			symbols.Define(p.Name.Value, typ, p.Name.Start())
 		}
 		// Check body against scope with params visible.
-		if diags := analyzeExpression(e.Body, symbols); len(diags) > 0 {
+		if diags := analyzeExpression(e.Body, ap); len(diags) > 0 {
 			symbols.PopScope()
 			return diags
 		}
@@ -449,7 +455,7 @@ func analyzeExpression(expr ast.Expression, symbols *types.SymbolTable) []diagno
 		if e == nil {
 			return nil
 		}
-		diags := analyzeBlockBody(&e.BlockBody, nil, e.Name, e.TokenStart, e.TokenEnd, symbols)
+		diags := analyzeBlockBody(&e.BlockBody, nil, e.Name, e.TokenStart, e.TokenEnd, ap)
 		if len(diags) > 0 {
 			return diags
 		}

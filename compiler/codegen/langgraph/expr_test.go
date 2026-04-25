@@ -594,7 +594,7 @@ func TestConstValToSource(t *testing.T) {
 			name: "map preserves source order",
 			in: analyzer.ConstValue{
 				Kind:   analyzer.ConstMap,
-				Keys:   []string{"z", "a"},
+				Keys:   []analyzer.ConstValue{{Kind: analyzer.ConstString, Str: "z"}, {Kind: analyzer.ConstString, Str: "a"}},
 				Values: []analyzer.ConstValue{{Kind: analyzer.ConstNumber, Number: 1}, {Kind: analyzer.ConstNumber, Number: 2}},
 			},
 			want: `{"z": 1, "a": 2}`,

@@ -275,7 +275,7 @@ func constValToSource(b *LangGraphBackend, constVal analyzer.ConstValue) string 
 		for i, key := range constVal.Keys {
 			// TODO: Handle escaped quotes and newlines in the string.
 			value := constVal.Values[i]
-			entries = append(entries, "\""+key+"\": "+constValToSource(b, value))
+			entries = append(entries, constValToSource(b, key)+": "+constValToSource(b, value))
 		}
 		return "{" + strings.Join(entries, ", ") + "}"
 	case analyzer.ConstBlock:
@@ -287,7 +287,7 @@ func constValToSource(b *LangGraphBackend, constVal analyzer.ConstValue) string 
 		sb.WriteString(fmt.Sprintf("%sblock(%q, ", orcaPrefix, constVal.BlockKind))
 		for i, key := range constVal.Keys {
 			value := constVal.Values[i]
-			sb.WriteString(key)
+			sb.WriteString(constValToSource(b, key))
 			sb.WriteString("=")
 			sb.WriteString(constValToSource(b, value))
 			sb.WriteString(", ")

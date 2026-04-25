@@ -77,5 +77,6 @@ orca build
 2. Three agents form a pipeline: researcher finds information, writer drafts the article, editor polishes it.
 3. The `workflow` block connects them with arrow syntax: `researcher -> writer -> editor`.
 4. `START` and `END` are inferred automatically — `researcher` has no incoming edges so it becomes the entry point, `editor` has no outgoing edges so it becomes the exit.
+5. For duplicate graph nodes or string ids in edges, use the optional `nodes` map described in the [`workflow` reference](/reference/workflow#explicit-nodes-map).
 
 This pattern — splitting definitions across multiple `.orca` files — is idiomatic. The compiler reads all `.orca` files in the directory and resolves cross-file references automatically.

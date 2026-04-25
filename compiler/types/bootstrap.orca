@@ -67,6 +67,56 @@ schema workflow {
 
   @desc("The description of the workflow.")
   desc = string | nulltype
+
+  @desc(```
+  The nodes in this workflow. This map is optional as all the nodes are
+  implicitly added to the workflow.
+
+    example:
+    workflow wf {
+      node_1 -> node_2
+    }
+
+  is equivalent to:
+    workflow wf {
+      nodes = {
+        "node_1": node_1,
+        "node_2": node_2,
+      }
+      node_1 -> node_2
+    }
+
+  However in some cases you may need to have duplicate nodes (i.e. same node
+  reference by two different node in the graph) or the node name has to be
+  overridden. In such cases you can use the `nodes` field to explicitly.
+
+  example:
+    workflow wf {
+      nodes = {
+        "node_1": node_1,
+        "node_2": node_2,
+        "node_3": node_1,
+      }
+
+      // Note that node_1 is used twice in the graph.
+      // So we need the above syntax to explicitly specify.
+      //
+      // +--------+    +--------+    +--------+
+      // | node_1 | -> | node_2 | -> | node_1 |
+      // +--------+    +--------+    +--------+
+      //   ^                 |
+      //   +-----------------+
+
+      node_1 -> node_2 -> branch {
+        route = {
+          "route_1": node_1,
+          "route_2": "node_3",
+        }
+      }
+    }
+
+  ```)
+  nodes = map[string, annotated["workflow_node"]] | nulltype
 }
 
 @suppress("duplicate-block")
@@ -165,8 +215,8 @@ schema branch {
     some_agent -> branch {
       transform = \(out string) -> out.lower()
       route = {
-        "route_1": agent_1,
-        "route_2": agent_2,
+        "route_1": agent_1,   // Node block reference
+        "route_2": "agent_2", // Name of the node (lookup in the workflow)
       }
     }
   }
@@ -174,7 +224,7 @@ schema branch {
   transform = callable | nulltype
 
   @desc("The routes to take based on the input.")
-  route = map[string | number | bool, annotated["workflow_node"]]
+  route = map[string | number | bool, annotated["workflow_node"] | string]
 }
 
 // The Type of `<expr> -> <expr>`

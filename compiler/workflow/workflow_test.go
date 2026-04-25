@@ -242,7 +242,7 @@ func TestResolve(t *testing.T) {
 
 			// Verify no START edges in the result.
 			for _, e := range rw.Edges {
-				if e.From == NodeSTART {
+				if e.From == types.NodeSTART {
 					t.Errorf("unexpected START edge: %v", e)
 				}
 			}
@@ -653,7 +653,7 @@ func TestWalkExprBranchNested(t *testing.T) {
 func TestWalkExprBranchNamed(t *testing.T) {
 	// A -> my_branch (named branch defined elsewhere)
 	branchBody := &ast.BlockBody{
-		Kind: BlockKindBranch,
+		Kind: types.BlockKindBranch,
 		Assignments: []*ast.Assignment{
 			{Name: "route", Value: &ast.MapLiteral{Entries: []ast.MapEntry{
 				{Key: strKey("x"), Value: ident("B")},
@@ -692,7 +692,7 @@ func TestWalkExprBranchCycle(t *testing.T) {
 	// my_branch with route "again" -> my_branch (loops back to itself).
 	var branchBody *ast.BlockBody
 	branchBody = &ast.BlockBody{
-		Kind: BlockKindBranch,
+		Kind: types.BlockKindBranch,
 		Assignments: []*ast.Assignment{
 			{Name: "route", Value: &ast.MapLiteral{Entries: []ast.MapEntry{
 				{Key: strKey("again"), Value: ident("my_branch")},
@@ -825,8 +825,8 @@ func TestResolveBranch(t *testing.T) {
 			[]string{"A", "br_simple", "B", "C"},
 			[]Edge{
 				{From: "A", To: "br_simple"},
-				{From: "B", To: NodeEND},
-				{From: "C", To: NodeEND},
+				{From: "B", To: types.NodeEND},
+				{From: "C", To: types.NodeEND},
 			},
 			[]string{"A"},
 			1,
@@ -842,8 +842,8 @@ func TestResolveBranch(t *testing.T) {
 			[]Edge{
 				{From: "B", To: "C"},
 				{From: "A", To: "br_chain"},
-				{From: "C", To: NodeEND},
-				{From: "D", To: NodeEND},
+				{From: "C", To: types.NodeEND},
+				{From: "D", To: types.NodeEND},
 			},
 			[]string{"A"},
 			1,
@@ -875,8 +875,8 @@ func TestResolveBranch(t *testing.T) {
 			[]Edge{
 				{From: "A", To: "my_branch"},
 				{From: "B", To: "my_branch"},
-				{From: "C", To: NodeEND},
-				{From: "D", To: NodeEND},
+				{From: "C", To: types.NodeEND},
+				{From: "D", To: types.NodeEND},
 			},
 			[]string{"A", "B"},
 			1,
@@ -894,7 +894,7 @@ func TestResolveBranch(t *testing.T) {
 				{From: "B", To: "D"},
 				{From: "C", To: "D"},
 				{From: "A", To: "br_complex"},
-				{From: "D", To: NodeEND},
+				{From: "D", To: types.NodeEND},
 			},
 			[]string{"A"},
 			1,

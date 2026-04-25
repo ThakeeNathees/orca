@@ -104,7 +104,7 @@ func TestConstFoldListAndMap(t *testing.T) {
 			}},
 			want: ConstValue{
 				Kind:   ConstMap,
-				Keys:   []string{"a", "b"},
+				Keys:   []ConstValue{{Kind: ConstString, Str: "a"}, {Kind: ConstString, Str: "b"}},
 				Values: []ConstValue{{Kind: ConstNumber, Number: 1}, {Kind: ConstString, Str: "z"}},
 			},
 		},
@@ -113,10 +113,10 @@ func TestConstFoldListAndMap(t *testing.T) {
 			expr: &ast.MapLiteral{Entries: []ast.MapEntry{
 				{Key: id("k"), Value: i(7)},
 			}},
-			// Identifier keys are not ConstString; storage uses keyValue.Str (empty for non-string kinds).
+			// Identifier keys preserve their folded kind.
 			want: ConstValue{
 				Kind:    ConstMap,
-				Keys:    []string{""},
+				Keys:    []ConstValue{{Kind: ConstUnknown}},
 				Values:  []ConstValue{{Kind: ConstNumber, Number: 7}},
 				Partial: true,
 			},
@@ -126,10 +126,10 @@ func TestConstFoldListAndMap(t *testing.T) {
 			expr: &ast.MapLiteral{Entries: []ast.MapEntry{
 				{Key: i(10), Value: str("ten")},
 			}},
-			// Integer keys use the same map path; key string is only filled for ConstString keys.
+			// Numeric keys preserve their folded kind.
 			want: ConstValue{
 				Kind:   ConstMap,
-				Keys:   []string{""},
+				Keys:   []ConstValue{{Kind: ConstNumber, Number: 10}},
 				Values: []ConstValue{{Kind: ConstString, Str: "ten"}},
 			},
 		},
@@ -157,20 +157,17 @@ func TestConstFoldMapNonStringKeyDiagnostic(t *testing.T) {
 		{Key: numKey, Value: str},
 	}}
 	got, diags := ConstFold(expr, nil)
-	// Non-string keys still produce ConstMap; the key is stored under keyValue.Str (empty for number).
+	// Non-string keys are preserved as their folded kind.
 	wantMap := ConstValue{
 		Kind:   ConstMap,
-		Keys:   []string{""},
+		Keys:   []ConstValue{{Kind: ConstNumber, Number: 3.14}},
 		Values: []ConstValue{{Kind: ConstString, Str: "v"}},
 	}
 	if !constValueEqual(got, wantMap) {
-		t.Errorf("expected ConstMap with empty-string key, got %#v", got)
+		t.Errorf("expected ConstMap with numeric key, got %#v", got)
 	}
-	if len(diags) != 1 {
-		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
-	}
-	if diags[0].Position.Line != 5 || diags[0].Position.Column != 3 {
-		t.Errorf("diagnostic position = %d:%d, want 5:3", diags[0].Position.Line, diags[0].Position.Column)
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %d", len(diags))
 	}
 }
 
@@ -197,7 +194,7 @@ func TestConstFoldBlockExpression(t *testing.T) {
 			want: ConstValue{
 				Kind:      ConstBlock,
 				BlockKind: "model",
-				Keys:      []string{"provider"},
+				Keys:      []ConstValue{{Kind: ConstString, Str: "provider"}},
 				Values:    []ConstValue{{Kind: ConstString, Str: "openai"}},
 			},
 		},
@@ -759,7 +756,7 @@ func TestConstFoldIdentifier(t *testing.T) {
 			},
 			want: ConstValue{
 				Kind: ConstBlock,
-				Keys: []string{"provider", "temperature"},
+				Keys: []ConstValue{{Kind: ConstString, Str: "provider"}, {Kind: ConstString, Str: "temperature"}},
 				Values: []ConstValue{
 					{Kind: ConstString, Str: "openai"},
 					{Kind: ConstNumber, Number: 0.5},
@@ -930,13 +927,13 @@ func TestConstFoldPreservesKeyOrder(t *testing.T) {
 			{Key: str("c"), Value: i(4)},
 		}}
 		got, _ := ConstFold(expr, nil)
-		wantKeys := []string{"d", "b", "a", "c"}
+		wantKeys := []ConstValue{{Kind: ConstString, Str: "d"}, {Kind: ConstString, Str: "b"}, {Kind: ConstString, Str: "a"}, {Kind: ConstString, Str: "c"}}
 		if len(got.Keys) != len(wantKeys) {
 			t.Fatalf("Keys length = %d, want %d", len(got.Keys), len(wantKeys))
 		}
 		for idx, k := range wantKeys {
-			if got.Keys[idx] != k {
-				t.Errorf("Keys[%d] = %q, want %q", idx, got.Keys[idx], k)
+			if !constValueEqual(got.Keys[idx], k) {
+				t.Errorf("Keys[%d] = %#v, want %#v", idx, got.Keys[idx], k)
 			}
 		}
 	})
@@ -951,13 +948,13 @@ func TestConstFoldPreservesKeyOrder(t *testing.T) {
 			},
 		}}
 		got, _ := ConstFold(be, nil)
-		wantKeys := []string{"provider", "model_name", "temperature"}
+		wantKeys := []ConstValue{{Kind: ConstString, Str: "provider"}, {Kind: ConstString, Str: "model_name"}, {Kind: ConstString, Str: "temperature"}}
 		if len(got.Keys) != len(wantKeys) {
 			t.Fatalf("Keys length = %d, want %d", len(got.Keys), len(wantKeys))
 		}
 		for idx, k := range wantKeys {
-			if got.Keys[idx] != k {
-				t.Errorf("Keys[%d] = %q, want %q", idx, got.Keys[idx], k)
+			if !constValueEqual(got.Keys[idx], k) {
+				t.Errorf("Keys[%d] = %#v, want %#v", idx, got.Keys[idx], k)
 			}
 		}
 	})
