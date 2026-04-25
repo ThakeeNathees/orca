@@ -1,0 +1,4 @@
+model m1 {
+  provider   = "bad" + "_provider"
+  model_name = "x"
+}

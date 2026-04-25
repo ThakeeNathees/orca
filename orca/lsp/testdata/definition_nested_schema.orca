@@ -1,0 +1,18 @@
+
+schema my_t {
+  v = schema {
+    ls = list [
+      schema {
+        item = string
+      }
+    ]
+  }
+}
+
+@suppress("missing-field")
+my_t t {}
+
+foo bar {
+  baz = t.v.ls[0].item
+}
+

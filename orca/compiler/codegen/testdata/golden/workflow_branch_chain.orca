@@ -1,0 +1,34 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+agent classifier {
+  model   = gpt4
+  persona = "Classify input."
+}
+
+agent drafter {
+  model   = gpt4
+  persona = "Draft content."
+}
+
+agent reviewer {
+  model   = gpt4
+  persona = "Review content."
+}
+
+agent fallback {
+  model   = gpt4
+  persona = "Handle unrecognized input."
+}
+
+workflow pipeline {
+  classifier -> branch {
+    transform = \(out string) -> out
+    route = {
+      "draft": drafter -> reviewer,
+      "default": fallback,
+    }
+  }
+}

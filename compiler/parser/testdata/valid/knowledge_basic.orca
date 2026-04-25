@@ -1,5 +1,0 @@
-// A knowledge source for RAG-based retrieval.
-knowledge company_docs {
-  source = "./data/docs"
-  type   = "directory"
-}

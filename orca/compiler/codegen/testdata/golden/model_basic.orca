@@ -1,0 +1,10 @@
+model gpt4 {
+  provider    = "openai"
+  model_name  = "gpt-4o"
+  temperature = 0.7
+}
+
+agent writer {
+  model   = gpt4
+  persona = "You are a helpful writer."
+}

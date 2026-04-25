@@ -1,4 +1,0 @@
-// Error: block keyword without a name identifier.
-model {
-  provider = "openai"
-}

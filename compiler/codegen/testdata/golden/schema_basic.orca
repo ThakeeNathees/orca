@@ -1,4 +1,0 @@
-schema vpc_data_t {
-  region         = string
-  instance_count = number
-}

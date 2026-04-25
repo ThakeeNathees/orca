@@ -1,5 +1,0 @@
-let vars {
-  label = true ? "yes" : "no"
-  nested = true ? false ? "a" : "b" : "c"
-  with_arith = 1 + 2 ? 3 * 4 : 5
-}

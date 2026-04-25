@@ -1,5 +1,0 @@
-schema cfg {
-  @required
-  @desc("Region code")
-  region = string
-}

@@ -1,5 +1,0 @@
-// A custom function tool with a callable invoke.
-tool calculate_risk {
-  desc = "Calculate risk score for a given portfolio"
-  invoke = \(portfolio number) -> portfolio * 0.1
-}

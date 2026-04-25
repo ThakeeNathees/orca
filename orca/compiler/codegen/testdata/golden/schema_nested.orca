@@ -1,0 +1,11 @@
+schema address {
+  @desc("Street name")
+  street = string
+  city   = string
+}
+
+schema person {
+  name = string
+  @desc("Home address")
+  home = address
+}

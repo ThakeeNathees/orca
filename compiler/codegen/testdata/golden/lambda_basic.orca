@@ -1,6 +1,0 @@
-let funcs {
-  add = \(a number, b number) number -> a + b
-  double = \(x number) -> x * 2
-  greet = \() -> "hello"
-  add_k = \(k number) -> \(n number) -> k + n
-}

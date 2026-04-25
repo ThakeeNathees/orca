@@ -1,4 +1,0 @@
-// A basic workflow block with metadata fields.
-workflow report_pipeline {
-  desc = "Research, write, and review a report."
-}

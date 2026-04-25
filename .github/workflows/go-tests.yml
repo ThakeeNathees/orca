@@ -14,19 +14,19 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: compiler/go.mod
-          cache-dependency-path: compiler/go.sum
+          go-version-file: orca/go.mod
+          cache-dependency-path: orca/go.sum
 
       - name: Run tests with coverage
         run: go test -coverprofile=coverage.out ./...
-        working-directory: compiler
+        working-directory: orca
 
       - name: Get PR coverage
         id: pr_cov
         run: |
           pct=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $NF}' | tr -d '%')
           echo "pct=$pct" >> $GITHUB_OUTPUT
-        working-directory: compiler
+        working-directory: orca
 
       - name: Checkout main for base coverage
         if: github.event_name == 'pull_request'
@@ -46,7 +46,7 @@ jobs:
             pct=0
           fi
           echo "pct=$pct" >> $GITHUB_OUTPUT
-        working-directory: main-branch/compiler
+        working-directory: main-branch/orca
 
       - name: Check coverage does not drop by more than 10%
         if: github.event_name == 'pull_request'

@@ -1,0 +1,4 @@
+model m1 {
+  provider   = "anth" + "ro" + "pic"
+  model_name = "claude"
+}

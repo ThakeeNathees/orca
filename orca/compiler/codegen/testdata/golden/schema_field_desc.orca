@@ -1,0 +1,4 @@
+schema vpc_data_t {
+  @desc("AWS region")
+  region = string
+}

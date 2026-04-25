@@ -1,3 +1,0 @@
-// Empty blocks are valid — no assignments inside.
-model minimal {}
-agent stub {}
