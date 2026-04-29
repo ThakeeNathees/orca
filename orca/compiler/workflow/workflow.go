@@ -191,6 +191,35 @@ func (rw *ResolvedWorkflow) IsFanOut() bool {
 	return false
 }
 
+// FIXME: Remove the version 1 (bellow) and change wfBlock from BlockStatement to BlockBody (maybe)
+// Also the return type could be a pointer (maybe)
+func ResolveV2(ap *analyzer.AnalyzedProgram, wfBlock *ast.BlockStatement) ResolvedWorkflow {
+
+	triggerPredicate := func(blockName string) bool {
+		typ, ok := ap.SymbolTable.Lookup(blockName)
+		if !ok {
+			return false
+		}
+		return types.IsAnnotated(typ, types.AnnotationTriggerNode)
+	}
+
+	branchBodyLookup := func(name string) *ast.BlockBody {
+		typ, ok := ap.SymbolTable.Lookup(name)
+		if !ok {
+			return nil
+		}
+		if typ.Block == nil || typ.Block.Ast == nil {
+			return nil
+		}
+		if typ.Block.Ast.Kind != types.BlockKindBranch {
+			return nil
+		}
+		return typ.Block.Ast
+	}
+
+	return Resolve(wfBlock, triggerPredicate, branchBodyLookup, ap)
+}
+
 // Resolve extracts nodes, edges, and branches from a workflow block by
 // recursively walking its expressions with walkExpr. The isTrigger predicate
 // identifies trigger blocks (cron, webhook); the getBranchBody predicate

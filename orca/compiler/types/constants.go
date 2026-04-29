@@ -31,7 +31,8 @@ const (
 	NodeEND   = "END"
 
 	// Field name "nodes" in the workflow block.
-	NodesField = "nodes"
+	NodesField       = "nodes"
+	WebhookPortField = "webhook_port"
 
 	// Branch schema field names (see compiler/types/bootstrap.orca). If the
 	// schema renames these fields, update here too. Exported because the
@@ -57,4 +58,6 @@ const (
 	LangTagJavaScript = "js"
 	LangTagJson       = "json"
 	LangTagYaml       = "yaml"
+
+	DefaultWebhookPort = 8080
 )
