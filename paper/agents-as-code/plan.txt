@@ -1,0 +1,37 @@
+1. Introduction
+
+- Problem
+- Why it matters
+- Your solution (DSL)
+- Key contributions (bullet points)
+
+2. Background / Motivation
+- Agentic AI overview
+- Existing approaches (LangChain, AutoGPT-style systems)
+- Their limitations
+
+3. Design of the DSL
+- Core abstractions
+- Syntax examples
+- Execution model
+- Architecture
+
+4. Implementation
+- How you built it
+- Runtime / interpreter / compiler
+- Integration with LLMs
+- Editor Integrations
+
+5. Evaluation
+- Case studies
+- Comparisons
+- Metrics
+
+6. Related Work
+- Other DSLs
+- AI orchestration frameworks
+- Workflow engines
+
+7. Conclusion
+- Summary
+- Future work
