@@ -29,6 +29,10 @@ type Event struct {
 	StreamData  *EventMsgStreamData `json:"stream_data"`
 	DoneData    *EventDoneData      `json:"done_data"`
 	ErrorData   *EventErrorData     `json:"error_data"`
+
+	// Persisted indicates the event was already written to DB before enqueueing.
+	// This is runtime-only metadata and is intentionally not serialized.
+	Persisted bool `json:"-"`
 }
 
 type EventWebhookData struct {
@@ -38,7 +42,6 @@ type EventWebhookData struct {
 	// Example use:
 	// webhookEvent.RespondFunc(func (stream chan any) {
 	//   stream <- "Acknowledged"
-	//   close(stream)
 	// })
 	RespondCallback func(func(chan any)) `json:"-"`
 }

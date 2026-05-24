@@ -33,9 +33,11 @@ func ToPascalCase(s string) string {
 	return b.String()
 }
 
+// WebhookHandler registers one HTTP route. Handler receives the live request (body,
+// query including run_id) and the response stream channel used by the CLI listener.
 type WebhookHandler struct {
 	Endpoint string
-	Handler  func(chan any)
+	Handler  func(w http.ResponseWriter, r *http.Request, stream chan any)
 }
 
 // HttpStreamingHandler is a helper function to create a HTTP handler that streams data to the client.

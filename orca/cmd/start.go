@@ -16,6 +16,7 @@ import (
 	"github.com/thakee/orca/orca/compiler/helper"
 	"github.com/thakee/orca/orca/compiler/lexer"
 	"github.com/thakee/orca/orca/compiler/parser"
+	"github.com/thakee/orca/orca/compiler/types"
 	"github.com/thakee/orca/orca/runtime/agentgraph"
 	"github.com/thakee/orca/orca/runtime/db"
 )
@@ -81,9 +82,15 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	wfBlock, err := findWorkflowBlock(analyzedProg.Ast)
+	if err != nil {
+		return err
+	}
+
 	// Create the agent graph.
 	agentGraph := agentgraph.NewAgentGraph(agentgraph.AgentGraphConfig{
 		Prog:                 &analyzedProg,
+		WorkflowBlock:        wfBlock,
 		Db:                   db.NewInMemoryDB(),
 		EventBufferSize:      100,
 		Logger:               log.New(os.Stdout, "agentgraph: ", log.LstdFlags|log.Lmsgprefix),
@@ -94,6 +101,23 @@ func runStart(cmd *cobra.Command, args []string) error {
 	return agentGraph.StartMainLoop()
 }
 
+// findWorkflowBlock returns the first top-level workflow block in the program.
+func findWorkflowBlock(prog *ast.Program) (*ast.BlockStatement, error) {
+	if prog == nil {
+		return nil, fmt.Errorf("program is nil")
+	}
+	for _, stmt := range prog.Statements {
+		b, ok := stmt.(*ast.BlockStatement)
+		if !ok {
+			continue
+		}
+		if b.Kind == types.BlockKindWorkflow {
+			return b, nil
+		}
+	}
+	return nil, fmt.Errorf("no workflow block found")
+}
+
 func startWebhookListener(port int, webhooks []helper.WebhookHandler) error {
 
 	// Register endpoints for each webhook.
@@ -101,26 +125,26 @@ func startWebhookListener(port int, webhooks []helper.WebhookHandler) error {
 
 		endpoint := webhooks[i].Endpoint
 		handler := webhooks[i].Handler
-		respChan := make(chan any)
 
-		http.HandleFunc(endpoint, helper.HttpStreamingHandler(func(w http.ResponseWriter, f http.Flusher) {
+		http.HandleFunc(endpoint, func(w http.ResponseWriter, r *http.Request) {
+			streaming := helper.HttpStreamingHandler(func(w http.ResponseWriter, f http.Flusher) {
+				respChan := make(chan any)
+				go func() {
+					defer close(respChan)
+					handler(w, r, respChan)
+				}()
 
-			// Start the handler in a separate goroutine.
-			go handler(respChan)
-
-			// While the channel is open, keep sending data to the client.
-			// Encode writes the JSON directly to the ResponseWriter and adds a newline
-			encoder := json.NewEncoder(w)
-			for data := range respChan {
-				if err := encoder.Encode(data); err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
+				encoder := json.NewEncoder(w)
+				for data := range respChan {
+					if err := encoder.Encode(data); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					f.Flush()
 				}
-				// Flush the data to client.
-				f.Flush()
-			}
-
-		}))
+			})
+			streaming(w, r)
+		})
 	}
 
 	// Start the HTTP server (blocking).

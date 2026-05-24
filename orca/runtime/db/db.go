@@ -7,6 +7,12 @@ type DB interface {
 	// Returns the list of running execution IDs.
 	GetRunningExecutionIDs() []string
 
+	// EnsureExecution marks runID as an active execution if it does not already exist.
+	EnsureExecution(runID string) error
+
+	// CompleteExecution marks runID as no longer active.
+	CompleteExecution(runID string) error
+
 	// Adds an event to the database.
 	AddEvent(runID string, event *Event) error
 
