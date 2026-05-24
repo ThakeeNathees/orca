@@ -1,3 +1,8 @@
+> [!IMPORTANT]  
+> **Architectural Update:** The core workflow engine is currently being re-engineered entirely in Go. After evaluating system constraints and scalability requirements, the dependency on LangGraph was deprecated in favor of a bespoke, scratch-built orchestration layer. 
+> 
+> Please review the `wip/core-workflow-refactor` branch for the new custom implementation.
+
 <p align="center">
   <img src="docs/public/cover.png" alt="Orca">
 </p>
