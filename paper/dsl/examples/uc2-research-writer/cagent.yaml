@@ -1,0 +1,21 @@
+version: "1"
+models:
+  claude:
+    provider: anthropic
+    model: claude-opus-4.6
+tools:
+  web_search:
+    type: builtin.web_search
+agents:
+  researcher:
+    model: claude
+    instruction: You research tech trends.
+    tools: [web_search]
+  writer:
+    model: claude
+    instruction: You write concise reports.
+workflows:
+  research_and_write:
+    steps:
+      - agent: researcher
+      - agent: writer

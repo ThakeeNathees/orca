@@ -1,0 +1,24 @@
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+tool fetch_stocks {
+  desc   = "Fetch stock prices."
+  invoke = "tools.stocks.fetch"
+}
+
+agent analyst {
+  model   = gpt4
+  tools   = [fetch_stocks]
+  persona = "You summarise market movement."
+}
+
+workflow morning_brief {
+  analyst
+}
+
+cron daily_open {
+  schedule = "30 13 * * 1-5"
+  run      = morning_brief
+}

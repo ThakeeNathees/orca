@@ -1,0 +1,5 @@
+# Output PDF and aux files under out/ (matches Makefile).
+$out_dir = 'out';
+$pdf_mode = 1;
+# Ensure BibTeX runs when .aux requests it (fixes undefined citations).
+$bibtex_use = 2;

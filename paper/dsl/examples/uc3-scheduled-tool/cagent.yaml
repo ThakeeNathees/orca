@@ -1,0 +1,20 @@
+version: "1"
+models:
+  gpt4:
+    provider: openai
+    model: gpt-4o
+tools:
+  fetch_stocks:
+    type: python
+    invoke: tools.stocks.fetch
+    description: Fetch stock prices.
+agents:
+  analyst:
+    model: gpt4
+    instruction: You summarise market movement.
+    tools: [fetch_stocks]
+workflows:
+  morning_brief:
+    steps:
+      - agent: analyst
+# cagent has no native scheduler; wrap in an external cron job.

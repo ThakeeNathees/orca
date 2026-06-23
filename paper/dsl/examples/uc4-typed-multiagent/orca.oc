@@ -1,0 +1,42 @@
+schema Ticket {
+  id       = str
+  subject  = str
+  body     = str
+  priority = str | null
+}
+
+schema Resolution {
+  ticket_id = str
+  category  = str
+  reply     = str
+}
+
+model gpt4 {
+  provider   = "openai"
+  model_name = "gpt-4o"
+}
+
+input incoming {
+  type = Ticket
+  desc = "Ticket received from the support inbox."
+}
+
+agent triager {
+  model         = gpt4
+  persona       = "Classify tickets by category."
+  output_schema = Resolution
+}
+
+agent responder {
+  model   = gpt4
+  persona = "Draft a reply using the triage result."
+}
+
+agent qa {
+  model   = gpt4
+  persona = "Check the reply for tone."
+}
+
+workflow support_pipeline {
+  triager -> responder -> qa
+}

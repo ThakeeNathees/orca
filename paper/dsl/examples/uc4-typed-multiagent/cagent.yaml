@@ -1,0 +1,30 @@
+version: "1"
+# cagent has no user-defined schema primitive; Resolution is expressed
+# inline via a JSON-schema block, and Ticket flows as free-form input.
+models:
+  gpt4:
+    provider: openai
+    model: gpt-4o
+agents:
+  triager:
+    model: gpt4
+    instruction: Classify tickets by category.
+    output_schema:
+      type: object
+      required: [ticket_id, category, reply]
+      properties:
+        ticket_id: {type: string}
+        category:  {type: string}
+        reply:     {type: string}
+  responder:
+    model: gpt4
+    instruction: Draft a reply using the triage result.
+  qa:
+    model: gpt4
+    instruction: Check the reply for tone.
+workflows:
+  support_pipeline:
+    steps:
+      - agent: triager
+      - agent: responder
+      - agent: qa
